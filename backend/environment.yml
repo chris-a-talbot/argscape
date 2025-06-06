@@ -1,0 +1,17 @@
+name: argscape
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - tskit
+  - msprime
+  - numpy
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - pandas
+  - pip
+  - pip:
+    - tszip
+    - fastgaia

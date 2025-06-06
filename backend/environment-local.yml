@@ -1,0 +1,30 @@
+# backend/environment-local.yml - For YOUR local development (matches Docker)
+name: argscape-local
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  # Scientific packages (same as Docker conda install)
+  - tskit
+  - numpy
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - pandas
+  - jupyter
+  - matplotlib
+  - seaborn
+  - plotly
+  - ipywidgets
+  - pip
+  - pip:
+    # Web packages (same as Docker pip install)
+    - tszip
+    - python-dotenv==1.0.0
+    - celery==5.3.4
+    - redis==5.0.1
+    - psycopg2-binary==2.9.9
+    - tsdate
+    - fastgaia

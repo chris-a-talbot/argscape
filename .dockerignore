@@ -1,0 +1,26 @@
+# Development files
+.git
+.gitignore
+.env
+.nyc_output
+coverage
+.vscode
+.DS_Store
+*.log
+*.db
+
+# Python cache
+backend/__pycache__/
+*.pyc
+backend/.pytest_cache/
+
+# Ignore heavy directories but keep source code
+frontend/node_modules/
+frontend/dist/
+.vs/
+
+# Keep needed files and directories
+!backend/
+!frontend/
+!Dockerfile
+!railway.toml
