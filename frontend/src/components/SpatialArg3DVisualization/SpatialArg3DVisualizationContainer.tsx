@@ -311,7 +311,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   }, [filename, max_samples, convertTreeIntervals]);
 
   // Filtered data loading with simple debouncing
-  const loadingTimeoutRef = useRef<NodeJS.Timeout>();
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (!filterState.isActive || loading) return;
