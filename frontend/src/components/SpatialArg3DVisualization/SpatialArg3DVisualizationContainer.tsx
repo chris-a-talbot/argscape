@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SpatialArg3DVisualization from './SpatialArg3DVisualization';
 import SpatialArg3DControlPanel from './SpatialArg3DControlPanel';
 import { SpatialArg3DInfoPanel } from './SpatialArg3DInfoPanel';
-import { GraphData, GraphNode, GraphEdge, TreeInterval, GeographicShape, CoordinateReferenceSystem } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
 import { TemporalRangeSlider } from '../ui/temporal-range-slider';
@@ -10,10 +10,7 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
-import { useDebounced } from '../../hooks/useDebounced';
 
-
-// Define view modes for the graph
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
 type TemporalFilterMode = 'hide' | 'planes';
@@ -24,7 +21,7 @@ interface SpatialArg3DVisualizationContainerProps {
   max_samples: number;
 }
 
-// Wrapper component that handles dynamic sizing
+// Simplified wrapper component
 const Spatial3DWrapper: React.FC<{
   data: GraphData | null;
   onNodeClick: (node: GraphNode) => void;
@@ -55,13 +52,9 @@ const Spatial3DWrapper: React.FC<{
       }
     };
 
-    // Update on mount
     updateDimensions();
-
-    // Update on resize
     window.addEventListener('resize', updateDimensions);
     
-    // Use ResizeObserver if available for more precise container tracking
     let resizeObserver: ResizeObserver | null = null;
     if (window.ResizeObserver && containerRef.current) {
       resizeObserver = new ResizeObserver(updateDimensions);
@@ -100,7 +93,7 @@ const Spatial3DWrapper: React.FC<{
   );
 };
 
-// Helper function to get all descendants of a node
+// Helper functions for graph traversal
 const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
   const descendants = new Set<number>();
   const visited = new Set<number>();
@@ -111,7 +104,6 @@ const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[])
     if (visited.has(currentId)) continue;
     visited.add(currentId);
     
-    // Find all edges where current node is the source (parent)
     edges.forEach(edge => {
       const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
       const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
@@ -126,7 +118,6 @@ const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[])
   return descendants;
 };
 
-// Helper function to get all ancestors of a node
 const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
   const ancestors = new Set<number>();
   const visited = new Set<number>();
@@ -137,7 +128,6 @@ const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): 
     if (visited.has(currentId)) continue;
     visited.add(currentId);
     
-    // Find all edges where current node is the target (child)
     edges.forEach(edge => {
       const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
       const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
@@ -158,17 +148,59 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 }) => {
   const { colors } = useColorTheme();
   const { treeSequence } = useTreeSequence();
+  
+  // Core data state
   const [data, setData] = useState<GraphData | null>(null);
-  const [subArgData, setSubArgData] = useState<GraphData | null>(null); // Rename to clarify this is the SubARG
+  const [subArgData, setSubArgData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // View state
   const [viewMode, setViewMode] = useState<ViewMode>('full');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
-  const [genomicRange, setGenomicRange] = useState<[number, number]>([0, 0]);
-  const [sequenceLength, setSequenceLength] = useState<number>(0);
-  const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Filter state consolidated
+  const [filterState, setFilterState] = useState({
+    isActive: false,
+    mode: 'genomic' as FilterMode,
+    genomicRange: [0, 0] as [number, number],
+    treeRange: [0, 0] as [number, number]
+  });
+  
+  // Temporal state consolidated 
+  const [temporalState, setTemporalState] = useState({
+    isActive: false,
+    mode: 'planes' as TemporalFilterMode,
+    range: [0, 1] as [number, number],
+    minTime: 0,
+    maxTime: 1
+  });
+  
+  // Metadata state
+  const [metadata, setMetadata] = useState({
+    sequenceLength: 0,
+    treeIntervals: [] as TreeInterval[]
+  });
+  
+  // 3D visualization settings
+  const [visualSettings, setVisualSettings] = useState({
+    temporalSpacing: 12,
+    spatialSpacing: 160,
+    temporalGridOpacity: 30,
+    geographicShapeOpacity: 70,
+    maxNodeRadius: 25,
+    isFilterSectionCollapsed: true
+  });
+  
+  // Geographic state
+  const [geoState, setGeoState] = useState({
+    mode: 'unit_grid' as GeographicMode,
+    currentShape: null as GeographicShape | null,
+    customShapeFile: null as File | null,
+    isLoading: false,
+    showCrsWarning: false
+  });
 
-  // Convert tree intervals from backend format
   const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
     return backendIntervals.map(([index, left, right]) => ({
       index,
@@ -177,185 +209,80 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     }));
   }, []);
 
-  // Additional tree filtering state
-  const [filterMode, setFilterMode] = useState<FilterMode>('genomic');
-  const [treeRange, setTreeRange] = useState<[number, number]>([0, 0]);
-  const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
-  const [isFilterActive, setIsFilterActive] = useState(false);
-
-  // Temporal filtering state
-  const [temporalRange, setTemporalRange] = useState<[number, number]>([0, 1]);
-  const [minTime, setMinTime] = useState<number>(0);
-  const [maxTime, setMaxTime] = useState<number>(1);
-  const [isTemporalFilterActive, setIsTemporalFilterActive] = useState(false);
-
-  // Debounced values using custom hook
-  const { debouncedValue: debouncedGenomicRange, isUpdating: isUpdatingGenomicRange } = useDebounced(
-    genomicRange, 
-    500, 
-    isFilterActive && filterMode === 'genomic'
-  );
-  const { debouncedValue: debouncedTreeRange } = useDebounced(
-    treeRange, 
-    500, 
-    isFilterActive && filterMode === 'tree'
-  );
-  const { debouncedValue: debouncedTemporalRange, isUpdating: isUpdatingTemporalRange } = useDebounced(
-    temporalRange, 
-    500, 
-    isTemporalFilterActive
-  );
-  const [temporalFilterMode, setTemporalFilterMode] = useState<TemporalFilterMode>('planes');
-  const [temporalSpacing, setTemporalSpacing] = useState<number>(12); // Default spacing between time slices
-  const [spatialSpacing, setSpatialSpacing] = useState<number>(160); // Default scaling for X/Y spatial coordinates
-  const [temporalGridOpacity, setTemporalGridOpacity] = useState<number>(30); // Default opacity for temporal grid lines (0-100)
-  const [geographicShapeOpacity, setGeographicShapeOpacity] = useState<number>(70); // Default opacity for geographic shape/shapefile (0-100)
-  const [maxNodeRadius, setMaxNodeRadius] = useState<number>(25); // Default maximum node radius in pixels
-  const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState<boolean>(false); // Collapse state for filter section
-  
-  // Auto-expand/collapse filter section based on filter states
-  useEffect(() => {
-    if (isFilterActive || isTemporalFilterActive) {
-      setIsFilterSectionCollapsed(false); // Auto-expand when filters are active
-    } else {
-      setIsFilterSectionCollapsed(true); // Auto-collapse when no filters are active
-    }
-  }, [isFilterActive, isTemporalFilterActive]);
-
-  // Geographic mode state
-  const [geographicMode, setGeographicMode] = useState<GeographicMode>('unit_grid');
-
-  const [currentShape, setCurrentShape] = useState<GeographicShape | null>(null);
-  const [customShapeFile, setCustomShapeFile] = useState<File | null>(null);
-  const [isLoadingGeographic, setIsLoadingGeographic] = useState(false);
-  const [showCrsWarning, setShowCrsWarning] = useState(false);
-  
-  // Track if geographic mode has been manually set by user
-  const [isGeographicModeManuallySet, setIsGeographicModeManuallySet] = useState(false);
-
-
-
-  // Load geographic data on component mount
+  // Load geographic data
   useEffect(() => {
     const loadGeographicData = async () => {
       try {
-        setIsLoadingGeographic(true);
+        setGeoState(prev => ({ ...prev, isLoading: true }));
         
-        // Load available shapes (CRS data removed as unused)
-        await api.getAvailableShapes();
-        
-        // Load default shape (unit grid)
-        const defaultShapeResponse = await api.getShapeData('unit_grid');
-        setCurrentShape(defaultShapeResponse.data as GeographicShape);
-        
+        if (geoState.mode === 'unit_grid') {
+          const { createUnitGridShape } = await import('./GeographicUtils');
+          const gridShape = createUnitGridShape(10);
+          setGeoState(prev => ({ ...prev, currentShape: gridShape }));
+        } else if (geoState.mode === 'custom' && geoState.customShapeFile) {
+          const response = await api.uploadShapefile(geoState.customShapeFile);
+          console.log('Custom shapefile uploaded:', response.data);
+        } else {
+          try {
+            const response = await api.getShapeData(geoState.mode);
+            setGeoState(prev => ({ ...prev, currentShape: response.data as GeographicShape }));
+          } catch (error) {
+            console.warn(`Failed to load ${geoState.mode}, using fallback`);
+            const { createUnitGridShape } = await import('./GeographicUtils');
+            const gridShape = createUnitGridShape(10);
+            setGeoState(prev => ({ ...prev, currentShape: gridShape }));
+          }
+        }
       } catch (error) {
         console.error('Error loading geographic data:', error);
       } finally {
-        setIsLoadingGeographic(false);
+        setGeoState(prev => ({ ...prev, isLoading: false }));
       }
     };
     
     loadGeographicData();
-  }, []);
+  }, [geoState.mode, geoState.customShapeFile]);
 
-  // Handle geographic mode changes
-  useEffect(() => {
-    const loadShapeForMode = async () => {
-      if (geographicMode === 'custom' && !customShapeFile) {
-        return;
-      }
-      
-      try {
-        setIsLoadingGeographic(true);
-        
-        // Check if current mode is appropriate for detected CRS
-        if (data?.metadata.coordinate_system_detection) {
-          const detectedCrs = data.metadata.coordinate_system_detection.likely_crs;
-          const suggestedMode = data.metadata.suggested_geographic_mode;
-          
-          if (suggestedMode && suggestedMode !== geographicMode && 
-              data.metadata.coordinate_system_detection.confidence > 0.7) {
-            setShowCrsWarning(true);
-          } else {
-            setShowCrsWarning(false);
-          }
-        }
-        
-        if (geographicMode === 'custom' && customShapeFile) {
-          // Upload and process custom shapefile
-          const response = await api.uploadShapefile(customShapeFile);
-          console.log('Custom shapefile uploaded:', response.data);
-        } else if (geographicMode === 'unit_grid') {
-          // Create unit grid shape locally
-          const { createUnitGridShape } = await import('./GeographicUtils');
-          const gridShape = createUnitGridShape(10);
-          setCurrentShape(gridShape);
-        } else {
-          try {
-            // Try to load built-in shape from API
-            const response = await api.getShapeData(geographicMode);
-            setCurrentShape(response.data as GeographicShape);
-          } catch (error) {
-            console.warn(`Failed to load ${geographicMode} from API, creating fallback`);
-            
-            // Fallback: create default shape
-            const { createUnitGridShape } = await import('./GeographicUtils');
-            const gridShape = createUnitGridShape(10);
-            setCurrentShape(gridShape);
-          }
-        }
-      } catch (error) {
-        console.error('Error loading shape for mode:', geographicMode, error);
-      } finally {
-        setIsLoadingGeographic(false);
-      }
-    };
-    
-    loadShapeForMode();
-  }, [geographicMode, customShapeFile, data?.metadata]);
-
-  // Initial data loading (without genomic filtering)
+  // Initial data loading
   useEffect(() => {
     const fetchInitialData = async () => {
-      
       try {
         setLoading(true);
-        console.log('Fetching initial 3D graph data for file:', filename, 'with max_samples:', max_samples);
-        
         const response = await api.getGraphData(filename, { maxSamples: max_samples });
         const graphData = response.data as GraphData;
-        console.log('Received initial 3D graph data:', graphData);
         
-        // Initialize genomic range settings
+        // Initialize metadata
         if (graphData.metadata.sequence_length) {
-          setSequenceLength(graphData.metadata.sequence_length);
-          const fullRange: [number, number] = [0, graphData.metadata.sequence_length];
-          setGenomicRange(fullRange);
+          setMetadata(prev => ({ ...prev, sequenceLength: graphData.metadata.sequence_length! }));
+          setFilterState(prev => ({ 
+            ...prev, 
+            genomicRange: [0, graphData.metadata.sequence_length!] 
+          }));
         }
         
-        // Initialize tree intervals and range settings
-        if (graphData.metadata.tree_intervals && graphData.metadata.tree_intervals.length > 0) {
+        if (graphData.metadata.tree_intervals?.length) {
           const intervals = convertTreeIntervals(graphData.metadata.tree_intervals as unknown as [number, number, number][]);
-          setTreeIntervals(intervals);
-          const treeFullRange: [number, number] = [0, intervals.length - 1];
-          setTreeRange(treeFullRange);
+          setMetadata(prev => ({ ...prev, treeIntervals: intervals }));
+          setFilterState(prev => ({ 
+            ...prev, 
+            treeRange: [0, intervals.length - 1] 
+          }));
         }
 
-        // Initialize temporal range settings
-        if (graphData.nodes && graphData.nodes.length > 0) {
+        // Initialize temporal state
+        if (graphData.nodes?.length) {
           const times = graphData.nodes.map(node => node.time);
           const minNodeTime = Math.min(...times);
           const maxNodeTime = Math.max(...times);
-          setMinTime(minNodeTime);
-          setMaxTime(maxNodeTime);
-          // Default to showing only the oldest time slice (minimum time)
-          const oldestSliceRange: [number, number] = [minNodeTime, minNodeTime];
-          setTemporalRange(oldestSliceRange);
+          setTemporalState(prev => ({
+            ...prev,
+            minTime: minNodeTime,
+            maxTime: maxNodeTime,
+            range: [minNodeTime, minNodeTime]
+          }));
         }
 
-        setIsInitialized(true);
-        
-        // Validate that we have spatial data
+        // Validate spatial data
         const nodesWithSpatial = graphData.nodes.filter((node: GraphNode) => 
           node.location?.x !== undefined && node.location?.y !== undefined
         );
@@ -364,16 +291,12 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           setError('No spatial data found in this ARG. This visualization requires nodes with 2D spatial coordinates.');
         } else {
           setData(graphData);
-          setSubArgData(graphData); // Store SubARG data (what was loaded with max_samples)
+          setSubArgData(graphData);
           
-          // Set default geographic mode based on CRS detection - but only if user hasn't manually set it
-          if (graphData.metadata.suggested_geographic_mode && !isGeographicModeManuallySet) {
+          // Set geographic mode based on CRS detection
+          if (graphData.metadata.suggested_geographic_mode) {
             const suggestedMode = graphData.metadata.suggested_geographic_mode as GeographicMode;
-            console.log(`CRS detection suggests: ${suggestedMode}, current mode: ${geographicMode}, manually set: ${isGeographicModeManuallySet}`);
-            if (suggestedMode !== geographicMode) {
-              setGeographicMode(suggestedMode);
-              console.log(`Setting geographic mode to: ${suggestedMode} based on CRS detection`);
-            }
+            setGeoState(prev => ({ ...prev, mode: suggestedMode }));
           }
         }
       } catch (err) {
@@ -384,89 +307,40 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       }
     };
 
-    // Reset initialization state when filename or max_samples change
-    setIsInitialized(false);
-    setIsFilterActive(false);
     fetchInitialData();
   }, [filename, max_samples, convertTreeIntervals]);
 
-  // Data loading with filtering - with duplicate call prevention
-  const lastApiCallRef = useRef<string>('');
+  // Filtered data loading with simple debouncing
+  const loadingTimeoutRef = useRef<NodeJS.Timeout>();
   
   useEffect(() => {
-    // Skip if not initialized or if this is the initial load
-    if (!isInitialized) {
-      return;
+    if (!filterState.isActive || loading) return;
+
+    // Clear previous timeout
+    if (loadingTimeoutRef.current) {
+      clearTimeout(loadingTimeoutRef.current);
     }
 
-    // Determine if we need to make an API call
-    let needsApiCall = false;
-    let genomicParams = null;
-    let treeParams = null;
-
-    if (isFilterActive) {
-      if (filterMode === 'genomic') {
-        // Check if genomic range covers the full sequence
-        const isFullSequence = debouncedGenomicRange[0] === 0 && debouncedGenomicRange[1] === sequenceLength;
-        if (!isFullSequence) {
-          needsApiCall = true;
-          genomicParams = {
-            genomic_start: debouncedGenomicRange[0],
-            genomic_end: debouncedGenomicRange[1]
-          };
-        }
-      } else if (filterMode === 'tree') {
-        // Check if tree range covers all trees
-        const isFullTreeRange = debouncedTreeRange[0] === 0 && debouncedTreeRange[1] === treeIntervals.length - 1;
-        if (!isFullTreeRange && treeIntervals.length > 0) {
-          needsApiCall = true;
-          treeParams = {
-            tree_start_idx: debouncedTreeRange[0],
-            tree_end_idx: debouncedTreeRange[1]
-          };
-        }
-      }
-    }
-
-    // Create a unique key for this API call to prevent duplicates
-    const apiCallKey = `${filename}-${max_samples}-${JSON.stringify(genomicParams)}-${JSON.stringify(treeParams)}-${isFilterActive}-${filterMode}`;
-    
-    // If no filtering needed and we already have data, don't make unnecessary API calls
-    if (!needsApiCall) {
-      console.log('Skipping API call - using existing data (full range or filter disabled)');
-      return;
-    }
-    
-    // Prevent duplicate API calls with the same parameters
-    if (apiCallKey === lastApiCallRef.current) {
-      console.log('Skipping duplicate API call with key:', apiCallKey);
-      return;
-    }
-
-    const fetchData = async () => {
+    // Debounce API calls
+    loadingTimeoutRef.current = setTimeout(async () => {
       try {
         setLoading(true);
-        lastApiCallRef.current = apiCallKey; // Mark this call as in progress
         
         let options: any = { maxSamples: max_samples };
         
-        if (genomicParams) {
-          console.log('Fetching filtered 3D graph data for genomic range:', debouncedGenomicRange);
-          options.genomicStart = genomicParams.genomic_start;
-          options.genomicEnd = genomicParams.genomic_end;
-        } else if (treeParams) {
-          console.log('Fetching filtered 3D graph data for tree range:', debouncedTreeRange);
-          options.treeStartIdx = treeParams.tree_start_idx;
-          options.treeEndIdx = treeParams.tree_end_idx;
-        } else {
-          console.log('Fetching unfiltered 3D graph data');
+        if (filterState.mode === 'genomic' && 
+            (filterState.genomicRange[0] !== 0 || filterState.genomicRange[1] !== metadata.sequenceLength)) {
+          options.genomicStart = filterState.genomicRange[0];
+          options.genomicEnd = filterState.genomicRange[1];
+        } else if (filterState.mode === 'tree' && 
+                   (filterState.treeRange[0] !== 0 || filterState.treeRange[1] !== metadata.treeIntervals.length - 1)) {
+          options.treeStartIdx = filterState.treeRange[0];
+          options.treeEndIdx = filterState.treeRange[1];
         }
         
         const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
-        console.log('Received 3D graph data:', graphData);
         
-        // Validate spatial data again
         const nodesWithSpatial = graphData.nodes.filter((node: GraphNode) => 
           node.location?.x !== undefined && node.location?.y !== undefined
         );
@@ -478,27 +352,38 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           setError(null);
         }
       } catch (e) {
-        console.error('Error fetching 3D graph data:', e);
+        console.error('Error fetching filtered data:', e);
         setError(e instanceof Error ? e.message : 'An error occurred while fetching graph data');
-        setData(null);
       } finally {
         setLoading(false);
       }
+    }, 500);
+
+    return () => {
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
     };
+  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length]);
 
-    fetchData();
-  }, [filename, max_samples, debouncedGenomicRange, debouncedTreeRange, isFilterActive, filterMode, isInitialized, sequenceLength, treeIntervals]);
+  // Auto-collapse filter section
+  useEffect(() => {
+    setVisualSettings(prev => ({
+      ...prev,
+      isFilterSectionCollapsed: !filterState.isActive && !temporalState.isActive
+    }));
+  }, [filterState.isActive, temporalState.isActive]);
 
-  // Filter data based on current view mode
+  // Filter data based on view mode and temporal settings
   const getFilteredData = (): GraphData | null => {
     if (!data) return data;
 
     let filteredData = data;
 
-    // Apply temporal filtering first if active and in "hide" mode
-    if (isTemporalFilterActive && temporalFilterMode === 'hide') {
-      const [minTimeFilter, maxTimeFilter] = debouncedTemporalRange;
-      const isFullTimeRange = minTimeFilter === minTime && maxTimeFilter === maxTime;
+    // Apply temporal filtering for "hide" mode
+    if (temporalState.isActive && temporalState.mode === 'hide') {
+      const [minTimeFilter, maxTimeFilter] = temporalState.range;
+      const isFullTimeRange = minTimeFilter === temporalState.minTime && maxTimeFilter === temporalState.maxTime;
       
       if (!isFullTimeRange) {
         const filteredNodes = data.nodes.filter(node => 
@@ -515,14 +400,12 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           ...data,
           nodes: filteredNodes,
           edges: filteredEdges,
-          metadata: {
-            ...data.metadata,
-            is_subset: true
-          }
+          metadata: { ...data.metadata, is_subset: true }
         };
       }
     }
 
+    // Apply view mode filtering
     if (!selectedNode) return filteredData;
 
     switch (viewMode) {
@@ -541,10 +424,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           ...filteredData,
           nodes: viewFilteredNodes,
           edges: viewFilteredEdges,
-          metadata: {
-            ...filteredData.metadata,
-            is_subset: true
-          }
+          metadata: { ...filteredData.metadata, is_subset: true }
         };
       }
       case 'ancestors': {
@@ -562,10 +442,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           ...filteredData,
           nodes: viewFilteredNodes,
           edges: viewFilteredEdges,
-          metadata: {
-            ...filteredData.metadata,
-            is_subset: true
-          }
+          metadata: { ...filteredData.metadata, is_subset: true }
         };
       }
       default:
@@ -573,14 +450,13 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     }
   };
 
-  // Calculate ARG statistics for display
+  // Calculate stats
   const calculateArgStats = (): ArgStatsData | null => {
     if (!subArgData || !data || !treeSequence) return null;
 
     const filteredData = getFilteredData();
     if (!filteredData) return null;
 
-    // Calculate SubARG stats (based on view mode filtering)
     let subArgViewData = data;
     if (selectedNode) {
       switch (viewMode) {
@@ -595,11 +471,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             return descendants.has(sourceId) && descendants.has(targetId);
           });
 
-          subArgViewData = {
-            ...data,
-            nodes: subArgNodes,
-            edges: subArgEdges
-          };
+          subArgViewData = { ...data, nodes: subArgNodes, edges: subArgEdges };
           break;
         }
         case 'ancestors': {
@@ -613,11 +485,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             return ancestors.has(sourceId) && ancestors.has(targetId);
           });
 
-          subArgViewData = {
-            ...data,
-            nodes: subArgNodes,
-            edges: subArgEdges
-          };
+          subArgViewData = { ...data, nodes: subArgNodes, edges: subArgEdges };
           break;
         }
       }
@@ -633,23 +501,20 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     };
   };
 
-  // Handle left click - show subgraph
+  // Event handlers
   const handleNodeClick = (node: GraphNode) => {
     if (viewMode === 'full') {
       setSelectedNode(node);
       setViewMode('subgraph');
     } else if (selectedNode?.id === node.id) {
-      // Same node clicked again - return to full view
       setViewMode('full');
       setSelectedNode(null);
     } else {
-      // Different node clicked - show its subgraph
       setSelectedNode(node);
       setViewMode('subgraph');
     }
   };
 
-  // Handle right click - show ancestors
   const handleNodeRightClick = (node: GraphNode) => {
     setSelectedNode(node);
     setViewMode('ancestors');
@@ -660,72 +525,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     setSelectedNode(null);
   };
 
-  // Handle geographic mode changes from control panel
-  const handleGeographicModeChange = (mode: GeographicMode) => {
-    setGeographicMode(mode);
-    setIsGeographicModeManuallySet(true); // Mark as manually set
-    setCurrentShape(null); // Reset shape when mode changes
-  };
-
-  // Genomic range control handlers
-  const handleGenomicRangeChange = useCallback((newRange: [number, number]) => {
-    // Only update if the range actually changed to avoid unnecessary rerenders
-    if (newRange[0] !== genomicRange[0] || newRange[1] !== genomicRange[1]) {
-      setGenomicRange(newRange);
-    }
-  }, [genomicRange]);
-
-  const handleTreeRangeChange = useCallback((newRange: [number, number]) => {
-    // Only update if the range actually changed to avoid unnecessary rerenders
-    if (newRange[0] !== treeRange[0] || newRange[1] !== treeRange[1]) {
-      setTreeRange(newRange);
-    }
-  }, [treeRange]);
-
-  const handleTemporalRangeChange = useCallback((newRange: [number, number]) => {
-    // Only update if the range actually changed to avoid unnecessary rerenders
-    if (newRange[0] !== temporalRange[0] || newRange[1] !== temporalRange[1]) {
-      setTemporalRange(newRange);
-    }
-  }, [temporalRange]);
-
-  const handleToggleFilter = useCallback(() => {
-    const newFilterState = !isFilterActive;
-    setIsFilterActive(newFilterState);
-    
-    if (newFilterState) {
-      if (filterMode === 'genomic') {
-        // Activating genomic filter - ensure range is set to full sequence initially
-        setGenomicRange([0, sequenceLength]);
-      } else if (filterMode === 'tree' && treeIntervals.length > 0) {
-        // Activating tree filter - ensure range is set to full tree range initially
-        const fullTreeRange: [number, number] = [0, treeIntervals.length - 1];
-        setTreeRange(fullTreeRange);
-      }
-    } else {
-      // Deactivating filter - reload initial data without filtering
-      // The data will be reloaded by the initial data useEffect due to state change
-    }
-  }, [isFilterActive, filterMode, sequenceLength, treeIntervals]);
-
-  const handleFilterModeChange = useCallback((newMode: FilterMode) => {
-    setFilterMode(newMode);
-    
-    // Initialize the appropriate range when switching modes
-    if (newMode === 'genomic') {
-      setGenomicRange([0, sequenceLength]);
-    } else if (newMode === 'tree' && treeIntervals.length > 0) {
-      const fullTreeRange: [number, number] = [0, treeIntervals.length - 1];
-      setTreeRange(fullTreeRange);
-    }
-  }, [sequenceLength, treeIntervals]);
-
+  // Simplified formatters
   const formatGenomicPosition = useCallback((value: number) => {
-    if (value >= 1000000) {
-      return `${(value / 1000000).toFixed(1)}M`;
-    } else if (value >= 1000) {
-      return `${(value / 1000).toFixed(1)}K`;
-    }
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
     return value.toString();
   }, []);
 
@@ -742,7 +545,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         title = '3D Full ARG';
     }
     
-    if (isFilterActive && data?.metadata.genomic_start !== undefined && data?.metadata.genomic_end !== undefined) {
+    if (filterState.isActive && data?.metadata.genomic_start !== undefined && data?.metadata.genomic_end !== undefined) {
       title += ` (${formatGenomicPosition(data.metadata.genomic_start)} - ${formatGenomicPosition(data.metadata.genomic_end)})`;
     }
     
@@ -790,7 +593,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       className="w-full h-full flex flex-col overflow-hidden"
       style={{ backgroundColor: colors.background }}
     >
-      {/* Compact top bar with title, legend, and controls */}
+      {/* Top bar with title and legend */}
       <div 
         className="flex-shrink-0 border-b px-4 py-2"
         style={{ 
@@ -799,7 +602,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         }}
       >
         <div className="flex items-center justify-between">
-          {/* Left: Title, stats, and return button */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-4">
               <h2 className="text-lg font-semibold" style={{ color: colors.text }}>{getViewTitle()}</h2>
@@ -823,12 +625,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 </button>
               )}
             </div>
-
           </div>
           
-          {/* Right: Compact legend and instructions */}
+          {/* Legend */}
           <div className="flex items-center gap-6">
-            {/* Legend */}
             <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
               <div className="flex items-center gap-1">
                 <div 
@@ -867,7 +667,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               </div>
             </div>
             
-            {/* Instructions */}
             <div 
               className="text-xs border-l pl-4"
               style={{ 
@@ -882,7 +681,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       </div>
       
       {/* Filter Controls */}
-      {(sequenceLength > 0 || treeIntervals.length > 0) && (
+      {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
         <div 
           className="flex-shrink-0 border-b"
           style={{ 
@@ -890,17 +689,15 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             borderBottomColor: colors.border 
           }}
         >
-          {/* Filter Header - Always Visible */}
           <div className="px-4 py-3">
             <div className="flex items-center justify-between">
-              {/* Filter toggles - compact layout */}
               <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                   <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
                     <input
                       type="checkbox"
-                      checked={isFilterActive}
-                      onChange={handleToggleFilter}
+                      checked={filterState.isActive}
+                      onChange={() => setFilterState(prev => ({ ...prev, isActive: !prev.isActive }))}
                       className="w-4 h-4 text-sp-pale-green bg-sp-dark-blue border-sp-very-dark-blue rounded focus:ring-sp-pale-green focus:ring-2"
                     />
                     Filter Genomic Range
@@ -911,8 +708,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
                     <input
                       type="checkbox"
-                      checked={isTemporalFilterActive}
-                      onChange={() => setIsTemporalFilterActive(!isTemporalFilterActive)}
+                      checked={temporalState.isActive}
+                      onChange={() => setTemporalState(prev => ({ ...prev, isActive: !prev.isActive }))}
                       className="w-4 h-4 text-sp-pale-green bg-sp-dark-blue border-sp-very-dark-blue rounded focus:ring-sp-pale-green focus:ring-2"
                     />
                     Filter Temporal Range
@@ -920,10 +717,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 </div>
               </div>
 
-              {/* Collapse/Expand button - only show when filters are active */}
-              {(isFilterActive || isTemporalFilterActive) && (
+              {(filterState.isActive || temporalState.isActive) && (
                 <button
-                  onClick={() => setIsFilterSectionCollapsed(!isFilterSectionCollapsed)}
+                  onClick={() => setVisualSettings(prev => ({ ...prev, isFilterSectionCollapsed: !prev.isFilterSectionCollapsed }))}
                   className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors hover:bg-opacity-80"
                   style={{
                     backgroundColor: colors.textSecondary,
@@ -931,10 +727,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   }}
                 >
                   <span>
-                    {isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
+                    {visualSettings.isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
                   </span>
                   <svg 
-                    className={`w-4 h-4 transition-transform ${isFilterSectionCollapsed ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 transition-transform ${visualSettings.isFilterSectionCollapsed ? 'rotate-180' : ''}`}
                     fill="none" 
                     stroke="currentColor" 
                     viewBox="0 0 24 24"
@@ -946,34 +742,31 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             </div>
           </div>
 
-          {/* Expandable Filter Details */}
-          {(isFilterActive || isTemporalFilterActive) && !isFilterSectionCollapsed && (
+          {(filterState.isActive || temporalState.isActive) && !visualSettings.isFilterSectionCollapsed && (
             <div className="px-4 pb-3 space-y-3" style={{ backgroundColor: colors.background }}>
-              {/* Controls and Slider Section */}
               <div className="flex items-start gap-4">
-                {/* Left side: Filter mode controls */}
                 <div className="flex flex-col gap-3 flex-shrink-0">
-                  {isFilterActive && (
+                  {filterState.isActive && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm" style={{ color: colors.text }}>Genomic Mode:</span>
                       <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.background }}>
                         <button
-                          onClick={() => handleFilterModeChange('genomic')}
+                          onClick={() => setFilterState(prev => ({ ...prev, mode: 'genomic' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: filterMode === 'genomic' ? colors.textSecondary : colors.background,
-                            color: filterMode === 'genomic' ? colors.background : colors.text
+                            backgroundColor: filterState.mode === 'genomic' ? colors.textSecondary : colors.background,
+                            color: filterState.mode === 'genomic' ? colors.background : colors.text
                           }}
                         >
                           Genomic
                         </button>
-                        {treeIntervals.length > 0 && (
+                        {metadata.treeIntervals.length > 0 && (
                           <button
-                            onClick={() => handleFilterModeChange('tree')}
+                            onClick={() => setFilterState(prev => ({ ...prev, mode: 'tree' }))}
                             className="px-3 py-1 text-xs font-medium transition-colors"
                             style={{
-                              backgroundColor: filterMode === 'tree' ? colors.textSecondary : colors.background,
-                              color: filterMode === 'tree' ? colors.background : colors.text
+                              backgroundColor: filterState.mode === 'tree' ? colors.textSecondary : colors.background,
+                              color: filterState.mode === 'tree' ? colors.background : colors.text
                             }}
                           >
                             Tree Index
@@ -983,26 +776,26 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                     </div>
                   )}
 
-                  {isTemporalFilterActive && (
+                  {temporalState.isActive && (
                     <div className="flex items-center gap-2">
                       <span className="text-sm" style={{ color: colors.text }}>Temporal Mode:</span>
                       <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.background }}>
                         <button
-                          onClick={() => setTemporalFilterMode('hide')}
+                          onClick={() => setTemporalState(prev => ({ ...prev, mode: 'hide' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: temporalFilterMode === 'hide' ? colors.textSecondary : colors.background,
-                            color: temporalFilterMode === 'hide' ? colors.background : colors.text
+                            backgroundColor: temporalState.mode === 'hide' ? colors.textSecondary : colors.background,
+                            color: temporalState.mode === 'hide' ? colors.background : colors.text
                           }}
                         >
                           Hide Others
                         </button>
                         <button
-                          onClick={() => setTemporalFilterMode('planes')}
+                          onClick={() => setTemporalState(prev => ({ ...prev, mode: 'planes' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: temporalFilterMode === 'planes' ? colors.textSecondary : colors.background,
-                            color: temporalFilterMode === 'planes' ? colors.background : colors.text
+                            backgroundColor: temporalState.mode === 'planes' ? colors.textSecondary : colors.background,
+                            color: temporalState.mode === 'planes' ? colors.background : colors.text
                           }}
                         >
                           Dim Others
@@ -1012,24 +805,23 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   )}
                 </div>
 
-                {/* Right side: Genomic range slider */}
-                {isFilterActive && (
+                {filterState.isActive && (
                   <div className="flex-1 max-w-md">
-                    {filterMode === 'genomic' && sequenceLength > 0 ? (
+                    {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
                       <RangeSlider
                         min={0}
-                        max={sequenceLength}
-                        step={Math.max(1, Math.floor(sequenceLength / 1000))}
-                        value={genomicRange}
-                        onChange={handleGenomicRangeChange}
+                        max={metadata.sequenceLength}
+                        step={Math.max(1, Math.floor(metadata.sequenceLength / 1000))}
+                        value={filterState.genomicRange}
+                        onChange={(newRange) => setFilterState(prev => ({ ...prev, genomicRange: newRange }))}
                         formatValue={formatGenomicPosition}
                         className="w-full"
                       />
-                    ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                    ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
                       <TreeRangeSlider
-                        treeIntervals={treeIntervals}
-                        value={treeRange}
-                        onChange={handleTreeRangeChange}
+                        treeIntervals={metadata.treeIntervals}
+                        value={filterState.treeRange}
+                        onChange={(newRange) => setFilterState(prev => ({ ...prev, treeRange: newRange }))}
                         className="w-full"
                       />
                     ) : null}
@@ -1037,21 +829,20 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 )}
               </div>
               
-              {/* Current range display */}
               <div className="text-xs flex flex-col gap-1" style={{ color: colors.text }}>
-                {isFilterActive && (
+                {filterState.isActive && (
                   <div className="flex items-center gap-2">
-                    {filterMode === 'genomic' ? (
+                    {filterState.mode === 'genomic' ? (
                       <span>
-                        Genomic Range: {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
-                        ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}% of sequence)
+                        Genomic Range: {formatGenomicPosition(filterState.genomicRange[1] - filterState.genomicRange[0])} bp
+                        ({((filterState.genomicRange[1] - filterState.genomicRange[0]) / metadata.sequenceLength * 100).toFixed(1)}% of sequence)
                         {data?.metadata.num_local_trees !== undefined && (
                           <> • {data.metadata.num_local_trees} local trees</>
                         )}
                       </span>
-                    ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                    ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
                       <span>
-                        Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length} trees)
+                        Trees {filterState.treeRange[0]}-{filterState.treeRange[1]} ({filterState.treeRange[1] - filterState.treeRange[0] + 1} of {metadata.treeIntervals.length} trees)
                         {data?.metadata.num_local_trees !== undefined && (
                           <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
                         )}
@@ -1060,20 +851,20 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                         )}
                       </span>
                     ) : null}
-                    {(filterMode === 'genomic' && isUpdatingGenomicRange) && (
+                    {loading && (
                       <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
                     )}
                   </div>
                 )}
                 
-                {isTemporalFilterActive && (
+                {temporalState.isActive && (
                   <div className="flex items-center gap-2">
                     <span>
-                      Temporal Range: {temporalRange[0].toFixed(3)} - {temporalRange[1].toFixed(3)}{' '}
-                      ({((temporalRange[1] - temporalRange[0]) / (maxTime - minTime) * 100).toFixed(1)}% of time range)
+                      Temporal Range: {temporalState.range[0].toFixed(3)} - {temporalState.range[1].toFixed(3)}{' '}
+                      ({((temporalState.range[1] - temporalState.range[0]) / (temporalState.maxTime - temporalState.minTime) * 100).toFixed(1)}% of time range)
                       • Hold Shift + drag to maintain window size
                     </span>
-                    {isUpdatingTemporalRange && (
+                    {loading && (
                       <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
                     )}
                   </div>
@@ -1083,15 +874,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           )}
         </div>
       )}
-      
 
-
-
-
-      {/* 3D Visualization area - takes remaining space */}
+      {/* 3D Visualization area */}
       <div className="flex-1 overflow-hidden flex">
-        {/* Temporal slider - only shown when temporal filtering is active and filter section is not collapsed */}
-        {isTemporalFilterActive && !isFilterSectionCollapsed && (
+        {temporalState.isActive && !visualSettings.isFilterSectionCollapsed && (
           <div 
             className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center"
             style={{ 
@@ -1100,60 +886,57 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             }}
           >
             <TemporalRangeSlider
-              min={minTime}
-              max={maxTime}
-              step={(maxTime - minTime) / 1000}
-              value={temporalRange}
-              onChange={handleTemporalRangeChange}
+              min={temporalState.minTime}
+              max={temporalState.maxTime}
+              step={(temporalState.maxTime - temporalState.minTime) / 1000}
+              value={temporalState.range}
+              onChange={(newRange) => setTemporalState(prev => ({ ...prev, range: newRange }))}
               formatValue={(v) => v.toFixed(3)}
               height={350}
             />
           </div>
         )}
         
-        {/* Main 3D visualization */}
         <div className="flex-1 overflow-hidden relative">
           <Spatial3DWrapper
             data={getFilteredData()}
             onNodeClick={handleNodeClick}
             onNodeRightClick={handleNodeRightClick}
             selectedNode={selectedNode}
-            temporalRange={isTemporalFilterActive ? temporalRange : null}
-            showTemporalPlanes={isTemporalFilterActive && temporalFilterMode === 'planes'}
-            temporalFilterMode={isTemporalFilterActive ? temporalFilterMode : null}
-            temporalSpacing={temporalSpacing}
-            spatialSpacing={spatialSpacing}
-            geographicShape={currentShape}
-            geographicMode={geographicMode}
-            temporalGridOpacity={temporalGridOpacity}
-            geographicShapeOpacity={geographicShapeOpacity}
-            maxNodeRadius={maxNodeRadius}
+            temporalRange={temporalState.isActive ? temporalState.range : null}
+            showTemporalPlanes={temporalState.isActive && temporalState.mode === 'planes'}
+            temporalFilterMode={temporalState.isActive ? temporalState.mode : null}
+            temporalSpacing={visualSettings.temporalSpacing}
+            spatialSpacing={visualSettings.spatialSpacing}
+            geographicShape={geoState.currentShape}
+            geographicMode={geoState.mode}
+            temporalGridOpacity={visualSettings.temporalGridOpacity}
+            geographicShapeOpacity={visualSettings.geographicShapeOpacity}
+            maxNodeRadius={visualSettings.maxNodeRadius}
           />
           
-          {/* 3D Visualization Control Panel */}
           <SpatialArg3DControlPanel
-            temporalSpacing={temporalSpacing}
-            onTemporalSpacingChange={setTemporalSpacing}
-            spatialSpacing={spatialSpacing}
-            onSpatialSpacingChange={setSpatialSpacing}
-            temporalGridOpacity={temporalGridOpacity}
-            onTemporalGridOpacityChange={setTemporalGridOpacity}
-            geographicShapeOpacity={geographicShapeOpacity}
-            onGeographicShapeOpacityChange={setGeographicShapeOpacity}
-            maxNodeRadius={maxNodeRadius}
-            onMaxNodeRadiusChange={setMaxNodeRadius}
-            geographicMode={geographicMode}
-            onGeographicModeChange={handleGeographicModeChange}
-            customShapeFile={customShapeFile}
-            onCustomShapeFileChange={setCustomShapeFile}
-            isLoadingGeographic={isLoadingGeographic}
-            currentShape={currentShape}
-            showCrsWarning={showCrsWarning}
+            temporalSpacing={visualSettings.temporalSpacing}
+            onTemporalSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, temporalSpacing: value }))}
+            spatialSpacing={visualSettings.spatialSpacing}
+            onSpatialSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, spatialSpacing: value }))}
+            temporalGridOpacity={visualSettings.temporalGridOpacity}
+            onTemporalGridOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, temporalGridOpacity: value }))}
+            geographicShapeOpacity={visualSettings.geographicShapeOpacity}
+            onGeographicShapeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, geographicShapeOpacity: value }))}
+            maxNodeRadius={visualSettings.maxNodeRadius}
+            onMaxNodeRadiusChange={(value) => setVisualSettings(prev => ({ ...prev, maxNodeRadius: value }))}
+            geographicMode={geoState.mode}
+            onGeographicModeChange={(mode) => setGeoState(prev => ({ ...prev, mode }))}
+            customShapeFile={geoState.customShapeFile}
+            onCustomShapeFileChange={(file) => setGeoState(prev => ({ ...prev, customShapeFile: file }))}
+            isLoadingGeographic={geoState.isLoading}
+            currentShape={geoState.currentShape}
+            showCrsWarning={geoState.showCrsWarning}
             crsDetection={data?.metadata.coordinate_system_detection}
-            onDismissCrsWarning={() => setShowCrsWarning(false)}
+            onDismissCrsWarning={() => setGeoState(prev => ({ ...prev, showCrsWarning: false }))}
           />
           
-          {/* ARG Information Panel */}
           {(() => {
             const stats = calculateArgStats();
             const crsData = data?.metadata.coordinate_system_detection;
@@ -1172,7 +955,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   landPercentage: crsData.land_percentage,
                   description: crsData.reasoning
                 } : undefined}
-                isTemporalSliderVisible={isTemporalFilterActive}
+                isTemporalSliderVisible={temporalState.isActive}
               />
             );
           })()}

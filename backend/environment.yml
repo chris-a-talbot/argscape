@@ -1,5 +1,6 @@
 name: argscape
 channels:
+  - defaults
   - conda-forge
   - bioconda
 dependencies:
@@ -11,7 +12,14 @@ dependencies:
   - uvicorn
   - python-multipart
   - pandas
+  - scikit-learn
+  - geopandas
+  - pydantic
+  - apscheduler
+  - pyproj
+  - shapely
   - pip
   - pip:
     - tszip
+    - tsdate
     - fastgaia
