@@ -6,18 +6,20 @@ tskit==0.5.6
 tszip==0.2.2
 msprime==1.3.0
 scikit-learn==1.3.2
+
 # FastAPI and web server
 fastapi==0.115.6
 uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 python-dotenv==1.0.0
+
 # Cleanup and scheduling
 apscheduler==3.10.4
+
 # Optional dependencies for spatial inference
 tsdate
 fastgaia
-# R integration for GAIA
-rpy2>=3.5.0
+
 # Geographic data processing
 geopandas==0.14.1
 shapely==2.0.2

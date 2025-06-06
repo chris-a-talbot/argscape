@@ -74,7 +74,7 @@ Visit [argscape.com](https://argscape.com) to start visualizing tree sequences i
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/your-username/argscape.git
+   git clone https://github.com/chris-a-talbot/argscape.git
    cd argscape
    ```
 
@@ -101,7 +101,7 @@ Visit [argscape.com](https://argscape.com) to start visualizing tree sequences i
 ### Option 3: Docker Development
 
 ```bash
-git clone https://github.com/your-username/argscape.git
+git clone https://github.com/chris-a-talbot/argscape.git
 cd argscape
 docker compose up --build
 ```
