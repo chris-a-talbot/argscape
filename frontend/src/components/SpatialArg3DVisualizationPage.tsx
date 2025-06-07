@@ -6,6 +6,7 @@ import { useRef } from 'react';
 import { api } from '../lib/api';
 import { export3DVisualizationAsImage, exportCanvasAsImage } from '../lib/imageExport';
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
+import ClickableLogo from './ui/ClickableLogo';
 
 export default function SpatialArg3DVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
@@ -147,9 +148,10 @@ export default function SpatialArg3DVisualizationPage() {
                     </button>
                     <div className="flex items-center gap-4">
                         <div className="flex items-baseline gap-4">
-                            <h1 className="text-2xl font-bold" style={{ color: colors.text }}>
-                                ARG<span style={{ color: colors.accentPrimary }}>scape</span>
-                            </h1>
+                            <ClickableLogo 
+                                size="medium" 
+                                style={{ color: colors.text }} 
+                            />
                             <span className="text-lg opacity-75" style={{ color: colors.text }}>3D Spatial ARG</span>
                             <div className="text-base font-mono break-all max-w-md" style={{ color: colors.textSecondary }}>
                                 {decodedFilename}

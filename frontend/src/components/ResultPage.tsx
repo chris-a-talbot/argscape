@@ -1,13 +1,15 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import TreeSequenceSelector from './TreeSequenceSelector';
 import { api } from '../lib/api';
 import { log } from '../lib/logger';
 import { SAMPLE_LIMITS } from '../config/constants';
+import ClickableLogo from './ui/ClickableLogo';
 
 export default function ResultPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { treeSequence: data, maxSamples, setMaxSamples, setTreeSequence } = useTreeSequence();
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
@@ -97,11 +99,47 @@ export default function ResultPage() {
     setShowTreeSequenceSelector(false);
   };
 
+  const handleBackNavigation = () => {
+    const fromIntermediate = location.state?.fromIntermediate;
+    if (fromIntermediate) {
+      if (fromIntermediate === 'load') {
+        // For load, go back to landing page instead of intermediate
+        log.nav('result', 'landing');
+        navigate('/', { state: { fromInternal: true } });
+      } else {
+        // Navigate back to the specific intermediate page for upload/simulate
+        log.nav('result', 'intermediate');
+        navigate('/', { state: { fromResult: true, selectedOption: fromIntermediate } });
+      }
+    } else {
+      // Default to home landing page
+      log.nav('result', 'landing');
+      navigate('/', { state: { fromInternal: true } });
+    }
+  };
+
+  const getBackButtonText = () => {
+    const fromIntermediate = location.state?.fromIntermediate;
+    if (fromIntermediate) {
+      switch (fromIntermediate) {
+        case 'upload':
+          return '< Back to Upload';
+        case 'simulate':
+          return '< Back to Simulate';
+        case 'load':
+          return '< Back to options';
+        default:
+          return '< Back';
+      }
+    }
+    return '< Back';
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
         <h1 className="text-3xl font-bold mb-4">No data loaded</h1>
-        <button className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-2 px-6 rounded-lg mt-4" onClick={() => navigate('/')}>Back to Home</button>
+        <button className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-2 px-6 rounded-lg mt-4" onClick={handleBackNavigation}>Back to Home</button>
       </div>
     );
   }
@@ -109,13 +147,13 @@ export default function ResultPage() {
   return (
     <div className="min-h-screen flex flex-col items-center bg-sp-very-dark-blue text-sp-white px-4 pt-12 pb-24">
       {/* Title - consistent with homepage */}
-      <h1 className="text-[3rem] md:text-[4rem] font-extrabold mb-8 tracking-tight text-center select-none" style={{letterSpacing: '-0.04em'}}>
-        ARG<span className="text-sp-pale-green">scape</span>
-      </h1>
+      <div className="mb-8 text-center">
+        <ClickableLogo size="large" />
+      </div>
       
       <div className="w-full max-w-2xl bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue p-8 flex flex-col items-center my-auto">
         <div className="w-full flex justify-between items-center mb-4">
-          <button className="text-sp-pale-green hover:text-sp-white text-lg font-medium px-2 py-1 rounded transition-colors" onClick={() => navigate('/')}>{'< Back'}</button>
+          <button className="text-sp-pale-green hover:text-sp-white text-lg font-medium px-2 py-1 rounded transition-colors" onClick={handleBackNavigation}>{getBackButtonText()}</button>
           <div className="flex gap-2">
             <button 
               className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base transition-colors"
