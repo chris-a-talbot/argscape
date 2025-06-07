@@ -66,3 +66,50 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Custom range slider styling for consistent sp-pale-green theme */
+@layer components {
+  .slider-thumb-sp-pale-green::-webkit-slider-thumb {
+    appearance: none;
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #14E2A8;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 0 1px rgba(20, 226, 168, 0.3);
+  }
+  
+  .slider-thumb-sp-pale-green::-webkit-slider-thumb:hover {
+    background: #1EEBB1;
+    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.5);
+  }
+  
+  .slider-thumb-sp-pale-green::-moz-range-thumb {
+    height: 16px;
+    width: 16px;
+    border-radius: 50%;
+    background: #14E2A8;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 0 1px rgba(20, 226, 168, 0.3);
+  }
+  
+  .slider-thumb-sp-pale-green::-moz-range-thumb:hover {
+    background: #1EEBB1;
+    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.5);
+  }
+  
+  /* Focus styles for accessibility */
+  .slider-thumb-sp-pale-green:focus {
+    outline: none;
+  }
+  
+  .slider-thumb-sp-pale-green:focus::-webkit-slider-thumb {
+    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.6);
+  }
+  
+  .slider-thumb-sp-pale-green:focus::-moz-range-thumb {
+    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.6);
+  }
+}

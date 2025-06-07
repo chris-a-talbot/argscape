@@ -393,7 +393,6 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
 }, ref) => {
   const deckRef = useRef<any>(null);
   const { colors } = useColorTheme();
-  const [showControls, setShowControls] = useState(true);
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number],
     zoom: VISUALIZATION_CONSTANTS.DEFAULT_ZOOM as number,
@@ -611,18 +610,12 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   if (!data || nodes3D.length === 0) {
     return (
       <div 
-        style={{ 
-          width, 
-          height, 
-          backgroundColor: colors.containerBackground, 
-          color: colors.text,
-          borderColor: colors.border 
-        }}
-        className="flex items-center justify-center border rounded"
+        className="flex items-center justify-center border rounded bg-sp-very-dark-blue text-sp-white border-sp-dark-blue"
+        style={{ width, height }}
       >
         <div className="text-center">
           <p className="text-lg mb-2">No spatial data available</p>
-          <p className="text-sm text-sp-white opacity-75">
+          <p className="text-sm text-sp-white/75">
             This ARG does not contain 2D spatial information required for 3D visualization.
           </p>
         </div>
@@ -633,7 +626,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   return (
     <div 
       style={{ width, height }} 
-      className="relative"
+      className="relative bg-sp-very-dark-blue"
       data-3d-visualization="true"
       ref={(el) => {
         if (el && typeof ref === 'function') {
@@ -692,35 +685,6 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
           return createTooltipContent(object as Node3D, data, geographicMode, colors);
         }}
       />
-      
-      {showControls && (
-        <div 
-          className="absolute bottom-24 left-4 p-3 rounded-lg text-xs"
-          style={{ 
-            backgroundColor: colors.background === '#ffffff' ? 'rgba(0, 0, 0, 0.8)' : 'rgba(5, 62, 78, 0.9)',
-            color: colors.background === '#ffffff' ? '#ffffff' : colors.text,
-            border: colors.background === '#ffffff' ? '1px solid rgba(0, 0, 0, 0.2)' : 'none'
-          }}
-        >
-          <div className="flex items-start justify-between mb-2">
-            <div><strong>3D Controls:</strong></div>
-            <button
-              onClick={() => setShowControls(false)}
-              className="ml-3 text-xs opacity-70 hover:opacity-100 transition-opacity"
-              style={{ color: colors.background === '#ffffff' ? '#ffffff' : colors.text }}
-            >
-              ✕
-            </button>
-          </div>
-          <div className="space-y-1">
-            <div>• Drag: Rotate view</div>
-            <div>• Shift+drag: Pan view</div>
-            <div>• Scroll: Zoom in/out</div>
-            <div>• Left click: Select node</div>
-            <div>• Right click: Ancestors</div>
-          </div>
-        </div>
-      )}
     </div>
   );
 });

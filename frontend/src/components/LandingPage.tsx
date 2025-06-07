@@ -97,7 +97,7 @@ export default function LandingPage({ onOptionSelect, isTransitioning = false }:
             </div>
             <div>
               <h3 className="text-xl font-semibold text-sp-white mb-1">Upload a tree sequence</h3>
-              <p className="text-sp-white/60 text-sm">Upload your own .trees file to visualize</p>
+              <p className="text-sp-white/60 text-sm">Upload your own .trees or .tsz file to visualize</p>
             </div>
           </div>
         </button>
@@ -171,6 +171,14 @@ export default function LandingPage({ onOptionSelect, isTransitioning = false }:
           <span className="font-semibold">⚠️ Beta Notice:</span> Tree sequences are stored on a secure server for up to 24 hours. 
           This is a beta application and data may be wiped during updates. Please download your results and respect our limited resources.
         </p>
+      </div>
+
+      {/* Attribution - fade in during transition */}
+      <div className={`
+        mt-8 text-center
+        transition-all duration-2000 ease-in-out delay-1200
+        ${isTransitioning && !showContent ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
+      `}>
       </div>
     </div>
   );

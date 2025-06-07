@@ -85,6 +85,12 @@ export interface GraphData {
     };
 }
 
+export interface NodeSizeSettings {
+    sample: number;
+    root: number;
+    other: number;
+}
+
 export interface ForceDirectedGraphProps {
     data: GraphData | null;
     width?: number;
@@ -93,4 +99,5 @@ export interface ForceDirectedGraphProps {
     onNodeRightClick?: (node: GraphNode) => void;  // Right click handler for nodes
     onEdgeClick?: (edge: GraphEdge) => void;
     focalNode?: GraphNode | null;  // The node to focus on, if any
+    nodeSizes?: NodeSizeSettings;  // Node size settings
 } 

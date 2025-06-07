@@ -535,16 +535,15 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   if (loading) {
     return (
       <div 
-        className="w-full h-full flex items-center justify-center border rounded"
-        style={{ 
-          backgroundColor: colors.background,
-          color: colors.text,
-          borderColor: colors.border 
-        }}
+        className="w-full h-full flex items-center justify-center"
+        style={{ backgroundColor: colors.background }}
       >
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: colors.textSecondary }}></div>
-          <p>Loading 3D spatial ARG visualization...</p>
+          <div 
+            className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4"
+            style={{ borderColor: colors.accentPrimary }}
+          ></div>
+          <p style={{ color: colors.text }}>Loading 3D spatial ARG visualization...</p>
         </div>
       </div>
     );
@@ -553,16 +552,12 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   if (error) {
     return (
       <div 
-        className="w-full h-full flex items-center justify-center border rounded"
-        style={{ 
-          backgroundColor: colors.background,
-          color: colors.text,
-          borderColor: colors.border 
-        }}
+        className="w-full h-full flex items-center justify-center"
+        style={{ backgroundColor: colors.background }}
       >
         <div className="text-center" style={{ color: colors.text }}>
           <p className="text-lg mb-2">Error loading visualization</p>
-          <p className="text-sm">{error}</p>
+          <p className="text-sm" style={{ color: `${colors.text}B3` }}>{error}</p>
         </div>
       </div>
     );
@@ -590,19 +585,54 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
                 {getViewTitle(viewMode, selectedNode, filterState, data)}
               </h2>
+              
+              {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
+                <div className="flex items-center gap-4">
+                  {metadata.sequenceLength > 0 && (
+                    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                      <input
+                        type="checkbox"
+                        checked={filterState.isActive}
+                        onChange={() => setFilterState(prev => ({ ...prev, isActive: !prev.isActive }))}
+                        className="w-4 h-4 rounded focus:ring-2"
+                        style={{
+                          accentColor: colors.accentPrimary
+                        }}
+                      />
+                      Filter Genomic Range
+                    </label>
+                  )}
+
+                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                    <input
+                      type="checkbox"
+                      checked={temporalState.isActive}
+                      onChange={() => setTemporalState(prev => ({ ...prev, isActive: !prev.isActive }))}
+                      className="w-4 h-4 rounded focus:ring-2"
+                      style={{
+                        accentColor: colors.accentPrimary
+                      }}
+                    />
+                    Filter Temporal Range
+                  </label>
+                </div>
+              )}
+              
               {viewMode !== 'full' && (
                 <button
                   onClick={handleReturnToFull}
-                  className="font-medium px-3 py-1 rounded text-sm transition-colors"
+                  className="font-medium px-3 py-1 rounded text-sm transition-colors border"
                   style={{
                     backgroundColor: colors.containerBackground,
                     color: colors.text,
-                    border: `1px solid ${colors.border}`
+                    borderColor: `${colors.accentPrimary}33`
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = colors.border;
+                    e.currentTarget.style.borderColor = `${colors.accentPrimary}66`;
+                    e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
                   }}
                   onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
                     e.currentTarget.style.backgroundColor = colors.containerBackground;
                   }}
                 >
@@ -613,10 +643,40 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           </div>
           
           <div className="flex items-center gap-6">
+            {/* Show/hide controls button when filters are active */}
+            {(filterState.isActive || temporalState.isActive) && (
+              <button
+                onClick={() => setVisualSettings(prev => ({ ...prev, isFilterSectionCollapsed: !prev.isFilterSectionCollapsed }))}
+                className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors"
+                style={{
+                  backgroundColor: colors.accentPrimary,
+                  color: colors.background
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '0.8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+              >
+                <span>
+                  {visualSettings.isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
+                </span>
+                <svg 
+                  className={`w-4 h-4 transition-transform ${visualSettings.isFilterSectionCollapsed ? 'rotate-180' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            )}
+            
             <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
               <div className="flex items-center gap-1">
                 <div 
-                  className="w-2 h-2 rounded-full border" 
+                  className="w-2 h-2 rounded-full border"
                   style={{
                     backgroundColor: `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`,
                     borderColor: colors.background,
@@ -664,7 +724,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         </div>
       </div>
       
-      {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
+      {/* Filter Controls Section - only show when filters are active */}
+      {(filterState.isActive || temporalState.isActive) && (
         <div 
           className="flex-shrink-0 border-b"
           style={{ 
@@ -672,72 +733,19 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             borderBottomColor: colors.border 
           }}
         >
-          <div className="px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
-                    <input
-                      type="checkbox"
-                      checked={filterState.isActive}
-                      onChange={() => setFilterState(prev => ({ ...prev, isActive: !prev.isActive }))}
-                      className="w-4 h-4 text-sp-pale-green bg-sp-dark-blue border-sp-very-dark-blue rounded focus:ring-sp-pale-green focus:ring-2"
-                    />
-                    Filter Genomic Range
-                  </label>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
-                    <input
-                      type="checkbox"
-                      checked={temporalState.isActive}
-                      onChange={() => setTemporalState(prev => ({ ...prev, isActive: !prev.isActive }))}
-                      className="w-4 h-4 text-sp-pale-green bg-sp-dark-blue border-sp-very-dark-blue rounded focus:ring-sp-pale-green focus:ring-2"
-                    />
-                    Filter Temporal Range
-                  </label>
-                </div>
-              </div>
-
-              {(filterState.isActive || temporalState.isActive) && (
-                <button
-                  onClick={() => setVisualSettings(prev => ({ ...prev, isFilterSectionCollapsed: !prev.isFilterSectionCollapsed }))}
-                  className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors hover:bg-opacity-80"
-                  style={{
-                    backgroundColor: colors.textSecondary,
-                    color: colors.background
-                  }}
-                >
-                  <span>
-                    {visualSettings.isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
-                  </span>
-                  <svg 
-                    className={`w-4 h-4 transition-transform ${visualSettings.isFilterSectionCollapsed ? 'rotate-180' : ''}`}
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {(filterState.isActive || temporalState.isActive) && !visualSettings.isFilterSectionCollapsed && (
-            <div className="px-4 pb-3 space-y-3" style={{ backgroundColor: colors.background }}>
-              <div className="flex items-start gap-4">
-                <div className="flex flex-col gap-3 flex-shrink-0">
+          {!visualSettings.isFilterSectionCollapsed && (
+            <div className="px-4 py-3">
+              <div className="flex items-start justify-between gap-6">
+                <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
                   {filterState.isActive && (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm" style={{ color: colors.text }}>Genomic Mode:</span>
-                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.background }}>
+                      <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>Genomic Mode:</span>
+                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
                         <button
                           onClick={() => setFilterState(prev => ({ ...prev, mode: 'genomic' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: filterState.mode === 'genomic' ? colors.textSecondary : colors.background,
+                            backgroundColor: filterState.mode === 'genomic' ? colors.accentPrimary : colors.containerBackground,
                             color: filterState.mode === 'genomic' ? colors.background : colors.text
                           }}
                         >
@@ -748,7 +756,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                             onClick={() => setFilterState(prev => ({ ...prev, mode: 'tree' }))}
                             className="px-3 py-1 text-xs font-medium transition-colors"
                             style={{
-                              backgroundColor: filterState.mode === 'tree' ? colors.textSecondary : colors.background,
+                              backgroundColor: filterState.mode === 'tree' ? colors.accentPrimary : colors.containerBackground,
                               color: filterState.mode === 'tree' ? colors.background : colors.text
                             }}
                           >
@@ -761,13 +769,13 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 
                   {temporalState.isActive && (
                     <div className="flex items-center gap-2">
-                      <span className="text-sm" style={{ color: colors.text }}>Temporal Mode:</span>
-                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.background }}>
+                      <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>Temporal Mode:</span>
+                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
                         <button
                           onClick={() => setTemporalState(prev => ({ ...prev, mode: 'hide' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: temporalState.mode === 'hide' ? colors.textSecondary : colors.background,
+                            backgroundColor: temporalState.mode === 'hide' ? colors.accentPrimary : colors.containerBackground,
                             color: temporalState.mode === 'hide' ? colors.background : colors.text
                           }}
                         >
@@ -777,7 +785,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                           onClick={() => setTemporalState(prev => ({ ...prev, mode: 'planes' }))}
                           className="px-3 py-1 text-xs font-medium transition-colors"
                           style={{
-                            backgroundColor: temporalState.mode === 'planes' ? colors.textSecondary : colors.background,
+                            backgroundColor: temporalState.mode === 'planes' ? colors.accentPrimary : colors.containerBackground,
                             color: temporalState.mode === 'planes' ? colors.background : colors.text
                           }}
                         >
@@ -789,8 +797,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 </div>
 
                 {filterState.isActive && (
-                  <div className="flex items-center gap-4 flex-1">
-                    <div className="flex-1 max-w-md">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="flex-1 max-w-md min-w-0">
                       {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
                         <RangeSlider
                           min={0}
@@ -812,7 +820,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                     </div>
                     
                     {/* Inline filter info */}
-                    <div className="text-xs" style={{ color: colors.text }}>
+                    <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
                       {filterState.mode === 'genomic' ? (
                         <span>
                           {formatGenomicPosition(filterState.genomicRange[1] - filterState.genomicRange[0])} bp
@@ -833,7 +841,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                         </span>
                       ) : null}
                       {loading && (
-                        <div className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
+                        <div 
+                          className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent"
+                          style={{ borderColor: colors.accentPrimary }}
+                        ></div>
                       )}
                     </div>
                   </div>
@@ -841,7 +852,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               </div>
               
               {temporalState.isActive && (
-                <div className="text-xs" style={{ color: colors.text }}>
+                <div className="text-xs mt-3" style={{ color: colors.text }}>
                   <div className="flex items-center gap-2">
                     <span>
                       Temporal Range: {temporalState.range[0].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)} - {temporalState.range[1].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}{' '}
@@ -849,7 +860,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                       • Hold Shift + drag to maintain window size
                     </span>
                     {loading && (
-                      <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
+                      <div 
+                        className="animate-spin rounded-full h-3 w-3 border border-t-transparent"
+                        style={{ borderColor: colors.accentPrimary }}
+                      ></div>
                     )}
                   </div>
                 </div>

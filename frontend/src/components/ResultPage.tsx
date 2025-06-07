@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { log } from '../lib/logger';
 import { SAMPLE_LIMITS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
+import AlertModal from './ui/AlertModal';
 
 export default function ResultPage() {
   const navigate = useNavigate();
@@ -15,6 +16,19 @@ export default function ResultPage() {
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [inputValue, setInputValue] = useState(maxSamples.toString());
+
+  // Modal states
+  const [alertModal, setAlertModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'error' | 'info';
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'info'
+  });
 
   // Set total samples from the uploaded data
   useEffect(() => {
@@ -79,7 +93,12 @@ export default function ResultPage() {
 
       setTreeSequence(updatedData);
 
-      alert(`Fast location inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `Fast location inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
 
     } catch (error) {
       log.error('Fast location inference failed', {
@@ -87,7 +106,12 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      alert(`Fast location inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: `Fast location inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
     } finally {
       setIsInferringLocationsFast(false);
     }
@@ -123,16 +147,16 @@ export default function ResultPage() {
     if (fromIntermediate) {
       switch (fromIntermediate) {
         case 'upload':
-          return '< Back to Upload';
+          return 'Back to Upload';
         case 'simulate':
-          return '< Back to Simulate';
+          return 'Back to Simulate';
         case 'load':
-          return '< Back to options';
+          return 'Back to options';
         default:
-          return '< Back';
+          return 'Back';
       }
     }
-    return '< Back';
+    return 'Back';
   };
 
   if (!data) {
@@ -145,257 +169,325 @@ export default function ResultPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center bg-sp-very-dark-blue text-sp-white px-4 pt-12 pb-24">
-      {/* Title - consistent with homepage */}
-      <div className="mb-8 text-center">
-        <ClickableLogo size="large" />
+    <div className="bg-sp-very-dark-blue text-sp-white min-h-screen px-4 pt-8 pb-20 font-sans">
+      {/* Header with logo and back button */}
+      <div className="max-w-7xl mx-auto mb-8">
+        {/* Logo and Back Button Row */}
+        <div className="relative flex items-center justify-center mb-6">
+          <button 
+            className="absolute left-0 inline-flex items-center gap-2 text-sp-pale-green hover:text-sp-pale-green/80 transition-colors duration-200"
+            onClick={handleBackNavigation}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            {getBackButtonText()}
+          </button>
+          
+          <ClickableLogo size="medium" />
+        </div>
+        
+        <div className="text-center mb-8">
+          <h1 className="text-3xl md:text-4xl font-bold mb-2">Tree Sequence Analysis</h1>
+          <p className="text-sp-white/70 text-lg font-mono break-all">{data.filename}</p>
+        </div>
       </div>
-      
-      <div className="w-full max-w-2xl bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue p-8 flex flex-col items-center my-auto">
-        <div className="w-full flex justify-between items-center mb-4">
-          <button className="text-sp-pale-green hover:text-sp-white text-lg font-medium px-2 py-1 rounded transition-colors" onClick={handleBackNavigation}>{getBackButtonText()}</button>
-          <div className="flex gap-2">
-            <button 
-              className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base transition-colors"
-              onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
-            >
-              {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
-            </button>
-            <button className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base" onClick={async () => {
-              try {
-                const blob = await api.downloadTreeSequence(data.filename);
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                const downloadFilename = data.filename.toLowerCase().endsWith('.trees') ? `${data.filename}.tsz` : data.filename;
-                link.setAttribute('download', downloadFilename);
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-                log.user.action('download-tree-sequence', { filename: data.filename }, 'ResultPage');
-              } catch (error) {
-                log.error('Download failed', {
-                  component: 'ResultPage',
-                  error: error instanceof Error ? error : new Error(String(error)),
-                  data: { filename: data.filename }
-                });
-              }
-            }}>Download .tsz</button>
-          </div>
-        </div>
-        
-        {/* Tree Sequence Selector */}
-        {showTreeSequenceSelector && (
-          <div className="w-full mb-6 p-4 bg-sp-dark-blue rounded-lg border border-sp-pale-green">
-            <TreeSequenceSelector onSelect={handleTreeSequenceSelect} />
-          </div>
-        )}
-        
-        {/* File Info - Compact Header */}
-        <div className="w-full mb-6">
-          <div className="text-xl font-semibold text-center mb-4">
-            <span className="font-mono text-sp-pale-green break-all">{data.filename}</span>
-          </div>
-          
-          {/* Data Overview Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-            <div className="bg-sp-dark-blue rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-sp-pale-green">{data.num_samples}</div>
-              <div className="text-xs text-sp-white">Samples</div>
-            </div>
-            <div className="bg-sp-dark-blue rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-sp-pale-green">{data.num_nodes}</div>
-              <div className="text-xs text-sp-white">Nodes</div>
-            </div>
-            <div className="bg-sp-dark-blue rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-sp-pale-green">{data.num_edges}</div>
-              <div className="text-xs text-sp-white">Edges</div>
-            </div>
-            <div className="bg-sp-dark-blue rounded-lg p-3 text-center">
-              <div className="text-lg font-bold text-sp-pale-green">{data.num_trees}</div>
-              <div className="text-xs text-sp-white">Local Trees</div>
-            </div>
-          </div>
-          
-          {/* Additional Stats - Compact Row */}
-          <div className="flex flex-wrap gap-2 justify-center">
-            {data.num_mutations !== undefined && (
-              <span className="bg-sp-dark-blue text-sp-white px-3 py-1 rounded-full text-sm">
-                {data.num_mutations} mutations
-              </span>
-            )}
-            {data.num_sites !== undefined && data.num_sites > 0 && (
-              <span className="bg-sp-dark-blue text-sp-white px-3 py-1 rounded-full text-sm">
-                {data.num_sites} sites
-              </span>
-            )}
-            {data.num_recombination_nodes !== undefined && data.num_recombination_nodes > 0 && (
-              <span className="bg-sp-dark-blue text-sp-white px-3 py-1 rounded-full text-sm">
-                {data.num_recombination_nodes} recombination nodes
-              </span>
-            )}
-          </div>
-          
-          {/* Status Badges - Compact Row */}
-          <div className="flex flex-wrap gap-2 justify-center mt-4">
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
-              data.has_temporal ? 'bg-sp-pale-green text-sp-very-dark-blue' : 'bg-sp-dark-blue text-sp-white'
-            }`}>
-              <span className={`inline-block ${data.has_temporal ? 'text-sp-very-dark-blue' : 'text-green-400'}`}>
-                {data.has_temporal ? '✔️' : '✖️'}
-              </span>
-              Temporal
-            </div>
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
-              data.has_sample_spatial ? 'bg-sp-pale-green text-sp-very-dark-blue' : 'bg-sp-dark-blue text-sp-white'
-            }`}>
-              <span className={`inline-block ${data.has_sample_spatial ? 'text-sp-very-dark-blue' : 'text-green-400'}`}>
-                {data.has_sample_spatial ? '✔️' : '✖️'}
-              </span>
-              Sample Coords
-            </div>
-            <div className={`flex items-center gap-1 px-3 py-1 rounded-full text-sm ${
-              data.has_all_spatial ? 'bg-sp-pale-green text-sp-very-dark-blue' : 'bg-sp-dark-blue text-sp-white'
-            }`}>
-              <span className={`inline-block ${data.has_all_spatial ? 'text-sp-very-dark-blue' : 'text-green-400'}`}>
-                {data.has_all_spatial ? '✔️' : '✖️'}
-              </span>
-              All Coords
-            </div>
-          </div>
-        </div>
-        
-        <div className="w-full flex flex-col gap-4 mb-6">
-          <button
-            className={`bg-sp-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base ${!inferTimesEnabled && 'opacity-50 cursor-not-allowed'}`}
-            disabled={!inferTimesEnabled}
-            onClick={() => log.user.action('infer-times-clicked', { filename: data.filename }, 'ResultPage')}
-          >
-            Infer times (tsdate)
-          </button>
-          <button
-            className={`bg-sp-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base ${!fastLocationInferenceEnabled && 'opacity-50 cursor-not-allowed'} ${isInferringLocationsFast && 'opacity-75 cursor-not-allowed'}`}
-            disabled={!fastLocationInferenceEnabled || isInferringLocationsFast}
-            onClick={handleFastLocationInference}
-          >
-            <div className="flex items-center justify-center gap-2">
-              {isInferringLocationsFast && (
-                <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
-              )}
-              <span>
-                {isInferringLocationsFast ? 'Inferring...' : getFastInferenceButtonText()}
-              </span>
-            </div>
-          </button>
-        </div>
 
-        <div className="w-full flex flex-col gap-4 mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <button
-              className={`flex-1 min-w-[200px] bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-4 rounded-lg text-lg transition-colors shadow-md ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed'}`}
-              disabled={!visualizeArgEnabled}
-              onClick={() => navigate(`/visualize/${encodeURIComponent(data.filename)}`)}
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold">Visualize ARG</span>
-                <span className="text-xs mt-1 opacity-80">Interactive D3-based visualization</span>
+      {/* Main content area */}
+      <div className="max-w-7xl mx-auto">
+        <div className="bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
+          <div className="p-8 space-y-6">
+            {/* Header Section - Data Attributes and Buttons */}
+            <div className="flex justify-between items-center">
+              {/* Data Attributes - Left Side */}
+              <div className="flex flex-wrap gap-3">
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  data.has_temporal ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
+                }`}>
+                  <span className={`inline-block ${data.has_temporal ? 'text-sp-white' : 'text-red-400'}`}>
+                    {data.has_temporal ? '✔️' : '✖️'}
+                  </span>
+                  Temporal
+                </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  data.has_sample_spatial ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
+                }`}>
+                  <span className={`inline-block ${data.has_sample_spatial ? 'text-sp-white' : 'text-red-400'}`}>
+                    {data.has_sample_spatial ? '✔️' : '✖️'}
+                  </span>
+                  Sample Coords
+                </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  data.has_all_spatial ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
+                }`}>
+                  <span className={`inline-block ${data.has_all_spatial ? 'text-sp-white' : 'text-red-400'}`}>
+                    {data.has_all_spatial ? '✔️' : '✖️'}
+                  </span>
+                  All Coords
+                </div>
               </div>
-            </button>
-            <button
-              className={`flex-1 min-w-[200px] bg-sp-dark-blue text-sp-white font-bold py-4 rounded-lg text-lg transition-colors shadow-md opacity-50 cursor-not-allowed`}
-              disabled={true}
-              title="Large ARG visualization temporarily disabled"
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold">Large ARG</span>
-                <span className="text-xs mt-1 opacity-80">Coming soon</span>
+              
+              {/* Action Buttons - Right Side */}
+              <div className="flex gap-2">
+                <button 
+                  className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                  onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
+                </button>
+                <button 
+                  className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2" 
+                  onClick={async () => {
+                    try {
+                      const blob = await api.downloadTreeSequence(data.filename);
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement('a');
+                      link.href = url;
+                      const downloadFilename = data.filename.toLowerCase().endsWith('.trees') ? `${data.filename}.tsz` : data.filename;
+                      link.setAttribute('download', downloadFilename);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                      URL.revokeObjectURL(url);
+                      log.user.action('download-tree-sequence', { filename: data.filename }, 'ResultPage');
+                    } catch (error) {
+                      log.error('Download failed', {
+                        component: 'ResultPage',
+                        error: error instanceof Error ? error : new Error(String(error)),
+                        data: { filename: data.filename }
+                      });
+                      setAlertModal({
+                        isOpen: true,
+                        title: 'Download Failed',
+                        message: `Failed to download tree sequence: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                        type: 'error'
+                      });
+                    }
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  Download .tsz
+                </button>
               </div>
-            </button>
-            <button
-              className={`flex-1 min-w-[200px] bg-sp-dark-blue text-sp-white font-bold py-4 rounded-lg text-lg transition-colors shadow-md opacity-50 cursor-not-allowed`}
-              disabled={true}
-              title="Pretty ARG visualization temporarily disabled"
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold">Pretty ARG</span>
-                <span className="text-xs mt-1 opacity-80">Coming soon</span>
+            </div>
+            
+            {/* Tree Sequence Selector */}
+            {showTreeSequenceSelector && (
+              <div className="p-4 bg-sp-dark-blue rounded-lg border border-sp-pale-green/20">
+                <TreeSequenceSelector onSelect={handleTreeSequenceSelect} />
               </div>
-            </button>
-            <button
-              className={`flex-1 min-w-[200px] bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-4 rounded-lg text-lg transition-colors shadow-md ${!visualizeSpatialArgEnabled && 'opacity-50 cursor-not-allowed'}`}
-              disabled={!visualizeSpatialArgEnabled}
-              onClick={() => navigate(`/visualize-spatial/${encodeURIComponent(data.filename)}`)}
-            >
-              <div className="flex flex-col items-center">
-                <span className="text-lg font-bold">Spatial ARG</span>
-                <span className="text-xs mt-1 opacity-80">3D visualization with coordinates</span>
+            )}
+            {/* Data Overview Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-sp-pale-green">{data.num_samples}</div>
+                <div className="text-xs text-sp-white/70">Samples</div>
               </div>
-            </button>
-          </div>
-        </div>
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-sp-pale-green">{data.num_nodes}</div>
+                <div className="text-xs text-sp-white/70">Nodes</div>
+              </div>
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-sp-pale-green">{data.num_edges}</div>
+                <div className="text-xs text-sp-white/70">Edges</div>
+              </div>
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-sp-pale-green">{data.num_trees}</div>
+                <div className="text-xs text-sp-white/70">Local Trees</div>
+              </div>
+            </div>
+            
+            {/* Additional Stats */}
+            {(data.num_mutations !== undefined || data.num_sites !== undefined || data.num_recombination_nodes !== undefined) && (
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3">
+                <h4 className="text-sm font-medium text-sp-white mb-2">Additional Statistics</h4>
+                <div className="flex flex-wrap gap-2">
+                  {data.num_mutations !== undefined && (
+                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
+                      {data.num_mutations} mutations
+                    </span>
+                  )}
+                  {data.num_sites !== undefined && data.num_sites > 0 && (
+                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
+                      {data.num_sites} sites
+                    </span>
+                  )}
+                  {data.num_recombination_nodes !== undefined && data.num_recombination_nodes > 0 && (
+                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
+                      {data.num_recombination_nodes} recombination nodes
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+            
+            {/* Analysis Tools */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!inferTimesEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                disabled={!inferTimesEnabled}
+                onClick={() => log.user.action('infer-times-clicked', { filename: data.filename }, 'ResultPage')}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Infer times (tsdate)
+              </button>
+              <button
+                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!fastLocationInferenceEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'} ${isInferringLocationsFast && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
+                disabled={!fastLocationInferenceEnabled || isInferringLocationsFast}
+                onClick={handleFastLocationInference}
+              >
+                {isInferringLocationsFast && (
+                  <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+                )}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>
+                  {isInferringLocationsFast ? 'Inferring...' : getFastInferenceButtonText()}
+                </span>
+              </button>
+            </div>
 
-        {/* Sample count slider */}
-        <div className="w-full p-4 bg-sp-dark-blue rounded-lg mb-4">
-          <div className="flex flex-col gap-2">
-            <label htmlFor="sample-slider" className="text-sm font-medium">
-              Number of samples to display in visualization:
-            </label>
-            <div className="flex items-center gap-4">
-              <input
-                type="range"
-                id="sample-slider"
-                min="2"
-                max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                value={Math.max(maxSamples, 2)}
-                onChange={(e) => setMaxSamples(parseInt(e.target.value))}
-                className="flex-1 h-2 bg-sp-very-dark-blue rounded-lg appearance-none cursor-pointer accent-sp-pale-green"
-              />
-              <div className="flex items-center gap-2 min-w-[8rem]">
+            {/* Sample count slider */}
+            <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                  <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                  </svg>
+                </div>
+                <h4 className="font-medium text-sp-white text-sm">Visualization Sample Count</h4>
+              </div>
+              <div className="flex items-center gap-4">
                 <input
-                  type="number"
-                  value={inputValue}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setInputValue(value);
-                    if (value !== '') {
-                      const numValue = parseInt(value);
-                      if (!isNaN(numValue)) {
-                        setMaxSamples(numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const value = parseInt(e.target.value);
-                    let finalValue = 2; // default minimum
-                    if (!isNaN(value)) {
-                      finalValue = Math.max(2, Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
-                    }
-                    setMaxSamples(finalValue);
-                    setInputValue(finalValue.toString());
-                  }}
+                  type="range"
+                  id="sample-slider"
                   min="2"
                   max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                  className="w-20 bg-sp-very-dark-blue border border-sp-dark-blue rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  value={Math.max(maxSamples, 2)}
+                  onChange={(e) => setMaxSamples(parseInt(e.target.value))}
+                  className="flex-1 h-2 bg-sp-dark-blue rounded-lg appearance-none cursor-pointer accent-sp-pale-green"
                 />
-                <span className="text-sm font-mono text-right">
-                  / {totalSamples || '?'}
-                </span>
+                <div className="flex items-center gap-2 min-w-[8rem]">
+                  <input
+                    type="number"
+                    value={inputValue}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setInputValue(value);
+                      if (value !== '') {
+                        const numValue = parseInt(value);
+                        if (!isNaN(numValue)) {
+                          setMaxSamples(numValue);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = parseInt(e.target.value);
+                      let finalValue = 2; // default minimum
+                      if (!isNaN(value)) {
+                        finalValue = Math.max(2, Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
+                      }
+                      setMaxSamples(finalValue);
+                      setInputValue(finalValue.toString());
+                    }}
+                    min="2"
+                    max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
+                    className="w-20 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  />
+                  <span className="text-sm font-mono text-sp-white/70">
+                    / {totalSamples || '?'}
+                  </span>
+                </div>
+              </div>
+              <div className="mt-2">
+                <p className="text-xs text-sp-white/60">
+                  Adjust before visualizing to control the number of samples shown (minimum: 2)
+                </p>
+                {totalSamples && totalSamples > SAMPLE_LIMITS.WARNING_THRESHOLD && (
+                  <p className="text-xs text-sp-white/60 mt-1">
+                    Note: Large sample numbers may affect visualization performance
+                  </p>
+                )}
               </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <p className="text-xs text-sp-white">
-                Adjust this before visualizing to control the number of samples shown in the ARG (minimum: 2)
-              </p>
-              {totalSamples && totalSamples > SAMPLE_LIMITS.WARNING_THRESHOLD && (
-                <p className="text-xs text-sp-white">
-                  Note: Large sample numbers may affect visualization performance
-                </p>
-              )}
+
+            {/* Visualization Options */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <button
+                className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                disabled={!visualizeArgEnabled}
+                onClick={() => navigate(`/visualize/${encodeURIComponent(data.filename)}`)}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <div className="text-center">
+                  <span className="text-base font-bold">Visualize ARG</span>
+                  <span className="text-sm opacity-80 block">Interactive D3</span>
+                </div>
+              </button>
+              <button
+                className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeSpatialArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                disabled={!visualizeSpatialArgEnabled}
+                onClick={() => navigate(`/visualize-spatial/${encodeURIComponent(data.filename)}`)}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="text-center">
+                  <span className="text-base font-bold">Spatial ARG</span>
+                  <span className="text-sm opacity-80 block">3D coordinates</span>
+                </div>
+              </button>
+              <button
+                className="bg-sp-dark-blue text-sp-white/50 font-bold py-5 px-6 rounded-xl flex flex-col items-center gap-2 opacity-40 cursor-not-allowed"
+                disabled={true}
+                title="Pretty ARG visualization coming soon"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
+                </svg>
+                <div className="text-center">
+                  <span className="text-base font-bold">Pretty ARG</span>
+                  <span className="text-sm opacity-60 block">Coming soon</span>
+                </div>
+              </button>
+              <button
+                className="bg-sp-dark-blue text-sp-white/50 font-bold py-5 px-6 rounded-xl flex flex-col items-center gap-2 opacity-40 cursor-not-allowed"
+                disabled={true}
+                title="Huge ARG visualization coming soon"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
+                </svg>
+                <div className="text-center">
+                  <span className="text-base font-bold">Huge ARG</span>
+                  <span className="text-sm opacity-60 block">Coming soon</span>
+                </div>
+              </button>
             </div>
+
           </div>
         </div>
       </div>
+
+      {/* Alert Modal */}
+      <AlertModal
+        isOpen={alertModal.isOpen}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+      />
     </div>
   );
 } 

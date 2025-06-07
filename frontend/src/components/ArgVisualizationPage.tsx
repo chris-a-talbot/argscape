@@ -87,7 +87,7 @@ export default function ArgVisualizationPage() {
 
     return (
         <div 
-            className="h-screen flex flex-col overflow-hidden"
+            className="h-screen flex flex-col overflow-hidden font-sans"
             style={{ 
                 backgroundColor: colors.background,
                 color: colors.text 
@@ -95,67 +95,96 @@ export default function ArgVisualizationPage() {
         >
             {/* Header */}
             <header 
-                className="p-4 shadow-md"
+                className="border-b p-4 shadow-md flex-shrink-0"
                 style={{ 
                     backgroundColor: colors.background,
                     borderBottomColor: colors.border 
                 }}
             >
-                <div className="max-w-7xl mx-auto flex justify-between items-center">
-                    <button 
-                        className="text-base font-medium px-2 py-1 rounded transition-colors"
-                        style={{ 
-                            color: colors.textSecondary,
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.color = colors.text;
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.color = colors.textSecondary;
-                        }}
-                        onClick={() => navigate('/result')}
-                    >
-                        {'< Back to Results'}
-                    </button>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-baseline gap-4">
-                            <ClickableLogo 
-                                size="medium" 
-                                style={{ color: colors.text }} 
-                            />
-                            <span className="text-lg opacity-75" style={{ color: colors.text }}>ARG Visualization</span>
-                            <div className="text-base font-mono break-all max-w-md" style={{ color: colors.textSecondary }}>
+                <div className="max-w-7xl mx-auto">
+                    {/* Row 1: Logo and Back Button */}
+                    <div className="relative flex items-center justify-center mb-4">
+                        <button 
+                            className="absolute left-0 inline-flex items-center gap-2 transition-colors duration-200"
+                            style={{ color: colors.accentPrimary }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.color = `${colors.accentPrimary}CC`; // 80% opacity
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.color = colors.accentPrimary;
+                            }}
+                            onClick={() => navigate('/result')}
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                            </svg>
+                            Back to Results
+                        </button>
+                        
+                        <ClickableLogo size="medium" />
+                    </div>
+                    
+                    {/* Row 2: Title, filename and Actions */}
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4 min-w-0 flex-1">
+                            <span className="text-lg flex-shrink-0" style={{ color: `${colors.text}B3` }}>
+                                ARG Visualization
+                            </span>
+                            <div className="text-base font-mono break-all min-w-0" style={{ color: `${colors.accentPrimary}CC` }}>
                                 {decodedFilename}
                             </div>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <ColorThemeDropdown />
-                        <button 
-                            className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base transition-colors"
-                            onClick={handleDownloadImage}
-                        >
-                            Download Image
-                        </button>
-                        <button 
-                            className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium px-4 py-2 rounded-lg text-base transition-colors"
-                            onClick={handleDownload}
-                        >
-                            Download .tsz
-                        </button>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                            <ColorThemeDropdown />
+                            <button 
+                                className="font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+                                style={{
+                                    backgroundColor: colors.containerBackground,
+                                    color: colors.text
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                    e.currentTarget.style.color = colors.background;
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                    e.currentTarget.style.color = colors.text;
+                                }}
+                                onClick={handleDownloadImage}
+                                title="Download ARG visualization as PNG"
+                            >
+                                Download Image
+                            </button>
+                            <button 
+                                className="font-medium px-4 py-2 rounded-lg text-sm transition-colors"
+                                style={{
+                                    backgroundColor: colors.containerBackground,
+                                    color: colors.text
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                    e.currentTarget.style.color = colors.background;
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                    e.currentTarget.style.color = colors.text;
+                                }}
+                                onClick={handleDownload}
+                            >
+                                Download .tsz
+                            </button>
+                        </div>
                     </div>
                 </div>
             </header>
 
-            {/* Main content */}
-            <main className="flex-1 p-4 overflow-hidden">
-                <div className="max-w-7xl mx-auto h-full">
-                    <ForceDirectedGraphContainer 
-                        ref={svgRef}
-                        filename={decodedFilename}
-                        max_samples={maxSamples}
-                    />
-                </div>
+            {/* Main content - Full width and height */}
+            <main className="flex-1 overflow-hidden">
+                <ForceDirectedGraphContainer 
+                    ref={svgRef}
+                    filename={decodedFilename}
+                    max_samples={maxSamples}
+                />
             </main>
         </div>
     );

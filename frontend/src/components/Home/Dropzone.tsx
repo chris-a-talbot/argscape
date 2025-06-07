@@ -207,19 +207,26 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
 
       {/* Action buttons when file is selected */}
       {file && mode === 'none' && (
-        <div className="w-full flex flex-col gap-2">
+        <div className="w-full flex flex-col gap-3">
           <button
             type="button"
             onClick={handleLoadAsIs}
-            className="w-full bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-2 rounded-lg transition-colors shadow-md text-lg"
+            className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
             Load as-is
           </button>
           <button
             type="button"
             onClick={handleAddLocations}
-            className="w-full bg-sp-very-dark-blue hover:bg-sp-dark-blue text-sp-pale-green border border-sp-dark-blue font-bold py-2 rounded-lg transition-colors shadow-md text-lg"
+            className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
             Add locations
           </button>
         </div>
@@ -228,7 +235,7 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
       {/* Location CSV upload section */}
       {mode === 'add-locations' && (
         <div className="w-full space-y-4">
-          <div className="text-center text-sp-very-pale-green text-sm mb-4">
+          <div className="text-center text-sp-white/70 text-sm mb-4">
             Upload CSV files with node locations (required columns: node_id, x, y, z)
           </div>
 
@@ -281,12 +288,15 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
             type="button"
             onClick={handleUpdateTreeSequence}
             disabled={!canUpdateTreeSequence}
-            className={`w-full font-bold py-2 rounded-lg transition-colors shadow-md text-lg ${
+            className={`w-full font-bold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
               canUpdateTreeSequence
-                ? 'bg-sp-pale-green hover:bg-green-400 text-sp-very-dark-blue'
+                ? 'bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue transform hover:scale-105 hover:shadow-lg'
                 : 'bg-gray-600 text-gray-400 cursor-not-allowed'
             }`}
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
             Update Tree Sequence
           </button>
 
@@ -298,8 +308,11 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
               setLocationFiles({ sampleLocations: null, nodeLocations: null });
               setUploadedCsvFiles({});
             }}
-            className="w-full bg-transparent hover:bg-sp-dark-blue text-sp-very-pale-green border border-sp-dark-blue font-bold py-2 rounded-lg transition-colors shadow-md text-sm"
+            className="w-full bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
           >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
             Back
           </button>
         </div>

@@ -1,10 +1,12 @@
 import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } from 'react';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
-import { GraphData, GraphNode, GraphEdge, TreeInterval } from './ForceDirectedGraph.types';
+import { ForceDirectedGraphInfoPanel } from './ForceDirectedGraphInfoPanel';
+import { ForceDirectedGraphControlPanel } from './ForceDirectedGraphControlPanel';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
-import { ArgStatsDisplay, ArgStatsData } from '../ui/arg-stats-display';
+import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
@@ -95,6 +97,12 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
     const [isFilterActive, setIsFilterActive] = useState(false);
     const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('custom');
+    const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
+    const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>({
+        sample: 8,  // Default sample node size
+        root: 6,    // Default root node size  
+        other: 5    // Default other node size
+    });
 
     // Convert tree intervals from backend format
     const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
@@ -264,6 +272,13 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         fetchData();
     }, [filename, max_samples, debouncedGenomicRange, debouncedTreeRange, isFilterActive, filterMode, isInitialized, sequenceLength, treeIntervals, sampleOrder]);
 
+    // Auto-collapse filter section when filters are inactive, but only on initialization
+    useEffect(() => {
+        if (!isFilterActive) {
+            setIsFilterSectionCollapsed(true);
+        }
+    }, [isFilterActive]);
+
     // Filter data based on current view mode
     const getFilteredData = (): GraphData | null => {
         if (!data || !selectedNode) return data;
@@ -397,9 +412,11 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 setTreeRange(fullTreeRange);
                 setDebouncedTreeRange(fullTreeRange);
             }
+            // Show controls when activating filter
+            setIsFilterSectionCollapsed(false);
         } else {
-            // Deactivating filter - reload initial data without filtering
-            // The data will be reloaded by the initial data useEffect due to state change
+            // Deactivating filter - reload initial data without filtering and collapse controls
+            setIsFilterSectionCollapsed(true);
         }
     }, [isFilterActive, filterMode, sequenceLength, treeIntervals]);
 
@@ -448,257 +465,317 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
 
     if (loading) {
         return (
-            <div 
-                className="w-full h-full flex items-center justify-center"
-                style={{ backgroundColor: colors.background }}
-            >
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: colors.textSecondary }}></div>
+            <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: colors.background }}>
+                <div className="text-center">
+                    <div 
+                        className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4"
+                        style={{ borderColor: colors.accentPrimary }}
+                    ></div>
+                    <p style={{ color: colors.text }}>Loading force-directed ARG visualization...</p>
+                </div>
             </div>
         );
     }
 
     if (error) {
         return (
-            <div 
-                className="w-full h-full flex items-center justify-center"
-                style={{ backgroundColor: colors.background, color: colors.text }}
-            >
-                Error: {error}
+            <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: colors.background }}>
+                <div className="text-center" style={{ color: colors.text }}>
+                    <p className="text-lg mb-2">Error loading visualization</p>
+                    <p className="text-sm" style={{ color: `${colors.text}B3` }}>{error}</p>
+                </div>
             </div>
         );
     }
 
     return (
         <div 
-            className="w-full h-full flex flex-col"
+            className="w-full h-full flex flex-col overflow-hidden"
             style={{ backgroundColor: colors.background }}
         >
-            {/* Compact top bar with title, legend, and controls */}
+            {/* Header - Three Row Layout */}
             <div 
-                className="flex-shrink-0 border-b px-4 py-2"
+                className="flex-shrink-0 border-b"
                 style={{ 
                     backgroundColor: colors.background,
                     borderBottomColor: colors.border 
                 }}
             >
-                <div className="flex items-center justify-between">
-                    {/* Left: Title, stats, and return button */}
-                    <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-4">
-                            <h2 className="text-lg font-semibold" style={{ color: colors.text }}>{getViewTitle()}</h2>
-                            {viewMode !== 'full' && (
-                                <button
-                                    onClick={handleReturnToFull}
-                                    className="font-medium px-3 py-1 rounded text-sm transition-colors"
-                                    style={{
-                                        backgroundColor: colors.containerBackground,
-                                        color: colors.text,
-                                        border: `1px solid ${colors.border}`
-                                    }}
-                                    onMouseEnter={(e) => {
-                                        e.currentTarget.style.backgroundColor = colors.border;
-                                    }}
-                                    onMouseLeave={(e) => {
-                                        e.currentTarget.style.backgroundColor = colors.containerBackground;
-                                    }}
-                                >
-                                    Return to Full ARG
-                                </button>
-                            )}
-                        </div>
-                        {/* ARG Statistics */}
-                        {calculateArgStats() && (
-                            <ArgStatsDisplay stats={calculateArgStats()!} />
-                        )}
-                    </div>
-                    
-                    {/* Right: Compact legend and instructions */}
-                    <div className="flex items-center gap-6">
-                        {/* Legend */}
-                        <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
-                            <div className="flex items-center gap-1">
-                                <div 
-                                    className="w-2 h-2 rounded-full border" 
-                                    style={{
-                                        backgroundColor: `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`,
-                                        borderColor: colors.background,
-                                        borderWidth: '0.5px'
-                                    }}
-                                ></div>
-                                <span>Sample</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div 
-                                    className="w-2 h-2 rounded-full" 
-                                    style={{backgroundColor: `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`}}
-                                ></div>
-                                <span>Internal</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div 
-                                    className="w-2 h-2 rounded-full" 
-                                    style={{backgroundColor: `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`}}
-                                ></div>
-                                <span>Combined</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                                <div 
-                                    className="w-2 h-2 rounded-full border-2" 
-                                    style={{
-                                        backgroundColor: `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`,
-                                        borderColor: `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`
-                                    }}
-                                ></div>
-                                <span>Root</span>
+                {/* Row 3: View title and filter controls */}
+                <div className="px-4 py-2">
+                    <div className="flex items-center justify-between">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-4">
+                                <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
+                                    {getViewTitle()}
+                                </h2>
+                                
+                                {(sequenceLength > 0 || treeIntervals.length > 0) && (
+                                    <div className="flex items-center gap-4">
+                                        {sequenceLength > 0 && (
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isFilterActive}
+                                                    onChange={handleToggleFilter}
+                                                    className="w-4 h-4 rounded focus:ring-2"
+                                                    style={{
+                                                        accentColor: colors.accentPrimary
+                                                    }}
+                                                />
+                                                Filter Genomic Range
+                                            </label>
+                                        )}
+                                    </div>
+                                )}
+                                
+                                {viewMode !== 'full' && (
+                                    <button
+                                        onClick={handleReturnToFull}
+                                        className="font-medium px-3 py-1 rounded text-sm transition-colors border"
+                                        style={{
+                                            backgroundColor: colors.containerBackground,
+                                            color: colors.text,
+                                            borderColor: `${colors.accentPrimary}33` // 20% opacity
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.borderColor = `${colors.accentPrimary}66`; // 40% opacity
+                                            e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`; // 80% opacity
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                            e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                        }}
+                                    >
+                                        Return to Full ARG
+                                    </button>
+                                )}
                             </div>
                         </div>
                         
-                        {/* Instructions */}
-                        <div 
-                            className="text-xs border-l pl-4"
-                            style={{ 
-                                color: colors.text,
-                                borderLeftColor: colors.border 
-                            }}
-                        >
-                            Left click: Subgraph • Right click: Ancestors
+                        <div className="flex items-center gap-6">
+                            {/* Show/hide controls button when filters are active */}
+                            {isFilterActive && (
+                                <button
+                                    onClick={() => setIsFilterSectionCollapsed(!isFilterSectionCollapsed)}
+                                    className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors"
+                                    style={{
+                                        backgroundColor: colors.accentPrimary,
+                                        color: colors.background
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '0.8';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                    }}
+                                >
+                                    <span>
+                                        {isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
+                                    </span>
+                                    <svg 
+                                        className={`w-4 h-4 transition-transform ${isFilterSectionCollapsed ? 'rotate-180' : ''}`}
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
+                            )}
+                            
+                            <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
+                                <div className="flex items-center gap-1">
+                                    <div 
+                                        className="w-2 h-2 rounded-full border"
+                                        style={{
+                                            backgroundColor: `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`,
+                                            borderColor: colors.background,
+                                            borderWidth: '0.5px'
+                                        }}
+                                    ></div>
+                                    <span>Sample</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div 
+                                        className="w-2 h-2 rounded-full" 
+                                        style={{backgroundColor: `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`}}
+                                    ></div>
+                                    <span>Internal</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div 
+                                        className="w-2 h-2 rounded-full" 
+                                        style={{backgroundColor: `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`}}
+                                    ></div>
+                                    <span>Combined</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                    <div 
+                                        className="w-2 h-2 rounded-full border-2" 
+                                        style={{
+                                            backgroundColor: `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`,
+                                            borderColor: `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`
+                                        }}
+                                    ></div>
+                                    <span>Root</span>
+                                </div>
+                            </div>
+                            
+                            <div 
+                                className="text-xs border-l pl-4"
+                                style={{ 
+                                    color: colors.text,
+                                    borderLeftColor: colors.border 
+                                }}
+                            >
+                                Left click: Subgraph • Right click: Ancestors
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
             
-            {/* Sample Order Control */}
-            <div 
-                className="flex-shrink-0 border-b px-4 py-3"
-                style={{ 
-                    backgroundColor: colors.background,
-                    borderBottomColor: colors.border 
-                }}
-            >
-                <SampleOrderControl
-                    value={sampleOrder}
-                    onChange={setSampleOrder}
-                />
-            </div>
-            
-            {/* Filter Controls */}
-            {(sequenceLength > 0 || treeIntervals.length > 0) && (
+            {/* Filter Controls Section - only show when filters are active */}
+            {isFilterActive && (
                 <div 
-                    className="flex-shrink-0 border-b px-4 py-3"
+                    className="flex-shrink-0 border-b"
                     style={{ 
                         backgroundColor: colors.background,
                         borderBottomColor: colors.border 
                     }}
                 >
-                    <div className="flex items-center gap-4">
-                        {/* Toggle filtering */}
-                        <div className="flex items-center gap-2">
-                            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
-                                <input
-                                    type="checkbox"
-                                    checked={isFilterActive}
-                                    onChange={handleToggleFilter}
-                                    className="w-4 h-4 text-sp-pale-green bg-sp-dark-blue border-sp-very-dark-blue rounded focus:ring-sp-pale-green focus:ring-2"
-                                />
-                                Filter Genomic Range
-                            </label>
-                        </div>
+                    {!isFilterSectionCollapsed && (
+                        <div className="px-4 py-3">
+                            <div className="flex items-start justify-between gap-6">
+                                <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
+                                    {/* Filter mode selection */}
+                                    {treeIntervals.length > 0 && (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+                                                Genomic Mode:
+                                            </span>
+                                            <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+                                                <button
+                                                    onClick={() => handleFilterModeChange('genomic')}
+                                                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                        filterMode === 'genomic' 
+                                                            ? '' 
+                                                            : 'hover:opacity-80'
+                                                    }`}
+                                                    style={{
+                                                        backgroundColor: filterMode === 'genomic' ? colors.accentPrimary : colors.containerBackground,
+                                                        color: filterMode === 'genomic' ? colors.background : colors.text
+                                                    }}
+                                                >
+                                                    Genomic
+                                                </button>
+                                                <button
+                                                    onClick={() => handleFilterModeChange('tree')}
+                                                    className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                        filterMode === 'tree' 
+                                                            ? '' 
+                                                            : 'hover:opacity-80'
+                                                    }`}
+                                                    style={{
+                                                        backgroundColor: filterMode === 'tree' ? colors.accentPrimary : colors.containerBackground,
+                                                        color: filterMode === 'tree' ? colors.background : colors.text
+                                                    }}
+                                                >
+                                                    Tree Index
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                        {/* Filter mode selection */}
-                        {isFilterActive && treeIntervals.length > 0 && (
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm" style={{ color: colors.text }}>Mode:</span>
-                                <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
-                                    <button
-                                        onClick={() => handleFilterModeChange('genomic')}
-                                        className="px-3 py-1 text-xs font-medium transition-colors"
-                                        style={{
-                                            backgroundColor: filterMode === 'genomic' ? colors.textSecondary : colors.containerBackground,
-                                            color: filterMode === 'genomic' ? colors.background : colors.text
-                                        }}
-                                    >
-                                        Genomic
-                                    </button>
-                                    <button
-                                        onClick={() => handleFilterModeChange('tree')}
-                                        className="px-3 py-1 text-xs font-medium transition-colors"
-                                        style={{
-                                            backgroundColor: filterMode === 'tree' ? colors.textSecondary : colors.containerBackground,
-                                            color: filterMode === 'tree' ? colors.background : colors.text
-                                        }}
-                                    >
-                                        Tree Index
-                                    </button>
+                                <div className="flex items-center gap-4 flex-1 min-w-0">
+                                    <div className="flex-1 max-w-md min-w-0">
+                                        {filterMode === 'genomic' && sequenceLength > 0 ? (
+                                            <RangeSlider
+                                                min={0}
+                                                max={sequenceLength}
+                                                step={Math.max(1, Math.floor(sequenceLength / 1000))}
+                                                value={genomicRange}
+                                                onChange={handleGenomicRangeChange}
+                                                formatValue={formatGenomicPosition}
+                                                className="w-full"
+                                            />
+                                        ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                                            <TreeRangeSlider
+                                                treeIntervals={treeIntervals}
+                                                value={treeRange}
+                                                onChange={handleTreeRangeChange}
+                                                className="w-full"
+                                            />
+                                        ) : null}
+                                    </div>
+                                    
+                                    {/* Inline filter info */}
+                                    <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
+                                        {filterMode === 'genomic' ? (
+                                            <span>
+                                                {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
+                                                ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}%)
+                                                {data?.metadata.num_local_trees !== undefined && (
+                                                    <> • {data.metadata.num_local_trees} trees</>
+                                                )}
+                                            </span>
+                                        ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                                            <span>
+                                                Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length})
+                                                {data?.metadata.num_local_trees !== undefined && (
+                                                    <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
+                                                )}
+                                                {data?.metadata.tree_count_mismatch && (
+                                                    <> ⚠️ (actual: {data.metadata.num_local_trees})</>
+                                                )}
+                                            </span>
+                                        ) : null}
+                                        {loading && (
+                                            <div className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.accentPrimary }}></div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
-                        )}
-                        
-                        {/* Range slider - shows appropriate slider based on filter mode */}
-                        {isFilterActive && (
-                            <div className="flex-1 max-w-md">
-                                {filterMode === 'genomic' && sequenceLength > 0 ? (
-                                    <RangeSlider
-                                        min={0}
-                                        max={sequenceLength}
-                                        step={Math.max(1, Math.floor(sequenceLength / 1000))}
-                                        value={genomicRange}
-                                        onChange={handleGenomicRangeChange}
-                                        formatValue={formatGenomicPosition}
-                                        className="w-full"
-                                    />
-                                ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
-                                    <TreeRangeSlider
-                                        treeIntervals={treeIntervals}
-                                        value={treeRange}
-                                        onChange={handleTreeRangeChange}
-                                        className="w-full"
-                                    />
-                                ) : null}
-                            </div>
-                        )}
-                        
-                        {/* Current range display */}
-                        {isFilterActive && (
-                            <div className="text-sm flex items-center gap-2" style={{ color: colors.text }}>
-                                {filterMode === 'genomic' ? (
-                                    <span>
-                                        Range: {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
-                                        ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}% of sequence)
-                                        {data?.metadata.num_local_trees !== undefined && (
-                                            <> • {data.metadata.num_local_trees} local trees</>
-                                        )}
-                                    </span>
-                                ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
-                                    <span>
-                                        Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length} trees)
-                                        {data?.metadata.num_local_trees !== undefined && (
-                                            <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
-                                        )}
-                                        {data?.metadata.tree_count_mismatch && (
-                                            <> ⚠️ (actual: {data.metadata.num_local_trees})</>
-                                        )}
-                                    </span>
-                                ) : null}
-                                {((filterMode === 'genomic' && isUpdatingGenomicRange) || 
-                                  (filterMode === 'tree' && isUpdatingTreeRange)) && (
-                                    <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             )}
-            
-            {/* Graph area - takes remaining space */}
-            <div className="flex-1 relative overflow-hidden">
-                <ForceDirectedGraph 
-                    ref={ref}
-                    data={getFilteredData()}
-                    onNodeClick={handleNodeClick}
-                    onNodeRightClick={handleNodeRightClick}
-                    onEdgeClick={handleEdgeClick}
-                    focalNode={selectedNode}
-                />
+
+            <div className="flex-1 overflow-hidden">
+                <div className="w-full h-full relative">
+                    <ForceDirectedGraph 
+                        ref={ref}
+                        data={getFilteredData()}
+                        onNodeClick={handleNodeClick}
+                        onNodeRightClick={handleNodeRightClick}
+                        onEdgeClick={handleEdgeClick}
+                        focalNode={selectedNode}
+                        nodeSizes={nodeSizes}
+                    />
+                    
+                    <ForceDirectedGraphControlPanel
+                        sampleOrder={sampleOrder}
+                        onSampleOrderChange={setSampleOrder}
+                        nodeSizes={nodeSizes}
+                        onNodeSizeChange={setNodeSizes}
+                        isLoading={loading}
+                    />
+                    
+                    <ForceDirectedGraphInfoPanel
+                        originalNodeCount={calculateArgStats()?.originalNodes}
+                        originalEdgeCount={calculateArgStats()?.originalEdges}
+                        subargNodeCount={calculateArgStats()?.subArgNodes}
+                        subargEdgeCount={calculateArgStats()?.subArgEdges}
+                        displayedNodeCount={calculateArgStats()?.displayedNodes}
+                        displayedEdgeCount={calculateArgStats()?.displayedEdges}
+                        genomicRange={isFilterActive ? genomicRange : undefined}
+                        sequenceLength={sequenceLength}
+                        isFiltered={isFilterActive}
+                        isFilterSectionCollapsed={isFilterSectionCollapsed}
+                    />
+                </div>
             </div>
         </div>
     );

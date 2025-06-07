@@ -177,267 +177,321 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   };
 
   return (
-    <div className="w-full flex flex-col gap-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {/* Number of sample individuals */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Sample individuals
-          </label>
-          <input
-            type="number"
-            min="2"
-            max="500"
-            value={inputValues.num_samples}
-            onChange={(e) => handleNumberInput('num_samples', e.target.value, 2, 500, 2)}
-            onBlur={(e) => handleNumberBlur('num_samples', e.target.value, 2, 500, 2)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          />
-          <span className="text-xs text-sp-very-pale-green mt-0.5">2-500 individuals</span>
+    <div className="w-full max-w-4xl mx-auto space-y-4">
+      {/* Main Parameter Configuration Card */}
+      <div className="bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl p-5">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="w-8 h-8 bg-sp-pale-green/10 rounded-lg flex items-center justify-center">
+            <svg className="w-4 h-4 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-sp-white">Simulation Parameters</h3>
+            <p className="text-sp-white/60 text-xs">Configure the tree sequence simulation settings</p>
+          </div>
         </div>
 
-        {/* Ploidy */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Ploidy
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="10"
-            value={inputValues.ploidy}
-            onChange={(e) => handleNumberInput('ploidy', e.target.value, 1, 10, 2)}
-            onBlur={(e) => handleNumberBlur('ploidy', e.target.value, 1, 10, 2)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          />
-          <span className="text-xs text-sp-very-pale-green mt-0.5">1-10 (2=diploid)</span>
-        </div>
-
-        {/* Number of local trees */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Local trees
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="1000"
-            value={inputValues.num_local_trees}
-            onChange={(e) => handleNumberInput('num_local_trees', e.target.value, 1, 1000, 1)}
-            onBlur={(e) => handleNumberBlur('num_local_trees', e.target.value, 1, 1000, 1)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          />
-          <span className="text-xs text-sp-very-pale-green mt-0.5">1-1000</span>
-        </div>
-
-        {/* Maximum time */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Max generations
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="1000"
-            value={inputValues.max_time}
-            onChange={(e) => handleNumberInput('max_time', e.target.value, 1, 1000, 1)}
-            onBlur={(e) => handleNumberBlur('max_time', e.target.value, 1, 1000, 1)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          />
-          <span className="text-xs text-sp-very-pale-green mt-0.5">1-1000</span>
-        </div>
-
-        {/* Model */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Model
-          </label>
-          <select
-            value={params.model}
-            onChange={(e) => updateParam('model', e.target.value)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          >
-            <option value="dtwf">Discrete WF</option>
-            <option value="hudson">Hudson</option>
-            <option value="smc">SMC</option>
-            <option value="smc_prime">SMC'</option>
-          </select>
-        </div>
-
-        {/* Coordinate System */}
-        <div className="flex flex-col">
-          <label className="text-sm font-medium text-sp-white mb-1">
-            Coordinate System
-          </label>
-          <select
-            value={params.crs || 'EPSG:4326'}
-            onChange={(e) => updateParam('crs', e.target.value)}
-            className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm"
-          >
-            <option value="EPSG:4326">WGS84 Geographic</option>
-            <option value="unit_grid">Unit Grid (0-1)</option>
-            <option value="EPSG:3857">Web Mercator</option>
-          </select>
-          <span className="text-xs text-sp-very-pale-green mt-0.5">
-            Coordinate system for spatial locations
-          </span>
-        </div>
-      </div>
-
-      {/* Population size display */}
-      <div className="p-3 rounded-md" style={{ backgroundColor: 'rgba(34, 197, 94, 0.1)', border: '1px solid rgba(34, 197, 94, 0.3)' }}>
-        <div className="text-sm text-sp-white">
-          <strong>Total haplotypes:</strong> {params.num_samples * params.ploidy} 
-          <span className="text-xs text-sp-very-pale-green ml-2">
-            ({params.num_samples} individuals × {params.ploidy} ploidy)
-          </span>
-        </div>
-      </div>
-
-      {/* Filename preview */}
-      <div className="p-3 rounded-md" style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)' }}>
-        <div className="text-sm text-sp-white">
-          <strong>Filename:</strong> {getDisplayFilename()}
-          <span className="text-xs text-sp-very-pale-green block mt-1">
-            {useAutoFilename ? (
-              <button
-                onClick={() => setShowFilenameExplanation(true)}
-                className="underline hover:text-sp-pale-green transition-colors cursor-pointer"
-              >
-                Auto-generated based on parameters
-              </button>
-            ) : (
-              'Custom filename'
-            )}
-          </span>
-        </div>
-      </div>
-
-      {/* Advanced options - Collapsible */}
-      <details className="border-t border-sp-dark-blue pt-3">
-        <summary className="text-sm font-medium text-sp-white mb-2 cursor-pointer hover:text-sp-pale-green">
-          Advanced Options
-        </summary>
-        
-        <div className="space-y-3 mt-2">
-          {/* Filename options */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* Number of sample individuals */}
           <div className="flex flex-col">
-            <div className="flex items-center mb-2">
-              <input
-                type="checkbox"
-                id="useAutoFilename"
-                checked={useAutoFilename}
-                onChange={(e) => setUseAutoFilename(e.target.checked)}
-                className="mr-2 accent-sp-pale-green"
-              />
-              <label htmlFor="useAutoFilename" className="text-sm font-medium text-sp-white">
-                Auto-generate filename
-              </label>
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Sample individuals
+            </label>
+            <input
+              type="number"
+              min="2"
+              max="500"
+              value={inputValues.num_samples}
+              onChange={(e) => handleNumberInput('num_samples', e.target.value, 2, 500, 2)}
+              onBlur={(e) => handleNumberBlur('num_samples', e.target.value, 2, 500, 2)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            />
+            <span className="text-xs text-sp-white/60 mt-0.5">Range: 2-500</span>
+          </div>
+
+          {/* Ploidy */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Ploidy
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="10"
+              value={inputValues.ploidy}
+              onChange={(e) => handleNumberInput('ploidy', e.target.value, 1, 10, 2)}
+              onBlur={(e) => handleNumberBlur('ploidy', e.target.value, 1, 10, 2)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            />
+            <span className="text-xs text-sp-white/60 mt-0.5">1-10 (2=diploid)</span>
+          </div>
+
+          {/* Number of local trees */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Local trees
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={inputValues.num_local_trees}
+              onChange={(e) => handleNumberInput('num_local_trees', e.target.value, 1, 1000, 1)}
+              onBlur={(e) => handleNumberBlur('num_local_trees', e.target.value, 1, 1000, 1)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            />
+            <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
+          </div>
+
+          {/* Maximum time */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Max generations
+            </label>
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={inputValues.max_time}
+              onChange={(e) => handleNumberInput('max_time', e.target.value, 1, 1000, 1)}
+              onBlur={(e) => handleNumberBlur('max_time', e.target.value, 1, 1000, 1)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            />
+            <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
+          </div>
+
+          {/* Model */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Model
+            </label>
+            <select
+              value={params.model}
+              onChange={(e) => updateParam('model', e.target.value)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            >
+              <option value="dtwf">Discrete Wright-Fisher</option>
+              <option value="hudson">Hudson</option>
+              <option value="smc">SMC</option>
+              <option value="smc_prime">SMC'</option>
+            </select>
+          </div>
+
+          {/* Coordinate System */}
+          <div className="flex flex-col">
+            <label className="text-sm font-medium text-sp-white mb-1">
+              Coordinate System
+            </label>
+            <select
+              value={params.crs || 'EPSG:4326'}
+              onChange={(e) => updateParam('crs', e.target.value)}
+              className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+            >
+              <option value="EPSG:4326">WGS84 Geographic</option>
+              <option value="unit_grid">Unit Grid (0-1)</option>
+              <option value="EPSG:3857">Web Mercator</option>
+            </select>
+            <span className="text-xs text-sp-white/60 mt-0.5">
+              Spatial coordinate system
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Population Summary */}
+        <div className="bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 bg-sp-pale-green/20 rounded flex items-center justify-center">
+              <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
             </div>
-            {!useAutoFilename && (
-              <div className="ml-6">
-                <label className="text-sm font-medium text-sp-white mb-1 block">
-                  Custom filename prefix
+            <h4 className="font-medium text-sp-white text-sm">Population Summary</h4>
+          </div>
+          <div className="text-sm text-sp-white">
+            <div className="flex justify-between items-center">
+              <span>Total haplotypes:</span>
+              <span className="font-bold text-sp-pale-green">{params.num_samples * params.ploidy}</span>
+            </div>
+            <div className="text-xs text-sp-white/60">
+              {params.num_samples} individuals × {params.ploidy} ploidy
+            </div>
+          </div>
+        </div>
+
+        {/* Filename Preview */}
+        <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-3">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 bg-blue-500/20 rounded flex items-center justify-center">
+              <svg className="w-3 h-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h4 className="font-medium text-sp-white text-sm">Output Filename</h4>
+          </div>
+          <div className="text-sm text-sp-white">
+            <div className="font-mono text-sp-pale-green break-all text-xs">{getDisplayFilename()}</div>
+            <div className="text-xs text-sp-white/60">
+              {useAutoFilename ? (
+                <button
+                  onClick={() => setShowFilenameExplanation(true)}
+                  className="underline hover:text-sp-pale-green transition-colors cursor-pointer"
+                >
+                  Auto-generated from parameters
+                </button>
+              ) : (
+                'Custom filename'
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advanced Options */}
+      <div className="bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl overflow-hidden">
+        <details className="group">
+          <summary className="px-5 py-3 cursor-pointer hover:bg-sp-pale-green/5 transition-colors duration-200 border-b border-sp-pale-green/10 group-open:border-b-0 list-none">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                  <svg className="w-3 h-3 text-sp-pale-green transition-transform duration-200 group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+                <span className="font-medium text-sp-white text-sm">Advanced Options</span>
+              </div>
+            </div>
+          </summary>
+          
+          <div className="px-5 py-3 space-y-3 bg-sp-very-dark-blue/50">
+            {/* Filename options */}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useAutoFilename"
+                  checked={useAutoFilename}
+                  onChange={(e) => setUseAutoFilename(e.target.checked)}
+                  className="mr-2 w-4 h-4 text-sp-pale-green bg-sp-very-dark-blue border-sp-pale-green/30 rounded focus:ring-sp-pale-green focus:ring-2"
+                />
+                <label htmlFor="useAutoFilename" className="text-sm font-medium text-sp-white">
+                  Auto-generate filename
                 </label>
-                <input
-                  type="text"
-                  value={params.filename_prefix}
-                  onChange={(e) => updateParam('filename_prefix', e.target.value)}
-                  className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm w-full"
-                  placeholder="simulated"
-                />
               </div>
-            )}
-          </div>
-
-          {/* Custom random seed */}
-          <div className="flex flex-col">
-            <div className="flex items-center mb-1">
-              <input
-                type="checkbox"
-                id="useCustomSeed"
-                checked={useCustomSeed}
-                onChange={(e) => setUseCustomSeed(e.target.checked)}
-                className="mr-2 accent-sp-pale-green"
-              />
-              <label htmlFor="useCustomSeed" className="text-sm font-medium text-sp-white">
-                Custom seed
-              </label>
+              {!useAutoFilename && (
+                <div className="ml-6">
+                  <label className="text-sm font-medium text-sp-white mb-1 block">
+                    Custom filename prefix
+                  </label>
+                  <input
+                    type="text"
+                    value={params.filename_prefix}
+                    onChange={(e) => updateParam('filename_prefix', e.target.value)}
+                    className="w-full px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+                    placeholder="simulated"
+                  />
+                </div>
+              )}
             </div>
-            {useCustomSeed ? (
-              <div className="ml-6">
-                <input
-                  type="number"
-                  value={inputValues.random_seed}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    updateInputValue('random_seed', value);
-                    if (value !== '') {
-                      const numValue = parseInt(value);
-                      if (!isNaN(numValue)) {
-                        updateParam('random_seed', numValue);
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    const value = parseInt(e.target.value);
-                    const finalValue = isNaN(value) ? 42 : value;
-                    updateParam('random_seed', finalValue);
-                    updateInputValue('random_seed', finalValue.toString());
-                  }}
-                  className="px-3 py-2 bg-sp-dark-blue border border-sp-dark-blue rounded-md text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green text-sm w-full"
-                />
-              </div>
-            ) : (
-              <span className="text-xs text-sp-very-pale-green ml-6">Random</span>
-            )}
-          </div>
-        </div>
-      </details>
 
-      {/* Simulate button */}
-      <button
-        type="button"
-        onClick={handleSimulate}
-        className="w-full mt-3 bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-2.5 rounded-lg transition-colors shadow-md"
-      >
-        Simulate Tree Sequence
-      </button>
+            {/* Custom random seed */}
+            <div className="space-y-2">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="useCustomSeed"
+                  checked={useCustomSeed}
+                  onChange={(e) => setUseCustomSeed(e.target.checked)}
+                  className="mr-2 w-4 h-4 text-sp-pale-green bg-sp-very-dark-blue border-sp-pale-green/30 rounded focus:ring-sp-pale-green focus:ring-2"
+                />
+                <label htmlFor="useCustomSeed" className="text-sm font-medium text-sp-white">
+                  Use custom random seed
+                </label>
+              </div>
+              {useCustomSeed ? (
+                <div className="ml-6">
+                  <input
+                    type="number"
+                    value={inputValues.random_seed}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      updateInputValue('random_seed', value);
+                      if (value !== '') {
+                        const numValue = parseInt(value);
+                        if (!isNaN(numValue)) {
+                          updateParam('random_seed', numValue);
+                        }
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const value = parseInt(e.target.value);
+                      const finalValue = isNaN(value) ? 42 : value;
+                      updateParam('random_seed', finalValue);
+                      updateInputValue('random_seed', finalValue.toString());
+                    }}
+                    className="w-full px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
+                    placeholder="42"
+                  />
+                </div>
+              ) : (
+                <div className="ml-6 text-xs text-sp-white/60">Random seed will be generated automatically</div>
+              )}
+            </div>
+          </div>
+        </details>
+      </div>
+
+      {/* Simulate Button */}
+      <div className="flex justify-center pt-2">
+        <button
+          type="button"
+          onClick={handleSimulate}
+          className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+          </svg>
+          Simulate Tree Sequence
+        </button>
+      </div>
 
       {/* Filename Explanation Modal */}
       {showFilenameExplanation && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-sp-very-dark-blue border border-sp-dark-blue rounded-lg p-6 max-w-md w-full mx-4">
-            <div className="flex justify-between items-start mb-4">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-sp-very-dark-blue border border-sp-pale-green/30 rounded-xl p-5 max-w-lg w-full shadow-2xl">
+            <div className="flex justify-between items-start mb-3">
               <h3 className="text-lg font-bold text-sp-white">Filename Format Explained</h3>
               <button
                 onClick={() => setShowFilenameExplanation(false)}
-                className="text-sp-very-pale-green hover:text-sp-white transition-colors text-xl"
+                className="text-sp-white/60 hover:text-sp-white transition-colors text-2xl leading-none"
               >
                 ×
               </button>
             </div>
             
             <div className="space-y-3 text-sm text-sp-white">
-              <div className="font-mono text-xs text-sp-pale-green mb-3">
+              <div className="font-mono text-sm text-sp-pale-green bg-sp-dark-blue rounded-lg p-3 break-all">
                 {getDisplayFilename()}
               </div>
               
-              <div className="space-y-2">
-                <div><strong>s{params.num_samples}</strong> - Sample individuals (integer: 2-500)</div>
-                <div><strong>m{getModelAbbreviation(params.model)}</strong> - Model (dtwf, hud, smc, smcp)</div>
-                <div><strong>t{params.num_local_trees}</strong> - Local trees (integer: 1-1000)</div>
-                <div><strong>g{params.max_time}</strong> - Max generations (integer: 1-1000)</div>
-                <div><strong>p{params.ploidy}</strong> - Ploidy (integer: 1-10)</div>
-                <div><strong>c{getCRSAbbreviation(params.crs || 'EPSG:4326')}</strong> - Coordinate system (4326, ug, 3857)</div>
-                <div><strong>r###</strong> - Random seed (0-999)</div>
-                <div><strong>d##########</strong> - Timestamp (MMDDYYHHMM format)</div>
+              <div className="space-y-1.5">
+                <div><span className="font-bold text-sp-pale-green">s{params.num_samples}</span> - Sample individuals (2-500)</div>
+                <div><span className="font-bold text-sp-pale-green">m{getModelAbbreviation(params.model)}</span> - Model (dtwf, hud, smc, smcp)</div>
+                <div><span className="font-bold text-sp-pale-green">t{params.num_local_trees}</span> - Local trees (1-1000)</div>
+                <div><span className="font-bold text-sp-pale-green">g{params.max_time}</span> - Max generations (1-1000)</div>
+                <div><span className="font-bold text-sp-pale-green">p{params.ploidy}</span> - Ploidy (1-10)</div>
+                <div><span className="font-bold text-sp-pale-green">c{getCRSAbbreviation(params.crs || 'EPSG:4326')}</span> - Coordinate system</div>
+                <div><span className="font-bold text-sp-pale-green">r###</span> - Random seed (0-999)</div>
+                <div><span className="font-bold text-sp-pale-green">d##########</span> - Timestamp (MMDDYYHHMM)</div>
               </div>
             </div>
             
             <button
               onClick={() => setShowFilenameExplanation(false)}
-              className="w-full mt-4 bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium py-2 rounded-lg transition-colors"
+              className="w-full mt-4 bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium py-2.5 rounded-lg transition-colors duration-200"
             >
               Close
             </button>

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
-interface SpatialArg3DInfoPanelProps {
+interface ForceDirectedGraphInfoPanelProps {
   // ARG Statistics
   originalNodeCount?: number;
   originalEdgeCount?: number;
@@ -10,27 +10,26 @@ interface SpatialArg3DInfoPanelProps {
   displayedNodeCount?: number;
   displayedEdgeCount?: number;
   
-  // CRS Detection
-  crsDetection?: {
-    crs: string;
-    confidence: number;
-    landPercentage: number;
-    description: string;
-  };
+  // Filter information
+  genomicRange?: [number, number];
+  sequenceLength?: number;
+  isFiltered?: boolean;
   
   // Layout awareness
-  isTemporalSliderVisible?: boolean;
+  isFilterSectionCollapsed?: boolean;
 }
 
-export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
+export const ForceDirectedGraphInfoPanel: React.FC<ForceDirectedGraphInfoPanelProps> = ({
   originalNodeCount,
   originalEdgeCount,
   subargNodeCount,
   subargEdgeCount,
   displayedNodeCount,
   displayedEdgeCount,
-  crsDetection,
-  isTemporalSliderVisible = false
+  genomicRange,
+  sequenceLength,
+  isFiltered = false,
+  isFilterSectionCollapsed = true
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -45,11 +44,17 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
     : null;
 
   // Don't render if there's no meaningful data to show
-  const hasData = originalNodeCount || subargNodeCount || displayedNodeCount || crsDetection;
+  const hasData = originalNodeCount || subargNodeCount || displayedNodeCount;
   
   if (!hasData) {
     return null;
   }
+
+  const formatGenomicPosition = (value: number): string => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+    return value.toString();
+  };
 
   return (
     <div 
@@ -99,79 +104,74 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
       {isExpanded && (
         <div className="p-4 pt-0 space-y-4 max-h-96 overflow-y-auto">
           {/* ARG Statistics */}
-          {(originalNodeCount || subargNodeCount || displayedNodeCount) && (
-            <div className="space-y-3">
-              <h4 className="text-sm font-bold" style={{ color: colors.text }}>Graph Statistics</h4>
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Graph Statistics</h4>
+            
+            <div className="space-y-2 text-xs">
+              {originalNodeCount && originalEdgeCount && (
+                <div className="flex justify-between">
+                  <span style={{ color: colors.accentPrimary }}>Original ARG:</span>
+                  <span style={{ color: colors.text }}>
+                    {originalNodeCount.toLocaleString()} nodes, {originalEdgeCount.toLocaleString()} edges
+                  </span>
+                </div>
+              )}
               
-              <div className="space-y-2 text-xs">
-                {originalNodeCount && originalEdgeCount && (
-                  <div className="flex justify-between">
-                    <span style={{ color: colors.accentPrimary }}>Original ARG:</span>
-                    <span style={{ color: colors.text }}>
-                      {originalNodeCount.toLocaleString()} nodes, {originalEdgeCount.toLocaleString()} edges
-                    </span>
-                  </div>
-                )}
-                
-                {subargNodeCount && subargEdgeCount && (
-                  <div className="flex justify-between">
-                    <span style={{ color: colors.accentPrimary }}>SubARG:</span>
-                    <span style={{ color: colors.text }}>
-                      {subargNodeCount.toLocaleString()} nodes ({nodePercentage}%), {subargEdgeCount.toLocaleString()} edges ({edgePercentage}%)
-                    </span>
-                  </div>
-                )}
-                
-                {displayedNodeCount && displayedEdgeCount && (displayedNodeCount !== subargNodeCount || displayedEdgeCount !== subargEdgeCount) && (
-                  <div className="flex justify-between">
-                    <span style={{ color: colors.accentPrimary }}>Displayed:</span>
-                    <span style={{ color: colors.text }}>
-                      {displayedNodeCount.toLocaleString()} nodes, {displayedEdgeCount.toLocaleString()} edges
-                    </span>
-                  </div>
-                )}
+              {subargNodeCount && subargEdgeCount && (
+                <div className="flex justify-between">
+                  <span style={{ color: colors.accentPrimary }}>SubARG:</span>
+                  <span style={{ color: colors.text }}>
+                    {subargNodeCount.toLocaleString()} nodes ({nodePercentage}%), {subargEdgeCount.toLocaleString()} edges ({edgePercentage}%)
+                  </span>
+                </div>
+              )}
+              
+              {displayedNodeCount && displayedEdgeCount && (displayedNodeCount !== subargNodeCount || displayedEdgeCount !== subargEdgeCount) && (
+                <div className="flex justify-between">
+                  <span style={{ color: colors.accentPrimary }}>Displayed:</span>
+                  <span style={{ color: colors.text }}>
+                    {displayedNodeCount.toLocaleString()} nodes, {displayedEdgeCount.toLocaleString()} edges
+                  </span>
+                </div>
+              )}
 
-                {displayedNodeCount && originalNodeCount && displayedNodeCount !== originalNodeCount && (
-                  <div className="flex justify-between">
-                    <span style={{ color: colors.accentPrimary }}>Reduction:</span>
-                    <span style={{ color: colors.text }}>
-                      {((1 - displayedNodeCount / originalNodeCount) * 100).toFixed(1)}% fewer nodes
-                    </span>
-                  </div>
-                )}
-              </div>
+              {displayedNodeCount && originalNodeCount && displayedNodeCount !== originalNodeCount && (
+                <div className="flex justify-between">
+                  <span style={{ color: colors.accentPrimary }}>Reduction:</span>
+                  <span style={{ color: colors.text }}>
+                    {((1 - displayedNodeCount / originalNodeCount) * 100).toFixed(1)}% fewer nodes
+                  </span>
+                </div>
+              )}
             </div>
-          )}
+          </div>
 
-          {/* CRS Detection Information */}
-          {crsDetection && (
+          {/* Filter Information */}
+          {isFiltered && genomicRange && sequenceLength && (
             <div className="space-y-3">
-              <h4 className="text-sm font-bold" style={{ color: colors.text }}>Coordinate System</h4>
+              <h4 className="text-sm font-bold" style={{ color: colors.text }}>Filter Information</h4>
               
               <div className="space-y-2 text-xs">
                 <div className="flex justify-between">
-                  <span style={{ color: colors.accentPrimary }}>Detected CRS:</span>
-                  <span style={{ color: colors.text }}>{crsDetection.crs}</span>
+                  <span style={{ color: colors.accentPrimary }}>Range:</span>
+                  <span style={{ color: colors.text }}>
+                    {formatGenomicPosition(genomicRange[0])} - {formatGenomicPosition(genomicRange[1])}
+                  </span>
                 </div>
                 
                 <div className="flex justify-between">
-                  <span style={{ color: colors.accentPrimary }}>Confidence:</span>
-                  <span style={{ color: colors.text }}>{(crsDetection.confidence * 100).toFixed(1)}%</span>
+                  <span style={{ color: colors.accentPrimary }}>Length:</span>
+                  <span style={{ color: colors.text }}>
+                    {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
+                  </span>
                 </div>
                 
                 <div className="flex justify-between">
-                  <span style={{ color: colors.accentPrimary }}>Land Coverage:</span>
-                  <span style={{ color: colors.text }}>{(crsDetection.landPercentage * 100).toFixed(1)}%</span>
+                  <span style={{ color: colors.accentPrimary }}>Coverage:</span>
+                  <span style={{ color: colors.text }}>
+                    {((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}% of sequence
+                  </span>
                 </div>
-                
-                {crsDetection.description && (
-                  <div className="mt-2">
-                    <div className="mb-1" style={{ color: colors.accentPrimary }}>Description:</div>
-                    <div className="text-xs italic" style={{ color: `${colors.text}CC` }}>
-                      {crsDetection.description}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -180,11 +180,11 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
           <div className="space-y-3">
             <h4 className="text-sm font-bold" style={{ color: colors.text }}>View Controls</h4>
             <div className="space-y-1 text-xs" style={{ color: `${colors.text}CC` }}>
-              <div>• Drag: Rotate view</div>
-              <div>• Shift+drag: Pan view</div>
+              <div>• Drag: Pan view</div>
               <div>• Scroll: Zoom in/out</div>
               <div>• Left click: Select node</div>
               <div>• Right click: Show ancestors</div>
+              <div>• Drag nodes to reposition</div>
             </div>
           </div>
 
