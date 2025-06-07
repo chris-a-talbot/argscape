@@ -8,6 +8,7 @@ import logging
 import os
 import tempfile
 import time
+import re
 from typing import Dict, List, Optional
 
 import numpy as np
@@ -17,11 +18,9 @@ import uvicorn
 import msprime
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from sklearn.manifold import MDS
-from sklearn.metrics.pairwise import pairwise_distances
 
 # Configure logging first
 logging.basicConfig(
@@ -54,11 +53,39 @@ except ImportError:
     check_gaia_availability = lambda: False
     logger.warning("GAIA utilities not available - GAIA inference disabled")
 
+# Import constants and utilities
+from constants import (
+    DEFAULT_API_VERSION,
+    REQUEST_TIMEOUT_SECONDS,
+    FILENAME_TIMESTAMP_PRECISION_MICROSECONDS,
+    MAX_SAMPLES_FOR_PERFORMANCE,
+    MAX_LOCAL_TREES_FOR_PERFORMANCE,
+    MAX_TIME_FOR_PERFORMANCE,
+    MINIMUM_SAMPLES_REQUIRED,
+    LARGE_TREE_SEQUENCE_NODE_THRESHOLD,
+    SPATIAL_CHECK_NODE_LIMIT,
+    DEFAULT_MAX_SAMPLES_FOR_GRAPH,
+    RECOMBINATION_RATE_HIGH,
+    VALIDATION_PERCENTAGE_MULTIPLIER,
+    RATE_LIMIT_UPLOAD,
+    RATE_LIMIT_SESSION_CREATE,
+    RATE_LIMIT_LOCATION_INFERENCE,
+    RATE_LIMIT_SIMULATION,
+    RATE_LIMIT_CSV_UPLOAD,
+    RATE_LIMIT_LOCATION_UPDATE,
+    RATE_LIMIT_STORAGE_STATS,
+    RATE_LIMIT_SHAPEFILE_UPLOAD,
+    RATE_LIMIT_COORDINATE_TRANSFORM
+)
+
+# Import spatial generation utilities
+from spatial_generation import generate_spatial_locations_for_samples
+
 # FastAPI app instance
 app = FastAPI(
     title="ARGscape API",
     description="API for interactive ARG visualization and tree sequence analysis",
-    version="0.1.0"
+    version=DEFAULT_API_VERSION
 )
 
 # Mount static files (frontend)
@@ -98,11 +125,17 @@ from geographic_utils import (
 )
 
 # CORS middleware (moved here to avoid middleware ordering issues)
-allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
+allowed_origins = allowed_origins_str.split(",") if allowed_origins_str != "*" else ["*"]
+
+# If we have specific origins and credentials, we need to be explicit
+# If wildcard, we disable credentials for broader compatibility
+allow_credentials = allowed_origins != ["*"]
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_credentials=True,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -245,367 +278,7 @@ def load_tree_sequence_from_file(contents: bytes, filename: str) -> tskit.TreeSe
     else:
         raise ValueError("Unsupported file type. Please upload a .trees or .tsz file.")
 
-def generate_spatial_locations_for_samples(ts: tskit.TreeSequence, random_seed: Optional[int] = None, crs: str = "unit_grid") -> tskit.TreeSequence:
-    """
-    Generate 2D spatial locations for sample nodes based on genealogical relationships.
-    
-    More closely related samples will be placed closer together in a 10x10 continuous space.
-    Uses multidimensional scaling to embed genealogical distances in 2D space.
-    
-    Args:
-        ts: Tree sequence to add spatial locations to
-        random_seed: Random seed for reproducible results
-        
-    Returns:
-        Tree sequence with spatial locations added to sample individuals
-    """
-    logger.info(f"Generating spatial locations for {ts.num_samples} samples")
-    
-    if random_seed is not None:
-        np.random.seed(random_seed)
-    
-    # Get sample node IDs
-    sample_nodes = [node.id for node in ts.nodes() if node.is_sample()]
-    
-    if len(sample_nodes) < 2:
-        logger.warning("Need at least 2 samples to generate meaningful spatial locations")
-        return ts
-    
-    # Calculate pairwise genealogical distances between samples
-    # Use the average number of mutations between samples across all trees
-    genealogical_distances = np.zeros((len(sample_nodes), len(sample_nodes)))
-    
-    for i, node_i in enumerate(sample_nodes):
-        for j, node_j in enumerate(sample_nodes):
-            if i == j:
-                continue
-            
-            # Calculate average genealogical distance across all trees
-            total_distance = 0.0
-            total_span = 0.0
-            
-            for tree in ts.trees():
-                if tree.span == 0:
-                    continue
-                    
-                try:
-                    # Get time to most recent common ancestor
-                    mrca = tree.mrca(node_i, node_j)
-                    if mrca != tskit.NULL:
-                        # Distance is sum of branch lengths from both nodes to MRCA
-                        distance = (tree.time(mrca) - tree.time(node_i)) + (tree.time(mrca) - tree.time(node_j))
-                        total_distance += distance * tree.span
-                        total_span += tree.span
-                except:
-                    # If MRCA calculation fails, use a large distance
-                    total_distance += 1000.0 * tree.span
-                    total_span += tree.span
-            
-            if total_span > 0:
-                genealogical_distances[i, j] = total_distance / total_span
-            else:
-                genealogical_distances[i, j] = 1000.0  # Large distance for unrelated samples
-    
-    # Ensure the distance matrix is symmetric
-    genealogical_distances = (genealogical_distances + genealogical_distances.T) / 2
-    
-    # Use multidimensional scaling to embed in 2D space
-    try:
-        mds = MDS(n_components=2, dissimilarity='precomputed', random_state=random_seed, 
-                  max_iter=1000, n_init=4)
-        spatial_coords = mds.fit_transform(genealogical_distances)
-    except Exception as e:
-        logger.warning(f"MDS failed, using random locations: {e}")
-        # Fallback to random locations if MDS fails
-        spatial_coords = np.random.uniform(0, 10, size=(len(sample_nodes), 2))
-    
-    # Scale and translate to fit in 10x10 grid
-    # First normalize to [0,1] range
-    min_coords = np.min(spatial_coords, axis=0)
-    max_coords = np.max(spatial_coords, axis=0)
-    coord_range = max_coords - min_coords
-    
-    # Handle case where all points are identical
-    coord_range[coord_range == 0] = 1.0
-    
-    normalized_coords = (spatial_coords - min_coords) / coord_range
-    
-    # Generate coordinates based on the specified CRS
-    if crs == "unit_grid":
-        # Scale to unit grid [0,1] with small margins
-        margin = 0.05  # Small margin to avoid edge coordinates
-        grid_size = 1.0 - 2 * margin
-        final_coords = normalized_coords * grid_size + margin
-        
-        # Add minimal noise for unit grid
-        noise_scale = 0.02
-        noise = np.random.normal(0, noise_scale, final_coords.shape)
-        final_coords += noise
-        
-        # Ensure coordinates stay within [0,1] bounds
-        final_coords = np.clip(final_coords, 0.01, 0.99)
-        
-    elif crs == "EPSG:4326":  # WGS84 Geographic coordinates
-        # Scale to Extended Eastern Hemisphere: longitude [-15, 180], latitude [-60, 75]
-        # Exclude Antarctica by limiting southern extent to -60°
-        lon_range = 195.0  # -15 to 180 degrees longitude (195 degree range)
-        lat_range = 135.0  # -60 to 75 degrees latitude (excluding Antarctica)
-        lat_min = -60.0
-        lon_min = -15.0
-        
-        # Initialize final_coords with proper shape
-        final_coords = np.zeros_like(normalized_coords)
-        
-        # Scale normalized coordinates to geographic ranges
-        final_coords[:, 0] = normalized_coords[:, 0] * lon_range + lon_min  # Longitude
-        final_coords[:, 1] = normalized_coords[:, 1] * lat_range + lat_min  # Latitude
-        
-        # Add geographic noise (smaller for lat/lon)
-        noise_scale = 2.0  # degrees
-        noise = np.random.normal(0, noise_scale, final_coords.shape)
-        final_coords += noise
-        
-        # Ensure coordinates stay within geographic bounds
-        final_coords[:, 0] = np.clip(final_coords[:, 0], -14.0, 179.0)  # Longitude (extended westward)
-        final_coords[:, 1] = np.clip(final_coords[:, 1], -59.0, 74.0)  # Latitude
-        
-        # Enhanced land placement for Eastern Hemisphere
-        from geographic_utils import is_point_on_land_eastern_hemisphere
-        
-        # Define high-density land regions for better initial placement
-        land_regions = [
-            # (center_lon, center_lat, radius_lon, radius_lat, name)
-            (10, 0, 25, 35, "Africa"),           # Central Africa
-            (40, 50, 30, 20, "Europe"),          # Central Europe
-            (100, 35, 40, 25, "Asia"),           # Central Asia
-            (80, 15, 15, 20, "India"),           # Indian subcontinent
-            (135, -25, 25, 20, "Australia"),     # Australia
-            (45, 25, 15, 10, "Arabia"),          # Arabian Peninsula
-            (130, 35, 20, 15, "East_Asia"),      # Japan/Korea/China
-        ]
-        
-        for i in range(len(final_coords)):
-            attempts = 0
-            max_attempts = 40  # Increased attempts
-            
-            # If already on land, keep it
-            if is_point_on_land_eastern_hemisphere(final_coords[i, 0], final_coords[i, 1]):
-                continue
-                
-            # Store original relative position for bias calculation
-            original_x = normalized_coords[i, 0]
-            original_y = normalized_coords[i, 1]
-            found_land = False
-            
-            # Strategy 1: Try local search around current position (50% of attempts)
-            local_attempts = max_attempts // 2
-            for attempt in range(local_attempts):
-                # Progressive search radius
-                search_radius = 2.0 + attempt * 1.5  # Start small, grow gradually
-                
-                # Multiple candidates per attempt with different strategies
-                for strategy in range(4):
-                    if strategy == 0:  # Random walk
-                        noise_x = np.random.normal(0, search_radius)
-                        noise_y = np.random.normal(0, search_radius)
-                    elif strategy == 1:  # Directional bias toward land centers
-                        # Find closest land region
-                        min_dist = float('inf')
-                        closest_region = land_regions[0]
-                        for region in land_regions:
-                            center_lon, center_lat = region[0], region[1]
-                            dist = ((final_coords[i, 0] - center_lon) ** 2 + (final_coords[i, 1] - center_lat) ** 2) ** 0.5
-                            if dist < min_dist:
-                                min_dist = dist
-                                closest_region = region
-                        
-                        # Bias toward closest land region
-                        center_lon, center_lat = closest_region[0], closest_region[1]
-                        direction_x = (center_lon - final_coords[i, 0]) * 0.3
-                        direction_y = (center_lat - final_coords[i, 1]) * 0.3
-                        noise_x = direction_x + np.random.normal(0, search_radius * 0.7)
-                        noise_y = direction_y + np.random.normal(0, search_radius * 0.7)
-                    elif strategy == 2:  # Coastal search - stay roughly same latitude
-                        noise_x = np.random.normal(0, search_radius * 2)  # Wider longitude search
-                        noise_y = np.random.normal(0, search_radius * 0.5)  # Narrower latitude search
-                    else:  # Grid search
-                        angle = (attempt + strategy) * np.pi / 4  # Different angles
-                        noise_x = search_radius * np.cos(angle)
-                        noise_y = search_radius * np.sin(angle)
-                    
-                    new_lon = final_coords[i, 0] + noise_x
-                    new_lat = final_coords[i, 1] + noise_y
-                    
-                    # Ensure bounds
-                    new_lon = np.clip(new_lon, -14.0, 179.0)
-                    new_lat = np.clip(new_lat, -59.0, 74.0)
-                    
-                    if is_point_on_land_eastern_hemisphere(new_lon, new_lat):
-                        final_coords[i, 0] = new_lon
-                        final_coords[i, 1] = new_lat
-                        found_land = True
-                        break
-                
-                if found_land:
-                    break
-            
-            # Strategy 2: If local search failed, try regional placement (remaining attempts)
-            if not found_land:
-                # Choose region based on original normalized position
-                region_weights = []
-                for region in land_regions:
-                    center_lon, center_lat, radius_lon, radius_lat, name = region
-                    # Convert region center to normalized coordinates for comparison
-                    norm_lon = (center_lon + 15) / 195.0  # Convert to [0,1] range
-                    norm_lat = (center_lat + 60) / 135.0
-                    
-                    # Calculate weight based on distance in normalized space
-                    distance = ((original_x - norm_lon) ** 2 + (original_y - norm_lat) ** 2) ** 0.5
-                    weight = max(0, 1 - distance)  # Closer regions get higher weight
-                    region_weights.append(weight)
-                
-                # Normalize weights
-                total_weight = sum(region_weights)
-                if total_weight > 0:
-                    region_weights = [w / total_weight for w in region_weights]
-                else:
-                    region_weights = [1.0 / len(land_regions)] * len(land_regions)
-                
-                # Try placing in different regions based on weights
-                remaining_attempts = max_attempts - local_attempts
-                for attempt in range(remaining_attempts):
-                    # Select region based on weights
-                    region_idx = np.random.choice(len(land_regions), p=region_weights)
-                    center_lon, center_lat, radius_lon, radius_lat, name = land_regions[region_idx]
-                    
-                    # Place randomly within the region with bias toward center
-                    for _ in range(5):  # Multiple tries per region
-                        # Use normal distribution centered on region center
-                        new_lon = np.random.normal(center_lon, radius_lon * 0.4)
-                        new_lat = np.random.normal(center_lat, radius_lat * 0.4)
-                        
-                        # Ensure bounds
-                        new_lon = np.clip(new_lon, -14.0, 179.0)
-                        new_lat = np.clip(new_lat, -59.0, 74.0)
-                        
-                        if is_point_on_land_eastern_hemisphere(new_lon, new_lat):
-                            final_coords[i, 0] = new_lon
-                            final_coords[i, 1] = new_lat
-                            found_land = True
-                            break
-                    
-                    if found_land:
-                        break
-            
-            # Strategy 3: Final fallback - place in most reliable land areas
-            if not found_land:
-                # Fallback to most reliable land coordinates based on original position
-                if original_x < 0.25:  # Western quarter -> Western Africa/Europe
-                    if original_y > 0.6:  # Northern -> Europe
-                        final_coords[i, 0] = np.random.uniform(5, 25)    # Western Europe
-                        final_coords[i, 1] = np.random.uniform(45, 65)   
-                    else:  # Southern -> Africa
-                        final_coords[i, 0] = np.random.uniform(0, 20)    # Western Africa
-                        final_coords[i, 1] = np.random.uniform(-10, 20)
-                elif original_x < 0.5:  # Second quarter -> Central Africa/Eastern Europe
-                    if original_y > 0.6:  # Northern -> Eastern Europe/Western Asia
-                        final_coords[i, 0] = np.random.uniform(25, 50)   # Eastern Europe
-                        final_coords[i, 1] = np.random.uniform(45, 65)
-                    else:  # Southern -> Central Africa
-                        final_coords[i, 0] = np.random.uniform(15, 35)   # Central Africa
-                        final_coords[i, 1] = np.random.uniform(-20, 10)
-                elif original_x < 0.75:  # Third quarter -> Asia/Middle East
-                    if original_y > 0.6:  # Northern -> Northern Asia
-                        final_coords[i, 0] = np.random.uniform(60, 120)  # Central Asia
-                        final_coords[i, 1] = np.random.uniform(35, 55)
-                    else:  # Southern -> India/Middle East
-                        final_coords[i, 0] = np.random.uniform(50, 90)   # India/Middle East
-                        final_coords[i, 1] = np.random.uniform(10, 35)
-                else:  # Eastern quarter -> East Asia/Australia
-                    if original_y > 0.4:  # Northern -> East Asia
-                        final_coords[i, 0] = np.random.uniform(100, 140) # East Asia
-                        final_coords[i, 1] = np.random.uniform(25, 45)
-                    else:  # Southern -> Australia
-                        final_coords[i, 0] = np.random.uniform(120, 150) # Australia
-                        final_coords[i, 1] = np.random.uniform(-35, -15)
-        
-    elif crs == "EPSG:3857":  # Web Mercator
-        # Scale to Web Mercator bounds (approximate world extent)
-        # X: -20037508 to 20037508 (longitude equivalent)
-        # Y: -20037508 to 20037508 (latitude equivalent, but we'll use smaller range)
-        x_range = 20000000.0  # ~20M meters
-        y_range = 15000000.0  # ~15M meters (smaller for more realistic distribution)
-        
-        # Center around 0,0 and scale
-        final_coords = (normalized_coords - 0.5) * 2  # Scale to [-1, 1]
-        final_coords[:, 0] *= x_range  # X coordinates
-        final_coords[:, 1] *= y_range  # Y coordinates
-        
-        # Add Web Mercator noise
-        noise_scale = 100000.0  # 100km noise
-        noise = np.random.normal(0, noise_scale, final_coords.shape)
-        final_coords += noise
-        
-        # Ensure coordinates stay within reasonable Web Mercator bounds
-        final_coords[:, 0] = np.clip(final_coords[:, 0], -19000000, 19000000)
-        final_coords[:, 1] = np.clip(final_coords[:, 1], -14000000, 14000000)
-        
-    else:
-        # Default to unit grid for unknown CRS
-        logger.warning(f"Unknown CRS '{crs}', defaulting to unit_grid")
-        margin = 0.05
-        grid_size = 1.0 - 2 * margin
-        final_coords = normalized_coords * grid_size + margin
-        noise_scale = 0.02
-        noise = np.random.normal(0, noise_scale, final_coords.shape)
-        final_coords += noise
-        final_coords = np.clip(final_coords, 0.01, 0.99)
-    
-    logger.info(f"Generated spatial coordinates ranging from "
-                f"({np.min(final_coords[:, 0]):.2f}, {np.min(final_coords[:, 1]):.2f}) to "
-                f"({np.max(final_coords[:, 0]):.2f}, {np.max(final_coords[:, 1]):.2f})")
-    
-    # Create a new tree sequence with individuals and spatial locations
-    tables = ts.dump_tables()
-    
-    # Clear existing individuals table
-    tables.individuals.clear()
-    tables.individuals.metadata_schema = tskit.MetadataSchema(None)
-    
-    # Create individuals for sample nodes with spatial locations
-    node_to_individual = {}
-    for i, node_id in enumerate(sample_nodes):
-        # Create 3D location (z=0 for 2D locations)
-        location_3d = np.array([final_coords[i, 0], final_coords[i, 1], 0.0])
-        
-        individual_id = tables.individuals.add_row(
-            flags=0,
-            location=location_3d,
-            parents=[],
-            metadata=b''
-        )
-        node_to_individual[node_id] = individual_id
-    
-    # Update nodes to reference individuals
-    new_nodes = tables.nodes.copy()
-    new_nodes.clear()
-    
-    for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
-        new_nodes.add_row(
-            time=node.time,
-            flags=node.flags,
-            population=node.population,
-            individual=individual_id,
-            metadata=node.metadata
-        )
-    
-    tables.nodes.replace_with(new_nodes)
-    
-    result_ts = tables.tree_sequence()
-    logger.info(f"Added spatial locations to {len(sample_nodes)} sample individuals")
-    
-    return result_ts
+# The large generate_spatial_locations_for_samples function has been moved to spatial_generation.py
 
 # API endpoints
 @app.get("/api")
@@ -678,7 +351,7 @@ def get_client_ip(request: Request) -> str:
     return "unknown"
 
 @app.post("/api/create-session")
-@limiter.limit("10/minute")
+@limiter.limit(RATE_LIMIT_SESSION_CREATE)
 async def create_session(request: Request):
     """Get or create a persistent session for the client IP."""
     try:
@@ -840,8 +513,7 @@ async def download_tree_sequence(request: Request, filename: str, background_tas
             raise HTTPException(status_code=404, detail="File not found")
         
         # Create a more unique temporary filename to avoid conflicts
-        import time
-        timestamp = int(time.time() * 1000000)  # microsecond precision
+        timestamp = int(time.time() * FILENAME_TIMESTAMP_PRECISION_MICROSECONDS)  # microsecond precision
         safe_filename = filename.replace("/", "_").replace("\\", "_")
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{timestamp}_{safe_filename}") as tmp_file:
@@ -873,7 +545,7 @@ async def download_tree_sequence(request: Request, filename: str, background_tas
 async def get_graph_data(
     request: Request,
     filename: str, 
-    max_samples: int = 25,
+    max_samples: int = DEFAULT_MAX_SAMPLES_FOR_GRAPH,
     genomic_start: float = None,
     genomic_end: float = None,
     tree_start_idx: int = None,
@@ -977,18 +649,18 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
     session_id = session_storage.get_or_create_session(client_ip)
     
     # Validate parameters
-    if simulation_request.num_samples < 2:
-        raise HTTPException(status_code=400, detail="num_samples must be at least 2")
-    if simulation_request.num_samples > 500:
-        raise HTTPException(status_code=400, detail="num_samples cannot exceed 500 for performance reasons")
+    if simulation_request.num_samples < MINIMUM_SAMPLES_REQUIRED:
+        raise HTTPException(status_code=400, detail=f"num_samples must be at least {MINIMUM_SAMPLES_REQUIRED}")
+    if simulation_request.num_samples > MAX_SAMPLES_FOR_PERFORMANCE:
+        raise HTTPException(status_code=400, detail=f"num_samples cannot exceed {MAX_SAMPLES_FOR_PERFORMANCE} for performance reasons")
     if simulation_request.num_local_trees < 0:
         raise HTTPException(status_code=400, detail="num_local_trees cannot be negative")
-    if simulation_request.num_local_trees > 1000:
-        raise HTTPException(status_code=400, detail="num_local_trees cannot exceed 1000 for performance reasons")
+    if simulation_request.num_local_trees > MAX_LOCAL_TREES_FOR_PERFORMANCE:
+        raise HTTPException(status_code=400, detail=f"num_local_trees cannot exceed {MAX_LOCAL_TREES_FOR_PERFORMANCE} for performance reasons")
     if simulation_request.max_time <= 0:
         raise HTTPException(status_code=400, detail="max_time must be positive")
-    if simulation_request.max_time > 1000:
-        raise HTTPException(status_code=400, detail="max_time cannot exceed 1000 for performance reasons")
+    if simulation_request.max_time > MAX_TIME_FOR_PERFORMANCE:
+        raise HTTPException(status_code=400, detail=f"max_time cannot exceed {MAX_TIME_FOR_PERFORMANCE} for performance reasons")
     
     try:
         # Set reasonable defaults
@@ -1002,7 +674,7 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
         # Use a high recombination rate to ensure we get recombination events at most positions
         if simulation_request.num_local_trees > 1:
             # High rate to maximize chance of breakpoints at each possible position
-            recombination_rate = 100.0  # Very high rate to ensure breakpoints
+            recombination_rate = RECOMBINATION_RATE_HIGH  # Very high rate to ensure breakpoints
         else:
             recombination_rate = 0.0
         
@@ -1028,13 +700,11 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
         
         # Generate filename
         # Check if the filename_prefix already includes a timestamp (indicated by 'd' followed by 10 digits)
-        import re
         if re.search(r'_d\d{10}$', simulation_request.filename_prefix):
             # Filename already has a formatted timestamp, use as-is
             filename = f"{simulation_request.filename_prefix}.trees"
         else:
             # Add timestamp for backward compatibility
-            import time
             timestamp = int(time.time())
             filename = f"{simulation_request.filename_prefix}_{timestamp}.trees"
         
@@ -1310,7 +980,7 @@ async def update_tree_sequence_locations(request: Request, location_request: Cus
         del node_locations
         
         # Check spatial completeness (simplified for large tree sequences)
-        if updated_ts.num_nodes > 10000:
+        if updated_ts.num_nodes > LARGE_TREE_SEQUENCE_NODE_THRESHOLD:
             # For large tree sequences, assume spatial completeness based on our work
             spatial_info = {
                 "has_sample_spatial": True,
@@ -1330,7 +1000,7 @@ async def update_tree_sequence_locations(request: Request, location_request: Cus
                     has_temporal = True
                     break
                 non_sample_count += 1
-                if non_sample_count > 100:  # Check only first 100 non-sample nodes
+                if non_sample_count > SPATIAL_CHECK_NODE_LIMIT:  # Check only first few non-sample nodes
                     break
         
         logger.info(f"Successfully updated tree sequence with custom locations: {new_filename}")
@@ -1747,7 +1417,7 @@ async def validate_spatial_data(request: Request, validation_request: SpatialVal
             "total_coordinates": total_count,
             "valid_coordinates": valid_count,
             "invalid_coordinates": total_count - valid_count,
-            "validation_percentage": (valid_count / total_count * 100) if total_count > 0 else 0,
+            "validation_percentage": (valid_count / total_count * VALIDATION_PERCENTAGE_MULTIPLIER) if total_count > 0 else 0,
             "all_valid": all(validation_results)
         }
         

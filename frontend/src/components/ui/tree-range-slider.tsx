@@ -31,19 +31,40 @@ export const TreeRangeSlider: React.FC<TreeRangeSliderProps> = ({
 
   const minTreeIndex = 0;
   const maxTreeIndex = treeIntervals.length - 1;
+  
+  // Get total genomic span
+  const totalGenomicSpan = treeIntervals[maxTreeIndex].right - treeIntervals[0].left;
 
   const getTreeIndexFromPosition = useCallback((clientX: number): number => {
     if (!sliderRef.current) return minTreeIndex;
     
     const rect = sliderRef.current.getBoundingClientRect();
     const percentage = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const rawIndex = minTreeIndex + percentage * (maxTreeIndex - minTreeIndex);
-    return Math.round(rawIndex);
-  }, [minTreeIndex, maxTreeIndex]);
+    
+    // Convert percentage to genomic position
+    const genomicPos = treeIntervals[0].left + percentage * totalGenomicSpan;
+    
+    // Find which tree contains this genomic position
+    for (let i = 0; i < treeIntervals.length; i++) {
+      const interval = treeIntervals[i];
+      // Use midpoint of each tree's span for selection
+      const treeMidpoint = (interval.left + interval.right) / 2;
+      if (i === treeIntervals.length - 1 || genomicPos <= treeMidpoint) {
+        return i;
+      }
+    }
+    return maxTreeIndex;
+  }, [treeIntervals, totalGenomicSpan]);
 
   const getPositionFromTreeIndex = useCallback((treeIndex: number): number => {
-    return ((treeIndex - minTreeIndex) / (maxTreeIndex - minTreeIndex)) * 100;
-  }, [minTreeIndex, maxTreeIndex]);
+    if (treeIndex < 0 || treeIndex >= treeIntervals.length) return 0;
+    
+    const interval = treeIntervals[treeIndex];
+    // Use midpoint of tree's genomic span for positioning
+    const treeMidpoint = (interval.left + interval.right) / 2;
+    const relativePosition = (treeMidpoint - treeIntervals[0].left) / totalGenomicSpan;
+    return relativePosition * 100;
+  }, [treeIntervals, totalGenomicSpan]);
 
   const formatTreeIndexDisplay = useCallback((treeIndex: number): string => {
     if (treeIndex < 0 || treeIndex >= treeIntervals.length) return "Invalid";
@@ -97,25 +118,56 @@ export const TreeRangeSlider: React.FC<TreeRangeSliderProps> = ({
     } else if (isDragging === 'range') {
       const deltaX = e.clientX - dragStart.x;
       const rect = sliderRef.current.getBoundingClientRect();
-      const deltaTreeIndex = Math.round((deltaX / rect.width) * (maxTreeIndex - minTreeIndex));
+      const deltaPercentage = deltaX / rect.width;
+      const deltaGenomicPos = deltaPercentage * totalGenomicSpan;
+      
       const [startLeft, startRight] = dragStart.startValue;
-      const rangeSize = startRight - startLeft;
+      const startGenomicLeft = (treeIntervals[startLeft].left + treeIntervals[startLeft].right) / 2;
+      const startGenomicRight = (treeIntervals[startRight].left + treeIntervals[startRight].right) / 2;
       
-      let newLeft = startLeft + deltaTreeIndex;
-      let newRight = startRight + deltaTreeIndex;
+      // Calculate new genomic positions
+      const newGenomicLeft = startGenomicLeft + deltaGenomicPos;
+      const newGenomicRight = startGenomicRight + deltaGenomicPos;
       
-      if (newLeft < minTreeIndex) {
-        newLeft = minTreeIndex;
-        newRight = minTreeIndex + rangeSize;
+      // Find corresponding tree indices
+      let newLeft = startLeft;
+      let newRight = startRight;
+      
+      // Find tree index for new left position
+      for (let i = 0; i < treeIntervals.length; i++) {
+        const midpoint = (treeIntervals[i].left + treeIntervals[i].right) / 2;
+        if (newGenomicLeft <= midpoint || i === treeIntervals.length - 1) {
+          newLeft = i;
+          break;
+        }
       }
-      if (newRight > maxTreeIndex) {
-        newRight = maxTreeIndex;
-        newLeft = maxTreeIndex - rangeSize;
+      
+      // Find tree index for new right position
+      for (let i = 0; i < treeIntervals.length; i++) {
+        const midpoint = (treeIntervals[i].left + treeIntervals[i].right) / 2;
+        if (newGenomicRight <= midpoint || i === treeIntervals.length - 1) {
+          newRight = i;
+          break;
+        }
+      }
+      
+      // Ensure bounds
+      newLeft = Math.max(minTreeIndex, Math.min(maxTreeIndex, newLeft));
+      newRight = Math.max(minTreeIndex, Math.min(maxTreeIndex, newRight));
+      
+      // Maintain range size if possible
+      const originalRangeSize = startRight - startLeft;
+      if (newLeft !== newRight && Math.abs(newRight - newLeft) !== originalRangeSize) {
+        if (newLeft + originalRangeSize <= maxTreeIndex) {
+          newRight = newLeft + originalRangeSize;
+        } else if (newRight - originalRangeSize >= minTreeIndex) {
+          newLeft = newRight - originalRangeSize;
+        }
       }
       
       onChange([newLeft, newRight]);
     }
-  }, [isDragging, value, onChange, getTreeIndexFromPosition, minTreeIndex, maxTreeIndex, dragStart]);
+  }, [isDragging, value, onChange, getTreeIndexFromPosition, minTreeIndex, maxTreeIndex, dragStart, totalGenomicSpan, treeIntervals]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);

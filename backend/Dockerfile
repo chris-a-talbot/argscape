@@ -15,7 +15,6 @@ RUN apk add --no-cache \
 
 # Copy environment files
 COPY environment.yml /tmp/environment.yml
-COPY environment-local.yml /tmp/environment-local.yml
 
 # Create conda environment
 RUN micromamba create -n argscape -f /tmp/environment.yml && \

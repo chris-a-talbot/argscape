@@ -21,6 +21,241 @@ interface SpatialArg3DVisualizationContainerProps {
   max_samples: number;
 }
 
+// Constants
+const CONTAINER_CONSTANTS = {
+  DEFAULT_DIMENSIONS: { width: 800, height: 600 },
+  DEBOUNCE_DELAY: 500,
+  GENOMIC_STEP_DIVISOR: 1000,
+  PERCENTAGE_PRECISION: 1,
+  TIME_PRECISION: 3,
+  TEMPORAL_STEP_DIVISOR: 1000,
+  TEMPORAL_SLIDER_HEIGHT: 350,
+  UNIT_GRID_SIZE: 10
+};
+
+const DEFAULT_VISUAL_SETTINGS = {
+  temporalSpacing: 12,
+  spatialSpacing: 160,
+  temporalGridOpacity: 30,
+  geographicShapeOpacity: 70,
+  maxNodeRadius: 25,
+  isFilterSectionCollapsed: true
+};
+
+const formatGenomicPosition = (value: number): string => {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
+  return value.toString();
+};
+
+const calculatePercentage = (value: number, total: number): string => {
+  return ((value / total) * 100).toFixed(CONTAINER_CONSTANTS.PERCENTAGE_PRECISION);
+};
+
+const convertTreeIntervals = (backendIntervals: [number, number, number][]): TreeInterval[] => {
+  return backendIntervals.map(([index, left, right]) => ({
+    index,
+    left,
+    right
+  }));
+};
+
+const getGraphTraversalNodes = (
+  node: GraphNode, 
+  nodes: GraphNode[], 
+  edges: GraphEdge[], 
+  direction: 'descendants' | 'ancestors'
+): Set<number> => {
+  const result = new Set<number>();
+  const visited = new Set<number>();
+  const queue = [node.id];
+  
+  while (queue.length > 0) {
+    const currentId = queue.shift()!;
+    if (visited.has(currentId)) continue;
+    visited.add(currentId);
+    
+    edges.forEach(edge => {
+      const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+      
+      const isTraversalEdge = direction === 'descendants' 
+        ? sourceId === currentId && !visited.has(targetId)
+        : targetId === currentId && !visited.has(sourceId);
+        
+      if (isTraversalEdge) {
+        const nextId = direction === 'descendants' ? targetId : sourceId;
+        result.add(nextId);
+        queue.push(nextId);
+      }
+    });
+  }
+  
+  return result;
+};
+
+const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
+  return getGraphTraversalNodes(node, nodes, edges, 'descendants');
+};
+
+const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
+  return getGraphTraversalNodes(node, nodes, edges, 'ancestors');
+};
+
+const validateSpatialData = (graphData: GraphData): boolean => {
+  const nodesWithSpatial = graphData.nodes.filter((node: GraphNode) => 
+    node.location?.x !== undefined && node.location?.y !== undefined
+  );
+  return nodesWithSpatial.length > 0;
+};
+
+const initializeTemporalState = (nodes: GraphNode[]) => {
+  if (!nodes?.length) return { minTime: 0, maxTime: 1, range: [0, 1] as [number, number] };
+  
+  const times = nodes.map(node => node.time);
+  const minTime = Math.min(...times);
+  const maxTime = Math.max(...times);
+  
+  return {
+    minTime,
+    maxTime,
+    range: [minTime, minTime] as [number, number]
+  };
+};
+
+const shouldShowGeographicShapeWarning = (mode: GeographicMode, currentShape: GeographicShape | null): boolean => {
+  return mode === 'eastern_hemisphere' && !currentShape;
+};
+
+const createFilterOptions = (
+  filterState: any,
+  metadata: any,
+  maxSamples: number
+) => {
+  const options: any = { maxSamples };
+  
+  if (filterState.mode === 'genomic' && 
+      (filterState.genomicRange[0] !== 0 || filterState.genomicRange[1] !== metadata.sequenceLength)) {
+    options.genomicStart = filterState.genomicRange[0];
+    options.genomicEnd = filterState.genomicRange[1];
+  } else if (filterState.mode === 'tree' && 
+             (filterState.treeRange[0] !== 0 || filterState.treeRange[1] !== metadata.treeIntervals.length - 1)) {
+    options.treeStartIdx = filterState.treeRange[0];
+    options.treeEndIdx = filterState.treeRange[1];
+  }
+  
+  return options;
+};
+
+const filterDataByViewMode = (
+  data: GraphData,
+  viewMode: ViewMode,
+  selectedNode: GraphNode | null
+): GraphData => {
+  if (!selectedNode) return data;
+
+  const getFilteredNodesAndEdges = (nodeIds: Set<number>) => {
+    const filteredNodes = data.nodes.filter(node => nodeIds.has(node.id));
+    const filteredEdges = data.edges.filter(edge => {
+      const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+      const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+      return nodeIds.has(sourceId) && nodeIds.has(targetId);
+    });
+    
+    return {
+      ...data,
+      nodes: filteredNodes,
+      edges: filteredEdges,
+      metadata: { ...data.metadata, is_subset: true }
+    };
+  };
+
+  switch (viewMode) {
+    case 'subgraph': {
+      const descendants = getDescendants(selectedNode, data.nodes, data.edges);
+      descendants.add(selectedNode.id);
+      return getFilteredNodesAndEdges(descendants);
+    }
+    case 'ancestors': {
+      const ancestors = getAncestors(selectedNode, data.nodes, data.edges);
+      ancestors.add(selectedNode.id);
+      return getFilteredNodesAndEdges(ancestors);
+    }
+    default:
+      return data;
+  }
+};
+
+const applyTemporalFiltering = (data: GraphData, temporalState: any): GraphData => {
+  if (!temporalState.isActive || temporalState.mode !== 'hide') return data;
+  
+  const [minTimeFilter, maxTimeFilter] = temporalState.range;
+  const isFullTimeRange = minTimeFilter === temporalState.minTime && maxTimeFilter === temporalState.maxTime;
+  
+  if (isFullTimeRange) return data;
+  
+  const filteredNodes = data.nodes.filter(node => 
+    node.time >= minTimeFilter && node.time <= maxTimeFilter
+  );
+  const nodeIds = new Set(filteredNodes.map(node => node.id));
+  const filteredEdges = data.edges.filter(edge => {
+    const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+    const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+    return nodeIds.has(sourceId) && nodeIds.has(targetId);
+  });
+
+  return {
+    ...data,
+    nodes: filteredNodes,
+    edges: filteredEdges,
+    metadata: { ...data.metadata, is_subset: true }
+  };
+};
+
+const calculateArgStats = (
+  subArgData: GraphData | null,
+  data: GraphData | null,
+  viewData: GraphData | null,
+  filteredData: GraphData | null,
+  treeSequence: any
+): ArgStatsData | null => {
+  if (!subArgData || !data || !filteredData || !treeSequence) return null;
+
+  return {
+    originalNodes: data.metadata.original_num_nodes || treeSequence.num_nodes,
+    originalEdges: data.metadata.original_num_edges || treeSequence.num_edges,
+    subArgNodes: subArgData.nodes.length,
+    subArgEdges: subArgData.edges.length,
+    displayedNodes: filteredData.nodes.length,
+    displayedEdges: filteredData.edges.length
+  };
+};
+
+const getViewTitle = (
+  viewMode: ViewMode,
+  selectedNode: GraphNode | null,
+  filterState: any,
+  data: GraphData | null
+): string => {
+  let title = '';
+  switch (viewMode) {
+    case 'subgraph':
+      title = `3D SubARG at Root ${selectedNode?.id}`;
+      break;
+    case 'ancestors':
+      title = `3D Parent ARG of Node ${selectedNode?.id}`;
+      break;
+    default:
+      title = '3D Full ARG';
+  }
+  
+  if (filterState.isActive && data?.metadata.genomic_start !== undefined && data?.metadata.genomic_end !== undefined) {
+    title += ` (${formatGenomicPosition(data.metadata.genomic_start)} - ${formatGenomicPosition(data.metadata.genomic_end)})`;
+  }
+  
+  return title;
+};
+
 // Simplified wrapper component
 const Spatial3DWrapper: React.FC<{
   data: GraphData | null;
@@ -39,15 +274,15 @@ const Spatial3DWrapper: React.FC<{
   maxNodeRadius?: number;
 }> = ({ data, onNodeClick, onNodeRightClick, selectedNode, temporalRange, showTemporalPlanes, temporalFilterMode, temporalSpacing, spatialSpacing, geographicShape, geographicMode, temporalGridOpacity, geographicShapeOpacity, maxNodeRadius }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
+  const [dimensions, setDimensions] = useState(CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS);
 
   useEffect(() => {
     const updateDimensions = () => {
       if (containerRef.current) {
         const { clientWidth, clientHeight } = containerRef.current;
         setDimensions({
-          width: clientWidth || 800,
-          height: clientHeight || 600
+          width: clientWidth || CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS.width,
+          height: clientHeight || CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS.height
         });
       }
     };
@@ -93,55 +328,6 @@ const Spatial3DWrapper: React.FC<{
   );
 };
 
-// Helper functions for graph traversal
-const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
-  const descendants = new Set<number>();
-  const visited = new Set<number>();
-  const queue = [node.id];
-  
-  while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    if (visited.has(currentId)) continue;
-    visited.add(currentId);
-    
-    edges.forEach(edge => {
-      const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-      const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-      
-      if (sourceId === currentId && !visited.has(targetId)) {
-        descendants.add(targetId);
-        queue.push(targetId);
-      }
-    });
-  }
-  
-  return descendants;
-};
-
-const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
-  const ancestors = new Set<number>();
-  const visited = new Set<number>();
-  const queue = [node.id];
-  
-  while (queue.length > 0) {
-    const currentId = queue.shift()!;
-    if (visited.has(currentId)) continue;
-    visited.add(currentId);
-    
-    edges.forEach(edge => {
-      const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-      const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-      
-      if (targetId === currentId && !visited.has(sourceId)) {
-        ancestors.add(sourceId);
-        queue.push(sourceId);
-      }
-    });
-  }
-  
-  return ancestors;
-};
-
 const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationContainerProps> = ({
   filename,
   max_samples
@@ -149,17 +335,14 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const { colors } = useColorTheme();
   const { treeSequence } = useTreeSequence();
   
-  // Core data state
   const [data, setData] = useState<GraphData | null>(null);
   const [subArgData, setSubArgData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // View state
   const [viewMode, setViewMode] = useState<ViewMode>('full');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   
-  // Filter state consolidated
   const [filterState, setFilterState] = useState({
     isActive: false,
     mode: 'genomic' as FilterMode,
@@ -167,7 +350,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     treeRange: [0, 0] as [number, number]
   });
   
-  // Temporal state consolidated 
   const [temporalState, setTemporalState] = useState({
     isActive: false,
     mode: 'planes' as TemporalFilterMode,
@@ -176,23 +358,13 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     maxTime: 1
   });
   
-  // Metadata state
   const [metadata, setMetadata] = useState({
     sequenceLength: 0,
     treeIntervals: [] as TreeInterval[]
   });
   
-  // 3D visualization settings
-  const [visualSettings, setVisualSettings] = useState({
-    temporalSpacing: 12,
-    spatialSpacing: 160,
-    temporalGridOpacity: 30,
-    geographicShapeOpacity: 70,
-    maxNodeRadius: 25,
-    isFilterSectionCollapsed: true
-  });
+  const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
   
-  // Geographic state
   const [geoState, setGeoState] = useState({
     mode: 'unit_grid' as GeographicMode,
     currentShape: null as GeographicShape | null,
@@ -201,49 +373,39 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     showCrsWarning: false
   });
 
-  const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
-    return backendIntervals.map(([index, left, right]) => ({
-      index,
-      left,
-      right
-    }));
-  }, []);
-
-  // Load geographic data
-  useEffect(() => {
-    const loadGeographicData = async () => {
-      try {
-        setGeoState(prev => ({ ...prev, isLoading: true }));
-        
-        if (geoState.mode === 'unit_grid') {
+  const loadGeographicData = useCallback(async () => {
+    try {
+      setGeoState(prev => ({ ...prev, isLoading: true }));
+      
+      if (geoState.mode === 'unit_grid') {
+        const { createUnitGridShape } = await import('./GeographicUtils');
+        const gridShape = createUnitGridShape(CONTAINER_CONSTANTS.UNIT_GRID_SIZE);
+        setGeoState(prev => ({ ...prev, currentShape: gridShape }));
+      } else if (geoState.mode === 'custom' && geoState.customShapeFile) {
+        const response = await api.uploadShapefile(geoState.customShapeFile);
+        console.log('Custom shapefile uploaded:', response.data);
+      } else {
+        try {
+          const response = await api.getShapeData(geoState.mode);
+          setGeoState(prev => ({ ...prev, currentShape: response.data as GeographicShape }));
+        } catch (error) {
+          console.warn(`Failed to load ${geoState.mode}, using fallback`);
           const { createUnitGridShape } = await import('./GeographicUtils');
-          const gridShape = createUnitGridShape(10);
+          const gridShape = createUnitGridShape(CONTAINER_CONSTANTS.UNIT_GRID_SIZE);
           setGeoState(prev => ({ ...prev, currentShape: gridShape }));
-        } else if (geoState.mode === 'custom' && geoState.customShapeFile) {
-          const response = await api.uploadShapefile(geoState.customShapeFile);
-          console.log('Custom shapefile uploaded:', response.data);
-        } else {
-          try {
-            const response = await api.getShapeData(geoState.mode);
-            setGeoState(prev => ({ ...prev, currentShape: response.data as GeographicShape }));
-          } catch (error) {
-            console.warn(`Failed to load ${geoState.mode}, using fallback`);
-            const { createUnitGridShape } = await import('./GeographicUtils');
-            const gridShape = createUnitGridShape(10);
-            setGeoState(prev => ({ ...prev, currentShape: gridShape }));
-          }
         }
-      } catch (error) {
-        console.error('Error loading geographic data:', error);
-      } finally {
-        setGeoState(prev => ({ ...prev, isLoading: false }));
       }
-    };
-    
-    loadGeographicData();
+    } catch (error) {
+      console.error('Error loading geographic data:', error);
+    } finally {
+      setGeoState(prev => ({ ...prev, isLoading: false }));
+    }
   }, [geoState.mode, geoState.customShapeFile]);
 
-  // Initial data loading
+  useEffect(() => {
+    loadGeographicData();
+  }, [loadGeographicData]);
+
   useEffect(() => {
     const fetchInitialData = async () => {
       try {
@@ -251,7 +413,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         const response = await api.getGraphData(filename, { maxSamples: max_samples });
         const graphData = response.data as GraphData;
         
-        // Initialize metadata
         if (graphData.metadata.sequence_length) {
           setMetadata(prev => ({ ...prev, sequenceLength: graphData.metadata.sequence_length! }));
           setFilterState(prev => ({ 
@@ -269,31 +430,17 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           }));
         }
 
-        // Initialize temporal state
         if (graphData.nodes?.length) {
-          const times = graphData.nodes.map(node => node.time);
-          const minNodeTime = Math.min(...times);
-          const maxNodeTime = Math.max(...times);
-          setTemporalState(prev => ({
-            ...prev,
-            minTime: minNodeTime,
-            maxTime: maxNodeTime,
-            range: [minNodeTime, minNodeTime]
-          }));
+          const temporalInit = initializeTemporalState(graphData.nodes);
+          setTemporalState(prev => ({ ...prev, ...temporalInit }));
         }
 
-        // Validate spatial data
-        const nodesWithSpatial = graphData.nodes.filter((node: GraphNode) => 
-          node.location?.x !== undefined && node.location?.y !== undefined
-        );
-        
-        if (nodesWithSpatial.length === 0) {
+        if (!validateSpatialData(graphData)) {
           setError('No spatial data found in this ARG. This visualization requires nodes with 2D spatial coordinates.');
         } else {
           setData(graphData);
           setSubArgData(graphData);
           
-          // Set geographic mode based on CRS detection
           if (graphData.metadata.suggested_geographic_mode) {
             const suggestedMode = graphData.metadata.suggested_geographic_mode as GeographicMode;
             setGeoState(prev => ({ ...prev, mode: suggestedMode }));
@@ -308,44 +455,26 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     };
 
     fetchInitialData();
-  }, [filename, max_samples, convertTreeIntervals]);
+  }, [filename, max_samples]);
 
-  // Filtered data loading with simple debouncing
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (!filterState.isActive || loading) return;
 
-    // Clear previous timeout
     if (loadingTimeoutRef.current) {
       clearTimeout(loadingTimeoutRef.current);
     }
 
-    // Debounce API calls
     loadingTimeoutRef.current = setTimeout(async () => {
       try {
         setLoading(true);
         
-        let options: any = { maxSamples: max_samples };
-        
-        if (filterState.mode === 'genomic' && 
-            (filterState.genomicRange[0] !== 0 || filterState.genomicRange[1] !== metadata.sequenceLength)) {
-          options.genomicStart = filterState.genomicRange[0];
-          options.genomicEnd = filterState.genomicRange[1];
-        } else if (filterState.mode === 'tree' && 
-                   (filterState.treeRange[0] !== 0 || filterState.treeRange[1] !== metadata.treeIntervals.length - 1)) {
-          options.treeStartIdx = filterState.treeRange[0];
-          options.treeEndIdx = filterState.treeRange[1];
-        }
-        
+        const options = createFilterOptions(filterState, metadata, max_samples);
         const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
         
-        const nodesWithSpatial = graphData.nodes.filter((node: GraphNode) => 
-          node.location?.x !== undefined && node.location?.y !== undefined
-        );
-        
-        if (nodesWithSpatial.length === 0) {
+        if (!validateSpatialData(graphData)) {
           setError('No spatial data found in this range.');
         } else {
           setData(graphData);
@@ -357,7 +486,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       } finally {
         setLoading(false);
       }
-    }, 500);
+    }, CONTAINER_CONSTANTS.DEBOUNCE_DELAY);
 
     return () => {
       if (loadingTimeoutRef.current) {
@@ -366,7 +495,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     };
   }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length]);
 
-  // Auto-collapse filter section
   useEffect(() => {
     setVisualSettings(prev => ({
       ...prev,
@@ -374,134 +502,13 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     }));
   }, [filterState.isActive, temporalState.isActive]);
 
-  // Filter data based on view mode and temporal settings
   const getFilteredData = (): GraphData | null => {
     if (!data) return data;
 
-    let filteredData = data;
-
-    // Apply temporal filtering for "hide" mode
-    if (temporalState.isActive && temporalState.mode === 'hide') {
-      const [minTimeFilter, maxTimeFilter] = temporalState.range;
-      const isFullTimeRange = minTimeFilter === temporalState.minTime && maxTimeFilter === temporalState.maxTime;
-      
-      if (!isFullTimeRange) {
-        const filteredNodes = data.nodes.filter(node => 
-          node.time >= minTimeFilter && node.time <= maxTimeFilter
-        );
-        const nodeIds = new Set(filteredNodes.map(node => node.id));
-        const filteredEdges = data.edges.filter(edge => {
-          const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-          const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-          return nodeIds.has(sourceId) && nodeIds.has(targetId);
-        });
-
-        filteredData = {
-          ...data,
-          nodes: filteredNodes,
-          edges: filteredEdges,
-          metadata: { ...data.metadata, is_subset: true }
-        };
-      }
-    }
-
-    // Apply view mode filtering
-    if (!selectedNode) return filteredData;
-
-    switch (viewMode) {
-      case 'subgraph': {
-        const descendants = getDescendants(selectedNode, filteredData.nodes, filteredData.edges);
-        descendants.add(selectedNode.id);
-        
-        const viewFilteredNodes = filteredData.nodes.filter(node => descendants.has(node.id));
-        const viewFilteredEdges = filteredData.edges.filter(edge => {
-          const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-          const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-          return descendants.has(sourceId) && descendants.has(targetId);
-        });
-
-        return {
-          ...filteredData,
-          nodes: viewFilteredNodes,
-          edges: viewFilteredEdges,
-          metadata: { ...filteredData.metadata, is_subset: true }
-        };
-      }
-      case 'ancestors': {
-        const ancestors = getAncestors(selectedNode, filteredData.nodes, filteredData.edges);
-        ancestors.add(selectedNode.id);
-        
-        const viewFilteredNodes = filteredData.nodes.filter(node => ancestors.has(node.id));
-        const viewFilteredEdges = filteredData.edges.filter(edge => {
-          const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-          const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-          return ancestors.has(sourceId) && ancestors.has(targetId);
-        });
-
-        return {
-          ...filteredData,
-          nodes: viewFilteredNodes,
-          edges: viewFilteredEdges,
-          metadata: { ...filteredData.metadata, is_subset: true }
-        };
-      }
-      default:
-        return filteredData;
-    }
+    const temporalFilteredData = applyTemporalFiltering(data, temporalState);
+    return filterDataByViewMode(temporalFilteredData, viewMode, selectedNode);
   };
 
-  // Calculate stats
-  const calculateArgStats = (): ArgStatsData | null => {
-    if (!subArgData || !data || !treeSequence) return null;
-
-    const filteredData = getFilteredData();
-    if (!filteredData) return null;
-
-    let subArgViewData = data;
-    if (selectedNode) {
-      switch (viewMode) {
-        case 'subgraph': {
-          const descendants = getDescendants(selectedNode, data.nodes, data.edges);
-          descendants.add(selectedNode.id);
-          
-          const subArgNodes = data.nodes.filter(node => descendants.has(node.id));
-          const subArgEdges = data.edges.filter(edge => {
-            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-            return descendants.has(sourceId) && descendants.has(targetId);
-          });
-
-          subArgViewData = { ...data, nodes: subArgNodes, edges: subArgEdges };
-          break;
-        }
-        case 'ancestors': {
-          const ancestors = getAncestors(selectedNode, data.nodes, data.edges);
-          ancestors.add(selectedNode.id);
-          
-          const subArgNodes = data.nodes.filter(node => ancestors.has(node.id));
-          const subArgEdges = data.edges.filter(edge => {
-            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-            return ancestors.has(sourceId) && ancestors.has(targetId);
-          });
-
-          subArgViewData = { ...data, nodes: subArgNodes, edges: subArgEdges };
-          break;
-        }
-      }
-    }
-
-    return {
-      originalNodes: data.metadata.original_num_nodes || treeSequence.num_nodes,
-      originalEdges: data.metadata.original_num_edges || treeSequence.num_edges,
-      subArgNodes: subArgData.nodes.length,
-      subArgEdges: subArgData.edges.length,
-      displayedNodes: filteredData.nodes.length,
-      displayedEdges: filteredData.edges.length
-    };
-  };
-
-  // Event handlers
   const handleNodeClick = (node: GraphNode) => {
     if (viewMode === 'full') {
       setSelectedNode(node);
@@ -523,33 +530,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const handleReturnToFull = () => {
     setViewMode('full');
     setSelectedNode(null);
-  };
-
-  // Simplified formatters
-  const formatGenomicPosition = useCallback((value: number) => {
-    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-    if (value >= 1000) return `${(value / 1000).toFixed(1)}K`;
-    return value.toString();
-  }, []);
-
-  const getViewTitle = (): string => {
-    let title = '';
-    switch (viewMode) {
-      case 'subgraph':
-        title = `3D SubARG at Root ${selectedNode?.id}`;
-        break;
-      case 'ancestors':
-        title = `3D Parent ARG of Node ${selectedNode?.id}`;
-        break;
-      default:
-        title = '3D Full ARG';
-    }
-    
-    if (filterState.isActive && data?.metadata.genomic_start !== undefined && data?.metadata.genomic_end !== undefined) {
-      title += ` (${formatGenomicPosition(data.metadata.genomic_start)} - ${formatGenomicPosition(data.metadata.genomic_end)})`;
-    }
-    
-    return title;
   };
 
   if (loading) {
@@ -588,12 +568,15 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     );
   }
 
+  const filteredData = getFilteredData();
+  const viewData = selectedNode ? filterDataByViewMode(data!, viewMode, selectedNode) : data;
+  const stats = calculateArgStats(subArgData, data, viewData, filteredData, treeSequence);
+
   return (
     <div 
       className="w-full h-full flex flex-col overflow-hidden"
       style={{ backgroundColor: colors.background }}
     >
-      {/* Top bar with title and legend */}
       <div 
         className="flex-shrink-0 border-b px-4 py-2"
         style={{ 
@@ -604,7 +587,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold" style={{ color: colors.text }}>{getViewTitle()}</h2>
+              <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
+                {getViewTitle(viewMode, selectedNode, filterState, data)}
+              </h2>
               {viewMode !== 'full' && (
                 <button
                   onClick={handleReturnToFull}
@@ -627,7 +612,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             </div>
           </div>
           
-          {/* Legend */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
               <div className="flex items-center gap-1">
@@ -680,7 +664,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         </div>
       </div>
       
-      {/* Filter Controls */}
       {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
         <div 
           className="flex-shrink-0 border-b"
@@ -806,76 +789,76 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 </div>
 
                 {filterState.isActive && (
-                  <div className="flex-1 max-w-md">
-                    {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
-                      <RangeSlider
-                        min={0}
-                        max={metadata.sequenceLength}
-                        step={Math.max(1, Math.floor(metadata.sequenceLength / 1000))}
-                        value={filterState.genomicRange}
-                        onChange={(newRange) => setFilterState(prev => ({ ...prev, genomicRange: newRange }))}
-                        formatValue={formatGenomicPosition}
-                        className="w-full"
-                      />
-                    ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
-                      <TreeRangeSlider
-                        treeIntervals={metadata.treeIntervals}
-                        value={filterState.treeRange}
-                        onChange={(newRange) => setFilterState(prev => ({ ...prev, treeRange: newRange }))}
-                        className="w-full"
-                      />
-                    ) : null}
+                  <div className="flex items-center gap-4 flex-1">
+                    <div className="flex-1 max-w-md">
+                      {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
+                        <RangeSlider
+                          min={0}
+                          max={metadata.sequenceLength}
+                          step={Math.max(1, Math.floor(metadata.sequenceLength / CONTAINER_CONSTANTS.GENOMIC_STEP_DIVISOR))}
+                          value={filterState.genomicRange}
+                          onChange={(newRange) => setFilterState(prev => ({ ...prev, genomicRange: newRange }))}
+                          formatValue={formatGenomicPosition}
+                          className="w-full"
+                        />
+                      ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
+                        <TreeRangeSlider
+                          treeIntervals={metadata.treeIntervals}
+                          value={filterState.treeRange}
+                          onChange={(newRange) => setFilterState(prev => ({ ...prev, treeRange: newRange }))}
+                          className="w-full"
+                        />
+                      ) : null}
+                    </div>
+                    
+                    {/* Inline filter info */}
+                    <div className="text-xs" style={{ color: colors.text }}>
+                      {filterState.mode === 'genomic' ? (
+                        <span>
+                          {formatGenomicPosition(filterState.genomicRange[1] - filterState.genomicRange[0])} bp
+                          ({calculatePercentage(filterState.genomicRange[1] - filterState.genomicRange[0], metadata.sequenceLength)}%)
+                          {data?.metadata.num_local_trees !== undefined && (
+                            <> • {data.metadata.num_local_trees} trees</>
+                          )}
+                        </span>
+                      ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
+                        <span>
+                          Trees {filterState.treeRange[0]}-{filterState.treeRange[1]} ({filterState.treeRange[1] - filterState.treeRange[0] + 1} of {metadata.treeIntervals.length})
+                          {data?.metadata.num_local_trees !== undefined && (
+                            <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
+                          )}
+                          {data?.metadata.tree_count_mismatch && (
+                            <> ⚠️ (actual: {data.metadata.num_local_trees})</>
+                          )}
+                        </span>
+                      ) : null}
+                      {loading && (
+                        <div className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
               
-              <div className="text-xs flex flex-col gap-1" style={{ color: colors.text }}>
-                {filterState.isActive && (
-                  <div className="flex items-center gap-2">
-                    {filterState.mode === 'genomic' ? (
-                      <span>
-                        Genomic Range: {formatGenomicPosition(filterState.genomicRange[1] - filterState.genomicRange[0])} bp
-                        ({((filterState.genomicRange[1] - filterState.genomicRange[0]) / metadata.sequenceLength * 100).toFixed(1)}% of sequence)
-                        {data?.metadata.num_local_trees !== undefined && (
-                          <> • {data.metadata.num_local_trees} local trees</>
-                        )}
-                      </span>
-                    ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
-                      <span>
-                        Trees {filterState.treeRange[0]}-{filterState.treeRange[1]} ({filterState.treeRange[1] - filterState.treeRange[0] + 1} of {metadata.treeIntervals.length} trees)
-                        {data?.metadata.num_local_trees !== undefined && (
-                          <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
-                        )}
-                        {data?.metadata.tree_count_mismatch && (
-                          <> ⚠️ (actual: {data.metadata.num_local_trees})</>
-                        )}
-                      </span>
-                    ) : null}
-                    {loading && (
-                      <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
-                    )}
-                  </div>
-                )}
-                
-                {temporalState.isActive && (
+              {temporalState.isActive && (
+                <div className="text-xs" style={{ color: colors.text }}>
                   <div className="flex items-center gap-2">
                     <span>
-                      Temporal Range: {temporalState.range[0].toFixed(3)} - {temporalState.range[1].toFixed(3)}{' '}
-                      ({((temporalState.range[1] - temporalState.range[0]) / (temporalState.maxTime - temporalState.minTime) * 100).toFixed(1)}% of time range)
+                      Temporal Range: {temporalState.range[0].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)} - {temporalState.range[1].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}{' '}
+                      ({calculatePercentage(temporalState.range[1] - temporalState.range[0], temporalState.maxTime - temporalState.minTime)}% of time range)
                       • Hold Shift + drag to maintain window size
                     </span>
                     {loading && (
                       <div className="animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.textSecondary }}></div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
 
-      {/* 3D Visualization area */}
       <div className="flex-1 overflow-hidden flex">
         {temporalState.isActive && !visualSettings.isFilterSectionCollapsed && (
           <div 
@@ -888,18 +871,18 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             <TemporalRangeSlider
               min={temporalState.minTime}
               max={temporalState.maxTime}
-              step={(temporalState.maxTime - temporalState.minTime) / 1000}
+              step={(temporalState.maxTime - temporalState.minTime) / CONTAINER_CONSTANTS.TEMPORAL_STEP_DIVISOR}
               value={temporalState.range}
               onChange={(newRange) => setTemporalState(prev => ({ ...prev, range: newRange }))}
-              formatValue={(v) => v.toFixed(3)}
-              height={350}
+              formatValue={(v) => v.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}
+              height={CONTAINER_CONSTANTS.TEMPORAL_SLIDER_HEIGHT}
             />
           </div>
         )}
         
         <div className="flex-1 overflow-hidden relative">
           <Spatial3DWrapper
-            data={getFilteredData()}
+            data={filteredData}
             onNodeClick={handleNodeClick}
             onNodeRightClick={handleNodeRightClick}
             selectedNode={selectedNode}
@@ -937,28 +920,21 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             onDismissCrsWarning={() => setGeoState(prev => ({ ...prev, showCrsWarning: false }))}
           />
           
-          {(() => {
-            const stats = calculateArgStats();
-            const crsData = data?.metadata.coordinate_system_detection;
-            
-            return (
-              <SpatialArg3DInfoPanel
-                originalNodeCount={stats?.originalNodes}
-                originalEdgeCount={stats?.originalEdges}
-                subargNodeCount={stats?.subArgNodes}
-                subargEdgeCount={stats?.subArgEdges}
-                displayedNodeCount={stats?.displayedNodes}
-                displayedEdgeCount={stats?.displayedEdges}
-                crsDetection={crsData ? {
-                  crs: crsData.likely_crs,
-                  confidence: crsData.confidence,
-                  landPercentage: crsData.land_percentage,
-                  description: crsData.reasoning
-                } : undefined}
-                isTemporalSliderVisible={temporalState.isActive}
-              />
-            );
-          })()}
+          <SpatialArg3DInfoPanel
+            originalNodeCount={stats?.originalNodes}
+            originalEdgeCount={stats?.originalEdges}
+            subargNodeCount={stats?.subArgNodes}
+            subargEdgeCount={stats?.subArgEdges}
+            displayedNodeCount={stats?.displayedNodes}
+            displayedEdgeCount={stats?.displayedEdges}
+            crsDetection={data?.metadata.coordinate_system_detection ? {
+              crs: data.metadata.coordinate_system_detection.likely_crs,
+              confidence: data.metadata.coordinate_system_detection.confidence,
+              landPercentage: data.metadata.coordinate_system_detection.land_percentage,
+              description: data.metadata.coordinate_system_detection.reasoning
+            } : undefined}
+            isTemporalSliderVisible={temporalState.isActive}
+          />
         </div>
       </div>
     </div>

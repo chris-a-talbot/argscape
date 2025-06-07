@@ -28,7 +28,10 @@ def main():
     os.environ.setdefault("MAX_FILES_PER_SESSION", "50")
     os.environ.setdefault("MAX_FILE_SIZE_MB", "100")
     os.environ.setdefault("CLEANUP_INTERVAL_MINUTES", "60")
-    os.environ.setdefault("ALLOWED_ORIGINS", "*")
+    
+    # Set CORS origins - include common domains for production
+    default_origins = "https://www.argscape.com,https://argscape.com"
+    os.environ.setdefault("ALLOWED_ORIGINS", default_origins)
     
     logger.info(f"Starting server on port {port}")
     logger.info(f"Session age limit: {os.getenv('MAX_SESSION_AGE_HOURS')} hours")

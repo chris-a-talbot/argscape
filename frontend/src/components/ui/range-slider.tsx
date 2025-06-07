@@ -23,7 +23,51 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   const { colors } = useColorTheme();
   const [isDragging, setIsDragging] = useState<'left' | 'right' | 'range' | null>(null);
   const [dragStart, setDragStart] = useState<{ x: number; startValue: [number, number] }>({ x: 0, startValue: [0, 0] });
+  const [isShiftPressed, setIsShiftPressed] = useState(false);
+  const [fixedRangeSize, setFixedRangeSize] = useState<number | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+
+  // Track shift key state
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(true);
+        // Set fixed range size when shift is first pressed
+        if (fixedRangeSize === null) {
+          const currentRangeSize = Math.abs(value[1] - value[0]);
+          // For overlapping handles, use a minimum size
+          setFixedRangeSize(Math.max(currentRangeSize, step));
+        }
+        // Prevent text selection when shift is pressed
+        document.body.style.userSelect = 'none';
+        (document.body.style as any).webkitUserSelect = 'none';
+        (document.body.style as any).msUserSelect = 'none';
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'Shift') {
+        setIsShiftPressed(false);
+        setFixedRangeSize(null);
+        // Restore text selection
+        document.body.style.userSelect = '';
+        (document.body.style as any).webkitUserSelect = '';
+        (document.body.style as any).msUserSelect = '';
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+      // Cleanup: restore text selection
+      document.body.style.userSelect = '';
+      (document.body.style as any).webkitUserSelect = '';
+      (document.body.style as any).msUserSelect = '';
+    };
+  }, [value, fixedRangeSize, step]);
 
   const getValueFromPosition = useCallback((clientX: number): number => {
     if (!sliderRef.current) return min;
@@ -40,6 +84,13 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
 
   const handleMouseDown = useCallback((e: React.MouseEvent, type: 'left' | 'right' | 'range') => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    // Prevent text selection during drag
+    document.body.style.userSelect = 'none';
+    (document.body.style as any).webkitUserSelect = 'none';
+    (document.body.style as any).msUserSelect = 'none';
+    
     setIsDragging(type);
     setDragStart({ x: e.clientX, startValue: value });
   }, [value]);
@@ -61,11 +112,31 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       const rect = sliderRef.current.getBoundingClientRect();
       const deltaValue = (deltaX / rect.width) * (max - min);
       const [startLeft, startRight] = dragStart.startValue;
-      const rangeSize = startRight - startLeft;
       
-      let newLeft = startLeft + deltaValue;
-      let newRight = startRight + deltaValue;
+      let rangeSize = Math.abs(startRight - startLeft);
       
+      // Use fixed range size if shift is pressed
+      if (isShiftPressed && fixedRangeSize !== null) {
+        rangeSize = fixedRangeSize;
+      }
+      
+      // Calculate the center point of the original range
+      const originalCenter = (startLeft + startRight) / 2;
+      const newCenter = originalCenter + deltaValue;
+      
+      let newLeft, newRight;
+      
+      if (isShiftPressed && fixedRangeSize !== null) {
+        // Maintain fixed range size and move both handles together
+        newLeft = newCenter - rangeSize / 2;
+        newRight = newCenter + rangeSize / 2;
+      } else {
+        // Normal range dragging - maintain the original range size
+        newLeft = startLeft + deltaValue;
+        newRight = startRight + deltaValue;
+      }
+      
+      // Constrain to bounds
       if (newLeft < min) {
         newLeft = min;
         newRight = min + rangeSize;
@@ -77,10 +148,15 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       
       onChange([Math.round(newLeft / step) * step, Math.round(newRight / step) * step]);
     }
-  }, [isDragging, value, onChange, getValueFromPosition, min, max, step, dragStart]);
+  }, [isDragging, value, onChange, getValueFromPosition, min, max, step, dragStart, isShiftPressed, fixedRangeSize]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
+    
+    // Restore text selection
+    document.body.style.userSelect = '';
+    (document.body.style as any).webkitUserSelect = '';
+    (document.body.style as any).msUserSelect = '';
   }, []);
 
   useEffect(() => {
@@ -98,7 +174,7 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   const rightPosition = getPositionFromValue(value[1]);
 
   return (
-    <div className={`relative w-full ${className}`}>
+    <div className={`relative w-full ${className}`} style={{ userSelect: 'none' }}>
       {/* Value display */}
       <div className="flex justify-between mb-2 text-sm" style={{ color: colors.text }}>
         <span>{formatValue(value[0])}</span>
@@ -116,7 +192,10 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
           const leftDistance = Math.abs(newValue - left);
           const rightDistance = Math.abs(newValue - right);
           
-          if (leftDistance < rightDistance) {
+          // If shift is pressed or handles are very close, prefer range dragging
+          if (isShiftPressed || Math.abs(right - left) < step * 2) {
+            handleMouseDown(e, 'range');
+          } else if (leftDistance < rightDistance) {
             handleMouseDown(e, 'left');
           } else {
             handleMouseDown(e, 'right');
@@ -125,13 +204,21 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       >
         {/* Selected range */}
         <div 
-          className="absolute h-full rounded-full cursor-grab active:cursor-grabbing"
+          className={`absolute h-full rounded-full transition-opacity ${
+            isShiftPressed ? 'cursor-grabbing' : 'cursor-grab'
+          } active:cursor-grabbing`}
           style={{
             left: `${leftPosition}%`,
             width: `${rightPosition - leftPosition}%`,
-            backgroundColor: colors.textSecondary
+            backgroundColor: isShiftPressed ? colors.text : colors.textSecondary,
+            opacity: isShiftPressed ? 0.8 : 1,
+            userSelect: 'none'
           }}
-          onMouseDown={(e) => handleMouseDown(e, 'range')}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleMouseDown(e, 'range');
+          }}
         />
         
         {/* Left handle */}
@@ -141,9 +228,14 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
             left: `${leftPosition}%`, 
             top: '50%',
             backgroundColor: colors.background,
-            borderColor: colors.textSecondary
+            borderColor: colors.textSecondary,
+            userSelect: 'none'
           }}
-          onMouseDown={(e) => handleMouseDown(e, 'left')}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleMouseDown(e, 'left');
+          }}
         />
         
         {/* Right handle */}
@@ -153,15 +245,31 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
             left: `${rightPosition}%`, 
             top: '50%',
             backgroundColor: colors.background,
-            borderColor: colors.textSecondary
+            borderColor: colors.textSecondary,
+            userSelect: 'none'
           }}
-          onMouseDown={(e) => handleMouseDown(e, 'right')}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            handleMouseDown(e, 'right');
+          }}
         />
       </div>
       
-      {/* Min/Max labels */}
-      <div className="flex justify-between mt-1 text-xs" style={{ color: colors.text }}>
+      {/* Min/Max labels and shift indicator */}
+      <div className="flex justify-between items-center mt-1 text-xs" style={{ color: colors.text }}>
         <span>{formatValue(min)}</span>
+        <div className="flex items-center justify-center">
+          {isShiftPressed && (
+            <div className="px-2 py-0.5 rounded text-xs opacity-80" style={{ 
+              backgroundColor: colors.textSecondary, 
+              color: colors.background,
+              fontSize: '10px'
+            }}>
+              Fixed Size
+            </div>
+          )}
+        </div>
         <span>{formatValue(max)}</span>
       </div>
     </div>

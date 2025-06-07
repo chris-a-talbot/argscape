@@ -88,7 +88,6 @@ class ApiService {
   }
 
   private async uploadFile(endpoint: string, file: File): Promise<ApiResponse> {
-    // Use the simplified endpoint that automatically uses client IP
     const url = `${this.baseURL}${endpoint}`;
     const formData = new FormData();
     formData.append('file', file);

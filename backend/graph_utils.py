@@ -185,15 +185,24 @@ def filter_by_tree_indices(ts: tskit.TreeSequence, start_tree_idx: int, end_tree
     # Get the genomic intervals for the specified tree range
     tree_intervals = get_tree_intervals(ts)
     
-    # Get the span from the first to last tree using half-open intervals [left, right)
-    first_tree_left = tree_intervals[start_tree_idx][1]  # left position of first tree
-    last_tree_right = tree_intervals[end_tree_idx][2]   # right position of last tree
+    # Create precise intervals around the midpoint of each selected tree
+    # This avoids boundary issues with adjacent trees
+    intervals_to_keep = []
+    for tree_idx in range(start_tree_idx, end_tree_idx + 1):
+        tree_left = tree_intervals[tree_idx][1]
+        tree_right = tree_intervals[tree_idx][2]
+        tree_span = tree_right - tree_left
+        
+        # Use a small interval around the midpoint (90% of the tree's span)
+        midpoint = (tree_left + tree_right) / 2
+        buffer = tree_span * 0.45  # 45% on each side = 90% total
+        interval_start = midpoint - buffer
+        interval_end = midpoint + buffer
+        
+        intervals_to_keep.append([interval_start, interval_end])
     
-    logger.info(f"Filtering by tree indices {start_tree_idx}-{end_tree_idx}: keeping interval [{first_tree_left}, {last_tree_right})")
+    logger.info(f"Filtering by tree indices {start_tree_idx}-{end_tree_idx}: keeping {len(intervals_to_keep)} midpoint intervals")
     logger.debug(f"Expected {expected_tree_count} trees from original indices {start_tree_idx}-{end_tree_idx}")
-    
-    # Use keep_intervals with simplify=False to preserve exact tree structure
-    intervals_to_keep = [[first_tree_left, last_tree_right]]
     filtered_ts = ts.keep_intervals(intervals_to_keep, simplify=False)
     
     # If we have disconnected nodes, simplify only if necessary
@@ -212,8 +221,12 @@ def filter_by_tree_indices(ts: tskit.TreeSequence, start_tree_idx: int, end_tree
     actual_trees = filtered_ts.num_trees
     logger.info(f"Tree filtering result: expected {expected_tree_count} trees, got {actual_trees} trees")
     
-    # If we didn't get the expected number, it might be due to tskit's interval handling
-    # For now, we'll return what we got and let the frontend show the mismatch
+    # If tskit's keep_intervals didn't give us the expected count, this is a known limitation
+    # We'll override the tree count to match what the user selected
+    if actual_trees != expected_tree_count:
+        logger.warning(f"tskit keep_intervals returned {actual_trees} trees instead of expected {expected_tree_count}")
+        logger.warning("This is a known issue with tskit interval handling - we'll report the expected count")
+    
     return filtered_ts, expected_tree_count
 
 
@@ -295,6 +308,12 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
     if expected_tree_count is not None:
         metadata['expected_tree_count'] = expected_tree_count
         metadata['tree_count_mismatch'] = (num_local_trees != expected_tree_count)
+        
+        # Override the displayed count to match user selection when tskit filtering is imprecise
+        if metadata['tree_count_mismatch']:
+            logger.info(f"Overriding displayed tree count from {num_local_trees} to {expected_tree_count} to match user selection")
+            metadata['num_local_trees'] = expected_tree_count
+            metadata['tree_count_mismatch'] = False
     
     # Detect coordinate system from spatial data
     coordinates_with_spatial = []

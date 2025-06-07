@@ -3,6 +3,48 @@ import * as d3 from 'd3';
 import { ForceDirectedGraphProps, GraphNode, GraphEdge } from './ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
+// Constants for graph layout and styling
+const GRAPH_CONSTANTS = {
+    SAMPLE_NODE_RADIUS: 5,
+    REGULAR_NODE_RADIUS: 3,
+    ROOT_NODE_STROKE_WIDTH: 2,
+    SAMPLE_NODE_STROKE_WIDTH: 1,
+    EDGE_STROKE_WIDTH: 1,
+    COLLISION_RADIUS: 15,
+    TOOLTIP_OFFSET: 10,
+    FONT_SIZE: '10px',
+    TOOLTIP_FONT_SIZE: '12px',
+    PADDING_RATIO: 0.1,
+    AVAILABLE_WIDTH_RATIO: 0.8,
+    MAX_SIBLING_DISTANCE: 50,
+    FORCE_STRENGTH: {
+        LINK_SIBLING: 0.9,
+        LINK_SAMPLE: 0.8,
+        LINK_DEFAULT: 0.3,
+        CHARGE: -20,
+        X_POSITION: 0.15,
+        Y_POSITION: 1,
+        ALPHA_START: 0.8,
+        ALPHA_DECAY: 0.05,
+        VELOCITY_DECAY: 0.7
+    },
+    ZOOM: {
+        MIN_SCALE: 0.1,
+        MAX_SCALE: 4,
+        FOCUS_SCALE: 1.5,
+        GRAPH_FIT_SCALE_MIN: 0.3,
+        GRAPH_FIT_SCALE_MAX: 2.0,
+        TRANSITION_DURATION: 750,
+        ALPHA_TARGET: 0.3
+    },
+    PERFORMANCE: {
+        TICK_SKIP_DESCENDANT: 3,
+        TICK_SKIP_CROSSING: 5,
+        MAX_NODES_TO_CHECK: 10,
+        ALPHA_THRESHOLD: 0.1
+    }
+};
+
 interface Node extends d3.SimulationNodeDatum {
     id: number;
     time: number;
@@ -26,46 +68,15 @@ interface Node extends d3.SimulationNodeDatum {
     combined_nodes?: number[]; // Array of original node IDs that were combined
 }
 
-// Helper function to count edge crossings between two time layers
-function countEdgeCrossingsBetweenLayers(nodes: Node[], edges: GraphEdge[], layer1: number, layer2: number): number {
-    let crossings = 0;
-    const layer1Nodes = nodes.filter(n => n.layer === layer1);
-    const layer2Nodes = nodes.filter(n => n.layer === layer2);
-    
-    // Get all edges between these two layers
-    const layerEdges = edges.filter(e => {
-        const source = typeof e.source === 'number' ? nodes.find(n => n.id === e.source) : e.source as Node;
-        const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
-        return (source?.layer === layer1 && target?.layer === layer2) || 
-               (source?.layer === layer2 && target?.layer === layer1);
-    });
-
-    // Count crossings between edges
-    for (let i = 0; i < layerEdges.length; i++) {
-        for (let j = i + 1; j < layerEdges.length; j++) {
-            const e1 = layerEdges[i];
-            const e2 = layerEdges[j];
-            
-            const source1 = typeof e1.source === 'number' ? nodes.find(n => n.id === e1.source) : e1.source as Node;
-            const target1 = typeof e1.target === 'number' ? nodes.find(n => n.id === e1.target) : e1.target as Node;
-            const source2 = typeof e2.source === 'number' ? nodes.find(n => n.id === e2.source) : e2.source as Node;
-            const target2 = typeof e2.target === 'number' ? nodes.find(n => n.id === e2.target) : e2.target as Node;
-
-            if (!source1 || !target1 || !source2 || !target2) continue;
-
-            // Get the x-coordinates in order of layer
-            const x1 = source1.layer === layer1 ? source1.x! : target1.x!;
-            const x2 = source2.layer === layer1 ? source2.x! : target2.x!;
-            const x3 = source1.layer === layer2 ? source1.x! : target1.x!;
-            const x4 = source2.layer === layer2 ? source2.x! : target2.x!;
-
-            // Check if edges cross
-            if ((x1 < x2 && x3 > x4) || (x1 > x2 && x3 < x4)) {
-                crossings++;
-            }
-        }
-    }
-    return crossings;
+// Helper function to get source and target nodes from edge
+function getEdgeNodes(edge: GraphEdge, nodes: Node[]): { source: Node | null; target: Node | null } {
+    const source = typeof edge.source === 'number' 
+        ? nodes.find(n => n.id === edge.source) || null
+        : edge.source as Node;
+    const target = typeof edge.target === 'number' 
+        ? nodes.find(n => n.id === edge.target) || null
+        : edge.target as Node;
+    return { source, target };
 }
 
 // Helper function to get all descendant samples of a node
@@ -79,17 +90,15 @@ function getDescendantSamples(node: Node, nodes: Node[], edges: GraphEdge[]): No
         if (visited.has(current.id)) continue;
         visited.add(current.id);
         
-        // Find all edges where current node is the source
         const outgoingEdges = edges.filter(e => {
-            const source = typeof e.source === 'number' ? nodes.find(n => n.id === e.source) : e.source as Node;
-            const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
-            // Only consider edges where source is earlier in time than target
-            return source?.id === current.id && target && target.timeIndex! > current.timeIndex!;
+            const { source, target } = getEdgeNodes(e, nodes);
+            return source?.id === current.id && 
+                   target && 
+                   target.timeIndex! > current.timeIndex!;
         });
         
-        // Add target nodes to queue if they're not samples
         outgoingEdges.forEach(e => {
-            const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
+            const { target } = getEdgeNodes(e, nodes);
             if (!target) return;
             
             if (target.is_sample) {
@@ -109,47 +118,32 @@ function getDescendantSampleRange(node: Node, nodes: Node[], edges: GraphEdge[])
     if (descendantSamples.length === 0) return null;
     
     const xValues = descendantSamples.map(n => n.x!);
-    const range = {
+    return {
         min: Math.min(...xValues),
         max: Math.max(...xValues)
     };
-
-    // Debug log for nodes outside their range
-    if (node.x! < range.min || node.x! > range.max) {
-        console.warn(`Node ${node.id} at x=${node.x} is outside its descendant range [${range.min}, ${range.max}]`, {
-            node,
-            descendantSamples: descendantSamples.map(s => ({ id: s.id, x: s.x, time: s.time }))
-        });
-    }
-
-    return range;
 }
 
 // Helper function to enforce x position within descendant range
 function enforceDescendantRange(node: Node, nodes: Node[], edges: GraphEdge[]): void {
     const range = getDescendantSampleRange(node, nodes, edges);
-    if (range) {
-        const oldX = node.x!;
-        node.x = Math.max(range.min, Math.min(range.max, node.x!));
-        if (oldX !== node.x) {
-            console.log(`Adjusted node ${node.id} from x=${oldX} to x=${node.x} to stay within range [${range.min}, ${range.max}]`);
-        }
+    if (range && node.x !== undefined) {
+        node.x = Math.max(range.min, Math.min(range.max, node.x));
     }
 }
 
 // Helper function to get immediate parent of a node
 function getParent(node: Node, nodes: Node[], edges: GraphEdge[]): Node | null {
-    const incomingEdges = edges.filter(e => {
-        const source = typeof e.source === 'number' ? nodes.find(n => n.id === e.source) : e.source as Node;
-        const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
-        return target?.id === node.id && source && source.timeIndex! < node.timeIndex!;
+    const parentEdge = edges.find(e => {
+        const { source, target } = getEdgeNodes(e, nodes);
+        return target?.id === node.id && 
+               source && 
+               source.timeIndex! < node.timeIndex!;
     });
 
-    if (incomingEdges.length === 0) return null;
-    const parent = typeof incomingEdges[0].source === 'number' 
-        ? nodes.find(n => n.id === incomingEdges[0].source) 
-        : incomingEdges[0].source as Node;
-    return parent || null;
+    if (!parentEdge) return null;
+    const { source } = getEdgeNodes(parentEdge, nodes);
+    return source;
 }
 
 // Helper function to get siblings (nodes with same parent)
@@ -159,34 +153,8 @@ function getSiblings(node: Node, nodes: Node[], edges: GraphEdge[]): Node[] {
 
     return nodes.filter(n => {
         if (n.id === node.id || n.timeIndex! <= parent.timeIndex!) return false;
-        const nParent = getParent(n, nodes, edges);
-        return nParent?.id === parent.id;
-    });
-}
-
-// Helper function to get all nodes in the same generation with same ancestor
-function getCousins(node: Node, nodes: Node[], edges: GraphEdge[], ancestorDistance: number = 1): Node[] {
-    const parent = getParent(node, nodes, edges);
-    if (!parent) return [];
-
-    // Get all nodes that share the same ancestor at the specified distance
-    return nodes.filter(n => {
-        if (n.id === node.id || n.timeIndex! <= node.timeIndex!) return false;
-        
-        let currentNode: Node | null = n;
-        let currentParent: Node | null = parent;
-        let distance = 0;
-
-        while (currentNode && currentParent && distance < ancestorDistance) {
-            const nParent = getParent(currentNode, nodes, edges);
-            const pParent = getParent(currentParent, nodes, edges);
-            if (!nParent || !pParent || nParent.id !== pParent.id) return false;
-            currentNode = nParent;
-            currentParent = pParent;
-            distance++;
-        }
-
-        return distance === ancestorDistance;
+        const nodeParent = getParent(n, nodes, edges);
+        return nodeParent?.id === parent.id;
     });
 }
 
@@ -195,58 +163,72 @@ function optimizeLayerPositions(nodes: Node[], edges: GraphEdge[], layer: number
     const layerNodes = nodes.filter(n => n.layer === layer);
     if (layerNodes.length <= 1) return;
 
-    // Group nodes by their immediate parent
+    const parentGroups = groupNodesByParent(layerNodes, nodes, edges);
+    const sortedGroups = sortParentGroups(parentGroups, nodes);
+    positionNodesInGroups(sortedGroups, width, nodes, edges);
+}
+
+// Helper function to group nodes by their parent
+function groupNodesByParent(layerNodes: Node[], nodes: Node[], edges: GraphEdge[]): Map<number, Node[]> {
     const parentGroups = new Map<number, Node[]>();
+    
     layerNodes.forEach(node => {
         const parent = getParent(node, nodes, edges);
-        const parentId = parent?.id ?? -1; // -1 for nodes without parents
+        const parentId = parent?.id ?? -1;
+        
         if (!parentGroups.has(parentId)) {
             parentGroups.set(parentId, []);
         }
         parentGroups.get(parentId)!.push(node);
     });
 
-    // Sort nodes within each parent group by their connectivity to samples
+    // Sort nodes within each group by descendant sample count
     parentGroups.forEach(group => {
         group.sort((a, b) => {
-            const aSamples = getDescendantSamples(a, nodes, edges).length;
-            const bSamples = getDescendantSamples(b, nodes, edges).length;
-            return bSamples - aSamples;
+            const aSampleCount = getDescendantSamples(a, nodes, edges).length;
+            const bSampleCount = getDescendantSamples(b, nodes, edges).length;
+            return bSampleCount - aSampleCount;
         });
     });
 
-    // Convert parent groups to array and sort by average x position of their parent
-    const sortedGroups = Array.from(parentGroups.entries()).sort(([parentIdA, groupA], [parentIdB, groupB]) => {
+    return parentGroups;
+}
+
+// Helper function to sort parent groups by parent position
+function sortParentGroups(parentGroups: Map<number, Node[]>, nodes: Node[]): Array<[number, Node[]]> {
+    return Array.from(parentGroups.entries()).sort(([parentIdA], [parentIdB]) => {
         if (parentIdA === -1) return -1;
         if (parentIdB === -1) return 1;
+        
         const parentA = nodes.find(n => n.id === parentIdA);
         const parentB = nodes.find(n => n.id === parentIdB);
         return (parentA?.x ?? 0) - (parentB?.x ?? 0);
     });
+}
 
-    // Calculate positions for each group
-    const xPadding = width * 0.1;
+// Helper function to position nodes within their groups
+function positionNodesInGroups(
+    sortedGroups: Array<[number, Node[]]>, 
+    width: number, 
+    nodes: Node[], 
+    edges: GraphEdge[]
+): void {
+    const xPadding = width * GRAPH_CONSTANTS.PADDING_RATIO;
     const availableWidth = width - (2 * xPadding);
     let currentX = xPadding;
 
-    sortedGroups.forEach(([parentId, group]) => {
-        // Calculate group width based on number of nodes
-        const groupWidth = (availableWidth * 0.8) / sortedGroups.length; // Use 80% of width for groups
+    sortedGroups.forEach(([, group]) => {
+        const groupWidth = (availableWidth * GRAPH_CONSTANTS.AVAILABLE_WIDTH_RATIO) / sortedGroups.length;
         const nodeSpacing = groupWidth / (group.length + 1);
 
-        // Position nodes within the group
         group.forEach((node, index) => {
             if (!node.is_sample) {
+                const groupX = currentX + (index + 1) * nodeSpacing;
                 const descendantRange = getDescendantSampleRange(node, nodes, edges);
-                if (descendantRange) {
-                    // Position within group while respecting descendant range
-                    const groupX = currentX + (index + 1) * nodeSpacing;
-                    node.x = Math.max(descendantRange.min, 
-                        Math.min(descendantRange.max, 
-                            groupX));
-                } else {
-                    node.x = currentX + (index + 1) * nodeSpacing;
-                }
+                
+                node.x = descendantRange
+                    ? Math.max(descendantRange.min, Math.min(descendantRange.max, groupX))
+                    : groupX;
             }
         });
 
@@ -254,10 +236,11 @@ function optimizeLayerPositions(nodes: Node[], edges: GraphEdge[], layer: number
     });
 }
 
-// Helper function to assign layers based on time and connectivity
+// Helper function to assign layers based on time and calculate degrees
 function assignLayers(nodes: Node[], edges: GraphEdge[]): void {
-    // First, assign layers based on time
     const timeLayers = new Map<number, number>();
+    
+    // Assign layers based on unique time points
     nodes.forEach(node => {
         if (!timeLayers.has(node.time)) {
             timeLayers.set(node.time, timeLayers.size);
@@ -265,152 +248,267 @@ function assignLayers(nodes: Node[], edges: GraphEdge[]): void {
         node.layer = timeLayers.get(node.time)!;
     });
 
-    // Calculate node degrees
+    // Calculate node connectivity degrees
     nodes.forEach(node => {
-        node.degree = edges.filter(e => {
-            const source = typeof e.source === 'number' ? nodes.find(n => n.id === e.source) : e.source as Node;
-            const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
-            return source?.id === node.id || target?.id === node.id;
-        }).length;
+        node.degree = getConnectedEdges(node, edges).length;
     });
 }
 
 // Helper function to get all edges connected to a node
 function getConnectedEdges(node: Node, edges: GraphEdge[]): GraphEdge[] {
     return edges.filter(e => {
-        const source = typeof e.source === 'number' ? e.source : (e.source as Node).id;
-        const target = typeof e.target === 'number' ? e.target : (e.target as Node).id;
-        return source === node.id || target === node.id;
+        const sourceId = typeof e.source === 'number' ? e.source : (e.source as Node).id;
+        const targetId = typeof e.target === 'number' ? e.target : (e.target as Node).id;
+        return sourceId === node.id || targetId === node.id;
     });
 }
 
 // Helper function to check if two nodes have identical relationships
 function haveIdenticalRelationships(node1: Node, node2: Node, edges: GraphEdge[]): boolean {
-    const edges1 = getConnectedEdges(node1, edges);
-    const edges2 = getConnectedEdges(node2, edges);
+    const connectedNodes1 = getConnectedNodeIds(node1, edges);
+    const connectedNodes2 = getConnectedNodeIds(node2, edges);
     
-    if (edges1.length !== edges2.length) return false;
-    
-    // Create sets of connected node IDs for both nodes
-    const connectedNodes1 = new Set<number>();
-    const connectedNodes2 = new Set<number>();
-    
-    edges1.forEach(e => {
-        const source = typeof e.source === 'number' ? e.source : (e.source as Node).id;
-        const target = typeof e.target === 'number' ? e.target : (e.target as Node).id;
-        if (source !== node1.id) connectedNodes1.add(source);
-        if (target !== node1.id) connectedNodes1.add(target);
-    });
-    
-    edges2.forEach(e => {
-        const source = typeof e.source === 'number' ? e.source : (e.source as Node).id;
-        const target = typeof e.target === 'number' ? e.target : (e.target as Node).id;
-        if (source !== node2.id) connectedNodes2.add(source);
-        if (target !== node2.id) connectedNodes2.add(target);
-    });
-    
-    // Check if the sets are identical
     if (connectedNodes1.size !== connectedNodes2.size) return false;
+    
     for (const id of connectedNodes1) {
         if (!connectedNodes2.has(id)) return false;
     }
     return true;
 }
 
+// Helper function to get connected node IDs for a given node
+function getConnectedNodeIds(node: Node, edges: GraphEdge[]): Set<number> {
+    const connectedIds = new Set<number>();
+    
+    getConnectedEdges(node, edges).forEach(edge => {
+        const sourceId = typeof edge.source === 'number' ? edge.source : (edge.source as Node).id;
+        const targetId = typeof edge.target === 'number' ? edge.target : (edge.target as Node).id;
+        
+        if (sourceId !== node.id) connectedIds.add(sourceId);
+        if (targetId !== node.id) connectedIds.add(targetId);
+    });
+    
+    return connectedIds;
+}
+
 // Helper function to combine nodes with identical time and relationships
 function combineIdenticalNodes(nodes: Node[], edges: GraphEdge[]): { nodes: Node[], edges: GraphEdge[] } {
     const processedNodes = new Set<number>();
     const newNodes: Node[] = [];
-    const newEdges: GraphEdge[] = [];
-    const nodeMap = new Map<number, number>(); // Maps old node IDs to new combined node IDs
+    const nodeMap = new Map<number, number>();
     
-    // First pass: identify nodes to combine
     for (let i = 0; i < nodes.length; i++) {
         if (processedNodes.has(nodes[i].id)) continue;
         
-        const node1 = nodes[i];
-        const identicalNodes: Node[] = [node1];
+        const currentNode = nodes[i];
         
-        // NEVER combine sample nodes - they represent actual samples and should always be distinct
-        if (node1.is_sample) {
-            newNodes.push(node1);
-            nodeMap.set(node1.id, node1.id);
-            processedNodes.add(node1.id);
+        // Sample nodes are never combined
+        if (currentNode.is_sample) {
+            newNodes.push(currentNode);
+            nodeMap.set(currentNode.id, currentNode.id);
+            processedNodes.add(currentNode.id);
             continue;
         }
         
-        // Find all nodes with identical time and relationships (only for non-sample nodes)
-        for (let j = i + 1; j < nodes.length; j++) {
-            const node2 = nodes[j];
-            if (processedNodes.has(node2.id)) continue;
-            
-            // Skip if either node is a sample node - samples should never be combined
-            if (node2.is_sample) continue;
-            
-            if (node1.time === node2.time && 
-                node1.is_sample === node2.is_sample && 
-                haveIdenticalRelationships(node1, node2, edges)) {
-                identicalNodes.push(node2);
-                processedNodes.add(node2.id);
-            }
-        }
+        const identicalNodes = findIdenticalNodes(currentNode, nodes, edges, processedNodes, i);
+        const combinedNode = createCombinedNode(currentNode, identicalNodes);
         
-        if (identicalNodes.length > 1) {
-            // Create a combined node
-            const combinedNode: Node = {
-                ...node1,
-                id: node1.id, // Use the first node's ID
-                is_combined: true,
-                combined_nodes: identicalNodes.map(n => n.id)
-            };
-            newNodes.push(combinedNode);
-            
-            // Map all combined node IDs to the new combined node ID
-            identicalNodes.forEach(n => nodeMap.set(n.id, combinedNode.id));
-        } else {
-            newNodes.push(node1);
-            nodeMap.set(node1.id, node1.id);
-        }
-        
-        processedNodes.add(node1.id);
+        newNodes.push(combinedNode);
+        identicalNodes.forEach(node => {
+            nodeMap.set(node.id, combinedNode.id);
+            processedNodes.add(node.id);
+        });
     }
     
-    // Second pass: update edges to use new node IDs
+    const updatedEdges = updateEdgesWithNewNodeIds(edges, nodeMap);
+    return { nodes: newNodes, edges: updatedEdges };
+}
+
+// Helper function to find nodes with identical relationships
+function findIdenticalNodes(
+    targetNode: Node, 
+    allNodes: Node[], 
+    edges: GraphEdge[], 
+    processedNodes: Set<number>, 
+    startIndex: number
+): Node[] {
+    const identicalNodes: Node[] = [targetNode];
+    
+    for (let j = startIndex + 1; j < allNodes.length; j++) {
+        const candidateNode = allNodes[j];
+        
+        if (processedNodes.has(candidateNode.id) || candidateNode.is_sample) continue;
+        
+        if (targetNode.time === candidateNode.time && 
+            haveIdenticalRelationships(targetNode, candidateNode, edges)) {
+            identicalNodes.push(candidateNode);
+        }
+    }
+    
+    return identicalNodes;
+}
+
+// Helper function to create a combined node or return the original
+function createCombinedNode(originalNode: Node, identicalNodes: Node[]): Node {
+    if (identicalNodes.length === 1) {
+        return originalNode;
+    }
+    
+    return {
+        ...originalNode,
+        is_combined: true,
+        combined_nodes: identicalNodes.map(node => node.id)
+    };
+}
+
+// Helper function to update edges with new node IDs
+function updateEdgesWithNewNodeIds(edges: GraphEdge[], nodeMap: Map<number, number>): GraphEdge[] {
+    const updatedEdges: GraphEdge[] = [];
+    
     edges.forEach(edge => {
-        const source = typeof edge.source === 'number' ? edge.source : (edge.source as Node).id;
-        const target = typeof edge.target === 'number' ? edge.target : (edge.target as Node).id;
+        const sourceId = typeof edge.source === 'number' ? edge.source : (edge.source as Node).id;
+        const targetId = typeof edge.target === 'number' ? edge.target : (edge.target as Node).id;
         
-        const newSource = nodeMap.get(source);
-        const newTarget = nodeMap.get(target);
+        const newSourceId = nodeMap.get(sourceId);
+        const newTargetId = nodeMap.get(targetId);
         
-        if (newSource !== undefined && newTarget !== undefined) {
-            newEdges.push({
+        if (newSourceId !== undefined && newTargetId !== undefined) {
+            updatedEdges.push({
                 ...edge,
-                source: newSource,
-                target: newTarget
+                source: newSourceId,
+                target: newTargetId
             });
         }
     });
     
-    return { nodes: newNodes, edges: newEdges };
+    return updatedEdges;
 }
 
 // Helper function to check if a node is a root node (has children but no parents)
 function isRootNode(node: Node, nodes: Node[], edges: GraphEdge[]): boolean {
-    // Check for incoming edges (parents)
-    const hasParents = edges.some(e => {
-        const target = typeof e.target === 'number' ? nodes.find(n => n.id === e.target) : e.target as Node;
+    const hasParents = edges.some(edge => {
+        const { target } = getEdgeNodes(edge, nodes);
         return target?.id === node.id;
     });
 
-    // Check for outgoing edges (children)
-    const hasChildren = edges.some(e => {
-        const source = typeof e.source === 'number' ? nodes.find(n => n.id === e.source) : e.source as Node;
+    const hasChildren = edges.some(edge => {
+        const { source } = getEdgeNodes(edge, nodes);
         return source?.id === node.id;
     });
 
-    // A root node has children but no parents
     return !hasParents && hasChildren;
+}
+
+// Helper function to focus on a node or fit the entire graph
+function createFocusFunction(
+    svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+    zoom: d3.ZoomBehavior<SVGSVGElement, unknown>,
+    actualWidth: number,
+    actualHeight: number,
+    timeSpacing: number
+) {
+    return (node: GraphNode, combinedNodes: Node[], combinedEdges: GraphEdge[]) => {
+        if (!node) return;
+        
+        if (combinedEdges.length === 0) {
+            // Single node focus
+            const targetNode = combinedNodes.find(n => n.id === node.id);
+            if (!targetNode) return;
+
+            const nodeX = targetNode.x ?? 0;
+            const nodeY = actualHeight - (targetNode.timeIndex! * timeSpacing);
+
+            const transform = d3.zoomIdentity
+                .translate(actualWidth / 2, actualHeight / 2)
+                .scale(GRAPH_CONSTANTS.ZOOM.FOCUS_SCALE)
+                .translate(-nodeX, -nodeY);
+
+            svg.transition()
+                .duration(GRAPH_CONSTANTS.ZOOM.TRANSITION_DURATION)
+                .call(zoom.transform, transform);
+        } else {
+            // Fit entire graph
+            const positionedNodes = combinedNodes.filter(n => n.x !== undefined && n.timeIndex !== undefined);
+            if (positionedNodes.length === 0) return;
+
+            const bounds = calculateGraphBounds(positionedNodes, actualHeight, timeSpacing);
+            const transform = calculateFitTransform(bounds, actualWidth, actualHeight);
+
+            svg.transition()
+                .duration(GRAPH_CONSTANTS.ZOOM.TRANSITION_DURATION)
+                .call(zoom.transform, transform);
+        }
+    };
+}
+
+// Helper function to calculate graph bounds
+function calculateGraphBounds(nodes: Node[], height: number, timeSpacing: number) {
+    const xValues = nodes.map(n => n.x!);
+    const yValues = nodes.map(n => height - (n.timeIndex! * timeSpacing));
+    
+    return {
+        minX: Math.min(...xValues),
+        maxX: Math.max(...xValues),
+        minY: Math.min(...yValues),
+        maxY: Math.max(...yValues)
+    };
+}
+
+// Helper function to calculate transform for fitting graph
+function calculateFitTransform(bounds: any, width: number, height: number) {
+    const centerX = (bounds.minX + bounds.maxX) / 2;
+    const centerY = (bounds.minY + bounds.maxY) / 2;
+    const graphWidth = bounds.maxX - bounds.minX;
+    const graphHeight = bounds.maxY - bounds.minY;
+    const padding = 50;
+    
+    const scaleX = (width - 2 * padding) / (graphWidth || 1);
+    const scaleY = (height - 2 * padding) / (graphHeight || 1);
+    const scale = Math.min(
+        Math.max(GRAPH_CONSTANTS.ZOOM.GRAPH_FIT_SCALE_MIN, Math.min(scaleX, scaleY)), 
+        GRAPH_CONSTANTS.ZOOM.GRAPH_FIT_SCALE_MAX
+    );
+
+    return d3.zoomIdentity
+        .translate(width / 2, height / 2)
+        .scale(scale)
+        .translate(-centerX, -centerY);
+}
+
+// Helper function to setup initial node positions
+function setupInitialNodePositions(combinedNodes: Node[], actualWidth: number, actualHeight: number) {
+    const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
+    const timeToIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
+    const timeSpacing = actualHeight / (uniqueTimes.length - 1 || 1);
+    
+    // Add timeIndex to each node
+    combinedNodes.forEach(node => {
+        node.timeIndex = timeToIndex.get(node.time) ?? 0;
+    });
+
+    // Position sample nodes
+    const sampleNodes = combinedNodes.filter(n => n.is_sample);
+    const xPadding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
+    const availableWidth = actualWidth - (2 * xPadding);
+    const sampleSpacing = availableWidth / (sampleNodes.length - 1 || 1);
+
+    // Sort sample nodes by order position or degree
+    sampleNodes.sort((a, b) => {
+        if (a.order_position !== undefined && b.order_position !== undefined) {
+            return a.order_position - b.order_position;
+        }
+        if (a.order_position !== undefined) return -1;
+        if (b.order_position !== undefined) return 1;
+        return (b.degree ?? 0) - (a.degree ?? 0);
+    });
+
+    // Position sample nodes
+    sampleNodes.forEach((node, index) => {
+        node.x = xPadding + (index * sampleSpacing);
+        node.fx = node.x;
+    });
+
+    return { timeSpacing, uniqueTimes };
 }
 
 export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphProps>(({ 
@@ -430,18 +528,15 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         return `${data.nodes.length}-${data.edges.length}-${data.metadata.genomic_start || 0}-${data.metadata.genomic_end || data.metadata.sequence_length}`;
     }, [data?.nodes.length, data?.edges.length, data?.metadata.genomic_start, data?.metadata.genomic_end, data?.metadata.sequence_length]);
 
-    // Store previous data and key to avoid unnecessary simulation restarts
     const prevDataRef = useRef<{ data: typeof data; key: string | null }>({ data: null, key: null });
     
     const stableData = useMemo(() => {
         if (!data || !dataKey) return null;
         
-        // If the key is the same as before, return the previous data reference
         if (prevDataRef.current.key === dataKey && prevDataRef.current.data) {
             return prevDataRef.current.data;
         }
         
-        // Key changed, store new data and return it
         prevDataRef.current = { data, key: dataKey };
         return data;
     }, [data, dataKey]);
@@ -449,198 +544,72 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     useEffect(() => {
         if (!ref || typeof ref === 'function' || !ref.current || !stableData) return;
 
-        // Get actual container dimensions if width/height not provided
         const containerRect = ref.current.getBoundingClientRect();
         const actualWidth = width || containerRect.width || 800;
         const actualHeight = height || containerRect.height || 600;
 
-        // Combine identical nodes before visualization
         const { nodes: combinedNodes, edges: combinedEdges } = combineIdenticalNodes(stableData.nodes, stableData.edges);
-        
-        // Log information about combined nodes
-        const combinedNodeCount = combinedNodes.filter(n => n.is_combined).length;
-        if (combinedNodeCount > 0) {
-            console.log(`Combined ${stableData.nodes.length - combinedNodes.length} nodes into ${combinedNodeCount} combined nodes`);
-            combinedNodes.filter(n => n.is_combined).forEach(n => {
-                console.log(`Combined node ${n.id} contains nodes:`, n.combined_nodes);
-            });
-        }
 
-        // Debug log to verify data structure
-        console.log('Graph data structure:', {
-            nodeCount: combinedNodes.length,
-            edgeCount: combinedEdges.length,
-            firstNode: combinedNodes[0],
-            firstEdge: combinedEdges[0]
-        });
-
-        // Clear any existing SVG content
         d3.select(ref.current).selectAll("*").remove();
 
-        // Create the SVG container
         const svg = d3.select(ref.current)
             .attr("width", actualWidth)
             .attr("height", actualHeight)
             .attr("viewBox", [0, 0, actualWidth, actualHeight])
             .attr("style", "max-width: 100%; height: auto;");
 
-        // Create a group for zooming
         const g = svg.append("g");
 
-        // Add zoom behavior with transition
         const zoom = d3.zoom<SVGSVGElement, unknown>()
-            .scaleExtent([0.1, 4])
+            .scaleExtent([GRAPH_CONSTANTS.ZOOM.MIN_SCALE, GRAPH_CONSTANTS.ZOOM.MAX_SCALE])
             .on("zoom", (event) => {
                 g.attr("transform", event.transform);
             });
 
         svg.call(zoom);
 
-        // Function to center and zoom on a node or the entire graph structure
-        const focusOnNode = (node: GraphNode) => {
-            if (!node) return;
-            
-            // Check if there are any edges in the current graph
-            if (combinedEdges.length === 0) {
-                // No edges - just center on the single node
-                const targetNode = combinedNodes.find(n => n.id === node.id);
-                if (!targetNode) return;
+        const focusOnNode = createFocusFunction(svg, zoom, actualWidth, actualHeight, 0);
+        const { timeSpacing } = setupInitialNodePositions(combinedNodes, actualWidth, actualHeight);
 
-                const nodeX = targetNode.x ?? 0;
-                const nodeY = actualHeight - (targetNode.timeIndex! * timeSpacing);
-
-                const transform = d3.zoomIdentity
-                    .translate(actualWidth / 2, actualHeight / 2)
-                    .scale(1.5)  // Nice zoom for single node
-                    .translate(-nodeX, -nodeY);
-
-                svg.transition()
-                    .duration(750)
-                    .call(zoom.transform, transform);
-            } else {
-                // There are edges - center the entire graph structure
-                const allNodes = combinedNodes.filter(n => n.x !== undefined && n.timeIndex !== undefined);
-                if (allNodes.length === 0) return;
-
-                // Calculate bounding box of all nodes
-                const xValues = allNodes.map(n => n.x!);
-                const yValues = allNodes.map(n => actualHeight - (n.timeIndex! * timeSpacing));
-                
-                const minX = Math.min(...xValues);
-                const maxX = Math.max(...xValues);
-                const minY = Math.min(...yValues);
-                const maxY = Math.max(...yValues);
-
-                // Calculate center of the bounding box
-                const centerX = (minX + maxX) / 2;
-                const centerY = (minY + maxY) / 2;
-
-                // Calculate appropriate scale to fit the graph with some padding
-                const graphWidth = maxX - minX;
-                const graphHeight = maxY - minY;
-                const padding = 50; // Padding around the graph
-                
-                const scaleX = (actualWidth - 2 * padding) / (graphWidth || 1);
-                const scaleY = (actualHeight - 2 * padding) / (graphHeight || 1);
-                const scale = Math.min(Math.max(0.3, Math.min(scaleX, scaleY)), 2.0); // Constrain scale
-
-                const transform = d3.zoomIdentity
-                    .translate(actualWidth / 2, actualHeight / 2)
-                    .scale(scale)
-                    .translate(-centerX, -centerY);
-
-                svg.transition()
-                    .duration(750)
-                    .call(zoom.transform, transform);
-            }
-        };
-
-        // Get unique time points and create a mapping
-        const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
-        const timeToIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
-        
-        // Add timeIndex to each node
-        combinedNodes.forEach(node => {
-            node.timeIndex = timeToIndex.get(node.time) ?? 0;
-        });
-
-        // Calculate the spacing between time points
-        const timeSpacing = actualHeight / (uniqueTimes.length - 1 || 1);
-
-        // Assign layers and calculate degrees
         assignLayers(combinedNodes, combinedEdges);
 
-        // Get unique layers
         const layers = Array.from(new Set(combinedNodes.map(n => n.layer!))).sort((a, b) => a - b);
 
-        // First position sample nodes
-        const sampleNodes = combinedNodes.filter(n => n.is_sample);
-        const xPadding = actualWidth * 0.1;
-        const availableWidth = actualWidth - (2 * xPadding);
-        const sampleSpacing = availableWidth / (sampleNodes.length - 1 || 1);
-
-        // Sort sample nodes by their order position from backend (if available), otherwise by degree
-        sampleNodes.sort((a, b) => {
-            // If both nodes have order_position, use that
-            if (a.order_position !== undefined && b.order_position !== undefined) {
-                return a.order_position - b.order_position;
-            }
-            // If only one has order_position, prioritize it
-            if (a.order_position !== undefined) return -1;
-            if (b.order_position !== undefined) return 1;
-            // Fallback to degree-based sorting
-            return (b.degree ?? 0) - (a.degree ?? 0);
-        });
-
-        // Initial positioning of sample nodes
-        sampleNodes.forEach((node, index) => {
-            node.x = xPadding + (index * sampleSpacing);
-            node.fx = node.x;
-        });
-
-        // Optimize positions for each layer
         layers.forEach(layer => {
             optimizeLayerPositions(combinedNodes, combinedEdges, layer, actualWidth);
         });
 
-        // Focus on the focal node immediately after positioning
         if (focalNode) {
-            focusOnNode(focalNode);
+            focusOnNode(focalNode, combinedNodes, combinedEdges);
         }
 
-        // Create the force simulation with enhanced crossing minimization and descendant range constraints
         const simulation = d3.forceSimulation<Node>(combinedNodes)
-            .alpha(0.8) // Start with lower alpha for faster convergence
-            .alphaDecay(0.05) // Faster decay to settle quickly
-            .velocityDecay(0.7) // Higher velocity decay for stability
+            .alpha(GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START)
+            .alphaDecay(GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY)
+            .velocityDecay(GRAPH_CONSTANTS.FORCE_STRENGTH.VELOCITY_DECAY)
             .force("link", d3.forceLink<Node, GraphEdge>(combinedEdges)
                 .id(d => d.id)
                 .distance(50)
                 .strength(d => {
                     const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
                     const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as Node;
-                    // Stronger links between siblings
                     const sourceParent = getParent(source!, combinedNodes, combinedEdges);
                     const targetParent = getParent(target!, combinedNodes, combinedEdges);
                     if (sourceParent && targetParent && sourceParent.id === targetParent.id) {
-                        return 0.9; // Strong force between siblings
+                        return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SIBLING;
                     }
-                    return (source?.is_sample || target?.is_sample) ? 0.8 : 0.3;
+                    return (source?.is_sample || target?.is_sample) ? GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SAMPLE : GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT;
                 }))
-            .force("charge", d3.forceManyBody().strength(-20)) // Reduced from -30 for performance
+            .force("charge", d3.forceManyBody().strength(GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE))
             .force("x", d3.forceX((d: Node) => {
                 if (d.is_sample) return d.x!;
                 
-                // For non-sample nodes, try to maintain their optimized position
-                // while respecting descendant sample ranges and sibling relationships
                 const descendantRange = getDescendantSampleRange(d, combinedNodes, combinedEdges);
                 const siblings = getSiblings(d, combinedNodes, combinedEdges);
                 
                 if (siblings.length > 0) {
-                    // Calculate average position of siblings
                     const siblingAvgX = siblings.reduce((sum, s) => sum + (s.x ?? 0), 0) / siblings.length;
                     if (descendantRange) {
-                        // Try to stay near siblings while respecting descendant range
                         const targetX = (siblingAvgX + (descendantRange.min + descendantRange.max) / 2) / 2;
                         return Math.max(descendantRange.min, Math.min(descendantRange.max, targetX));
                     }
@@ -651,18 +620,16 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     return (descendantRange.min + descendantRange.max) / 2;
                 }
                 return d.x ?? actualWidth / 2;
-            }).strength(0.15)) // Reduced from 0.2 for performance
+            }).strength(GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION))
             .force("y", d3.forceY((d: Node) => {
                 return d.fx === null ? actualHeight - (d.timeIndex! * timeSpacing) : d.y!;
-            }).strength(1))
-            .force("collision", d3.forceCollide().radius(15)) // Reduced from 20 for performance
+            }).strength(GRAPH_CONSTANTS.FORCE_STRENGTH.Y_POSITION))
+            .force("collision", d3.forceCollide().radius(GRAPH_CONSTANTS.COLLISION_RADIUS))
             .force("descendantRange", () => {
-                // Custom force to strictly enforce descendant ranges - run less frequently
                 let tickCount = 0;
                 return () => {
                     tickCount++;
-                    // Only run every 3rd tick for performance
-                    if (tickCount % 3 !== 0) return;
+                    if (tickCount % GRAPH_CONSTANTS.PERFORMANCE.TICK_SKIP_DESCENDANT !== 0) return;
                     
                     if (!stableData) return;
                     combinedNodes.forEach(node => {
@@ -673,18 +640,15 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 };
             })
             .force("edgeCrossing", () => {
-                // Enhanced custom force to minimize edge crossings - simplified for performance
                 let tickCount = 0;
                 return (alpha: number) => {
                     tickCount++;
-                    // Only run every 5th tick and only when alpha is high enough
-                    if (tickCount % 5 !== 0 || alpha < 0.1) return;
+                    if (tickCount % GRAPH_CONSTANTS.PERFORMANCE.TICK_SKIP_CROSSING !== 0 || alpha < GRAPH_CONSTANTS.PERFORMANCE.ALPHA_THRESHOLD) return;
                     
                     if (!stableData) return;
                     
-                    // Simplified crossing minimization - only check a subset of nodes
                     const nonSampleNodes = combinedNodes.filter(n => !n.is_sample);
-                    const nodesToCheck = nonSampleNodes.slice(0, Math.min(10, nonSampleNodes.length)); // Limit to 10 nodes max
+                    const nodesToCheck = nonSampleNodes.slice(0, Math.min(GRAPH_CONSTANTS.PERFORMANCE.MAX_NODES_TO_CHECK, nonSampleNodes.length));
                     
                     nodesToCheck.forEach(node => {
                         const descendantRange = getDescendantSampleRange(node, combinedNodes, combinedEdges);
@@ -695,7 +659,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         });
                         
                         if (connectedEdges.length > 0) {
-                            // Move node towards the average position of its connected nodes
                             const avgX = connectedEdges.reduce((sum, e) => {
                                 const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as Node;
                                 const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as Node;
@@ -703,8 +666,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                                 return sum + (otherNode?.x ?? 0);
                             }, 0) / connectedEdges.length;
                             
-                            // Calculate new position while respecting descendant range
-                            let newX = node.x! + (avgX - node.x!) * alpha * 0.3; // Reduced from 0.5
+                            let newX = node.x! + (avgX - node.x!) * alpha * 0.3;
                             if (descendantRange) {
                                 newX = Math.max(descendantRange.min, Math.min(descendantRange.max, newX));
                             }
@@ -714,14 +676,13 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 };
             });
 
-        // Draw edges as straight lines
         const edges = g.append("g")
             .selectAll<SVGLineElement, GraphEdge>("line")
             .data(combinedEdges)
             .join("line")
             .attr("stroke", `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`)
             .attr("stroke-opacity", colors.edgeDefault[3] / 255)
-            .attr("stroke-width", 1)
+            .attr("stroke-width", GRAPH_CONSTANTS.EDGE_STROKE_WIDTH)
             .attr("x1", d => {
                 const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
                 return source?.x ?? 0;
@@ -740,7 +701,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .on("click", (event, d) => onEdgeClick?.(d));
 
-        // Add tooltip div
         const tooltipBg = colors.background === '#ffffff' ? 'white' : 'rgba(5, 62, 78, 0.95)';
         const tooltipBorder = colors.border;
         const tooltip = d3.select("body")
@@ -753,12 +713,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("border", `1px solid ${tooltipBorder}`)
             .style("padding", "8px")
             .style("border-radius", "4px")
-            .style("font-size", "12px")
+            .style("font-size", GRAPH_CONSTANTS.TOOLTIP_FONT_SIZE)
             .style("pointer-events", "none");
 
-        // Define drag functions before they are used
         function dragstarted(event: d3.D3DragEvent<SVGCircleElement, Node, Node>) {
-            if (!event.active) simulation.alphaTarget(0.3).restart();
+            if (!event.active) simulation.alphaTarget(GRAPH_CONSTANTS.ZOOM.ALPHA_TARGET).restart();
             event.subject.fx = event.subject.x;
             event.subject.fy = actualHeight - (event.subject.timeIndex! * timeSpacing);
         }
@@ -772,15 +731,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             if (descendantRange) {
                 x = Math.max(descendantRange.min, Math.min(descendantRange.max, x));
             } else {
-                x = Math.max(xPadding, Math.min(actualWidth - xPadding, x));
+                const padding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
+                x = Math.max(padding, Math.min(actualWidth - padding, x));
             }
             
-            // If there are siblings, try to keep them together
             if (siblings.length > 0) {
                 const siblingAvgX = siblings.reduce((sum, s) => sum + (s.x ?? 0), 0) / siblings.length;
-                const maxSiblingDistance = 50; // Maximum distance between siblings
-                x = Math.max(siblingAvgX - maxSiblingDistance, 
-                    Math.min(siblingAvgX + maxSiblingDistance, x));
+                x = Math.max(siblingAvgX - GRAPH_CONSTANTS.MAX_SIBLING_DISTANCE, 
+                    Math.min(siblingAvgX + GRAPH_CONSTANTS.MAX_SIBLING_DISTANCE, x));
             }
             
             event.subject.fx = x;
@@ -791,30 +749,29 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             if (!event.active) simulation.alphaTarget(0);
             event.subject.fx = null;
             
-            // Y position is controlled by time layer - reset to time-based position
             const descendantRange = getDescendantSampleRange(event.subject, combinedNodes, combinedEdges);
             
-            // Enforce X position within descendant range constraints
             let x = event.subject.x ?? 0;
             if (descendantRange) {
                 x = Math.max(descendantRange.min, Math.min(descendantRange.max, x));
             } else {
-                x = Math.max(xPadding, Math.min(actualWidth - xPadding, x));
+                const padding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
+                x = Math.max(padding, Math.min(actualWidth - padding, x));
             }
             
             event.subject.x = x;
             event.subject.fy = actualHeight - (event.subject.timeIndex! * timeSpacing);
         }
 
-        // Draw nodes with tooltip for all node types
         const nodes = g.append("g")
             .selectAll<SVGCircleElement, Node>("circle")
             .data(combinedNodes)
             .join("circle")
             .attr("r", d => {
-                // Make sample nodes and root nodes larger
-                if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) return 5;
-                return 3;  // Smaller size for regular nodes and combined nodes
+                if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) {
+                    return GRAPH_CONSTANTS.SAMPLE_NODE_RADIUS;
+                }
+                return GRAPH_CONSTANTS.REGULAR_NODE_RADIUS;
             })
             .attr("fill", d => {
                 if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
@@ -828,8 +785,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 return "none";
             })
             .attr("stroke-width", d => {
-                if (isRootNode(d, combinedNodes, combinedEdges)) return 2;  // Thicker outline for root nodes
-                if (d.is_sample) return 1;  // Thin outline for sample nodes
+                if (isRootNode(d, combinedNodes, combinedEdges)) return GRAPH_CONSTANTS.ROOT_NODE_STROKE_WIDTH;
+                if (d.is_sample) return GRAPH_CONSTANTS.SAMPLE_NODE_STROKE_WIDTH;
                 return 0;
             })
             .style("cursor", "pointer")
@@ -853,7 +810,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 } else if (d.is_combined) {
                     tooltipContent = `Combined node ${d.id}<br>Contains nodes: ${d.combined_nodes?.join(", ")}<br>Time: ${d.time}`;
                 } else if (isRootNode(d, combinedNodes, combinedEdges)) {
-                    // Get unique children for root node
                     const children = [...new Set(combinedEdges
                         .filter(e => {
                             const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as Node;
@@ -864,12 +820,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             return target?.id;
                         })
                         .filter(id => id !== undefined))]
-                        .sort((a, b) => a - b); // Sort for consistent display
+                        .sort((a, b) => a - b);
 
-                    // Get descendant samples
                     const descendantSamples = getDescendantSamples(d, combinedNodes, combinedEdges)
                         .map(sample => sample.id)
-                        .sort((a, b) => a - b); // Sort for consistent display
+                        .sort((a, b) => a - b);
 
                     tooltipContent = `Root node ${d.id}<br>Time: ${d.time}`;
                     if (children.length > 0) {
@@ -879,7 +834,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         tooltipContent += `<br>Descendant samples: ${descendantSamples.join(", ")}`;
                     }
                 } else {
-                    // For internal nodes, show their unique connections
                     const parents = [...new Set(combinedEdges
                         .filter(e => {
                             const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as Node;
@@ -890,7 +844,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             return source?.id;
                         })
                         .filter(id => id !== undefined))]
-                        .sort((a, b) => a - b); // Sort for consistent display
+                        .sort((a, b) => a - b);
                     
                     const children = [...new Set(combinedEdges
                         .filter(e => {
@@ -902,7 +856,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             return target?.id;
                         })
                         .filter(id => id !== undefined))]
-                        .sort((a, b) => a - b); // Sort for consistent display
+                        .sort((a, b) => a - b);
 
                     tooltipContent = `Internal node ${d.id}<br>Time: ${d.time}`;
                     if (parents.length > 0) {
@@ -913,18 +867,15 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     }
                 }
 
-                // Add individual ID information if available
                 if (d.individual !== undefined && d.individual !== -1) {
                     tooltipContent += `<br>Individual: ${d.individual}`;
                 }
 
-                // Add spatial location information if available
                 if (d.location) {
                     const location = d.location;
-                    // Check if coordinates appear to be geographic (WGS84 range)
                     const isGeographic = location.x >= -180 && location.x <= 180 && 
                                        location.y >= -90 && location.y <= 90 &&
-                                       (location.x !== 0 || location.y !== 0); // Exclude (0,0) which is often a default
+                                       (location.x !== 0 || location.y !== 0);
                     
                     if (location.z !== undefined) {
                         if (isGeographic) {
@@ -956,24 +907,20 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 tooltip.style("visibility", "hidden");
             });
 
-        // Add node labels for sample nodes
         const labels = g.append("g")
             .selectAll<SVGTextElement, Node>("text")
             .data(combinedNodes.filter(d => d.is_sample))
             .join("text")
             .text(d => d.id.toString())
-            .attr("font-size", "10px")
+            .attr("font-size", GRAPH_CONSTANTS.FONT_SIZE)
             .attr("fill", colors.text)
             .attr("dx", 12)
             .attr("dy", 4);
 
-        // Update positions on each tick
         simulation.on("tick", () => {
             if (!stableData) return;
             
-            // Only enforce descendant ranges every few ticks for performance
-            const currentTick = simulation.alpha();
-            if (currentTick > 0.1) { // Only during active simulation
+            if (simulation.alpha() > GRAPH_CONSTANTS.PERFORMANCE.ALPHA_THRESHOLD) {
                 combinedNodes.forEach(node => {
                     if (!node.is_sample) {
                         enforceDescendantRange(node, combinedNodes, combinedEdges);
@@ -1008,7 +955,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .attr("y", d => actualHeight - (d.timeIndex! * timeSpacing));
         });
 
-        // Cleanup
         return () => {
             simulation.stop();
             tooltip.remove();
