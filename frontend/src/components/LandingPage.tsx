@@ -5,11 +5,13 @@ import ClickableLogo from './ui/ClickableLogo';
 
 interface LandingPageProps {
   onOptionSelect: (option: 'upload' | 'simulate' | 'load') => void;
+  isTransitioning?: boolean;
 }
 
-export default function LandingPage({ onOptionSelect }: LandingPageProps) {
+export default function LandingPage({ onOptionSelect, isTransitioning = false }: LandingPageProps) {
   const [availableTreeSequences, setAvailableTreeSequences] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showContent, setShowContent] = useState(!isTransitioning);
 
   useEffect(() => {
     const fetchAvailableTreeSequences = async () => {
@@ -32,6 +34,19 @@ export default function LandingPage({ onOptionSelect }: LandingPageProps) {
     fetchAvailableTreeSequences();
   }, []);
 
+  // Handle transition timing
+  useEffect(() => {
+    if (isTransitioning) {
+      // Delay showing content until transition starts
+      const timer = setTimeout(() => {
+        setShowContent(true);
+      }, 100);
+      return () => clearTimeout(timer);
+    } else {
+      setShowContent(true);
+    }
+  }, [isTransitioning]);
+
   const handleOptionClick = (option: 'upload' | 'simulate' | 'load') => {
     if (option === 'load' && availableTreeSequences.length === 0) {
       return; // Don't allow clicking if no sequences available
@@ -40,9 +55,15 @@ export default function LandingPage({ onOptionSelect }: LandingPageProps) {
   };
 
   return (
-    <div className="bg-sp-very-dark-blue text-sp-white min-h-screen flex flex-col items-center justify-center px-4 font-sans">
-      {/* Logo and Tagline */}
-      <div className="text-center mb-12">
+    <div className={`
+      text-sp-white min-h-screen flex flex-col items-center justify-center px-4 font-sans
+      ${isTransitioning ? 'absolute inset-0 z-40' : ''}
+    `}>
+      {/* Logo and Tagline - fade in during transition */}
+      <div className={`
+        text-center mb-12 transition-all duration-2000 ease-in-out
+        ${isTransitioning && !showContent ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
+      `}>
         <ClickableLogo size="large" className="mb-4" />
         <p className="text-lg md:text-xl text-sp-white/70 mb-6">
           Visualizing Ancestral Recombination Graphs
@@ -58,8 +79,11 @@ export default function LandingPage({ onOptionSelect }: LandingPageProps) {
         </a>
       </div>
 
-      {/* Main Options */}
-      <div className="w-full max-w-2xl space-y-4">
+      {/* Main Options - fade in during transition */}
+      <div className={`
+        w-full max-w-2xl space-y-4 transition-all duration-2000 ease-in-out delay-500
+        ${isTransitioning && !showContent ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
+      `}>
         {/* Upload Option */}
         <button
           onClick={() => handleOptionClick('upload')}
@@ -137,8 +161,12 @@ export default function LandingPage({ onOptionSelect }: LandingPageProps) {
         </button>
       </div>
 
-      {/* Beta Notice */}
-      <div className="bg-amber-900/15 border border-amber-700/25 rounded-lg p-3 mt-12 max-w-2xl mx-auto">
+      {/* Beta Notice - fade in during transition */}
+      <div className={`
+        bg-amber-900/15 border border-amber-700/25 rounded-lg p-3 mt-12 max-w-2xl mx-auto
+        transition-all duration-2000 ease-in-out delay-1000
+        ${isTransitioning && !showContent ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
+      `}>
         <p className="text-amber-200 text-xs md:text-sm text-center leading-relaxed">
           <span className="font-semibold">⚠️ Beta Notice:</span> Tree sequences are stored on a secure server for up to 24 hours. 
           This is a beta application and data may be wiped during updates. Please download your results and respect our limited resources.

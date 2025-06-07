@@ -25,7 +25,7 @@ function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-type AppState = 'intro' | 'landing' | 'intermediate';
+type AppState = 'intro' | 'transitioning' | 'landing' | 'intermediate';
 type SelectedOption = 'upload' | 'simulate' | 'load' | null;
 
 function Home() {
@@ -35,6 +35,8 @@ function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [availableTreeSequences, setAvailableTreeSequences] = useState<string[]>([]);
   const [hasCheckedSequences, setHasCheckedSequences] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionStarted, setTransitionStarted] = useState(false);
 
   // Fetch available tree sequences to determine animation behavior
   useEffect(() => {
@@ -115,8 +117,15 @@ function Home() {
   }, [location.state, hasCheckedSequences, availableTreeSequences.length]);
 
   const handleIntroComplete = () => {
-    setAppState('landing');
-    setShowIntro(false);
+    setTransitionStarted(true);
+    setAppState('transitioning');
+    
+    // After transition completes, show landing page
+    setTimeout(() => {
+      setAppState('landing');
+      setShowIntro(false);
+      setTransitionStarted(false);
+    }, 2000); // 2 second transition duration
   };
 
   const handleOptionSelect = (option: 'upload' | 'simulate' | 'load') => {
@@ -129,23 +138,38 @@ function Home() {
     setAppState('landing');
   };
 
-  // Show intro animation
-  if (showIntro && appState === 'intro') {
-    return <IntroAnimation onComplete={handleIntroComplete} />;
-  }
+  return (
+    <div className="bg-sp-very-dark-blue min-h-screen">
+      {/* Show intro animation */}
+      {showIntro && appState === 'intro' && (
+        <IntroAnimation onComplete={handleIntroComplete} />
+      )}
 
-  // Show landing page
-  if (appState === 'landing') {
-    return <LandingPage onOptionSelect={handleOptionSelect} />;
-  }
+      {/* Show smooth transition */}
+      {appState === 'transitioning' && (
+        <div className="relative min-h-screen">
+          <IntroAnimation 
+            onComplete={handleIntroComplete} 
+            isTransitioning={true}
+          />
+          <LandingPage 
+            onOptionSelect={handleOptionSelect} 
+            isTransitioning={true}
+          />
+        </div>
+      )}
 
-  // Show intermediate page
-  if (appState === 'intermediate' && selectedOption) {
-    return <IntermediatePage selectedOption={selectedOption} onBack={handleBackToLanding} />;
-  }
+      {/* Show landing page */}
+      {appState === 'landing' && (
+        <LandingPage onOptionSelect={handleOptionSelect} />
+      )}
 
-  // Fallback to landing page
-  return <LandingPage onOptionSelect={handleOptionSelect} />;
+      {/* Show intermediate page */}
+      {appState === 'intermediate' && selectedOption && (
+        <IntermediatePage selectedOption={selectedOption} onBack={handleBackToLanding} />
+      )}
+    </div>
+  );
 }
 
 function App() {
