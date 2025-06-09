@@ -1,0 +1,34 @@
+{
+  "name": "argscape",
+  "version": "0.1.0",
+  "description": "ARGscape - Tree Sequence and ARG Visualization Tool",
+  "scripts": {
+    "dev": "docker-compose up --build",
+    "dev:local": "bash scripts/dev-local.sh",
+    "build:railway": "bash scripts/build-railway.sh",
+    "build:desktop": "bash scripts/build-desktop.sh",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build",
+    "install:frontend": "cd frontend && npm install",
+    "install:backend": "cd backend && pip install -r requirements-web.txt"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chris-a-talbot/argscape.git"
+  },
+  "keywords": [
+    "bioinformatics",
+    "tree-sequences",
+    "ARG",
+    "visualization",
+    "population-genetics"
+  ],
+  "author": "ARGscape Team",
+  "license": "MIT",
+  "private": true,
+  "dependencies": {
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/cli": "^2.5.0"
+  }
+}

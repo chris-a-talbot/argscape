@@ -36,7 +36,24 @@
 ### Option 1: Use the Live Website
 Visit [argscape.com](https://argscape.com) to start visualizing tree sequences immediately - no installation required.
 
-### Option 2: Local Development
+### Option 2: Desktop Application (New!)
+Download and run ARGscape as a standalone desktop application - no hosting or server setup required!
+
+**Requirements:**
+- Windows 10+, macOS 10.15+, or Linux (Ubuntu 18.04+)
+- No Python, Node.js, or other dependencies needed
+
+**Download:**
+- Coming soon! Desktop releases will be available on the [GitHub Releases page](https://github.com/chris-a-talbot/argscape/releases)
+
+**Benefits:**
+- ✅ Runs completely offline
+- ✅ No server hosting costs
+- ✅ Native desktop performance
+- ✅ All features included
+- ✅ Automatic updates
+
+### Option 3: Local Development
 
 #### Prerequisites
 - **Node.js 20+** and **npm**
@@ -71,7 +88,7 @@ Visit [argscape.com](https://argscape.com) to start visualizing tree sequences i
    - Backend API: http://localhost:8000
    - API docs: http://localhost:8000/docs
 
-### Option 3: Docker Development
+### Option 4: Docker Development
 
 ```bash
 git clone https://github.com/chris-a-talbot/argscape.git
@@ -80,6 +97,41 @@ docker compose up --build
 ```
 
 Access at http://localhost:5173 (frontend) and http://localhost:8000 (backend).
+
+## Building the Desktop Application
+
+If you want to build the desktop application yourself:
+
+### Prerequisites
+- **Rust** (install from [rustup.rs](https://rustup.rs/))
+- **Node.js 20+** and **npm**
+- **Python 3.11+** (needs to be in system PATH)
+
+### Build Steps
+```bash
+# Clone and setup
+git clone https://github.com/chris-a-talbot/argscape.git
+cd argscape
+
+# Install frontend dependencies
+cd frontend
+npm install
+
+# Build desktop app
+npm run tauri:build
+
+# Find the executable in:
+# - Windows: frontend/src-tauri/target/release/ARGscape.exe
+# - macOS: frontend/src-tauri/target/release/bundle/macos/ARGscape.app
+# - Linux: frontend/src-tauri/target/release/argscape
+```
+
+### Development Mode
+```bash
+# Start desktop app in development mode
+cd frontend
+npm run tauri:dev
+```
 
 ## Usage Guide
 
