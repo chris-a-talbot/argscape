@@ -31,33 +31,6 @@
 - **Batch Processing**: Handle multiple files per session
 - **Real-time Updates**: Live feedback during processing and visualization
 
-## Technology Stack
-
-### Frontend
-- **React 19** with TypeScript
-- **Vite** for fast development and builds
-- **Tailwind CSS** for responsive styling
-- **D3.js** for 2D network visualization
-- **Three.js** & React Three Fiber for 3D graphics
-- **Deck.gl** for high-performance spatial visualization
-- **React Router** for navigation
-- **Zustand** for state management
-
-### Backend
-- **FastAPI** for REST API
-- **Python 3.11** with conda environment management
-- **tskit** for tree sequence analysis
-- **msprime** for population genetics simulations
-- **fastgaia** for fast spatial inference
-- **NumPy/Pandas** for data processing
-- **scikit-learn** for multidimensional scaling
-
-### Infrastructure
-- **Docker** & **Docker Compose** for containerized development
-- **Railway** for cloud deployment
-- **Session-based storage** with automatic cleanup
-- **CORS** and security middleware
-
 ## Quick Start
 
 ### Option 1: Use the Live Website
@@ -144,27 +117,6 @@ Access at http://localhost:5173 (frontend) and http://localhost:8000 (backend).
 
 ## API Reference
 
-### Core Endpoints
-- `GET /api/health` - System health check
-- `POST /api/upload-tree-sequence` - Upload tree sequence files
-- `GET /api/uploaded-files` - List session files
-- `GET /api/tree-sequence-metadata/{filename}` - Get file metadata
-- `GET /api/graph-data/{filename}` - Get visualization data
-- `POST /api/simulate-tree-sequence` - Generate new tree sequences
-- `POST /api/infer-locations-fast` - Spatial location inference
-- `DELETE /api/tree-sequence/{filename}` - Delete files
-
-### Session Management
-- `GET /api/session` - Get current session
-- `POST /api/create-session` - Create new session
-- `GET /api/session-stats/{session_id}` - Session statistics
-
-### Parameters
-- `max_samples`: Limit samples for performance (default: 25)
-- `genomic_start/end`: Filter by genomic coordinates
-- `tree_start/end_idx`: Filter by tree indices
-- `sample_order`: Choose ordering algorithm
-
 Full API documentation available at `/docs` when running locally.
 
 ## Development
@@ -186,35 +138,6 @@ argscape/
 │   └── requirements-web.txt
 └── docker-compose.yml   # Development setup
 ```
-
-### Adding Features
-1. **Frontend**: Add components in `frontend/src/components/`
-2. **Backend**: Add routes in `backend/main.py`
-3. **Dependencies**: Update `package.json` or `requirements-web.txt`
-
-### Environment Variables
-- `VITE_API_URL`: Backend URL for frontend
-- `MAX_SESSION_AGE_HOURS`: Session duration (default: 24)
-- `MAX_FILES_PER_SESSION`: Files per session (default: 50)
-- `MAX_FILE_SIZE_MB`: Upload limit (default: 100)
-
-## Deployment
-
-### Production Build
-```bash
-# Frontend
-cd frontend && npm run build
-
-# Backend (uses Railway/Docker)
-docker build -t argscape-backend ./backend
-```
-
-### Cloud Deployment
-The application is deployed on Railway with:
-- Automatic builds from Git
-- Environment variable management
-- Health checks and monitoring
-- Session-based storage with cleanup
 
 ## File Formats
 
@@ -252,6 +175,7 @@ This project is licensed under the MIT License.
 ## Acknowledgments
 
 - **tskit development team** for tree sequence simulation and analysis tools
+- **Bradburd Lab** for funding and support
 
 ## Support
 
