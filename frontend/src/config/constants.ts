@@ -5,12 +5,6 @@
 
 // API Configuration
 const getApiBaseUrl = () => {
-  // Check if running in Tauri (desktop app)
-  if ((window as any).__TAURI__) {
-    console.log('Running in Tauri desktop app, using localhost backend');
-    return 'http://localhost:8000/api';
-  }
-
   // Check for explicit environment variable first
   if (import.meta.env.VITE_API_URL) {
     console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
