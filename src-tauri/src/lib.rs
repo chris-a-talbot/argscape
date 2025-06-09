@@ -1,45 +1,25 @@
-use std::process::{Command, Child};
 use std::thread;
 use std::time::Duration;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
+use tauri_plugin_shell::process::CommandChild;
 
-static BACKEND_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
+static BACKEND_PROCESS: Mutex<Option<CommandChild>> = Mutex::new(None);
 
-fn start_backend() -> Result<(), Box<dyn std::error::Error>> {
+fn start_backend(app_handle: tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     // Check if backend is already running on port 8000
     if port_check::is_port_reachable("127.0.0.1:8000") {
         println!("Backend already running on port 8000");
         return Ok(());
     }
 
-    println!("Starting Python backend...");
+    println!("Starting ARGscape backend...");
     
-    // Try to find Python executable
-    let python_cmd = if cfg!(windows) {
-        "python"
-    } else {
-        "python3"
-    };
-
-    // Start the FastAPI backend from the correct directory
-    let backend_process = Command::new(python_cmd)
-        .args(&["-c", "
-import sys
-import os
-# We're running from src-tauri, need to go up one level to find backend
-current_dir = os.getcwd()
-project_root = os.path.dirname(current_dir)
-backend_path = os.path.join(project_root, 'backend')
-print(f'Looking for backend at: {backend_path}')
-if not os.path.exists(backend_path):
-    raise FileNotFoundError(f'Backend directory not found at {backend_path}')
-sys.path.append(backend_path)
-os.chdir(backend_path)
-import uvicorn
-from main import app
-uvicorn.run(app, host='127.0.0.1', port=8000, log_level='info')
-        "])
-        .spawn()?;
+    // Get the sidecar command using the shell plugin
+    let sidecar = tauri_plugin_shell::ShellExt::shell(&app_handle)
+        .sidecar("argscape-backend")?;
+    
+    // Start the backend sidecar
+    let (_rx, backend_process) = sidecar.spawn()?;
 
     // Store the process safely
     if let Ok(mut process_guard) = BACKEND_PROCESS.lock() {
@@ -52,7 +32,7 @@ uvicorn.run(app, host='127.0.0.1', port=8000, log_level='info')
     // Verify backend is running
     for _i in 0..10 {
         if port_check::is_port_reachable("127.0.0.1:8000") {
-            println!("Backend started successfully!");
+            println!("✅ ARGscape backend is ready!");
             return Ok(());
         }
         thread::sleep(Duration::from_millis(500));
@@ -73,19 +53,13 @@ fn stop_backend() {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::default().build())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
-            if cfg!(debug_assertions) {
-                app.handle().plugin(
-                    tauri_plugin_log::Builder::default()
-                        .level(log::LevelFilter::Info)
-                        .build(),
-                )?;
-            }
-
             // Start the backend in a separate thread
             let app_handle = app.handle().clone();
             thread::spawn(move || {
-                match start_backend() {
+                match start_backend(app_handle.clone()) {
                     Ok(_) => {
                         println!("✅ ARGscape backend is ready!");
                     }

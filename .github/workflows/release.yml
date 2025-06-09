@@ -73,6 +73,27 @@ jobs:
       - name: Install frontend dependencies
         run: cd frontend && npm ci
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          cd backend && pip install -r requirements-web.txt
+
+      - name: Bundle backend
+        run: |
+          python scripts/bundle-backend.py --force
+          # Verify the backend binary exists
+          if [ ! -f "src-tauri/binaries/argscape-backend"* ]; then
+            echo "❌ Backend binary not found after bundling"
+            exit 1
+          fi
+
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:

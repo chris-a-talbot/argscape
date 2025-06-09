@@ -5,10 +5,15 @@
   "scripts": {
     "dev": "docker-compose up --build",
     "dev:local": "bash scripts/dev-local.sh",
-    "build:desktop": "bash scripts/build-desktop.sh",
+    "build:desktop": "bash scripts/build-with-backend.sh",
+    "build:desktop-fast": "bash scripts/build-with-backend.sh --skip-backend",
+    "build:desktop-force": "bash scripts/build-with-backend.sh --force-backend",
+    "bundle:backend": "python scripts/bundle-backend.py",
+    "bundle:backend-force": "python scripts/bundle-backend.py --force",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
+    "tauri:build-fast": "cd frontend && npm run build && tauri build",
     "install:frontend": "cd frontend && npm install",
     "install:backend": "cd backend && pip install -r requirements-web.txt"
   },

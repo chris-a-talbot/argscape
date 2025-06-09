@@ -5,6 +5,8 @@
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com)  
 📖 **API Documentation**: [www.argscape.com/docs](https://www.argscape.com/docs)
 
+Co-written with Claude 4 Sonnet.
+
 ## Features
 
 ### Core Functionality

@@ -133,7 +133,20 @@ else:
 
 # CORS middleware
 allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
-allowed_origins = allowed_origins_str.split(",") if allowed_origins_str != "*" else ["*"]
+if allowed_origins_str == "*":
+    allowed_origins = ["*"]
+else:
+    # Parse comma-separated origins and add Tauri origins
+    allowed_origins = allowed_origins_str.split(",")
+    # Add Tauri-specific origins for desktop app
+    tauri_origins = [
+        "tauri://localhost",
+        "https://tauri.localhost", 
+        "http://localhost:5173",  # Dev server
+        "http://127.0.0.1:5173",  # Alternative dev server
+    ]
+    allowed_origins.extend(tauri_origins)
+
 allow_credentials = allowed_origins != ["*"]
 
 app.add_middleware(

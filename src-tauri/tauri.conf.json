@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ARGscape - Ancestral Recombination Graph Visualization",
+        "title": "ARGscape - Tree Sequence Visualization",
         "width": 1400,
         "height": 900,
         "minWidth": 800,
@@ -37,10 +37,25 @@
       "icons/icon.ico"
     ],
     "resources": [],
-    "externalBin": [],
+    "externalBin": [
+      "binaries/argscape-backend"
+    ],
     "copyright": "MIT License",
     "category": "Education",
     "shortDescription": "Tree sequence and ARG visualization tool",
     "longDescription": "ARGscape is a comprehensive application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs) for population genetics research."
+  },
+  "plugins": {
+    "shell": {
+      "open": true,
+      "sidecar": true,
+      "scope": [
+        {
+          "name": "argscape-backend",
+          "cmd": "argscape-backend",
+          "args": true
+        }
+      ]
+    }
   }
 }
