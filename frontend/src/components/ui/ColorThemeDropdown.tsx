@@ -163,7 +163,7 @@ export const ColorThemeDropdown: React.FC = () => {
 
         {isOpen && (
           <div
-            className="absolute right-0 mt-1 py-1 rounded-md shadow-lg z-10 min-w-[160px] max-w-[250px]"
+            className="absolute right-0 mt-1 py-1 rounded-md shadow-lg z-50 min-w-[160px] max-w-[250px]"
             style={{
               backgroundColor: colors.containerBackground,
               border: `1px solid ${colors.border}`
