@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "docker-compose up --build",
     "dev:local": "bash scripts/dev-local.sh",
-    "build:railway": "bash scripts/build-railway.sh",
     "build:desktop": "bash scripts/build-desktop.sh",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",

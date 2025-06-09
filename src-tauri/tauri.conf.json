@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "identifier": "com.argscape.app",
   "build": {
-    "frontendDist": "./frontend/dist",
+    "frontendDist": "../frontend/dist",
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": "cd frontend && npm run dev",
     "beforeBuildCommand": "cd frontend && npm run build"
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "ARGscape - Tree Sequence Visualization",
+        "title": "ARGscape - Ancestral Recombination Graph Visualization",
         "width": 1400,
         "height": 900,
         "minWidth": 800,
