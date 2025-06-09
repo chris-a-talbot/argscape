@@ -31,7 +31,6 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
   displayedNodeCount,
   displayedEdgeCount,
   crsDetection,
-  isTemporalSliderVisible = false
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);

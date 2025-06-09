@@ -11,7 +11,6 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
-import { combineIdenticalNodes } from '../../utils/nodeCombining';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -64,7 +63,6 @@ const convertTreeIntervals = (backendIntervals: [number, number, number][]): Tre
 
 const getGraphTraversalNodes = (
   node: GraphNode, 
-  nodes: GraphNode[], 
   edges: GraphEdge[], 
   direction: 'descendants' | 'ancestors'
 ): Set<number> => {
@@ -96,12 +94,12 @@ const getGraphTraversalNodes = (
   return result;
 };
 
-const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
-  return getGraphTraversalNodes(node, nodes, edges, 'descendants');
+const getDescendants = (node: GraphNode, edges: GraphEdge[]): Set<number> => {
+  return getGraphTraversalNodes(node, edges, 'descendants');
 };
 
-const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
-  return getGraphTraversalNodes(node, nodes, edges, 'ancestors');
+const getAncestors = (node: GraphNode, edges: GraphEdge[]): Set<number> => {
+  return getGraphTraversalNodes(node, edges, 'ancestors');
 };
 
 const validateSpatialData = (graphData: GraphData): boolean => {
@@ -174,12 +172,12 @@ const filterDataByViewMode = (
 
   switch (viewMode) {
     case 'subgraph': {
-      const descendants = getDescendants(selectedNode, data.nodes, data.edges);
+      const descendants = getDescendants(selectedNode, data.edges);
       descendants.add(selectedNode.id);
       return getFilteredNodesAndEdges(descendants);
     }
     case 'ancestors': {
-      const ancestors = getAncestors(selectedNode, data.nodes, data.edges);
+      const ancestors = getAncestors(selectedNode, data.edges);
       ancestors.add(selectedNode.id);
       return getFilteredNodesAndEdges(ancestors);
     }
@@ -217,7 +215,6 @@ const applyTemporalFiltering = (data: GraphData, temporalState: any): GraphData 
 const calculateArgStats = (
   subArgData: GraphData | null,
   data: GraphData | null,
-  viewData: GraphData | null,
   filteredData: GraphData | null,
   treeSequence: any
 ): ArgStatsData | null => {
@@ -579,8 +576,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     const maxX = Math.max(...xCoords);
     const minY = Math.min(...yCoords);
     const maxY = Math.max(...yCoords);
-    const minTime = Math.min(...times);
-    const maxTime = Math.max(...times);
     
     // Center the coordinates
     const centerX = (minX + maxX) / 2;
@@ -657,8 +652,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   }
 
   const filteredData = getFilteredData();
-  const viewData = selectedNode ? filterDataByViewMode(data!, viewMode, selectedNode) : data;
-  const stats = calculateArgStats(subArgData, data, viewData, filteredData, treeSequence);
+  const stats = calculateArgStats(subArgData, data, filteredData, treeSequence);
 
   return (
     <div 

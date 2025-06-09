@@ -2,15 +2,6 @@ import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useDraggable } from '../../hooks/useDraggable';
 
-// Define preset view configurations
-interface ViewPreset {
-  id: string;
-  name: string;
-  rotationOrbit: number; // Horizontal rotation (0-360°)
-  rotationX: number;     // Vertical pan angle (0°, 30°, 60°, 90°)
-  zoom: number;          // Zoom level
-}
-
 interface ViewState {
   target: [number, number, number];
   zoom: number;
@@ -37,14 +28,6 @@ const ZOOM_LEVELS = {
   FIT: 1.8,      // Just fits all elements
   MEDIUM: 1.2,   // Bit more zoomed out
   FAR: 0.8       // Even more zoomed out
-};
-
-// Pan angle constants (rotationX values)
-const PAN_ANGLES = {
-  HEAD_ON: 0,      // 0° - straight on
-  ABOVE_30: 30,    // 30° above
-  ABOVE_60: 60,    // 60° above  
-  ABOVE_90: 90     // 90° above (top-down)
 };
 
 export const SpatialArg3DPresetViewPanel: React.FC<SpatialArg3DPresetViewPanelProps> = ({
