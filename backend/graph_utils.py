@@ -71,67 +71,88 @@ def get_sample_order_numeric(ts: tskit.TreeSequence) -> List[int]:
 
 def get_sample_order_custom_algorithm(ts: tskit.TreeSequence) -> List[int]:
     """
-    Get sample order using consensus algorithm with majority vote across K trees.
+    Get sample order using a consensus algorithm based on majority voting across selected local trees.
     
-    Implementation of the TipSampleOrdering algorithm from the provided pseudocode.
-    K is set to: # local trees up to 20, then 20 + (1/4 * # local trees) up to 50.
+    Implements the TipSampleOrdering consensus approach:
+    - Extracts K sample orders from local trees spread across the genome.
+    - Uses pairwise majority voting to determine a consensus sample order.
+    - K is selected based on the number of trees, capped at 50.
+
+    Parameters:
+        ts (tskit.TreeSequence): A tree sequence containing local genealogical trees.
+
+    Returns:
+        List[int]: A consensus-ordered list of sample node IDs.
     """
-    # Get all sample nodes
+    # Step 1: Collect all sample node IDs from the tree sequence
     samples = {node.id for node in ts.nodes() if node.is_sample()}
-    
+
+    # If there are 0 or 1 samples, return them directly (no ordering needed)
     if len(samples) <= 1:
         return list(samples)
-    
-    # Calculate K based on number of local trees
+
+    # Step 2: Determine the number of local trees (used to pick K)
     num_trees = ts.num_trees
+
+    # Choose K (number of trees to use for voting)
+    # - If <= 20 trees, use all of them
+    # - If > 20, use 20 + 1/4 of the total, capped at 50
     if num_trees <= 20:
         k_trees = num_trees
     else:
         k_trees = int(20 + (num_trees / 4))
-        k_trees = min(k_trees, 50)  # Cap at 50
-    
-    # Choose K equally spaced genomic positions
+        k_trees = min(k_trees, 50)
+
+    # Step 3: Choose K evenly spaced genomic positions in [0, sequence_length)
     positions = []
     if k_trees == 1:
+        # Special case: use the midpoint of the genome
         positions = [ts.sequence_length / 2]
     else:
         for i in range(k_trees):
-            # Ensure positions are within bounds [0, sequence_length)
             pos = i * ts.sequence_length / k_trees
-            # Make sure we don't hit exactly sequence_length
+            # Make sure position is strictly less than sequence length
             pos = min(pos, ts.sequence_length - 1e-10)
             positions.append(pos)
-    
-    # Get minlex postorder for each position
+
+    # Step 4: Get sample orders from the selected positions
+    # Each order is a list of sample IDs ordered using minlex postorder traversal of the tree at that position
     orders = []
     for pos in positions:
-        order = get_sample_order_minlex_postorder(ts, pos, ignore_unattached_nodes=True)
+        order = get_sample_order_minlex_postorder(
+            ts, pos, ignore_unattached_nodes=True
+        )
         orders.append(order)
-    
-    # Majority vote ordering
-    # For each pair of samples, count how many trees have sample A before sample B
+
+    # Step 5: Initialize a pairwise vote matrix of shape (n_samples x n_samples)
+    # vote_matrix[i][j] = number of trees in which sample_list[i] appears before sample_list[j]
     sample_list = list(samples)
     n_samples = len(sample_list)
     vote_matrix = np.zeros((n_samples, n_samples))
-    
+
     for order in orders:
         if len(order) < 2:
-            continue
-        # Create position map for this order
-        pos_map = {sample_id: i for i, sample_id in enumerate(order)}
-        
-        # Update vote matrix
+            continue  # Skip trivial orders
+
+        # Map each sample to its index in the current order
+        pos_map = {sample_id: idx for idx, sample_id in enumerate(order)}
+
+        # Update the vote matrix: for every sample pair (a, b), increment vote if a precedes b
         for i, sample_a in enumerate(sample_list):
             for j, sample_b in enumerate(sample_list):
                 if sample_a in pos_map and sample_b in pos_map:
                     if pos_map[sample_a] < pos_map[sample_b]:
                         vote_matrix[i, j] += 1
-    
-    # Create final ordering based on majority votes
-    # Use a simple approach: sort by total votes received
+
+    # Step 6: Aggregate the votes to rank samples
+    # We sum all votes received by each sample (i.e., across columns)
+    # This gives a crude "centrality" or importance score
     total_votes = np.sum(vote_matrix, axis=1)
-    sorted_indices = np.argsort(-total_votes)  # Descending order
-    
+
+    # Sort sample indices by total votes in descending order
+    sorted_indices = np.argsort(-total_votes)
+
+    # Map sorted indices back to sample IDs
     return [sample_list[i] for i in sorted_indices]
 
 

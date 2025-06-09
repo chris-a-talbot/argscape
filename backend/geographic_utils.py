@@ -52,6 +52,7 @@ class CoordinateReferenceSystem:
             "bounds": self.bounds
         }
 
+
 # Built-in coordinate reference systems
 BUILTIN_CRS = {
     "unit_grid": CoordinateReferenceSystem(
@@ -70,6 +71,7 @@ BUILTIN_CRS = {
         bounds=(-20037508.34, -20037508.34, 20037508.34, 20037508.34)
     )
 }
+
 
 def load_geojson_file(filepath: str) -> Dict:
     """
@@ -118,6 +120,7 @@ def load_geojson_file(filepath: str) -> Dict:
         logger.error(f"Error loading GeoJSON file {filepath}: {e}")
         return get_eastern_hemisphere_outline_fallback()
 
+
 def get_eastern_hemisphere_outline_fallback() -> Dict:
     """
     Fallback Eastern Hemisphere outline (simplified) - Extended to include Western Europe and Africa
@@ -138,6 +141,7 @@ def get_eastern_hemisphere_outline_fallback() -> Dict:
         "name": "Eastern Hemisphere (Simplified, No Antarctica)",
         "bounds": [-15, -60, 180, 75]  # Extended western boundary, excludes Antarctica
     }
+
 
 def load_natural_earth_land(filter_eastern_hemisphere: bool = True) -> Dict:
     """
@@ -214,6 +218,7 @@ def load_natural_earth_land(filter_eastern_hemisphere: bool = True) -> Dict:
         logger.error(f"Error loading Natural Earth shapefile: {e}")
         return get_eastern_hemisphere_outline_fallback()
 
+
 def get_eastern_hemisphere_outline() -> Dict:
     """
     Get a detailed outline of the Eastern Hemisphere in WGS84
@@ -247,11 +252,13 @@ def get_eastern_hemisphere_outline() -> Dict:
     logger.info("Using fallback Eastern Hemisphere outline")
     return get_eastern_hemisphere_outline_fallback()
 
+
 def get_builtin_shapes() -> Dict[str, Dict]:
     """Get all built-in geographic shapes"""
     return {
         "eastern_hemisphere": get_eastern_hemisphere_outline()
     }
+
 
 def process_shapefile(file_contents: bytes, filename: str) -> Dict:
     """
@@ -320,6 +327,7 @@ def process_shapefile(file_contents: bytes, filename: str) -> Dict:
         logger.error(f"Error processing shapefile {filename}: {e}")
         raise ValueError(f"Could not process shapefile: {str(e)}")
 
+
 def transform_coordinates(points: List[Tuple[float, float]], 
                          source_crs: str, 
                          target_crs: str) -> List[Tuple[float, float]]:
@@ -355,6 +363,7 @@ def transform_coordinates(points: List[Tuple[float, float]],
         logger.error(f"Error transforming coordinates from {source_crs} to {target_crs}: {e}")
         raise ValueError(f"Could not transform coordinates: {str(e)}")
 
+
 def normalize_coordinates_to_unit_space(points: List[Tuple[float, float]], 
                                       bounds: Tuple[float, float, float, float]) -> List[Tuple[float, float]]:
     """
@@ -382,6 +391,7 @@ def normalize_coordinates_to_unit_space(points: List[Tuple[float, float]],
         normalized_points.append((norm_x, norm_y))
     
     return normalized_points
+
 
 def generate_grid_outline(size: int = 10) -> Dict:
     """
@@ -419,6 +429,7 @@ def generate_grid_outline(size: int = 10) -> Dict:
         "name": f"{size}x{size} Unit Grid",
         "bounds": [0, 0, 1, 1]
     }
+
 
 def validate_coordinates_in_shape(points: List[Tuple[float, float]], 
                                 shape_data: Dict) -> List[bool]:
@@ -460,6 +471,7 @@ def validate_coordinates_in_shape(points: List[Tuple[float, float]],
         logger.error(f"Error validating coordinates in shape: {e}")
         # Return all True if validation fails
         return [True] * len(points) 
+
 
 def get_land_geometry_eastern_hemisphere():
     """
@@ -512,6 +524,7 @@ def get_land_geometry_eastern_hemisphere():
             get_land_geometry_eastern_hemisphere.cached_geometry = None
     
     return get_land_geometry_eastern_hemisphere.cached_geometry
+
 
 def is_point_on_land_eastern_hemisphere(lon: float, lat: float) -> bool:
     """
@@ -597,6 +610,7 @@ def is_point_on_land_eastern_hemisphere(lon: float, lat: float) -> bool:
         return random.random() > 0.3  # 70% chance for archipelago
     
     return False
+
 
 def detect_coordinate_system(coordinates: List[Tuple[float, float]]) -> Dict[str, any]:
     """
@@ -733,6 +747,7 @@ def detect_coordinate_system(coordinates: List[Tuple[float, float]]) -> Dict[str
         "land_percentage": round(land_points / total_points * 100, 1) if total_points > 0 else 0.0,
         "suggested_geographic_mode": get_suggested_geographic_mode(likely_crs, bounds)
     }
+
 
 def get_suggested_geographic_mode(crs: str, bounds: List[float]) -> str:
     """
