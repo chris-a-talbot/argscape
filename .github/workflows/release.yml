@@ -99,8 +99,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: app-v__VERSION__
-          releaseName: 'ARGscape v__VERSION__'
+          tagName: app-${{ github.ref_name }}
+          releaseName: 'ARGscape ${{ github.ref_name }}'
           releaseBody: 'See the assets to download this version and install.'
           releaseDraft: true
           prerelease: false
