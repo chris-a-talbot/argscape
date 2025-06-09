@@ -2,18 +2,21 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SpatialArg3DVisualizationContainer from './SpatialArg3DVisualization/SpatialArg3DVisualizationContainer';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { useColorTheme } from '../context/ColorThemeContext';
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { export3DVisualizationAsImage, exportCanvasAsImage } from '../lib/imageExport';
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
 import ClickableLogo from './ui/ClickableLogo';
+import TreeSequenceSelector from './TreeSequenceSelector';
+import { log } from '../lib/logger';
 
 export default function SpatialArg3DVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
-    const { maxSamples, treeSequence: data } = useTreeSequence();
+    const { maxSamples, treeSequence: data, setTreeSequence } = useTreeSequence();
     const { colors, setCurrentVisualizationType } = useColorTheme();
     const containerRef = useRef<HTMLDivElement>(null);
+    const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
 
     // Set visualization type when component mounts
     useEffect(() => {
@@ -50,6 +53,14 @@ export default function SpatialArg3DVisualizationPage() {
     }
 
     const decodedFilename = decodeURIComponent(filename);
+
+    const handleTreeSequenceSelect = (treeSequence: any) => {
+        log.user.action('switch-tree-sequence-spatial', { treeSequence }, 'SpatialArg3DVisualizationPage');
+        setTreeSequence(treeSequence);
+        setShowTreeSequenceSelector(false);
+        // Navigate to the new tree sequence while maintaining all visualization settings
+        navigate(`/visualize-spatial/${encodeURIComponent(treeSequence.filename)}`);
+    };
 
     const handleDownload = async () => {
         if (!data) return;
@@ -183,6 +194,30 @@ export default function SpatialArg3DVisualizationPage() {
                         <div className="flex items-center gap-2 flex-shrink-0">
                             <ColorThemeDropdown />
                             <button 
+                                className="font-medium px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap border"
+                                style={{
+                                    backgroundColor: colors.containerBackground,
+                                    color: colors.text,
+                                    borderColor: `${colors.accentPrimary}33`
+                                }}
+                                onMouseEnter={(e) => {
+                                    e.currentTarget.style.borderColor = `${colors.accentPrimary}66`;
+                                    e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
+                                }}
+                                onMouseLeave={(e) => {
+                                    e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                }}
+                                onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
+                            >
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                    {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
+                                </div>
+                            </button>
+                            <button 
                                 className="font-medium px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
                                 style={{
                                     backgroundColor: colors.containerBackground,
@@ -223,6 +258,19 @@ export default function SpatialArg3DVisualizationPage() {
                     </div>
                 </div>
             </header>
+
+            {/* Tree Sequence Selector */}
+            {showTreeSequenceSelector && (
+                <div 
+                    className="flex-shrink-0 border-b px-4 py-4"
+                    style={{ 
+                        backgroundColor: colors.background,
+                        borderBottomColor: colors.border 
+                    }}
+                >
+                    <TreeSequenceSelector onSelect={handleTreeSequenceSelect} />
+                </div>
+            )}
 
             {/* Main content - Full width and height */}
             <main className="flex-1 overflow-hidden">

@@ -63,6 +63,15 @@ export default function ResultPage() {
     }
   };
 
+  // Determine button text for GAIA quadratic inference based on spatial status
+  const getGaiaQuadraticInferenceButtonText = () => {
+    if (data?.spatial_status === "all") {
+      return "Re-infer locations (GAIA quadratic)";
+    } else {
+      return "Infer locations (GAIA quadratic)";
+    }
+  };
+
   const handleFastLocationInference = async () => {
     if (!data?.filename || isInferringLocationsFast) return;
 
@@ -421,7 +430,7 @@ export default function ResultPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 <span>
-                  {isInferringLocationsGaiaQuadratic ? 'Inferring...' : 'Infer locations (GAIA quadratic)'}
+                  {isInferringLocationsGaiaQuadratic ? 'Inferring...' : getGaiaQuadraticInferenceButtonText()}
                 </span>
               </button>
             </div>
