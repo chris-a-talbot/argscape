@@ -34,6 +34,7 @@ export const API_CONFIG = {
     DOWNLOAD_TREE_SEQUENCE: '/download-tree-sequence',
     GRAPH_DATA: '/graph-data',
     INFER_LOCATIONS_FAST: '/infer-locations-fast',
+    INFER_LOCATIONS_GAIA_QUADRATIC: '/infer-locations-gaia-quadratic',
     SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence',
   }
 } as const;

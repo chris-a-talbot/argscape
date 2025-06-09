@@ -44,6 +44,16 @@ except ImportError:
     infer_locations = None
     logger.warning("fastgaia not available - location inference disabled")
 
+# Import geoancestry (gaiapy) utilities
+try:
+    import gaiapy as gp
+    logger.info("gaiapy successfully imported")
+    GEOANCESTRY_AVAILABLE = True
+except ImportError:
+    gp = None
+    logger.warning("gaiapy not available - GAIA quadratic inference disabled")
+    GEOANCESTRY_AVAILABLE = False
+
 # Import GAIA utilities
 try:
     from gaia_utils import infer_locations_with_gaia, check_gaia_availability
@@ -156,6 +166,9 @@ class FastLocationInferenceRequest(BaseModel):
     weight_branch_length: bool = True
 
 class GAIALocationInferenceRequest(BaseModel):
+    filename: str
+
+class GAIAQuadraticInferenceRequest(BaseModel):
     filename: str
 
 class SimulationRequest(BaseModel):
@@ -317,7 +330,8 @@ async def health_check():
                 "numpy": "ok", 
                 "tskit": "ok",
                 "fastgaia": "ok" if infer_locations else "not available",
-                "gaia": "ok" if check_gaia_availability() else "not available"
+                "gaia": "ok" if check_gaia_availability() else "not available",
+                "gaiapy": "ok" if GEOANCESTRY_AVAILABLE else "not available"
             },
             "environment": {
                 "max_session_age_hours": os.getenv("MAX_SESSION_AGE_HOURS"),
@@ -330,6 +344,46 @@ async def health_check():
             "status": "unhealthy",
             "error": str(e)
         }
+
+@app.get("/api/debug/geoancestry-status")
+async def debug_geoancestry_status():
+    """Debug endpoint to check geoancestry availability."""
+    import sys
+    import subprocess
+    
+    try:
+        import gaiapy as gp_debug
+        geoancestry_info = {
+            "gaiapy_available": True,
+            "GEOANCESTRY_AVAILABLE": GEOANCESTRY_AVAILABLE,
+            "gp_is_none": gp is None,
+            "gaiapy_version": getattr(gp_debug, '__version__', 'unknown'),
+            "available_functions": [func for func in dir(gp_debug) if not func.startswith('_')],
+        }
+    except ImportError as e:
+        geoancestry_info = {
+            "gaiapy_available": False,
+            "GEOANCESTRY_AVAILABLE": GEOANCESTRY_AVAILABLE,
+            "gp_is_none": gp is None,
+            "import_error": str(e),
+        }
+    
+    # Get pip list to see if geoancestry is installed
+    try:
+        pip_result = subprocess.run([sys.executable, "-m", "pip", "list"], 
+                                  capture_output=True, text=True, timeout=10)
+        pip_packages = pip_result.stdout if pip_result.returncode == 0 else "Error getting pip list"
+    except Exception as e:
+        pip_packages = f"Error running pip list: {str(e)}"
+    
+    return {
+        **geoancestry_info,
+        "python_executable": sys.executable,
+        "python_version": sys.version,
+        "python_path": sys.path[:5],  # First 5 entries to avoid too much data
+        "pip_packages_geoancestry": [line for line in pip_packages.split('\n') if 'geoancestry' in line.lower()] if isinstance(pip_packages, str) else [],
+        "current_working_directory": os.getcwd(),
+    }
 
 def get_client_ip(request: Request) -> str:
     """Extract client IP address from request."""
@@ -874,6 +928,121 @@ async def infer_locations_gaia(request: Request, inference_request: GAIALocation
         raise HTTPException(status_code=500, detail=f"GAIA location inference failed: {str(e)}")
 
 
+@app.post("/api/infer-locations-gaia-quadratic")
+@limiter.limit("2/minute")
+async def infer_locations_gaia_quadratic(request: Request, inference_request: GAIAQuadraticInferenceRequest):
+    """Infer locations using the GAIA quadratic parsimony algorithm (geoancestry package)."""
+    if not GEOANCESTRY_AVAILABLE or gp is None:
+        raise HTTPException(status_code=503, detail="gaiapy package not available")
+    
+    logger.info(f"Received GAIA quadratic location inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has sample locations
+    spatial_info = check_spatial_completeness(ts)
+    if not spatial_info.get("has_sample_spatial", False):
+        raise HTTPException(
+            status_code=400, 
+            detail="GAIA quadratic inference requires tree sequences with location data for all sample nodes"
+        )
+    
+    try:
+        logger.info(f"Running GAIA quadratic inference for {ts.num_nodes} nodes...")
+        
+        # Extract sample locations from tree sequence metadata manually
+        logger.info("Extracting sample locations from tree sequence metadata...")
+        try:
+            sample_locations = []
+            
+            # Get sample node IDs
+            sample_node_ids = [node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE]
+            logger.info(f"Found {len(sample_node_ids)} sample nodes")
+            
+            # Extract locations from individuals table
+            for node_id in sample_node_ids:
+                node = ts.node(node_id)
+                if node.individual != -1:  # Node has an individual
+                    individual = ts.individual(node.individual)
+                    if len(individual.location) >= 2:  # Has x, y coordinates
+                        # Format: [node_id, x_coordinate, y_coordinate]
+                        sample_locations.append([
+                            node_id,
+                            individual.location[0],  # x coordinate
+                            individual.location[1]   # y coordinate
+                        ])
+            
+            if not sample_locations:
+                raise ValueError("No sample locations found in tree sequence metadata")
+            
+            # Convert to numpy array for gaiapy
+            sample_locations = np.array(sample_locations)
+            logger.info(f"Extracted {len(sample_locations)} sample locations with shape {sample_locations.shape}")
+            
+        except Exception as e:
+            logger.error(f"Failed to extract sample locations: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to extract sample locations: {str(e)}")
+        
+        # Run quadratic MPR
+        logger.info("Computing quadratic MPR...")
+        try:
+            mpr_quad = gp.quadratic_mpr(ts, sample_locations)
+            logger.info("Successfully computed quadratic MPR")
+        except Exception as e:
+            logger.error(f"Failed to compute quadratic MPR: {str(e)}")
+            raise HTTPException(status_code=400, detail=f"Failed to compute quadratic MPR: {str(e)}")
+        
+        # Minimize to find optimal locations
+        logger.info("Minimizing quadratic MPR to find optimal locations...")
+        locations = gp.quadratic_mpr_minimize(mpr_quad)
+        
+        logger.info(f"Inferred locations for {locations.shape[0]} nodes with shape {locations.shape}")
+        
+        # Augment tree sequence with inferred locations
+        logger.info("Augmenting tree sequence with inferred locations...")
+        ts_with_locations = apply_gaia_quadratic_locations_to_tree_sequence(ts, locations)
+        
+        # Generate new filename with suffix  
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_gaia_quad.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_gaia_quad.tsz'
+        else:
+            new_filename = base_filename + '_gaia_quad.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Update spatial info for the new tree sequence
+        updated_spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        # Count how many locations were inferred (non-sample nodes)
+        num_samples = ts.num_samples
+        num_inferred_locations = locations.shape[0] - num_samples
+        
+        logger.info(f"GAIA quadratic inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "GAIA quadratic location inference completed successfully",
+            "new_filename": new_filename,
+            "num_inferred_locations": num_inferred_locations,
+            "total_nodes": locations.shape[0],
+            **updated_spatial_info
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during GAIA quadratic location inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"GAIA quadratic location inference failed: {str(e)}")
+
+
 @app.post("/api/upload-location-csv")
 @limiter.limit("10/minute")
 async def upload_location_csv(request: Request, csv_type: str, file: UploadFile = File(...)):
@@ -1081,6 +1250,68 @@ def apply_inferred_locations_to_tree_sequence(ts: tskit.TreeSequence, locations_
     
     result_ts = tables.tree_sequence()
     logger.info(f"Applied inferred locations to {len(node_to_location)} nodes")
+    
+    return result_ts
+
+def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, locations: np.ndarray) -> tskit.TreeSequence:
+    """Apply inferred locations from GAIA quadratic algorithm to a tree sequence.
+    
+    Args:
+        ts: Tree sequence to modify
+        locations: numpy array of shape (n_nodes, 2) with x, y coordinates for all nodes
+    
+    Returns:
+        Tree sequence with locations applied to all nodes
+    """
+    logger.info("Applying GAIA quadratic locations to tree sequence...")
+    
+    if locations.shape[1] != 2:
+        raise ValueError(f"Expected locations with 2 dimensions (x, y), got {locations.shape[1]}")
+    
+    if locations.shape[0] != ts.num_nodes:
+        raise ValueError(f"Expected locations for {ts.num_nodes} nodes, got {locations.shape[0]}")
+    
+    tables = ts.dump_tables()
+    
+    # Clear the individuals table and metadata schema
+    tables.individuals.clear()
+    tables.individuals.metadata_schema = tskit.MetadataSchema(None)
+    
+    # Create individuals for all nodes with their inferred locations
+    node_to_individual = {}
+    for node_id in range(ts.num_nodes):
+        # Create 3D location array (x, y, z=0)
+        x_coord = float(locations[node_id, 0])
+        y_coord = float(locations[node_id, 1])
+        location_3d = np.array([x_coord, y_coord, 0.0])
+        
+        # Add individual with location
+        individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location_3d,
+            parents=[],
+            metadata=b''
+        )
+        node_to_individual[node_id] = individual_id
+    
+    # Update nodes to reference their corresponding individuals
+    new_nodes = tables.nodes.copy()
+    new_nodes.clear()
+    
+    for node in ts.nodes():
+        individual_id = node_to_individual[node.id]
+        new_nodes.add_row(
+            time=node.time,
+            flags=node.flags,
+            population=node.population,
+            individual=individual_id,
+            metadata=node.metadata
+        )
+    
+    tables.nodes.replace_with(new_nodes)
+    
+    result_ts = tables.tree_sequence()
+    logger.info(f"Applied GAIA quadratic locations to {ts.num_nodes} nodes")
     
     return result_ts
 

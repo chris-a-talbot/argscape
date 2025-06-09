@@ -1,6 +1,6 @@
 # backend/requirements-web.txt - Core dependencies for Railway deployment
 # Core scientific packages
-numpy==1.24.3
+numpy>=1.24.0,<2.0.0
 pandas==2.0.3
 tskit==0.5.6
 tszip==0.2.2
@@ -19,6 +19,7 @@ apscheduler==3.10.4
 # Optional dependencies for spatial inference
 tsdate
 fastgaia
+geoancestry
 
 # Geographic data processing
 geopandas==0.14.1

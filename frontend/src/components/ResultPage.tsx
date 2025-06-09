@@ -14,6 +14,7 @@ export default function ResultPage() {
   const { treeSequence: data, maxSamples, setMaxSamples, setTreeSequence } = useTreeSequence();
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
+  const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [inputValue, setInputValue] = useState(maxSamples.toString());
 
@@ -114,6 +115,59 @@ export default function ResultPage() {
       });
     } finally {
       setIsInferringLocationsFast(false);
+    }
+  };
+
+  const handleGaiaQuadraticInference = async () => {
+    if (!data?.filename || isInferringLocationsGaiaQuadratic) return;
+
+    setIsInferringLocationsGaiaQuadratic(true);
+
+    try {
+      log.user.action('gaia-quadratic-inference-start', { filename: data.filename }, 'ResultPage');
+
+      const result = await api.inferLocationsGaiaQuadratic({
+        filename: data.filename,
+      });
+
+      log.info('GAIA quadratic inference completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+
+      // Update the tree sequence context with the new filename and spatial info
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data,
+        filename: resultData.new_filename,
+        has_sample_spatial: resultData.has_sample_spatial,
+        has_all_spatial: resultData.has_all_spatial,
+        spatial_status: resultData.spatial_status,
+      };
+
+      setTreeSequence(updatedData);
+
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `GAIA quadratic inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+
+    } catch (error) {
+      log.error('GAIA quadratic inference failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: `GAIA quadratic inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
+    } finally {
+      setIsInferringLocationsGaiaQuadratic(false);
     }
   };
 
@@ -327,7 +381,7 @@ export default function ResultPage() {
             )}
             
             {/* Analysis Tools */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <button
                 className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!inferTimesEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
                 disabled={!inferTimesEnabled}
@@ -352,6 +406,22 @@ export default function ResultPage() {
                 </svg>
                 <span>
                   {isInferringLocationsFast ? 'Inferring...' : getFastInferenceButtonText()}
+                </span>
+              </button>
+              <button
+                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!fastLocationInferenceEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'} ${isInferringLocationsGaiaQuadratic && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
+                disabled={!fastLocationInferenceEnabled || isInferringLocationsGaiaQuadratic}
+                onClick={handleGaiaQuadraticInference}
+              >
+                {isInferringLocationsGaiaQuadratic && (
+                  <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+                )}
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span>
+                  {isInferringLocationsGaiaQuadratic ? 'Inferring...' : 'Infer locations (GAIA quadratic)'}
                 </span>
               </button>
             </div>

@@ -198,6 +198,15 @@ class ApiService {
     });
   }
 
+  async inferLocationsGaiaQuadratic(params: {
+    filename: string;
+  }) {
+    return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_GAIA_QUADRATIC, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
   // Tree sequence simulation
   async simulateTreeSequence(params: {
     num_samples?: number;
@@ -318,6 +327,8 @@ export const api = {
   // Location inference
   inferLocationsFast: (params: Parameters<typeof apiService.inferLocationsFast>[0]) => 
     apiService.inferLocationsFast(params),
+  inferLocationsGaiaQuadratic: (params: Parameters<typeof apiService.inferLocationsGaiaQuadratic>[0]) =>
+    apiService.inferLocationsGaiaQuadratic(params),
 
   // Tree sequence simulation
   simulateTreeSequence: (params: Parameters<typeof apiService.simulateTreeSequence>[0]) =>
