@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import SpatialArg3DVisualization from './SpatialArg3DVisualization';
 import SpatialArg3DControlPanel from './SpatialArg3DControlPanel';
 import { SpatialArg3DInfoPanel } from './SpatialArg3DInfoPanel';
+import { SpatialArg3DPresetViewPanel } from './SpatialArg3DPresetViewPanel';
 import { GraphData, GraphNode, GraphEdge, TreeInterval, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
@@ -10,6 +11,7 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
+import { combineIdenticalNodes } from '../../utils/nodeCombining';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -272,7 +274,9 @@ const Spatial3DWrapper: React.FC<{
   temporalGridOpacity?: number;
   geographicShapeOpacity?: number;
   maxNodeRadius?: number;
-}> = ({ data, onNodeClick, onNodeRightClick, selectedNode, temporalRange, showTemporalPlanes, temporalFilterMode, temporalSpacing, spatialSpacing, geographicShape, geographicMode, temporalGridOpacity, geographicShapeOpacity, maxNodeRadius }) => {
+  onViewStateChange?: (viewState: any) => void;
+  viewState?: any;
+}> = ({ data, onNodeClick, onNodeRightClick, selectedNode, temporalRange, showTemporalPlanes, temporalFilterMode, temporalSpacing, spatialSpacing, geographicShape, geographicMode, temporalGridOpacity, geographicShapeOpacity, maxNodeRadius, onViewStateChange, viewState }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState(CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS);
 
@@ -323,6 +327,8 @@ const Spatial3DWrapper: React.FC<{
         temporalGridOpacity={temporalGridOpacity}
         geographicShapeOpacity={geographicShapeOpacity}
         maxNodeRadius={maxNodeRadius}
+        onViewStateChange={onViewStateChange}
+        externalViewState={viewState}
       />
     </div>
   );
@@ -364,6 +370,14 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   });
   
   const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
+  
+  const [viewState, setViewState] = useState({
+    target: [0, 0, 0] as [number, number, number], // Temporary, will be updated by auto-center
+    zoom: 1.8, // Fit all zoom
+    rotationX: 30, // 30 degree angle
+    rotationOrbit: 0, // Head on
+    orbitAxis: 'Y' as const
+  });
   
   const [geoState, setGeoState] = useState({
     mode: 'unit_grid' as GeographicMode,
@@ -441,6 +455,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           setData(graphData);
           setSubArgData(graphData);
           
+          // Auto-center the view when data loads
+          autoCenterView(graphData);
+          
           if (graphData.metadata.suggested_geographic_mode) {
             const suggestedMode = graphData.metadata.suggested_geographic_mode as GeographicMode;
             setGeoState(prev => ({ ...prev, mode: suggestedMode }));
@@ -479,6 +496,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         } else {
           setData(graphData);
           setError(null);
+          
+          // Auto-center the view when filtered data loads
+          autoCenterView(graphData);
         }
       } catch (e) {
         console.error('Error fetching filtered data:', e);
@@ -532,6 +552,79 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     setSelectedNode(null);
   };
 
+  const handleViewStateChange = (newViewState: any) => {
+    setViewState(prev => ({ ...prev, ...newViewState }));
+  };
+
+  const handlePresetViewChange = (newViewState: any) => {
+    setViewState(prev => ({ ...prev, ...newViewState }));
+  };
+
+  // Calculate bounds for preset view panel - simplified to avoid complex transformation
+  const calculateBounds = (data: GraphData | null) => {
+    if (!data || !data.nodes.length) return null;
+    
+    const spatialNodes = data.nodes.filter(node => 
+      node.location?.x !== undefined && node.location?.y !== undefined
+    );
+    
+    if (spatialNodes.length === 0) return null;
+    
+    // Simple bounds calculation that matches the visualization's coordinate space
+    const xCoords = spatialNodes.map(node => node.location!.x);
+    const yCoords = spatialNodes.map(node => node.location!.y);
+    const times = spatialNodes.map(node => node.time);
+    
+    const minX = Math.min(...xCoords);
+    const maxX = Math.max(...xCoords);
+    const minY = Math.min(...yCoords);
+    const maxY = Math.max(...yCoords);
+    const minTime = Math.min(...times);
+    const maxTime = Math.max(...times);
+    
+    // Center the coordinates
+    const centerX = (minX + maxX) / 2;
+    const centerY = (minY + maxY) / 2;
+    const maxScale = Math.max(maxX - minX, maxY - minY) || 1;
+    
+    // Transform to visualization space (approximate)
+    const visualMinX = ((minX - centerX) / maxScale) * visualSettings.spatialSpacing;
+    const visualMaxX = ((maxX - centerX) / maxScale) * visualSettings.spatialSpacing;
+    const visualMinY = ((minY - centerY) / maxScale) * visualSettings.spatialSpacing;
+    const visualMaxY = ((maxY - centerY) / maxScale) * visualSettings.spatialSpacing;
+    
+    // Time spacing calculation
+    const uniqueTimes = Array.from(new Set(times)).sort((a, b) => a - b);
+    const minZ = 0;
+    const maxZ = (uniqueTimes.length - 1) * visualSettings.temporalSpacing;
+    
+    return {
+      minX: visualMinX,
+      maxX: visualMaxX,
+      minY: visualMinY,
+      maxY: visualMaxY,
+      minZ: minZ,
+      maxZ: maxZ
+    };
+  };
+
+  // Auto-center when data loads (same logic as "Center ARG" button)
+  const autoCenterView = (data: GraphData | null) => {
+    const bounds = calculateBounds(data);
+    if (bounds) {
+      const centerTarget: [number, number, number] = [
+        (bounds.minX + bounds.maxX) / 2,
+        (bounds.minY + bounds.maxY) / 2,
+        (bounds.minZ + bounds.maxZ) / 2
+      ];
+      
+      setViewState(prev => ({
+        ...prev,
+        target: centerTarget
+      }));
+    }
+  };
+
   if (loading) {
     return (
       <div 
@@ -582,14 +675,14 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         <div className="flex items-center justify-between">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
+              <h2 className="text-lg font-semibold" style={{ color: colors.headerText }}>
                 {getViewTitle(viewMode, selectedNode, filterState, data)}
               </h2>
               
               {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
                 <div className="flex items-center gap-4">
                   {metadata.sequenceLength > 0 && (
-                    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.headerText }}>
                       <input
                         type="checkbox"
                         checked={filterState.isActive}
@@ -603,7 +696,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                     </label>
                   )}
 
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.headerText }}>
                     <input
                       type="checkbox"
                       checked={temporalState.isActive}
@@ -673,7 +766,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               </button>
             )}
             
-            <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
+            <div className="flex items-center gap-4 text-xs" style={{ color: colors.headerText }}>
               <div className="flex items-center gap-1">
                 <div 
                   className="w-2 h-2 rounded-full border"
@@ -714,7 +807,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             <div 
               className="text-xs border-l pl-4"
               style={{ 
-                color: colors.text,
+                color: colors.headerText,
                 borderLeftColor: colors.border 
               }}
             >
@@ -910,6 +1003,14 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             temporalGridOpacity={visualSettings.temporalGridOpacity}
             geographicShapeOpacity={visualSettings.geographicShapeOpacity}
             maxNodeRadius={visualSettings.maxNodeRadius}
+            onViewStateChange={handleViewStateChange}
+            viewState={viewState}
+          />
+          
+          <SpatialArg3DPresetViewPanel
+            currentViewState={viewState}
+            bounds={calculateBounds(filteredData)}
+            onViewStateChange={handlePresetViewChange}
           />
           
           <SpatialArg3DControlPanel

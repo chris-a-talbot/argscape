@@ -506,14 +506,14 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     <div className="flex items-center justify-between">
                         <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-4">
-                                <h2 className="text-lg font-semibold" style={{ color: colors.text }}>
+                                <h2 className="text-lg font-semibold" style={{ color: colors.headerText }}>
                                     {getViewTitle()}
                                 </h2>
                                 
                                 {(sequenceLength > 0 || treeIntervals.length > 0) && (
                                     <div className="flex items-center gap-4">
                                         {sequenceLength > 0 && (
-                                            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.text }}>
+                                            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.headerText }}>
                                                 <input
                                                     type="checkbox"
                                                     checked={isFilterActive}
@@ -584,7 +584,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 </button>
                             )}
                             
-                            <div className="flex items-center gap-4 text-xs" style={{ color: colors.text }}>
+                            <div className="flex items-center gap-4 text-xs" style={{ color: colors.headerText }}>
                                 <div className="flex items-center gap-1">
                                     <div 
                                         className="w-2 h-2 rounded-full border"
@@ -625,7 +625,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                             <div 
                                 className="text-xs border-l pl-4"
                                 style={{ 
-                                    color: colors.text,
+                                    color: colors.headerText,
                                     borderLeftColor: colors.border 
                                 }}
                             >

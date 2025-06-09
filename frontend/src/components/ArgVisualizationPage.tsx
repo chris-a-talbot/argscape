@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ForceDirectedGraphContainer } from './ForceDirectedGraph/ForceDirectedGraphContainer';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { useColorTheme } from '../context/ColorThemeContext';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 import { exportSVGAsImage } from '../lib/imageExport';
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
@@ -12,8 +12,13 @@ export default function ArgVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
     const { maxSamples, treeSequence: data } = useTreeSequence();
-    const { colors } = useColorTheme();
+    const { colors, setCurrentVisualizationType } = useColorTheme();
     const svgRef = useRef<SVGSVGElement>(null);
+
+    // Set visualization type when component mounts
+    useEffect(() => {
+        setCurrentVisualizationType('force-directed');
+    }, [setCurrentVisualizationType]);
 
     if (!filename) {
         return (
@@ -130,7 +135,7 @@ export default function ArgVisualizationPage() {
                             <span className="text-lg flex-shrink-0" style={{ color: `${colors.text}B3` }}>
                                 ARG Visualization
                             </span>
-                            <div className="text-base font-mono break-all min-w-0" style={{ color: `${colors.accentPrimary}CC` }}>
+                            <div className="text-base font-mono break-all min-w-0" style={{ color: colors.accentPrimary }}>
                                 {decodedFilename}
                             </div>
                         </div>

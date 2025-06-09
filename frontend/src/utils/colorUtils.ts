@@ -10,14 +10,15 @@ interface ColorTheme {
   nodeRoot: [number, number, number, number];
   nodeCombined: [number, number, number, number];
   edgeDefault: [number, number, number, number];
+  tooltipBackground?: string;
+  tooltipText?: string;
 }
 
 export const getTooltipStyles = (colors: ColorTheme) => {
-  const isLightTheme = colors.background === '#ffffff';
   return {
-    backgroundColor: isLightTheme ? 'rgba(0, 0, 0, 0.9)' : 'rgba(5, 62, 78, 0.95)',
-    color: isLightTheme ? '#ffffff' : colors.text,
-    border: isLightTheme ? '1px solid rgba(0, 0, 0, 0.2)' : 'none'
+    backgroundColor: colors.tooltipBackground || (colors.background === '#ffffff' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(5, 62, 78, 0.95)'),
+    color: colors.tooltipText || (colors.background === '#ffffff' ? '#ffffff' : colors.text),
+    border: `1px solid ${colors.border || 'rgba(0, 0, 0, 0.2)'}`
   };
 };
 
@@ -32,6 +33,8 @@ export const getButtonStyles = (colors: ColorTheme, isActive = false) => ({
   color: isActive ? colors.background : colors.text,
   borderColor: colors.border
 });
+
+
 
 export const getNodeOutlineColor = (
   colors: ColorTheme, 

@@ -28,6 +28,20 @@ interface SpatialArg3DProps {
   temporalGridOpacity?: number;
   geographicShapeOpacity?: number;
   maxNodeRadius?: number;
+  onViewStateChange?: (viewState: Partial<{
+    target: [number, number, number];
+    zoom: number;
+    rotationX: number;
+    rotationOrbit: number;
+    orbitAxis: 'Y';
+  }>) => void;
+  externalViewState?: Partial<{
+    target: [number, number, number];
+    zoom: number;
+    rotationX: number;
+    rotationOrbit: number;
+    orbitAxis: 'Y';
+  }>;
 }
 
 interface Node3D extends GraphNode {
@@ -354,12 +368,9 @@ const createTooltipContent = (
     nodeTypeInfo = 'Internal Node';
   }
   
-  const tooltipBg = colors.background === '#ffffff' ? 'rgba(0, 0, 0, 0.9)' : 'rgba(5, 62, 78, 0.95)';
-  const tooltipColor = colors.background === '#ffffff' ? '#ffffff' : colors.text;
-  
   return {
     html: `
-      <div style="background: ${tooltipBg}; color: ${tooltipColor}; padding: 8px; border-radius: 4px; font-size: 12px;">
+      <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
         <strong>Node ${node.id}</strong><br/>
         Time: ${node.time.toFixed(3)}<br/>
         ${nodeTypeInfo}<br/>
@@ -368,7 +379,7 @@ const createTooltipContent = (
     `,
     style: {
       backgroundColor: 'transparent',
-      color: tooltipColor
+      color: colors.tooltipText
     }
   };
 };
@@ -389,19 +400,28 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   geographicMode = 'unit_grid',
   temporalGridOpacity = 30,
   geographicShapeOpacity = 70,
-  maxNodeRadius = 25
+  maxNodeRadius = 25,
+  onViewStateChange,
+  externalViewState
 }, ref) => {
   const deckRef = useRef<any>(null);
   const { colors } = useColorTheme();
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number],
-    zoom: VISUALIZATION_CONSTANTS.DEFAULT_ZOOM as number,
+    zoom: VISUALIZATION_CONSTANTS.AUTO_FIT_ZOOM as number, // Use fit all zoom instead of default
     minZoom: VISUALIZATION_CONSTANTS.MIN_ZOOM,
     maxZoom: VISUALIZATION_CONSTANTS.MAX_ZOOM,
-    rotationX: 0,
-    rotationOrbit: 0,
+    rotationX: 30, // Start with 30 degree angle view
+    rotationOrbit: 0, // Head on
     orbitAxis: 'Y' as const
   });
+
+  // Apply external view state changes
+  React.useEffect(() => {
+    if (externalViewState) {
+      setViewState(prev => ({ ...prev, ...externalViewState }));
+    }
+  }, [externalViewState]);
 
   const coordinateTransform = useMemo(() => {
     if (!data || !data.nodes.length) return null;
@@ -448,27 +468,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds };
   }, [coordinateTransform, temporalSpacing, spatialSpacing, temporalFilterMode, temporalRange, colors]);
 
-  const lastAutoFitKey = useRef<string>('');
-  
-  React.useEffect(() => {
-    if (!bounds) return;
-    
-    const currentKey = `${data?.nodes?.length || 0}-${spatialSpacing}-${temporalSpacing}-${geographicMode}-${geographicShape?.name || 'none'}`;
-    
-    if (currentKey !== lastAutoFitKey.current) {
-      const centerX = (bounds.minX + bounds.maxX) / 2;
-      const centerY = (bounds.minY + bounds.maxY) / 2;  
-      const centerZ = (bounds.minZ + bounds.maxZ) / 2;
-      
-      setViewState(prev => ({
-        ...prev,
-        target: [centerX, centerY, centerZ],
-        zoom: VISUALIZATION_CONSTANTS.AUTO_FIT_ZOOM
-      }));
-      
-      lastAutoFitKey.current = currentKey;
-    }
-  }, [bounds, spatialSpacing, temporalSpacing, geographicMode, geographicShape?.name, data?.nodes?.length]);
+  // No auto-center logic here - the container handles it
 
   const temporalPlaneLines = useMemo(() => {
     if (!showTemporalPlanes || !temporalRange || !bounds) return [];
@@ -477,7 +477,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     if (!shapeToRender) return [];
 
     const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time)));
-    const baseColor: [number, number, number] = [Number(colors.textSecondary[0]), Number(colors.textSecondary[1]), Number(colors.textSecondary[2])];
+    const baseColor: [number, number, number] = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2]];
     
     return createGeographicTemporalPlanes(
       shapeToRender,
@@ -500,7 +500,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const geographicOpacity = baseGeographicOpacity > 0 ? 
       (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_REDUCED_OPACITY, 8) : baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_OPACITY_SCALE) : 0;
     const geographicLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.GEOGRAPHIC_ACTIVE : LINE_WIDTHS.GEOGRAPHIC_NORMAL;
-    const geographicColor = [Number(colors.textSecondary[0]), Number(colors.textSecondary[1]), Number(colors.textSecondary[2]), geographicOpacity] as [number, number, number, number];
+    const geographicColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], geographicOpacity] as [number, number, number, number];
 
     const shapeLines = geographicOpacity > 0 ? convertShapeToLines3D(shapeToRender, 0, spatialSpacing, geographicColor, geographicLineWidth) : [];
 
@@ -511,7 +511,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const baseOpacity = temporalGridOpacity ?? 30;
     const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * VISUALIZATION_CONSTANTS.TEMPORAL_OPACITY_SCALE, 8) : baseOpacity;
     const timeSliceLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.TIME_SLICE_ACTIVE : LINE_WIDTHS.TIME_SLICE_NORMAL;
-    const timeSliceColor = [Number(colors.textSecondary[0]), Number(colors.textSecondary[1]), Number(colors.textSecondary[2]), timeSliceOpacity] as [number, number, number, number];
+    const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
 
     if (timeSliceOpacity > 0) {
       uniqueTimes.forEach(time => {
@@ -641,6 +641,9 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
             bounds,
             currentViewState: viewState
           });
+          (el as any).setViewState = (newViewState: Partial<typeof viewState>) => {
+            setViewState(prev => ({ ...prev, ...newViewState }));
+          };
         }
       }}
       onContextMenu={(event) => {
@@ -667,7 +670,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         height={height}
         views={new OrbitView()}
         viewState={viewState}
-        onViewStateChange={({ viewState: newViewState }: any) => setViewState(newViewState)}
+        onViewStateChange={({ viewState: newViewState }: any) => {
+          setViewState(newViewState);
+          onViewStateChange?.(newViewState);
+        }}
         controller={{
           scrollZoom: true,
           dragPan: true,

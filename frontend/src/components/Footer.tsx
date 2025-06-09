@@ -6,8 +6,10 @@ export default function Footer() {
   const isVisualizationPage = location.pathname.startsWith('/visualize');
   
   // Always call the hook - conditionally use the result
-  const { colors } = useColorTheme();
-  const themeColors = isVisualizationPage ? colors : null;
+  const { colors, theme } = useColorTheme();
+  // Use tskit theme colors for footer UI when custom theme is active for visualizations
+  const shouldUseTskitColors = isVisualizationPage && theme === 'custom';
+  const themeColors = isVisualizationPage && !shouldUseTskitColors ? colors : null;
 
   return (
     <footer 
@@ -31,7 +33,7 @@ export default function Footer() {
                 rel="noopener noreferrer"
                 className={!isVisualizationPage ? "text-sp-pale-green hover:text-sp-white transition-colors" : "transition-colors"}
                 style={isVisualizationPage && themeColors ? {
-                  color: themeColors.accentSecondary
+                  color: themeColors.accentPrimary
                 } : {}}
               >
               Chris Talbot
@@ -46,7 +48,7 @@ export default function Footer() {
             rel="noopener noreferrer"
             className={!isVisualizationPage ? "text-sp-white hover:text-sp-pale-green transition-colors" : "transition-colors"}
             style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentSecondary
+              color: themeColors.accentPrimary
             } : {}}
             title="View source on GitHub"
           >
@@ -77,7 +79,7 @@ export default function Footer() {
             rel="noopener noreferrer"
             className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
             style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentSecondary,
+              color: themeColors.accentPrimary,
               opacity: 0.9
             } : {}}
           >
@@ -98,7 +100,7 @@ export default function Footer() {
             rel="noopener noreferrer"
             className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
             style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentSecondary,
+              color: themeColors.accentPrimary,
               opacity: 0.9
             } : {}}
           >
@@ -119,7 +121,7 @@ export default function Footer() {
             rel="noopener noreferrer"
             className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
             style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentSecondary,
+              color: themeColors.accentPrimary,
               opacity: 0.9
             } : {}}
           >

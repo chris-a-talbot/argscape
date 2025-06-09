@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useColorTheme } from '../../context/ColorThemeContext';
 
 interface ClickableLogoProps {
   className?: string;
@@ -14,6 +15,7 @@ export default function ClickableLogo({
   showSubtext = false 
 }: ClickableLogoProps) {
   const navigate = useNavigate();
+  const { colors } = useColorTheme();
 
   const handleLogoClick = () => {
     // Navigate to home with force intro state
@@ -40,11 +42,11 @@ export default function ClickableLogo({
         className={`${getSizeClasses()} font-extrabold tracking-tight ${className}`}
         style={{ letterSpacing: '-0.04em', ...style }}
       >
-        ARG<span className="text-sp-pale-green">scape</span>
+        ARG<span style={{ color: colors.accentPrimary }}>scape</span>
       </h1>
       {showSubtext && (
         <div className="mt-2 text-center">
-          <div className="text-sp-pale-green text-sm font-medium">
+          <div className="text-sm font-medium" style={{ color: colors.accentPrimary }}>
             Visualizing Ancestral Recombination Graphs
           </div>
         </div>

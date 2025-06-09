@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
-import { useResizable } from '../../hooks/useResizable';
+import { useDraggable } from '../../hooks/useDraggable';
 import { GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
@@ -63,6 +63,12 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+
+  const { elementRef, dragProps, hasMoved, isRepositioned } = useDraggable({
+    initialPosition: { x: 0, y: 0 },
+    dragHandleRef: dragHandleRef as React.RefObject<HTMLElement>
+  });
 
   const handleGeographicModeChange = (mode: GeographicMode) => {
     onGeographicModeChange(mode);
@@ -77,16 +83,22 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
 
   return (
     <div 
-      className="absolute top-4 left-4 border rounded-lg shadow-lg z-20"
+      ref={elementRef as React.RefObject<HTMLDivElement>}
+      className={`border rounded-lg shadow-lg z-30 ${
+        isRepositioned ? '' : 'absolute top-4 left-4'
+      }`}
       style={{ 
         backgroundColor: `${colors.background}F0`, // 94% opacity
         borderColor: colors.border,
-        color: colors.text
+        color: colors.text,
+        ...dragProps.style
       }}
+      onMouseDown={dragProps.onMouseDown}
     >
       {/* Control Panel Header */}
       <div 
-        onClick={() => setIsExpanded(!isExpanded)}
+        ref={dragHandleRef}
+        onClick={() => !hasMoved && setIsExpanded(!isExpanded)}
         className="flex items-center justify-between p-4 cursor-pointer rounded-t-lg transition-colors"
         style={{
           backgroundColor: isExpanded ? 'transparent' : `${colors.containerBackground}80`
@@ -102,7 +114,12 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
           }
         }}
       >
-        <h3 className="text-sm font-bold" style={{ color: colors.text }}>3D Visualization Controls</h3>
+        <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.text }}>
+          <svg className="w-3 h-3 opacity-50" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 6h8v2H8V6zm0 4h8v2H8v-2zm0 4h8v2H8v-2z"/>
+          </svg>
+          3D Visualization Controls
+        </h3>
         <svg 
           className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           style={{ color: colors.accentPrimary }}

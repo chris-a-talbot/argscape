@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SpatialArg3DVisualizationContainer from './SpatialArg3DVisualization/SpatialArg3DVisualizationContainer';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { useColorTheme } from '../context/ColorThemeContext';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { api } from '../lib/api';
 import { export3DVisualizationAsImage, exportCanvasAsImage } from '../lib/imageExport';
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
@@ -12,8 +12,13 @@ export default function SpatialArg3DVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
     const { maxSamples, treeSequence: data } = useTreeSequence();
-    const { colors } = useColorTheme();
+    const { colors, setCurrentVisualizationType } = useColorTheme();
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Set visualization type when component mounts
+    useEffect(() => {
+        setCurrentVisualizationType('spatial-3d');
+    }, [setCurrentVisualizationType]);
 
     if (!filename) {
         return (
@@ -170,7 +175,7 @@ export default function SpatialArg3DVisualizationPage() {
                             </span>
                             <div 
                                 className="text-base font-mono break-all min-w-0"
-                                style={{ color: `${colors.accentPrimary}CC` }}
+                                style={{ color: colors.accentPrimary }}
                             >
                                 {decodedFilename}
                             </div>

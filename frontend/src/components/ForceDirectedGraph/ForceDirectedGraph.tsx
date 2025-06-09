@@ -724,16 +724,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .on("click", (event, d) => onEdgeClick?.(d));
 
-        const tooltipBg = colors.background === '#ffffff' ? 'white' : 'rgba(5, 62, 78, 0.95)';
-        const tooltipBorder = colors.border;
         const tooltip = d3.select("body")
             .append("div")
             .attr("class", "tooltip")
             .style("position", "absolute")
             .style("visibility", "hidden")
-            .style("background-color", tooltipBg)
-            .style("color", colors.text)
-            .style("border", `1px solid ${tooltipBorder}`)
+            .style("background-color", colors.tooltipBackground)
+            .style("color", colors.tooltipText)
+            .style("border", `1px solid ${colors.border}`)
             .style("padding", "8px")
             .style("border-radius", "4px")
             .style("font-size", GRAPH_CONSTANTS.TOOLTIP_FONT_SIZE)

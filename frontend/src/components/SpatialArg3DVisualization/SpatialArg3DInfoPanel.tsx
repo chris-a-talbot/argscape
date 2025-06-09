@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { useDraggable } from '../../hooks/useDraggable';
 
 interface SpatialArg3DInfoPanelProps {
   // ARG Statistics
@@ -34,6 +35,12 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+
+  const { elementRef, dragProps, hasMoved, isRepositioned } = useDraggable({
+    initialPosition: { x: 0, y: 0 },
+    dragHandleRef: dragHandleRef as React.RefObject<HTMLElement>
+  });
 
   // Calculate percentage if we have both original and subarg data
   const nodePercentage = originalNodeCount && subargNodeCount 
@@ -53,16 +60,23 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
 
   return (
     <div 
-      className="absolute top-4 right-4 border rounded-lg shadow-lg z-20"
+      ref={elementRef as React.RefObject<HTMLDivElement>}
+      className={`border rounded-lg shadow-lg z-10 ${
+        isRepositioned ? '' : 'absolute top-4 right-4'
+      }`}
       style={{ 
         backgroundColor: `${colors.background}F0`, // 94% opacity
         borderColor: colors.border,
-        color: colors.text
+        color: colors.text,
+        maxWidth: '280px', // Make it narrower to leave space for preset panel
+        ...dragProps.style
       }}
+      onMouseDown={dragProps.onMouseDown}
     >
       {/* Info Panel Header */}
       <div 
-        onClick={() => setIsExpanded(!isExpanded)}
+        ref={dragHandleRef}
+        onClick={() => !hasMoved && setIsExpanded(!isExpanded)}
         className="flex items-center justify-between p-4 cursor-pointer rounded-t-lg transition-colors"
         style={{
           backgroundColor: isExpanded ? 'transparent' : `${colors.containerBackground}80`
@@ -79,6 +93,9 @@ export const SpatialArg3DInfoPanel: React.FC<SpatialArg3DInfoPanelProps> = ({
         }}
       >
         <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: colors.text }}>
+          <svg className="w-3 h-3 opacity-50" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 6h8v2H8V6zm0 4h8v2H8v-2zm0 4h8v2H8v-2z"/>
+          </svg>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
