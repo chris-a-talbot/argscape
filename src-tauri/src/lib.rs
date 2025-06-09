@@ -1,8 +1,9 @@
 use std::process::{Command, Child};
 use std::thread;
 use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
-static mut BACKEND_PROCESS: Option<Child> = None;
+static BACKEND_PROCESS: Mutex<Option<Child>> = Mutex::new(None);
 
 fn start_backend() -> Result<(), Box<dyn std::error::Error>> {
     // Check if backend is already running on port 8000
@@ -40,8 +41,9 @@ uvicorn.run(app, host='127.0.0.1', port=8000, log_level='info')
         "])
         .spawn()?;
 
-    unsafe {
-        BACKEND_PROCESS = Some(backend_process);
+    // Store the process safely
+    if let Ok(mut process_guard) = BACKEND_PROCESS.lock() {
+        *process_guard = Some(backend_process);
     }
 
     // Wait a moment for the backend to start
@@ -60,8 +62,8 @@ uvicorn.run(app, host='127.0.0.1', port=8000, log_level='info')
 }
 
 fn stop_backend() {
-    unsafe {
-        if let Some(mut process) = BACKEND_PROCESS.take() {
+    if let Ok(mut process_guard) = BACKEND_PROCESS.lock() {
+        if let Some(mut process) = process_guard.take() {
             let _ = process.kill();
             println!("Backend process terminated");
         }
