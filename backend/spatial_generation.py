@@ -50,40 +50,16 @@ def calculate_genealogical_distances(sample_nodes: List[int], ts: tskit.TreeSequ
     Returns:
         Symmetric distance matrix between samples
     """
-    num_samples = len(sample_nodes)
-    genealogical_distances = np.zeros((num_samples, num_samples))
+    sample_sets = [[i] for i in sample_nodes]
+    indexes = [(i, j) for i in range(len(sample_sets)) for j in range(i + 1, len(sample_sets))]
+    dist_matrix = np.full((len(sample_nodes), len(sample_nodes)), 0.0)
+    divergences = ts.divergence(sample_sets, indexes=indexes, mode="branch", span_normalise=True)
     
-    for i, node_i in enumerate(sample_nodes):
-        for j, node_j in enumerate(sample_nodes):
-            if i == j:
-                continue
-            
-            total_distance = 0.0
-            total_span = 0.0
-            
-            for tree in ts.trees():
-                if tree.span == 0:
-                    continue
-                    
-                try:
-                    mrca = tree.mrca(node_i, node_j)
-                    if mrca != tskit.NULL:
-                        # Distance is sum of branch lengths from both nodes to MRCA
-                        distance = (tree.time(mrca) - tree.time(node_i)) + (tree.time(mrca) - tree.time(node_j))
-                        total_distance += distance * tree.span
-                        total_span += tree.span
-                except Exception:
-                    # If MRCA calculation fails, use a large distance
-                    total_distance += GENEALOGICAL_DISTANCE_FALLBACK * tree.span
-                    total_span += tree.span
-            
-            if total_span > 0:
-                genealogical_distances[i, j] = total_distance / total_span
-            else:
-                genealogical_distances[i, j] = GENEALOGICAL_DISTANCE_FALLBACK
+    for idx, (i, j) in enumerate(indexes):
+        dist_matrix[i, j] = divergences[idx]
+        dist_matrix[j, i] = divergences[idx]
     
-    # Ensure the distance matrix is symmetric
-    return (genealogical_distances + genealogical_distances.T) / 2
+    return dist_matrix
 
 
 def embed_distances_in_2d(distances: np.ndarray, random_seed: Optional[int] = None) -> np.ndarray:
@@ -415,16 +391,44 @@ def generate_spatial_locations_for_samples(
     
     if random_seed is not None:
         np.random.seed(random_seed)
-    
-    # Get sample node IDs
-    sample_nodes = [node.id for node in ts.nodes() if node.is_sample()]
-    
-    if len(sample_nodes) < MINIMUM_SAMPLES_REQUIRED:
+
+    if ts.num_samples < MINIMUM_SAMPLES_REQUIRED:
         logger.warning(f"Need at least {MINIMUM_SAMPLES_REQUIRED} samples to generate meaningful spatial locations")
         return ts
     
-    # Calculate genealogical distances
-    genealogical_distances = calculate_genealogical_distances(sample_nodes, ts)
+    # Get sample node IDs and group them by individual
+    sample_nodes = ts.samples()
+    individual_to_nodes = {}
+    node_to_individual = {}
+    
+    # First pass: group nodes by individual
+    for node_id in sample_nodes:
+        node = ts.node(node_id)
+        if node.individual != -1:  # Node has an individual
+            if node.individual not in individual_to_nodes:
+                individual_to_nodes[node.individual] = []
+            individual_to_nodes[node.individual].append(node_id)
+            node_to_individual[node_id] = node.individual
+    
+    # Create a list of representative nodes (one per individual or the node itself if no individual)
+    representative_nodes = []
+    node_to_representative = {}
+    
+    for node_id in sample_nodes:
+        if node_id in node_to_individual:
+            # Node has an individual - use the first node for that individual as representative
+            individual_id = node_to_individual[node_id]
+            representative = individual_to_nodes[individual_id][0]
+            if representative not in representative_nodes:
+                representative_nodes.append(representative)
+            node_to_representative[node_id] = representative
+        else:
+            # Node has no individual - use itself as representative
+            representative_nodes.append(node_id)
+            node_to_representative[node_id] = node_id
+    
+    # Calculate genealogical distances using representative nodes
+    genealogical_distances = calculate_genealogical_distances(representative_nodes, ts)
     
     # Embed distances in 2D space
     spatial_coords = embed_distances_in_2d(genealogical_distances, random_seed)
@@ -448,8 +452,14 @@ def generate_spatial_locations_for_samples(
                 f"({np.min(final_coords[:, 0]):.2f}, {np.min(final_coords[:, 1]):.2f}) to "
                 f"({np.max(final_coords[:, 0]):.2f}, {np.max(final_coords[:, 1]):.2f})")
     
+    # Map coordinates back to all nodes using the representative mapping
+    all_node_coords = np.zeros((len(sample_nodes), 2))
+    for i, node_id in enumerate(sample_nodes):
+        representative_idx = representative_nodes.index(node_to_representative[node_id])
+        all_node_coords[i] = final_coords[representative_idx]
+    
     # Create a new tree sequence with individuals and spatial locations
-    return create_tree_sequence_with_spatial_data(ts, sample_nodes, final_coords)
+    return create_tree_sequence_with_spatial_data(ts, sample_nodes, all_node_coords)
 
 
 def create_tree_sequence_with_spatial_data(

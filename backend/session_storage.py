@@ -62,6 +62,7 @@ class UserSession:
             total_size += len(file_data)
         return total_size
 
+
 class PersistentSessionStorage:
     """IP-based persistent session storage with disk persistence."""
     
@@ -537,9 +538,10 @@ class PersistentSessionStorage:
         
         logger.info("PersistentSessionStorage shutdown complete")
 
+
 # Global storage instance with environment-based configuration
 session_storage = PersistentSessionStorage(
-    max_session_age_hours=int(os.getenv("MAX_SESSION_AGE_HOURS", 168)),  # 7 days default
+    max_session_age_hours=int(os.getenv("MAX_SESSION_AGE_HOURS", 24)),
     max_files_per_session=int(os.getenv("MAX_FILES_PER_SESSION", 50)),
     max_file_size_mb=int(os.getenv("MAX_FILE_SIZE_MB", 100)),
     cleanup_interval_minutes=int(os.getenv("CLEANUP_INTERVAL_MINUTES", 60))
