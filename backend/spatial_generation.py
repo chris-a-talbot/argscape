@@ -7,33 +7,18 @@ import logging
 import numpy as np
 import tskit
 from sklearn.manifold import MDS
-from typing import Optional, List, Tuple
+from typing import Optional, List
+from itertools import combinations
 from constants import (
-    GENEALOGICAL_DISTANCE_FALLBACK,
     MDS_MAX_ITERATIONS,
     MDS_N_INIT,
     SPATIAL_GRID_SIZE,
-    UNIT_GRID_MARGIN,
-    UNIT_GRID_NOISE_SCALE,
-    COORDINATE_BOUNDARY_EPSILON,
-    WGS84_LONGITUDE_MIN,
-    WGS84_LONGITUDE_MAX,
-    WGS84_LATITUDE_MIN,
-    WGS84_LATITUDE_MAX,
-    WGS84_LONGITUDE_RANGE,
-    WGS84_LATITUDE_RANGE,
-    WGS84_GEOGRAPHIC_NOISE_SCALE,
-    WEB_MERCATOR_X_RANGE,
-    WEB_MERCATOR_Y_RANGE,
-    WEB_MERCATOR_NOISE_SCALE,
-    WEB_MERCATOR_BOUNDS_X,
-    WEB_MERCATOR_BOUNDS_Y,
-    MAX_LAND_PLACEMENT_ATTEMPTS,
-    LOCAL_SEARCH_STRATEGIES,
-    LAND_SEARCH_RADIUS_BASE,
-    LAND_SEARCH_RADIUS_INCREMENT,
-    GEOGRAPHIC_LAND_REGIONS,
     MINIMUM_SAMPLES_REQUIRED
+)
+from geo_utils import (
+    generate_wgs84_coordinates,
+    generate_web_mercator_coordinates,
+    generate_unit_grid_coordinates
 )
 
 logger = logging.getLogger(__name__)
@@ -41,331 +26,92 @@ logger = logging.getLogger(__name__)
 
 def calculate_genealogical_distances(sample_nodes: List[int], ts: tskit.TreeSequence) -> np.ndarray:
     """
-    Calculate pairwise genealogical distances between sample nodes.
+    Calculate symmetric pairwise genealogical distances between given sample nodes using tskit's divergence.
     
     Args:
-        sample_nodes: List of sample node IDs
-        ts: Tree sequence to analyze
-        
+        sample_nodes: List of sample node IDs.
+        ts: A TreeSequence object.
+    
     Returns:
-        Symmetric distance matrix between samples
+        A NumPy 2D array (n x n) of pairwise distances.
     """
-    sample_sets = [[i] for i in sample_nodes]
-    indexes = [(i, j) for i in range(len(sample_sets)) for j in range(i + 1, len(sample_sets))]
-    dist_matrix = np.full((len(sample_nodes), len(sample_nodes)), 0.0)
-    divergences = ts.divergence(sample_sets, indexes=indexes, mode="branch", span_normalise=True)
-    
-    for idx, (i, j) in enumerate(indexes):
-        dist_matrix[i, j] = divergences[idx]
-        dist_matrix[j, i] = divergences[idx]
-    
+    n = len(sample_nodes)
+    dist_matrix = np.zeros((n, n), dtype=float)
+
+    # Generate all unique index pairs (i < j)
+    index_pairs = np.array(list(combinations(range(n), 2)), dtype=np.int32)
+
+    # Create single-node sample sets for divergence
+    sample_sets = [[node] for node in sample_nodes]
+
+    # Compute pairwise divergences (upper triangle only)
+    divergences = np.array(ts.divergence(sample_sets, indexes=index_pairs, mode="branch", span_normalise=True))
+
+    # Efficiently fill the symmetric matrix using vectorized NumPy indexing
+    i_idx, j_idx = index_pairs[:, 0], index_pairs[:, 1]
+    dist_matrix[i_idx, j_idx] = divergences
+    dist_matrix[j_idx, i_idx] = divergences  # Symmetric
+
     return dist_matrix
 
 
 def embed_distances_in_2d(distances: np.ndarray, random_seed: Optional[int] = None) -> np.ndarray:
     """
-    Embed genealogical distances in 2D space using multidimensional scaling.
+    Embed genealogical distances in 2D space using multidimensional scaling (MDS).
     
     Args:
-        distances: Symmetric distance matrix
-        random_seed: Random seed for reproducible results
+        distances: Symmetric distance matrix.
+        random_seed: Random seed for reproducibility.
         
     Returns:
-        2D coordinates for each sample
+        2D NumPy array of coordinates for each sample.
     """
     try:
+        # Initialize a Multidimensional Scaling (MDS) model.
+        # MDS finds a set of 2D coordinates such that the pairwise Euclidean distances
+        # between them match the input distance matrix as closely as possible.
         mds = MDS(
-            n_components=2, 
-            dissimilarity='precomputed', 
-            random_state=random_seed,
-            max_iter=MDS_MAX_ITERATIONS, 
-            n_init=MDS_N_INIT
+            n_components=2,              # We want a 2D embedding
+            dissimilarity='precomputed', # We're providing a distance matrix, not raw data
+            random_state=random_seed,    # For reproducibility across runs
+            max_iter=MDS_MAX_ITERATIONS, # Max number of optimization steps
+            n_init=MDS_N_INIT,           # Try multiple random initializations; keep the best
+            normalized_stress='auto'     # Normalize stress (error metric); improves stability (sklearn >= 1.2)
         )
+
+        # Compute the 2D coordinates from the distance matrix.
+        # This returns an (n_samples x 2) NumPy array where each row is a 2D position.
         return mds.fit_transform(distances)
+
     except Exception as e:
-        logger.warning(f"MDS failed, using random locations: {e}")
-        # Fallback to random locations if MDS fails
+        # If MDS fails (e.g., due to bad input or convergence issues), log the error
+        logger.warning("MDS failed, falling back to random 2D coordinates: %s", e)
+
+        # Fall back to uniformly random 2D positions (e.g., for plotting or continuity)
         num_samples = distances.shape[0]
-        return np.random.uniform(0, SPATIAL_GRID_SIZE, size=(num_samples, 2))
+        rng = np.random.default_rng(seed=random_seed)
+        return rng.uniform(0, SPATIAL_GRID_SIZE, size=(num_samples, 2))
 
 
 def normalize_coordinates(spatial_coords: np.ndarray) -> np.ndarray:
     """
-    Normalize coordinates to [0,1] range.
-    
+    Normalize 2D coordinates to the [0, 1] range along each axis.
+
     Args:
-        spatial_coords: Raw 2D coordinates
-        
+        spatial_coords: (n_samples, 2) array of raw 2D coordinates.
+
     Returns:
-        Normalized coordinates in [0,1] range
+        (n_samples, 2) array of normalized coordinates in [0, 1] range.
     """
     min_coords = np.min(spatial_coords, axis=0)
     max_coords = np.max(spatial_coords, axis=0)
     coord_range = max_coords - min_coords
-    
-    # Handle case where all points are identical
-    coord_range[coord_range == 0] = 1.0
-    
+
+    # Avoid division by zero for degenerate dimensions (e.g., flat axis)
+    with np.errstate(invalid='ignore', divide='ignore'):
+        coord_range = np.where(coord_range == 0, 1.0, coord_range)
+
     return (spatial_coords - min_coords) / coord_range
-
-
-def generate_unit_grid_coordinates(normalized_coords: np.ndarray) -> np.ndarray:
-    """
-    Generate coordinates for unit grid [0,1] with margins and noise.
-    
-    Args:
-        normalized_coords: Normalized coordinates in [0,1]
-        
-    Returns:
-        Final coordinates for unit grid
-    """
-    grid_size = 1.0 - 2 * UNIT_GRID_MARGIN
-    final_coords = normalized_coords * grid_size + UNIT_GRID_MARGIN
-    
-    # Add minimal noise for unit grid
-    noise = np.random.normal(0, UNIT_GRID_NOISE_SCALE, final_coords.shape)
-    final_coords += noise
-    
-    # Ensure coordinates stay within [0,1] bounds
-    return np.clip(final_coords, COORDINATE_BOUNDARY_EPSILON, 1 - COORDINATE_BOUNDARY_EPSILON)
-
-
-def find_closest_land_region(longitude: float, latitude: float) -> Tuple[float, float, float, float, str]:
-    """
-    Find the closest land region to given coordinates.
-    
-    Args:
-        longitude: Longitude coordinate
-        latitude: Latitude coordinate
-        
-    Returns:
-        Tuple of (center_lon, center_lat, radius_lon, radius_lat, name)
-    """
-    min_dist = float('inf')
-    closest_region = GEOGRAPHIC_LAND_REGIONS[0]
-    
-    for region in GEOGRAPHIC_LAND_REGIONS:
-        center_lon, center_lat = region[0], region[1]
-        dist = ((longitude - center_lon) ** 2 + (latitude - center_lat) ** 2) ** 0.5
-        if dist < min_dist:
-            min_dist = dist
-            closest_region = region
-    
-    return closest_region
-
-
-def attempt_land_placement(
-    longitude: float, 
-    latitude: float,
-    original_normalized_x: float,
-    original_normalized_y: float
-) -> Tuple[float, float]:
-    """
-    Attempt to place coordinates on land using multiple strategies.
-    
-    Args:
-        longitude: Initial longitude
-        latitude: Initial latitude
-        original_normalized_x: Original normalized x coordinate [0,1]
-        original_normalized_y: Original normalized y coordinate [0,1]
-        
-    Returns:
-        Tuple of (final_longitude, final_latitude)
-    """
-    try:
-        from geographic_utils import is_point_on_land_eastern_hemisphere
-    except ImportError:
-        # If geographic utils not available, return original coordinates
-        return longitude, latitude
-    
-    # If already on land, keep it
-    if is_point_on_land_eastern_hemisphere(longitude, latitude):
-        return longitude, latitude
-    
-    # Strategy 1: Local search around current position
-    found_land, final_lon, final_lat = attempt_local_land_search(longitude, latitude)
-    if found_land:
-        return final_lon, final_lat
-    
-    # Strategy 2: Regional placement based on original position
-    return attempt_regional_land_placement(original_normalized_x, original_normalized_y)
-
-
-def attempt_local_land_search(longitude: float, latitude: float) -> Tuple[bool, float, float]:
-    """
-    Attempt to find land near the current position using local search.
-    
-    Args:
-        longitude: Current longitude
-        latitude: Current latitude
-        
-    Returns:
-        Tuple of (found_land, final_longitude, final_latitude)
-    """
-    try:
-        from geographic_utils import is_point_on_land_eastern_hemisphere
-    except ImportError:
-        return False, longitude, latitude
-    
-    local_attempts = MAX_LAND_PLACEMENT_ATTEMPTS // 2
-    
-    for attempt in range(local_attempts):
-        search_radius = LAND_SEARCH_RADIUS_BASE + attempt * LAND_SEARCH_RADIUS_INCREMENT
-        
-        for strategy in range(LOCAL_SEARCH_STRATEGIES):
-            new_lon, new_lat = generate_search_candidate(
-                longitude, latitude, search_radius, strategy, attempt
-            )
-            
-            # Ensure bounds
-            new_lon = np.clip(new_lon, WGS84_LONGITUDE_MIN + 1.0, WGS84_LONGITUDE_MAX - 1.0)
-            new_lat = np.clip(new_lat, WGS84_LATITUDE_MIN + 1.0, WGS84_LATITUDE_MAX - 1.0)
-            
-            if is_point_on_land_eastern_hemisphere(new_lon, new_lat):
-                return True, new_lon, new_lat
-    
-    return False, longitude, latitude
-
-
-def generate_search_candidate(
-    longitude: float, 
-    latitude: float, 
-    search_radius: float, 
-    strategy: int, 
-    attempt: int
-) -> Tuple[float, float]:
-    """
-    Generate a search candidate coordinate based on strategy.
-    
-    Args:
-        longitude: Base longitude
-        latitude: Base latitude
-        search_radius: Search radius
-        strategy: Search strategy (0-3)
-        attempt: Attempt number
-        
-    Returns:
-        Tuple of (new_longitude, new_latitude)
-    """
-    if strategy == 0:  # Random walk
-        noise_x = np.random.normal(0, search_radius)
-        noise_y = np.random.normal(0, search_radius)
-    elif strategy == 1:  # Directional bias toward land centers
-        closest_region = find_closest_land_region(longitude, latitude)
-        center_lon, center_lat = closest_region[0], closest_region[1]
-        direction_x = (center_lon - longitude) * 0.3
-        direction_y = (center_lat - latitude) * 0.3
-        noise_x = direction_x + np.random.normal(0, search_radius * 0.7)
-        noise_y = direction_y + np.random.normal(0, search_radius * 0.7)
-    elif strategy == 2:  # Coastal search - stay roughly same latitude
-        noise_x = np.random.normal(0, search_radius * 2)  # Wider longitude search
-        noise_y = np.random.normal(0, search_radius * 0.5)  # Narrower latitude search
-    else:  # Grid search
-        angle = (attempt + strategy) * np.pi / 4  # Different angles
-        noise_x = search_radius * np.cos(angle)
-        noise_y = search_radius * np.sin(angle)
-    
-    return longitude + noise_x, latitude + noise_y
-
-
-def attempt_regional_land_placement(
-    original_normalized_x: float, 
-    original_normalized_y: float
-) -> Tuple[float, float]:
-    """
-    Place coordinate in a reliable land area based on original normalized position.
-    
-    Args:
-        original_normalized_x: Original x coordinate in [0,1]
-        original_normalized_y: Original y coordinate in [0,1]
-        
-    Returns:
-        Tuple of (longitude, latitude) on land
-    """
-    # Fallback to most reliable land coordinates based on original position
-    if original_normalized_x < 0.25:  # Western quarter -> Western Africa/Europe
-        if original_normalized_y > 0.6:  # Northern -> Europe
-            return np.random.uniform(5, 25), np.random.uniform(45, 65)
-        else:  # Southern -> Africa
-            return np.random.uniform(0, 20), np.random.uniform(-10, 20)
-    elif original_normalized_x < 0.5:  # Second quarter -> Central Africa/Eastern Europe
-        if original_normalized_y > 0.6:  # Northern -> Eastern Europe/Western Asia
-            return np.random.uniform(25, 50), np.random.uniform(45, 65)
-        else:  # Southern -> Central Africa
-            return np.random.uniform(15, 35), np.random.uniform(-20, 10)
-    elif original_normalized_x < 0.75:  # Third quarter -> Asia/Middle East
-        if original_normalized_y > 0.6:  # Northern -> Northern Asia
-            return np.random.uniform(60, 120), np.random.uniform(35, 55)
-        else:  # Southern -> India/Middle East
-            return np.random.uniform(50, 90), np.random.uniform(10, 35)
-    else:  # Eastern quarter -> East Asia/Australia
-        if original_normalized_y > 0.4:  # Northern -> East Asia
-            return np.random.uniform(100, 140), np.random.uniform(25, 45)
-        else:  # Southern -> Australia
-            return np.random.uniform(120, 150), np.random.uniform(-35, -15)
-
-
-def generate_wgs84_coordinates(normalized_coords: np.ndarray) -> np.ndarray:
-    """
-    Generate WGS84 geographic coordinates with land placement.
-    
-    Args:
-        normalized_coords: Normalized coordinates in [0,1]
-        
-    Returns:
-        Final coordinates in WGS84 (longitude, latitude)
-    """
-    # Initialize final_coords with proper shape
-    final_coords = np.zeros_like(normalized_coords)
-    
-    # Scale normalized coordinates to geographic ranges
-    final_coords[:, 0] = normalized_coords[:, 0] * WGS84_LONGITUDE_RANGE + WGS84_LONGITUDE_MIN  # Longitude
-    final_coords[:, 1] = normalized_coords[:, 1] * WGS84_LATITUDE_RANGE + WGS84_LATITUDE_MIN  # Latitude
-    
-    # Add geographic noise
-    noise = np.random.normal(0, WGS84_GEOGRAPHIC_NOISE_SCALE, final_coords.shape)
-    final_coords += noise
-    
-    # Ensure coordinates stay within geographic bounds
-    final_coords[:, 0] = np.clip(final_coords[:, 0], WGS84_LONGITUDE_MIN + 1.0, WGS84_LONGITUDE_MAX - 1.0)
-    final_coords[:, 1] = np.clip(final_coords[:, 1], WGS84_LATITUDE_MIN + 1.0, WGS84_LATITUDE_MAX - 1.0)
-    
-    # Enhanced land placement for Eastern Hemisphere
-    for i in range(len(final_coords)):
-        final_coords[i, 0], final_coords[i, 1] = attempt_land_placement(
-            final_coords[i, 0], 
-            final_coords[i, 1],
-            normalized_coords[i, 0],
-            normalized_coords[i, 1]
-        )
-    
-    return final_coords
-
-
-def generate_web_mercator_coordinates(normalized_coords: np.ndarray) -> np.ndarray:
-    """
-    Generate Web Mercator coordinates.
-    
-    Args:
-        normalized_coords: Normalized coordinates in [0,1]
-        
-    Returns:
-        Final coordinates in Web Mercator (X, Y)
-    """
-    # Scale to Web Mercator bounds
-    final_coords = (normalized_coords - 0.5) * 2  # Scale to [-1, 1]
-    final_coords[:, 0] *= WEB_MERCATOR_X_RANGE  # X coordinates
-    final_coords[:, 1] *= WEB_MERCATOR_Y_RANGE  # Y coordinates
-    
-    # Add Web Mercator noise
-    noise = np.random.normal(0, WEB_MERCATOR_NOISE_SCALE, final_coords.shape)
-    final_coords += noise
-    
-    # Ensure coordinates stay within reasonable Web Mercator bounds
-    final_coords[:, 0] = np.clip(final_coords[:, 0], -WEB_MERCATOR_BOUNDS_X, WEB_MERCATOR_BOUNDS_X)
-    final_coords[:, 1] = np.clip(final_coords[:, 1], -WEB_MERCATOR_BOUNDS_Y, WEB_MERCATOR_BOUNDS_Y)
-    
-    return final_coords
 
 
 def generate_spatial_locations_for_samples(
@@ -388,77 +134,63 @@ def generate_spatial_locations_for_samples(
         Tree sequence with spatial locations added to sample individuals
     """
     logger.info(f"Generating spatial locations for {ts.num_samples} samples")
-    
-    if random_seed is not None:
-        np.random.seed(random_seed)
 
     if ts.num_samples < MINIMUM_SAMPLES_REQUIRED:
         logger.warning(f"Need at least {MINIMUM_SAMPLES_REQUIRED} samples to generate meaningful spatial locations")
         return ts
-    
-    # Get sample node IDs and group them by individual
+
     sample_nodes = ts.samples()
-    individual_to_nodes = {}
+    from collections import defaultdict
+    individual_to_nodes = defaultdict(list)
     node_to_individual = {}
-    
-    # First pass: group nodes by individual
+
+    # Group nodes by individual
     for node_id in sample_nodes:
         node = ts.node(node_id)
-        if node.individual != -1:  # Node has an individual
-            if node.individual not in individual_to_nodes:
-                individual_to_nodes[node.individual] = []
+        if node.individual != -1:
             individual_to_nodes[node.individual].append(node_id)
             node_to_individual[node_id] = node.individual
-    
-    # Create a list of representative nodes (one per individual or the node itself if no individual)
+
+    # Map each node to a representative
     representative_nodes = []
     node_to_representative = {}
-    
+    seen_reps = set()
+
     for node_id in sample_nodes:
-        if node_id in node_to_individual:
-            # Node has an individual - use the first node for that individual as representative
-            individual_id = node_to_individual[node_id]
-            representative = individual_to_nodes[individual_id][0]
-            if representative not in representative_nodes:
-                representative_nodes.append(representative)
-            node_to_representative[node_id] = representative
-        else:
-            # Node has no individual - use itself as representative
-            representative_nodes.append(node_id)
-            node_to_representative[node_id] = node_id
-    
-    # Calculate genealogical distances using representative nodes
-    genealogical_distances = calculate_genealogical_distances(representative_nodes, ts)
-    
-    # Embed distances in 2D space
-    spatial_coords = embed_distances_in_2d(genealogical_distances, random_seed)
-    
-    # Normalize coordinates to [0,1] range
-    normalized_coords = normalize_coordinates(spatial_coords)
-    
-    # Generate coordinates based on the specified CRS
-    if crs == "unit_grid":
-        final_coords = generate_unit_grid_coordinates(normalized_coords)
-    elif crs == "EPSG:4326":  # WGS84 Geographic coordinates
-        final_coords = generate_wgs84_coordinates(normalized_coords)
-    elif crs == "EPSG:3857":  # Web Mercator
-        final_coords = generate_web_mercator_coordinates(normalized_coords)
-    else:
-        # Default to unit grid for unknown CRS
+        rep = node_to_individual.get(node_id, node_id)
+        node_to_representative[node_id] = rep
+        if rep not in seen_reps:
+            representative_nodes.append(rep)
+            seen_reps.add(rep)
+
+    # Distance matrix and 2D embedding
+    distances = calculate_genealogical_distances(representative_nodes, ts)
+    coords_2d = embed_distances_in_2d(distances, random_seed)
+    normalized_coords = normalize_coordinates(coords_2d)
+
+    # CRS-based coordinate generation
+    crs_generators = {
+        "unit_grid": generate_unit_grid_coordinates,
+        "EPSG:4326": generate_wgs84_coordinates,
+        "EPSG:3857": generate_web_mercator_coordinates,
+    }
+    coord_func = crs_generators.get(crs, generate_unit_grid_coordinates)
+
+    if crs not in crs_generators:
         logger.warning(f"Unknown CRS '{crs}', defaulting to unit_grid")
-        final_coords = generate_unit_grid_coordinates(normalized_coords)
-    
-    logger.info(f"Generated spatial coordinates ranging from "
-                f"({np.min(final_coords[:, 0]):.2f}, {np.min(final_coords[:, 1]):.2f}) to "
-                f"({np.max(final_coords[:, 0]):.2f}, {np.max(final_coords[:, 1]):.2f})")
-    
-    # Map coordinates back to all nodes using the representative mapping
-    all_node_coords = np.zeros((len(sample_nodes), 2))
-    for i, node_id in enumerate(sample_nodes):
-        representative_idx = representative_nodes.index(node_to_representative[node_id])
-        all_node_coords[i] = final_coords[representative_idx]
-    
-    # Create a new tree sequence with individuals and spatial locations
+
+    final_coords = coord_func(normalized_coords)
+
+    logger.info(
+        f"Generated spatial coordinates from "
+        f"({np.min(final_coords[:, 0]):.2f}, {np.min(final_coords[:, 1]):.2f}) "
+        f"to ({np.max(final_coords[:, 0]):.2f}, {np.max(final_coords[:, 1]):.2f})"
+    )
+
+    # Map coordinates back to sample nodes
+    rep_index = {rep: i for i, rep in enumerate(representative_nodes)}
+    all_node_coords = np.array([final_coords[rep_index[node_to_representative[n]]] for n in sample_nodes])
+
     return create_tree_sequence_with_spatial_data(ts, sample_nodes, all_node_coords)
 
 
@@ -470,51 +202,46 @@ def create_tree_sequence_with_spatial_data(
     """
     Create a new tree sequence with spatial locations for sample nodes.
     
+    Each sample node is assigned to a newly created individual with a 3D location 
+    (z = 0). All other nodes remain unchanged, except for being linked to their
+    corresponding individual if applicable.
+    
     Args:
-        ts: Original tree sequence
-        sample_nodes: List of sample node IDs
-        final_coords: Final 2D coordinates for each sample
-        
+        ts: Original tree sequence.
+        sample_nodes: List of sample node IDs.
+        final_coords: 2D array of spatial coordinates (n_samples, 2).
+    
     Returns:
-        Tree sequence with spatial locations added
+        A new tree sequence with spatial locations added to individuals.
     """
     tables = ts.dump_tables()
-    
-    # Clear existing individuals table
+
+    # Clear and reset individuals table
     tables.individuals.clear()
-    tables.individuals.metadata_schema = tskit.MetadataSchema(None)
-    
-    # Create individuals for sample nodes with spatial locations
+
+    # Create new individuals for each sample node with spatial data
     node_to_individual = {}
     for i, node_id in enumerate(sample_nodes):
-        # Create 3D location (z=0 for 2D locations)
-        location_3d = np.array([final_coords[i, 0], final_coords[i, 1], 0.0])
-        
+        lon, lat = final_coords[i]
         individual_id = tables.individuals.add_row(
-            flags=0,
-            location=location_3d,
-            parents=[],
-            metadata=b''
+            location=[lon, lat, 0.0],  # z = 0 for 2D spatial data
         )
         node_to_individual[node_id] = individual_id
-    
-    # Update nodes to reference individuals
-    new_nodes = tables.nodes.copy()
-    new_nodes.clear()
-    
+
+    # Rebuild nodes table to assign individuals
+    new_nodes = tskit.NodeTable()
     for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
+        individual = node_to_individual.get(node.id, tskit.NULL)
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual_id,
-            metadata=node.metadata
+            individual=individual,
+            metadata=node.metadata,
         )
-    
     tables.nodes.replace_with(new_nodes)
-    
+
     result_ts = tables.tree_sequence()
     logger.info(f"Added spatial locations to {len(sample_nodes)} sample individuals")
-    
-    return result_ts 
+
+    return result_ts

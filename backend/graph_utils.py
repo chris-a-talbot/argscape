@@ -343,7 +343,7 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
             coordinates_with_spatial.append((node['location']['x'], node['location']['y']))
     
     if coordinates_with_spatial:
-        from geographic_utils import detect_coordinate_system
+        from geo_utils.crs_detect import detect_coordinate_system
         crs_detection = detect_coordinate_system(coordinates_with_spatial)
         
         # Add detection results to metadata

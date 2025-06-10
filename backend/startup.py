@@ -38,8 +38,11 @@ def main():
     logger.info(f"File size limit: {os.getenv('MAX_FILE_SIZE_MB')} MB")
     
     try:
+        # Add the parent directory to Python path to allow backend imports
+        sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        
         # Import the FastAPI app
-        from main import app
+        from backend.main import app
         
         # Start the server
         uvicorn.run(
