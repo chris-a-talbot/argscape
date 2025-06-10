@@ -21,7 +21,7 @@ from .tree_sequence import (
     apply_gaia_quadratic_locations_to_tree_sequence,
     apply_custom_locations_to_tree_sequence
 )
-from .io import parse_location_csv
+from .io import load_geojson_file, parse_location_csv
 
 __all__ = [
     # Shapes
@@ -44,5 +44,6 @@ __all__ = [
     'apply_custom_locations_to_tree_sequence',
     
     # I/O
-    'parse_location_csv'
+    'parse_location_csv',
+    'load_geojson_file'
 ] 
