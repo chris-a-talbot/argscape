@@ -12,7 +12,6 @@ from typing import Dict, Optional
 
 import numpy as np
 import tskit
-import tszip
 import uvicorn
 import msprime
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks

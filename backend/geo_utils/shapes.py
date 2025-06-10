@@ -12,44 +12,9 @@ from shapely.geometry import Point
 from shapely.geometry import shape as shapely_shape
 from functools import lru_cache
 import random
+from geo_utils.io import load_geojson_file
 
 logger = logging.getLogger(__name__)
-
-
-def load_geojson_file(filepath: str) -> Dict:
-    """
-    Load a GeoJSON file and return standardized spatial metadata.
-    
-    Args:
-        filepath: Path to the GeoJSON file.
-        
-    Returns:
-        Dictionary with geometry type, coordinates, bounds, CRS, and optional name.
-    """
-    path = Path(filepath)
-    if not path.exists():
-        logger.warning(f"GeoJSON file not found: {filepath}")
-        return get_eastern_hemisphere_outline_fallback()
-
-    try:
-        gdf = gpd.read_file(path)
-        if gdf.empty:
-            logger.warning("GeoJSON contains no features.")
-            return get_eastern_hemisphere_outline_fallback()
-
-        geometry: BaseGeometry = gdf.geometry.iloc[0]
-        name = gdf.get("name", ["Unnamed Geometry"])[0]
-        return {
-            "type": geometry.geom_type,
-            "coordinates": geometry.__geo_interface__["coordinates"],
-            "crs": gdf.crs.to_string() if gdf.crs else "EPSG:4326",
-            "name": name,
-            "bounds": list(geometry.bounds)
-        }
-
-    except Exception as e:
-        logger.error(f"Error loading GeoJSON from {filepath}: {e}")
-        return get_eastern_hemisphere_outline_fallback()
 
 
 def get_eastern_hemisphere_outline_fallback() -> Dict:
