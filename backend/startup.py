@@ -38,7 +38,12 @@ def main():
     logger.info(f"File size limit: {os.getenv('MAX_FILE_SIZE_MB')} MB")
     
     try:
-        # Import the FastAPI app - using relative import
+        # Add the backend directory to Python path if not already there
+        backend_dir = os.path.dirname(os.path.abspath(__file__))
+        if backend_dir not in sys.path:
+            sys.path.insert(0, backend_dir)
+        
+        # Import the FastAPI app
         from main import app
         
         # Start the server

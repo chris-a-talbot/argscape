@@ -1,9 +1,8 @@
 [build]
-builder = "nixpacks"
-buildCommand = "pip install -e backend/"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "cd backend && python startup.py"
-healthcheckPath = "/api/health"
-healthcheckTimeout = 100
-restartPolicyType = "on_failure" 
+startCommand = "python backend/startup.py"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10 
