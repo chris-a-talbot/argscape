@@ -2,13 +2,14 @@ import { useParams, useNavigate } from 'react-router-dom';
 import SpatialArg3DVisualizationContainer from './SpatialArg3DVisualization/SpatialArg3DVisualizationContainer';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { useColorTheme } from '../context/ColorThemeContext';
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import { api } from '../lib/api';
 import { export3DVisualizationAsImage, exportCanvasAsImage } from '../lib/imageExport';
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
 import ClickableLogo from './ui/ClickableLogo';
-import TreeSequenceSelector from './TreeSequenceSelector';
+import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
 import { log } from '../lib/logger';
+import { DownloadDropdown } from './ui/DownloadDropdown';
 
 export default function SpatialArg3DVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
@@ -65,11 +66,11 @@ export default function SpatialArg3DVisualizationPage() {
     const handleDownload = async () => {
         if (!data) return;
         try {
-            const blob = await api.downloadTreeSequence(data.filename);
+            const blob = await api.downloadTreeSequence(data.filename, 'trees');
             const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = url;
-            const downloadFilename = data.filename.toLowerCase().endsWith('.trees') ? `${data.filename}.tsz` : data.filename;
+            const downloadFilename = `${data.filename.replace(/\.(trees|tsz)$/, '')}.trees`;
             link.setAttribute('download', downloadFilename);
             document.body.appendChild(link);
             link.click();
@@ -214,7 +215,7 @@ export default function SpatialArg3DVisualizationPage() {
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                     </svg>
-                                    {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
+                                    Switch Tree Sequence
                                 </div>
                             </button>
                             <button 
@@ -236,49 +237,28 @@ export default function SpatialArg3DVisualizationPage() {
                             >
                                 Download Image
                             </button>
-                            <button 
-                                className="font-medium px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
-                                style={{
-                                    backgroundColor: colors.containerBackground,
-                                    color: colors.text
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
-                                    e.currentTarget.style.color = colors.background;
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
-                                    e.currentTarget.style.color = colors.text;
-                                }}
-                                onClick={handleDownload}
-                            >
-                                Download .tsz
-                            </button>
+                            {data && <DownloadDropdown filename={data.filename} />}
                         </div>
                     </div>
                 </div>
             </header>
 
-            {/* Tree Sequence Selector */}
-            {showTreeSequenceSelector && (
-                <div 
-                    className="flex-shrink-0 border-b px-4 py-4"
-                    style={{ 
-                        backgroundColor: colors.background,
-                        borderBottomColor: colors.border 
-                    }}
-                >
-                    <TreeSequenceSelector onSelect={handleTreeSequenceSelect} />
-                </div>
-            )}
+            {/* Tree Sequence Selector Modal */}
+            <TreeSequenceSelectorModal
+                isOpen={showTreeSequenceSelector}
+                onClose={() => setShowTreeSequenceSelector(false)}
+                onSelect={handleTreeSequenceSelect}
+            />
 
             {/* Main content - Full width and height */}
             <main className="flex-1 overflow-hidden">
                 <div ref={containerRef} className="w-full h-full">
-                    <SpatialArg3DVisualizationContainer 
-                        filename={decodedFilename}
-                        max_samples={maxSamples}
-                    />
+                    {useMemo(() => (
+                        <SpatialArg3DVisualizationContainer 
+                            filename={decodedFilename}
+                            max_samples={maxSamples}
+                        />
+                    ), [decodedFilename, maxSamples])}
                 </div>
             </main>
         </div>

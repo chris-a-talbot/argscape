@@ -1,12 +1,13 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useTreeSequence } from '../context/TreeSequenceContext';
-import TreeSequenceSelector from './TreeSequenceSelector';
 import { api } from '../lib/api';
 import { log } from '../lib/logger';
 import { SAMPLE_LIMITS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
 import AlertModal from './ui/AlertModal';
+import { DownloadDropdown } from './ui/DownloadDropdown';
+import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
 
 // Add these type definitions at the top of the file
 type LocationInferenceMethod = {
@@ -14,52 +15,63 @@ type LocationInferenceMethod = {
   name: string;
   description: string;
   reference: string;
+  github: string;
+  github2: string;
+  speed: number;
   enabled: boolean;
   isReInference?: boolean;
 };
 
 const locationInferenceMethods: LocationInferenceMethod[] = [
   {
-    id: 'fastgaia',
-    name: 'fastGAIA',
-    description: 'Fast spatial inference using a linear-time algorithm. Best for large ARGs.',
-    reference: 'https://doi.org/10.1101/2023.10.11.561938',
+    id: 'sparg',
+    name: 'sparg',
+    description: 'Spatial inference using ancestral recombination graphs to estimate dispersal rates and locate genetic ancestors.',
+    reference: 'https://www.biorxiv.org/content/10.1101/2024.04.10.588900v2',
+    github: 'https://github.com/osmond-lab/sparg',
+    github2: '',
+    speed: 2,
     enabled: true
-  },
-  {
-    id: 'gaia_quadratic',
-    name: 'GAIA quadratic',
-    description: 'High-accuracy spatial inference using quadratic parsimony. Best for small to medium ARGs.',
-    reference: 'https://doi.org/10.1101/2023.10.11.561938',
-    enabled: true
-  },
-  {
-    id: 'gaia_linear',
-    name: 'GAIA linear',
-    description: 'Linear-time spatial inference using GAIA. Good balance between speed and accuracy.',
-    reference: 'https://doi.org/10.1101/2023.10.11.561938',
-    enabled: false
   },
   {
     id: 'spacetrees',
-    name: 'SpaceTrees',
-    description: 'Bayesian spatial inference using MCMC. Best for detailed uncertainty quantification.',
-    reference: 'https://doi.org/10.1093/molbev/msac017',
+    name: 'spacetrees',
+    description: 'Code to estimate dispersal rates and locate genetic ancestors from genome-wide genealogies. Coming Soon!',
+    reference: 'https://elifesciences.org/articles/72177',
+    github: 'https://github.com/osmond-lab/spacetrees',
+    github2: '',
+    speed: 2,
     enabled: false
   },
   {
-    id: 'spargviz',
-    name: 'SpARGviz',
-    description: 'Force-directed layout for ARG visualization. Best for quick visual exploration.',
-    reference: 'https://doi.org/10.1093/bioinformatics/btac429',
-    enabled: false
+    id: 'gaia_quadratic',
+    name: 'gaia quadratic',
+    description: 'High-accuracy spatial inference using quadratic parsimony. Best for small to medium ARGs.',
+    reference: 'https://www.science.org/doi/10.1126/science.adp4642',
+    github: 'https://github.com/chris-a-talbot/fastgaia',
+    github2: '',
+    speed: 3,
+    enabled: true
   },
   {
-    id: 'wohns',
-    name: 'Wohns et al.',
-    description: 'Geographic location inference using human genetic data. Best for human ancestry studies.',
+    id: 'fastgaia',
+    name: 'fastgaia',
+    description: 'Fast spatial inference using a greedy algorithm. Best for large ARGs where GAIA is too slow.',
+    reference: '',
+    github: 'https://github.com/chris-a-talbot/fastgaia',
+    github2: 'https://github.com/blueraleigh/gaia',
+    speed: 4,
+    enabled: true
+  },
+  {
+    id: 'midpoint',
+    name: 'Wohns midpoint',
+    description: 'Weighted midpoint-based spatial inference. Simple and fast for ARGs of all sizes.',
     reference: 'https://doi.org/10.1126/science.abi8264',
-    enabled: false
+    github: 'https://github.com/awohns/unified_genealogy_paper/',
+    github2: '',
+    speed: 5,
+    enabled: true
   }
 ];
 
@@ -82,13 +94,14 @@ function LocationInferenceDropdown({
 
   // Filter and sort methods
   const availableMethods = locationInferenceMethods
-    .filter(method => method.enabled)
     .map(method => ({
       ...method,
       isReInference: data?.spatial_status === "all"
     }));
 
-  const selectedMethodData = availableMethods.find(m => m.id === selectedMethod) || availableMethods[0];
+  // Find the first enabled method as default
+  const defaultMethod = availableMethods.find(m => m.enabled);
+  const selectedMethodData = availableMethods.find(m => m.id === selectedMethod) || defaultMethod || availableMethods[0];
 
   return (
     <div className="relative">
@@ -132,15 +145,23 @@ function LocationInferenceDropdown({
                 }}
               >
                 <button
-                  className={`w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 ${
-                    selectedMethod === method.id ? 'bg-sp-pale-green/10' : ''
+                  className={`w-full px-4 py-2 text-left transition-colors duration-200 ${
+                    !method.enabled ? 'text-sp-white/50 cursor-not-allowed' :
+                    selectedMethod === method.id ? 'bg-sp-pale-green/10 hover:bg-sp-pale-green hover:text-sp-very-dark-blue' :
+                    'hover:bg-sp-pale-green hover:text-sp-very-dark-blue'
                   }`}
                   onClick={() => {
-                    onMethodSelect(method);
-                    setIsOpen(false);
+                    if (method.enabled) {
+                      onMethodSelect(method);
+                      setIsOpen(false);
+                    }
                   }}
+                  disabled={isInferring || !method.enabled}
                 >
-                  <div className="font-medium">{method.name}</div>
+                  <div className="font-medium flex items-center justify-between">
+                    <span>{method.name}</span>
+                    {!method.enabled && <span className="text-xs text-sp-pale-green/50">Coming Soon</span>}
+                  </div>
                 </button>
                 {/* Tooltip */}
                 {tooltipMethod?.id === method.id && (
@@ -152,14 +173,70 @@ function LocationInferenceDropdown({
                   >
                     <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
                     <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
-                    <a
-                      href={tooltipMethod.reference}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
-                    >
-                      View reference
-                    </a>
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs text-sp-white/80">Speed:</span>
+                      <div className="flex items-center gap-[2px]">
+                        {[...Array(5)].map((_, i) => (
+                          <div
+                            key={i}
+                            className={`w-3 h-5 rounded-sm transition-all ${
+                              i < tooltipMethod.speed
+                                ? i === 0
+                                  ? 'bg-yellow-400'
+                                  : i === 1
+                                  ? 'bg-yellow-500'
+                                  : i === 2
+                                  ? 'bg-lime-500'
+                                  : i === 3
+                                  ? 'bg-green-400'
+                                  : 'bg-green-500'
+                                : 'bg-gray-700'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      {tooltipMethod.reference && (
+                        <a
+                          href={tooltipMethod.reference}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                        >
+                          View reference
+                        </a>
+                      )}
+                      {tooltipMethod.id === 'fastgaia' ? (
+                        <>
+                          <a
+                            href={tooltipMethod.github}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          >
+                            View fastgaia on GitHub
+                          </a>
+                          <a
+                            href={tooltipMethod.github2}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          >
+                            View gaia on GitHub
+                          </a>
+                        </>
+                      ) : tooltipMethod.github && (
+                        <a
+                          href={tooltipMethod.github}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                        >
+                          View on GitHub
+                        </a>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -192,9 +269,11 @@ export default function ResultPage() {
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
   const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
+  const [isInferringLocationsMidpoint, setIsInferringLocationsMidpoint] = useState(false);
+  const [isInferringLocationsSparg, setIsInferringLocationsSparg] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [inputValue, setInputValue] = useState(maxSamples.toString());
-  const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('fastgaia');
+  const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
 
   // Modal states
   const [alertModal, setAlertModal] = useState<{
@@ -231,24 +310,6 @@ export default function ResultPage() {
 
   const visualizeArgEnabled = true; // Always available if data loaded
   const visualizeSpatialArgEnabled = !!(data?.has_temporal && data?.has_all_spatial);  // Require temporal and all spatial
-
-  // Determine button text for fast inference based on spatial status
-  const getFastInferenceButtonText = () => {
-    if (data?.spatial_status === "all") {
-      return "Re-infer locations (fastGAIA)";
-    } else {
-      return "Infer locations (fastGAIA)";
-    }
-  };
-
-  // Determine button text for GAIA quadratic inference based on spatial status
-  const getGaiaQuadraticInferenceButtonText = () => {
-    if (data?.spatial_status === "all") {
-      return "Re-infer locations (GAIA quadratic)";
-    } else {
-      return "Infer locations (GAIA quadratic)";
-    }
-  };
 
   const handleFastLocationInference = async () => {
     if (!data?.filename || isInferringLocationsFast) return;
@@ -411,7 +472,104 @@ export default function ResultPage() {
       case 'gaia_quadratic':
         await handleGaiaQuadraticInference();
         break;
-      // Add other methods as they become available
+      case 'sparg':
+        if (isInferringLocationsSparg) return;
+        setIsInferringLocationsSparg(true);
+        try {
+          log.user.action('sparg-inference-start', { filename: data.filename }, 'ResultPage');
+
+          const result = await api.inferLocationsSparg({
+            filename: data.filename,
+          });
+
+          log.info('sparg inference completed successfully', {
+            component: 'ResultPage',
+            data: { filename: data.filename, result: result.data }
+          });
+
+          // Update the tree sequence context with the new filename and spatial info
+          const resultData = result.data as any;
+          const updatedData = {
+            ...data,
+            filename: resultData.new_filename,
+            has_sample_spatial: resultData.has_sample_spatial,
+            has_all_spatial: resultData.has_all_spatial,
+            spatial_status: resultData.spatial_status,
+          };
+
+          setTreeSequence(updatedData);
+
+          setAlertModal({
+            isOpen: true,
+            title: 'Success!',
+            message: `sparg inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+            type: 'success'
+          });
+        } catch (error) {
+          log.error('sparg inference failed', {
+            component: 'ResultPage',
+            error: error instanceof Error ? error : new Error(String(error)),
+            data: { filename: data.filename }
+          });
+          setAlertModal({
+            isOpen: true,
+            title: 'Error',
+            message: `sparg inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'error'
+          });
+        } finally {
+          setIsInferringLocationsSparg(false);
+        }
+        break;
+      case 'midpoint':
+        if (isInferringLocationsMidpoint) return;
+        setIsInferringLocationsMidpoint(true);
+        try {
+          log.user.action('midpoint-inference-start', { filename: data.filename }, 'ResultPage');
+
+          const result = await api.inferLocationsMidpoint({
+            filename: data.filename,
+          });
+
+          log.info('Midpoint inference completed successfully', {
+            component: 'ResultPage',
+            data: { filename: data.filename, result: result.data }
+          });
+
+          // Update the tree sequence context with the new filename and spatial info
+          const resultData = result.data as any;
+          const updatedData = {
+            ...data,
+            filename: resultData.new_filename,
+            has_sample_spatial: resultData.has_sample_spatial,
+            has_all_spatial: resultData.has_all_spatial,
+            spatial_status: resultData.spatial_status,
+          };
+
+          setTreeSequence(updatedData);
+
+          setAlertModal({
+            isOpen: true,
+            title: 'Success!',
+            message: `Midpoint inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+            type: 'success'
+          });
+        } catch (error) {
+          log.error('Midpoint inference failed', {
+            component: 'ResultPage',
+            error: error instanceof Error ? error : new Error(String(error)),
+            data: { filename: data.filename }
+          });
+          setAlertModal({
+            isOpen: true,
+            title: 'Error',
+            message: `Midpoint inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'error'
+          });
+        } finally {
+          setIsInferringLocationsMidpoint(false);
+        }
+        break;
       default:
         setAlertModal({
           isOpen: true,
@@ -501,50 +659,27 @@ export default function ResultPage() {
                   </svg>
                   {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
                 </button>
-                <button 
-                  className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2" 
-                  onClick={async () => {
-                    try {
-                      const blob = await api.downloadTreeSequence(data.filename);
-                      const url = URL.createObjectURL(blob);
-                      const link = document.createElement('a');
-                      link.href = url;
-                      const downloadFilename = data.filename.toLowerCase().endsWith('.trees') ? `${data.filename}.tsz` : data.filename;
-                      link.setAttribute('download', downloadFilename);
-                      document.body.appendChild(link);
-                      link.click();
-                      document.body.removeChild(link);
-                      URL.revokeObjectURL(url);
-                      log.user.action('download-tree-sequence', { filename: data.filename }, 'ResultPage');
-                    } catch (error) {
-                      log.error('Download failed', {
-                        component: 'ResultPage',
-                        error: error instanceof Error ? error : new Error(String(error)),
-                        data: { filename: data.filename }
-                      });
-                      setAlertModal({
-                        isOpen: true,
-                        title: 'Download Failed',
-                        message: `Failed to download tree sequence: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                        type: 'error'
-                      });
-                    }
+                <DownloadDropdown 
+                  filename={data.filename}
+                  onError={(error) => {
+                    setAlertModal({
+                      isOpen: true,
+                      title: 'Download Failed',
+                      message: `Failed to download tree sequence: ${error.message}`,
+                      type: 'error'
+                    });
                   }}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Download .tsz
-                </button>
+                />
               </div>
             </div>
             
-            {/* Tree Sequence Selector */}
-            {showTreeSequenceSelector && (
-              <div className="p-4 bg-sp-dark-blue rounded-lg border border-sp-pale-green/20">
-                <TreeSequenceSelector onSelect={handleTreeSequenceSelect} />
-              </div>
-            )}
+            {/* Tree Sequence Selector Modal */}
+            <TreeSequenceSelectorModal
+              isOpen={showTreeSequenceSelector}
+              onClose={() => setShowTreeSequenceSelector(false)}
+              onSelect={handleTreeSequenceSelect}
+            />
+
             {/* Data Overview Cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
@@ -599,7 +734,7 @@ export default function ResultPage() {
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Infer times (tsdate)
+                Infer ages (tsdate)
               </button>
               <LocationInferenceDropdown
                 selectedMethod={selectedInferenceMethod}
@@ -608,7 +743,7 @@ export default function ResultPage() {
                   handleLocationInference(method);
                 }}
                 disabled={!fastLocationInferenceEnabled}
-                isInferring={isInferringLocationsFast || isInferringLocationsGaiaQuadratic}
+                isInferring={isInferringLocationsFast || isInferringLocationsGaiaQuadratic || isInferringLocationsMidpoint || isInferringLocationsSparg}
                 data={data}
               />
             </div>

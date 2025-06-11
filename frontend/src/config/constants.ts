@@ -35,6 +35,8 @@ export const API_CONFIG = {
     GRAPH_DATA: '/graph-data',
     INFER_LOCATIONS_FAST: '/infer-locations-fast',
     INFER_LOCATIONS_GAIA_QUADRATIC: '/infer-locations-gaia-quadratic',
+    INFER_LOCATIONS_MIDPOINT: '/infer-locations-midpoint',
+    INFER_LOCATIONS_SPARG: '/infer-locations-sparg',
     SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence',
   }
 } as const;

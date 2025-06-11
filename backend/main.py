@@ -14,7 +14,7 @@ import numpy as np
 import tskit
 import uvicorn
 import msprime
-from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -42,6 +42,15 @@ try:
 except ImportError:
     infer_locations = None
     logger.warning("fastgaia not available - fast location inference disabled")
+
+# Import sparg utilities
+try:
+    from sparg_inference import run_sparg_inference, SPARG_AVAILABLE
+    logger.info("sparg successfully imported")
+except ImportError:
+    run_sparg_inference = None
+    SPARG_AVAILABLE = False
+    logger.warning("sparg not available - sparg inference disabled")
 
 # Import geoancestry (gaiapy) utilities
 try:
@@ -114,6 +123,23 @@ from constants import (
     RATE_LIMIT_SESSION_CREATE,
 )
 
+# Import location inference functionality
+try:
+    from location_inference import (
+        run_fastgaia_inference,
+        run_gaia_quadratic_inference,
+        run_midpoint_inference,
+        FASTGAIA_AVAILABLE,
+        GEOANCESTRY_AVAILABLE,
+        MIDPOINT_AVAILABLE
+    )
+    logger.info("Location inference utilities successfully imported")
+except ImportError as e:
+    logger.warning(f"Location inference utilities not available: {str(e)}")
+    FASTGAIA_AVAILABLE = False
+    GEOANCESTRY_AVAILABLE = False
+    MIDPOINT_AVAILABLE = False
+
 # FastAPI app instance
 app = FastAPI(
     title="ARGscape API",
@@ -185,6 +211,12 @@ class CustomLocationRequest(BaseModel):
     tree_sequence_filename: str
     sample_locations_filename: str
     node_locations_filename: str
+
+class MidpointInferenceRequest(BaseModel):
+    filename: str
+
+class SpargInferenceRequest(BaseModel):
+    filename: str
 
 #### Utility functions ####
 
@@ -460,23 +492,37 @@ async def delete_tree_sequence(request: Request, filename: str):
 
 
 @app.get("/api/download-tree-sequence/{filename}")
-async def download_tree_sequence(request: Request, filename: str, background_tasks: BackgroundTasks):
-    """Download a tree sequence file."""
+async def download_tree_sequence(
+    request: Request, 
+    filename: str, 
+    background_tasks: BackgroundTasks,
+    format: str = Query("trees", regex="^(trees|tsz)$")
+):
+    """Download a tree sequence file in either .trees or .tsz format."""
     try:
         client_ip = get_client_ip(request)
         session_id = session_storage.get_or_create_session(client_ip)
         
-        file_data = session_storage.get_file_data(session_id, filename)
-        if file_data is None:
-            raise HTTPException(status_code=404, detail="File not found")
+        # Get the tree sequence object
+        ts = session_storage.get_tree_sequence(session_id, filename)
+        if ts is None:
+            raise HTTPException(status_code=404, detail="Tree sequence not found")
         
         # Create a more unique temporary filename to avoid conflicts
-        timestamp = int(time.time() * FILENAME_TIMESTAMP_PRECISION_MICROSECONDS)  # microsecond precision
+        timestamp = int(time.time() * FILENAME_TIMESTAMP_PRECISION_MICROSECONDS)
         safe_filename = filename.replace("/", "_").replace("\\", "_")
+        base_filename = safe_filename.rsplit(".", 1)[0]  # Remove any existing extension
         
         with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{timestamp}_{safe_filename}") as tmp_file:
-            tmp_file.write(file_data)
-            tmp_file.flush()
+            if format == "tsz":
+                # Use tszip to compress the tree sequence
+                with tszip.open(tmp_file.name, "wb") as tsz_file:
+                    ts.dump(tsz_file)
+                download_filename = f"{base_filename}.tsz"
+            else:  # format == "trees"
+                # Save as uncompressed .trees file
+                ts.dump(tmp_file.name)
+                download_filename = f"{base_filename}.trees"
             
             # Add cleanup task to remove temp file after response is sent
             def cleanup_temp_file(temp_path: str):
@@ -492,7 +538,7 @@ async def download_tree_sequence(request: Request, filename: str, background_tas
             
             return FileResponse(
                 path=tmp_file.name,
-                filename=filename,
+                filename=download_filename,
                 media_type='application/octet-stream'
             )
     except Exception as e:
@@ -708,7 +754,7 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
 @app.post("/api/infer-locations-fast")
 async def infer_locations_fast(request: Request, inference_request: FastLocationInferenceRequest):
     """Infer locations using the fastgaia package for fast spatial inference."""
-    if infer_locations is None:
+    if not FASTGAIA_AVAILABLE:
         raise HTTPException(status_code=503, detail="fastgaia not available")
     
     logger.info(f"Received fast location inference request for file: {inference_request.filename}")
@@ -720,64 +766,33 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         raise HTTPException(status_code=404, detail="File not found")
     
     try:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_ts_path = os.path.join(temp_dir, "temp.trees")
-            ts.dump(temp_ts_path)
-            
-            output_inferred_continuous = os.path.join(temp_dir, "inferred_locations.csv")
-            output_debug = os.path.join(temp_dir, "debug_info.csv")
-            
-            logger.info(f"Running fastgaia inference for {ts.num_nodes} nodes...")
-            
-            result_summary = infer_locations(
-                tree_path=temp_ts_path,
-                continuous_sample_locations_path=None,
-                discrete_sample_locations_path=None,
-                cost_matrix_path=None,
-                weight_span=inference_request.weight_span,
-                weight_branch_length=inference_request.weight_branch_length,
-                output_inferred_continuous=output_inferred_continuous,
-                output_inferred_discrete=None,
-                output_locations_continuous=None,
-                output_debug=output_debug,
-                verbosity=1
-            )
-            
-            if os.path.exists(output_inferred_continuous):
-                try:
-                    import pandas as pd
-                    locations_df = pd.read_csv(output_inferred_continuous)
-                    logger.info(f"Read {len(locations_df)} inferred locations")
-                except ImportError:
-                    raise HTTPException(status_code=500, detail="pandas not available for location inference")
-                
-                ts_with_locations = apply_inferred_locations_to_tree_sequence(ts, locations_df)
-                
-                new_filename = f"{inference_request.filename.rsplit('.', 1)[0]}_fastgaia.trees"
-                session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
-                
-                spatial_info = check_spatial_completeness(ts_with_locations)
-                
-                return {
-                    "status": "success",
-                    "message": "Fast location inference completed successfully",
-                    "original_filename": inference_request.filename,
-                    "new_filename": new_filename,
-                    "num_inferred_locations": len(locations_df),
-                    "num_nodes": ts_with_locations.num_nodes,
-                    "num_samples": ts_with_locations.num_samples,
-                    **spatial_info,
-                    "inference_parameters": {
-                        "weight_span": inference_request.weight_span,
-                        "weight_branch_length": inference_request.weight_branch_length
-                    }
-                }
-            else:
-                raise HTTPException(
-                    status_code=500,
-                    detail="Inference completed but no output file was generated"
-                )
-                
+        # Run fastgaia inference
+        ts_with_locations, inference_info = run_fastgaia_inference(
+            ts,
+            weight_span=inference_request.weight_span,
+            weight_branch_length=inference_request.weight_branch_length
+        )
+        
+        # Generate new filename
+        new_filename = f"{inference_request.filename.rsplit('.', 1)[0]}_fastgaia.trees"
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Check spatial completeness
+        spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        return {
+            "status": "success",
+            "message": "Fast location inference completed successfully",
+            "original_filename": inference_request.filename,
+            "new_filename": new_filename,
+            "num_nodes": ts_with_locations.num_nodes,
+            "num_samples": ts_with_locations.num_samples,
+            **spatial_info,
+            **inference_info
+        }
+        
     except Exception as e:
         logger.error(f"Error during fast location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Fast location inference failed: {str(e)}")
@@ -833,7 +848,7 @@ async def infer_locations_gaia(request: Request, inference_request: FastGAIAInfe
 @app.post("/api/infer-locations-gaia-quadratic")
 async def infer_locations_gaia_quadratic(request: Request, inference_request: GAIAQuadraticInferenceRequest):
     """Infer locations using the GAIA quadratic parsimony algorithm (geoancestry package)."""
-    if not GEOANCESTRY_AVAILABLE or gp is None:
+    if not GEOANCESTRY_AVAILABLE:
         raise HTTPException(status_code=503, detail="gaiapy package not available")
     
     logger.info(f"Received GAIA quadratic location inference request for file: {inference_request.filename}")
@@ -853,61 +868,10 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         )
     
     try:
-        logger.info(f"Running GAIA quadratic inference for {ts.num_nodes} nodes...")
+        # Run GAIA quadratic inference
+        ts_with_locations, inference_info = run_gaia_quadratic_inference(ts)
         
-        # Extract sample locations from tree sequence metadata manually
-        logger.info("Extracting sample locations from tree sequence metadata...")
-        try:
-            sample_locations = []
-            
-            # Get sample node IDs
-            sample_node_ids = [node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE]
-            logger.info(f"Found {len(sample_node_ids)} sample nodes")
-            
-            # Extract locations from individuals table
-            for node_id in sample_node_ids:
-                node = ts.node(node_id)
-                if node.individual != -1:  # Node has an individual
-                    individual = ts.individual(node.individual)
-                    if len(individual.location) >= 2:  # Has x, y coordinates
-                        # Format: [node_id, x_coordinate, y_coordinate]
-                        sample_locations.append([
-                            node_id,
-                            individual.location[0],  # x coordinate
-                            individual.location[1]   # y coordinate
-                        ])
-            
-            if not sample_locations:
-                raise ValueError("No sample locations found in tree sequence metadata")
-            
-            # Convert to numpy array for gaiapy
-            sample_locations = np.array(sample_locations)
-            logger.info(f"Extracted {len(sample_locations)} sample locations with shape {sample_locations.shape}")
-            
-        except Exception as e:
-            logger.error(f"Failed to extract sample locations: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Failed to extract sample locations: {str(e)}")
-        
-        # Run quadratic MPR
-        logger.info("Computing quadratic MPR...")
-        try:
-            mpr_quad = gp.quadratic_mpr(ts, sample_locations)
-            logger.info("Successfully computed quadratic MPR")
-        except Exception as e:
-            logger.error(f"Failed to compute quadratic MPR: {str(e)}")
-            raise HTTPException(status_code=400, detail=f"Failed to compute quadratic MPR: {str(e)}")
-        
-        # Minimize to find optimal locations
-        logger.info("Minimizing quadratic MPR to find optimal locations...")
-        locations = gp.quadratic_mpr_minimize(mpr_quad)
-        
-        logger.info(f"Inferred locations for {locations.shape[0]} nodes with shape {locations.shape}")
-        
-        # Augment tree sequence with inferred locations
-        logger.info("Augmenting tree sequence with inferred locations...")
-        ts_with_locations = apply_gaia_quadratic_locations_to_tree_sequence(ts, locations)
-        
-        # Generate new filename with suffix  
+        # Generate new filename
         base_filename = inference_request.filename
         if base_filename.endswith('.trees'):
             new_filename = base_filename[:-6] + '_gaia_quad.trees'
@@ -922,26 +886,75 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
         
-        # Count how many locations were inferred (non-sample nodes)
-        num_samples = ts.num_samples
-        num_inferred_locations = locations.shape[0] - num_samples
-        
         logger.info(f"GAIA quadratic inference completed successfully: {new_filename}")
         
         return {
             "status": "success",
             "message": "GAIA quadratic location inference completed successfully",
             "new_filename": new_filename,
-            "num_inferred_locations": num_inferred_locations,
-            "total_nodes": locations.shape[0],
+            **inference_info,
             **updated_spatial_info
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error during GAIA quadratic location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"GAIA quadratic location inference failed: {str(e)}")
+
+
+@app.post("/api/infer-locations-midpoint")
+async def infer_locations_midpoint(request: Request, inference_request: MidpointInferenceRequest):
+    """Infer locations using weighted midpoint method."""
+    if not MIDPOINT_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Midpoint inference not available")
+    
+    logger.info(f"Received midpoint location inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has sample locations
+    spatial_info = check_spatial_completeness(ts)
+    if not spatial_info.get("has_sample_spatial", False):
+        raise HTTPException(
+            status_code=400, 
+            detail="Midpoint inference requires tree sequences with location data for all sample nodes"
+        )
+    
+    try:
+        # Run midpoint inference
+        ts_with_locations, inference_info = run_midpoint_inference(ts)
+        
+        # Generate new filename
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_midpoint.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_midpoint.tsz'
+        else:
+            new_filename = base_filename + '_midpoint.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Update spatial info for the new tree sequence
+        updated_spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        logger.info(f"Midpoint inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "Midpoint location inference completed successfully",
+            "new_filename": new_filename,
+            **inference_info,
+            **updated_spatial_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during midpoint location inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Midpoint location inference failed: {str(e)}")
 
 
 @app.post("/api/upload-location-csv")
@@ -1096,6 +1109,62 @@ async def update_tree_sequence_locations(request: Request, location_request: Cus
     except Exception as e:
         logger.error(f"Error updating tree sequence with custom locations: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to update tree sequence: {str(e)}")
+
+
+@app.post("/api/infer-locations-sparg")
+async def infer_locations_sparg(request: Request, inference_request: SpargInferenceRequest):
+    """Infer locations using the sparg package."""
+    if not SPARG_AVAILABLE:
+        raise HTTPException(status_code=503, detail="sparg not available")
+    
+    logger.info(f"Received sparg location inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has sample locations
+    spatial_info = check_spatial_completeness(ts)
+    if not spatial_info.get("has_sample_spatial", False):
+        raise HTTPException(
+            status_code=400, 
+            detail="sparg requires tree sequences with location data for all sample nodes"
+        )
+    
+    try:
+        # Run sparg inference
+        ts_with_locations, inference_info = run_sparg_inference(ts)
+        
+        # Generate new filename
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_sparg.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_sparg.tsz'
+        else:
+            new_filename = base_filename + '_sparg.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Update spatial info for the new tree sequence
+        updated_spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        logger.info(f"sparg inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "sparg location inference completed successfully",
+            "new_filename": new_filename,
+            **inference_info,
+            **updated_spatial_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during sparg inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"sparg inference failed: {str(e)}")
 
 #### Geographic API endpoints ####
 

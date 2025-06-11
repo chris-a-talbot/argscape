@@ -139,10 +139,10 @@ class ApiService {
     });
   }
 
-  async downloadTreeSequence(filename: string): Promise<Blob> {
-    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE}/${encodeURIComponent(filename)}`;
+  async downloadTreeSequence(filename: string, format: 'trees' | 'tsz' = 'trees'): Promise<Blob> {
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE}/${encodeURIComponent(filename)}?format=${format}`;
     
-    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE, 'GET', { filename });
+    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE, 'GET', { filename, format });
     
     try {
       const response = await fetch(url);
@@ -152,7 +152,7 @@ class ApiService {
       }
       
       const blob = await response.blob();
-      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE, 'GET', { size: blob.size });
+      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_TREE_SEQUENCE, 'GET', { size: blob.size, format });
       
       return blob;
     } catch (error) {
@@ -198,10 +198,28 @@ class ApiService {
     });
   }
 
+  async inferLocationsSparg(params: {
+    filename: string;
+  }) {
+    return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_SPARG, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
   }) {
     return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_GAIA_QUADRATIC, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
+  async inferLocationsMidpoint(params: {
+    filename: string;
+  }) {
+    return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_MIDPOINT, {
       method: 'POST',
       body: JSON.stringify(params),
     });
@@ -318,7 +336,8 @@ export const api = {
   getUploadedFiles: () => apiService.getUploadedFiles(),
   getTreeSequenceMetadata: (filename: string) => apiService.getTreeSequenceMetadata(filename),
   deleteTreeSequence: (filename: string) => apiService.deleteTreeSequence(filename),
-  downloadTreeSequence: (filename: string) => apiService.downloadTreeSequence(filename),
+  downloadTreeSequence: (filename: string, format: 'trees' | 'tsz' = 'trees') =>
+    apiService.downloadTreeSequence(filename, format),
   
   // Data retrieval
   getGraphData: (filename: string, options?: Parameters<typeof apiService.getGraphData>[1]) => 
@@ -327,8 +346,12 @@ export const api = {
   // Location inference
   inferLocationsFast: (params: Parameters<typeof apiService.inferLocationsFast>[0]) => 
     apiService.inferLocationsFast(params),
+  inferLocationsSparg: (params: Parameters<typeof apiService.inferLocationsSparg>[0]) =>
+    apiService.inferLocationsSparg(params),
   inferLocationsGaiaQuadratic: (params: Parameters<typeof apiService.inferLocationsGaiaQuadratic>[0]) =>
     apiService.inferLocationsGaiaQuadratic(params),
+  inferLocationsMidpoint: (params: Parameters<typeof apiService.inferLocationsMidpoint>[0]) =>
+    apiService.inferLocationsMidpoint(params),
 
   // Tree sequence simulation
   simulateTreeSequence: (params: Parameters<typeof apiService.simulateTreeSequence>[0]) =>
