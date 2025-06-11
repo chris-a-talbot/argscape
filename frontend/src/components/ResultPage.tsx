@@ -26,7 +26,7 @@ const locationInferenceMethods: LocationInferenceMethod[] = [
   {
     id: 'sparg',
     name: 'sparg',
-    description: 'Spatial inference using Brownian Motion on the full ancestral recombination graph. Modified to include node ID tracking. Best for small ARGs.',
+    description: 'Spatial inference using Brownian motion on the full ancestral recombination graph. Modified to include node ID tracking. Best for small ARGs.',
     reference: 'https://www.biorxiv.org/content/10.1101/2024.04.10.588900v2',
     github: 'https://github.com/osmond-lab/sparg',
     github2: '',

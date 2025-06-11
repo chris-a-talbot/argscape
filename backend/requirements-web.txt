@@ -26,3 +26,10 @@ geopandas==0.14.1
 shapely>=2.0.2,<3.0.0
 pyproj==3.6.1
 fiona==1.9.5
+
+# sparg requirements
+sympy
+scipy
+tqdm
+matplotlib
+ipywidgets
