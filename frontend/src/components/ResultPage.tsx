@@ -26,17 +26,17 @@ const locationInferenceMethods: LocationInferenceMethod[] = [
   {
     id: 'sparg',
     name: 'sparg',
-    description: 'Spatial inference using ancestral recombination graphs to estimate dispersal rates and locate genetic ancestors.',
+    description: 'Spatial inference using Brownian Motion on the full ancestral recombination graph. Modified to include node ID tracking. Best for small ARGs.',
     reference: 'https://www.biorxiv.org/content/10.1101/2024.04.10.588900v2',
     github: 'https://github.com/osmond-lab/sparg',
     github2: '',
-    speed: 2,
+    speed: 1,
     enabled: true
   },
   {
     id: 'spacetrees',
     name: 'spacetrees',
-    description: 'Code to estimate dispersal rates and locate genetic ancestors from genome-wide genealogies. Coming Soon!',
+    description: 'Spatial inference using genome-wide genealogies. Coming Soon!',
     reference: 'https://elifesciences.org/articles/72177',
     github: 'https://github.com/osmond-lab/spacetrees',
     github2: '',
