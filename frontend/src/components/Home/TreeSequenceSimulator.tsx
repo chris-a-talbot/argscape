@@ -130,6 +130,13 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     updateInputValue(key as keyof typeof inputValues, finalValue.toString());
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSimulate();
+    }
+  };
+
   // Get the filename to display - auto-generated or custom
   const getDisplayFilename = (): string => {
     if (useAutoFilename) {
@@ -205,6 +212,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               value={inputValues.num_samples}
               onChange={(e) => handleNumberInput('num_samples', e.target.value, 2, 500, 2)}
               onBlur={(e) => handleNumberBlur('num_samples', e.target.value, 2, 500, 2)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
             <span className="text-xs text-sp-white/60 mt-0.5">Range: 2-500</span>
@@ -222,6 +230,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               value={inputValues.ploidy}
               onChange={(e) => handleNumberInput('ploidy', e.target.value, 1, 10, 2)}
               onBlur={(e) => handleNumberBlur('ploidy', e.target.value, 1, 10, 2)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
             <span className="text-xs text-sp-white/60 mt-0.5">1-10 (2=diploid)</span>
@@ -239,6 +248,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               value={inputValues.num_local_trees}
               onChange={(e) => handleNumberInput('num_local_trees', e.target.value, 1, 1000, 1)}
               onBlur={(e) => handleNumberBlur('num_local_trees', e.target.value, 1, 1000, 1)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
             <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
@@ -256,6 +266,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               value={inputValues.max_time}
               onChange={(e) => handleNumberInput('max_time', e.target.value, 1, 1000, 1)}
               onBlur={(e) => handleNumberBlur('max_time', e.target.value, 1, 1000, 1)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
             <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
@@ -269,6 +280,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             <select
               value={params.model}
               onChange={(e) => updateParam('model', e.target.value)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             >
               <option value="dtwf">Discrete Wright-Fisher</option>
@@ -286,6 +298,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             <select
               value={params.crs || 'EPSG:4326'}
               onChange={(e) => updateParam('crs', e.target.value)}
+              onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             >
               <option value="EPSG:4326">WGS84 Geographic</option>
@@ -375,6 +388,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                   id="useAutoFilename"
                   checked={useAutoFilename}
                   onChange={(e) => setUseAutoFilename(e.target.checked)}
+                  onKeyDown={handleKeyDown}
                   className="mr-2 w-4 h-4 text-sp-pale-green bg-sp-very-dark-blue border-sp-pale-green/30 rounded focus:ring-sp-pale-green focus:ring-2"
                 />
                 <label htmlFor="useAutoFilename" className="text-sm font-medium text-sp-white">
@@ -390,6 +404,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                     type="text"
                     value={params.filename_prefix}
                     onChange={(e) => updateParam('filename_prefix', e.target.value)}
+                    onKeyDown={handleKeyDown}
                     className="w-full px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
                     placeholder="simulated"
                   />
@@ -405,6 +420,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                   id="useCustomSeed"
                   checked={useCustomSeed}
                   onChange={(e) => setUseCustomSeed(e.target.checked)}
+                  onKeyDown={handleKeyDown}
                   className="mr-2 w-4 h-4 text-sp-pale-green bg-sp-very-dark-blue border-sp-pale-green/30 rounded focus:ring-sp-pale-green focus:ring-2"
                 />
                 <label htmlFor="useCustomSeed" className="text-sm font-medium text-sp-white">
@@ -432,6 +448,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                       updateParam('random_seed', finalValue);
                       updateInputValue('random_seed', finalValue.toString());
                     }}
+                    onKeyDown={handleKeyDown}
                     className="w-full px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
                     placeholder="42"
                   />
