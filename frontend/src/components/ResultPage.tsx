@@ -8,6 +8,183 @@ import { SAMPLE_LIMITS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
 import AlertModal from './ui/AlertModal';
 
+// Add these type definitions at the top of the file
+type LocationInferenceMethod = {
+  id: string;
+  name: string;
+  description: string;
+  reference: string;
+  enabled: boolean;
+  isReInference?: boolean;
+};
+
+const locationInferenceMethods: LocationInferenceMethod[] = [
+  {
+    id: 'fastgaia',
+    name: 'fastGAIA',
+    description: 'Fast spatial inference using a linear-time algorithm. Best for large ARGs.',
+    reference: 'https://doi.org/10.1101/2023.10.11.561938',
+    enabled: true
+  },
+  {
+    id: 'gaia_quadratic',
+    name: 'GAIA quadratic',
+    description: 'High-accuracy spatial inference using quadratic parsimony. Best for small to medium ARGs.',
+    reference: 'https://doi.org/10.1101/2023.10.11.561938',
+    enabled: true
+  },
+  {
+    id: 'gaia_linear',
+    name: 'GAIA linear',
+    description: 'Linear-time spatial inference using GAIA. Good balance between speed and accuracy.',
+    reference: 'https://doi.org/10.1101/2023.10.11.561938',
+    enabled: false
+  },
+  {
+    id: 'spacetrees',
+    name: 'SpaceTrees',
+    description: 'Bayesian spatial inference using MCMC. Best for detailed uncertainty quantification.',
+    reference: 'https://doi.org/10.1093/molbev/msac017',
+    enabled: false
+  },
+  {
+    id: 'spargviz',
+    name: 'SpARGviz',
+    description: 'Force-directed layout for ARG visualization. Best for quick visual exploration.',
+    reference: 'https://doi.org/10.1093/bioinformatics/btac429',
+    enabled: false
+  },
+  {
+    id: 'wohns',
+    name: 'Wohns et al.',
+    description: 'Geographic location inference using human genetic data. Best for human ancestry studies.',
+    reference: 'https://doi.org/10.1126/science.abi8264',
+    enabled: false
+  }
+];
+
+// Add the LocationInferenceDropdown component
+function LocationInferenceDropdown({
+  selectedMethod,
+  onMethodSelect,
+  disabled,
+  isInferring,
+  data
+}: {
+  selectedMethod: string | null;
+  onMethodSelect: (method: LocationInferenceMethod) => void;
+  disabled: boolean;
+  isInferring: boolean;
+  data: any;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [tooltipMethod, setTooltipMethod] = useState<LocationInferenceMethod | null>(null);
+
+  // Filter and sort methods
+  const availableMethods = locationInferenceMethods
+    .filter(method => method.enabled)
+    .map(method => ({
+      ...method,
+      isReInference: data?.spatial_status === "all"
+    }));
+
+  const selectedMethodData = availableMethods.find(m => m.id === selectedMethod) || availableMethods[0];
+
+  return (
+    <div className="relative">
+      <button
+        className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 w-full ${
+          disabled && 'opacity-50 cursor-not-allowed hover:transform-none'
+        } ${isInferring && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
+        onClick={() => !disabled && !isInferring && setIsOpen(!isOpen)}
+        disabled={disabled || isInferring}
+      >
+        {isInferring && (
+          <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+        )}
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        <span>
+          {isInferring ? 'Inferring...' : `${selectedMethodData.isReInference ? 'Re-infer' : 'Infer'} locations (${selectedMethodData.name})`}
+        </span>
+        <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute z-50 w-full mt-2 bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl">
+          <div className="py-2">
+            {availableMethods.map((method) => (
+              <div
+                key={method.id}
+                className="relative group"
+                onMouseEnter={() => setTooltipMethod(method)}
+                onMouseLeave={(e) => {
+                  // Check if we're moving to the tooltip
+                  const tooltip = document.querySelector(`[data-tooltip-id="${method.id}"]`);
+                  if (tooltip && !tooltip.contains(e.relatedTarget as Node)) {
+                    setTooltipMethod(null);
+                  }
+                }}
+              >
+                <button
+                  className={`w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 ${
+                    selectedMethod === method.id ? 'bg-sp-pale-green/10' : ''
+                  }`}
+                  onClick={() => {
+                    onMethodSelect(method);
+                    setIsOpen(false);
+                  }}
+                >
+                  <div className="font-medium">{method.name}</div>
+                </button>
+                {/* Tooltip */}
+                {tooltipMethod?.id === method.id && (
+                  <div 
+                    data-tooltip-id={method.id}
+                    className="absolute z-50 w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl right-full mr-2 top-0"
+                    onMouseEnter={() => setTooltipMethod(method)}
+                    onMouseLeave={() => setTooltipMethod(null)}
+                  >
+                    <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
+                    <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
+                    <a
+                      href={tooltipMethod.reference}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                    >
+                      View reference
+                    </a>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Help Icon with General Tooltip */}
+      <div className="absolute -right-8 top-1/2 transform -translate-y-1/2 group">
+        <div className="p-1 cursor-help">
+          <svg className="w-4 h-4 text-sp-pale-green/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <div className="hidden group-hover:block absolute right-full mr-2 w-64 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl">
+          <p className="text-xs text-sp-white/80">
+            Choose from different methods to infer ancestral locations in your ARG. Each method has its own strengths and is optimized for different scenarios.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -17,6 +194,7 @@ export default function ResultPage() {
   const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [inputValue, setInputValue] = useState(maxSamples.toString());
+  const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('fastgaia');
 
   // Modal states
   const [alertModal, setAlertModal] = useState<{
@@ -222,6 +400,28 @@ export default function ResultPage() {
     return 'Back';
   };
 
+  // Modify the Analysis Tools section to use the new dropdown
+  const handleLocationInference = async (method: LocationInferenceMethod) => {
+    if (!data?.filename) return;
+
+    switch (method.id) {
+      case 'fastgaia':
+        await handleFastLocationInference();
+        break;
+      case 'gaia_quadratic':
+        await handleGaiaQuadraticInference();
+        break;
+      // Add other methods as they become available
+      default:
+        setAlertModal({
+          isOpen: true,
+          title: 'Not Implemented',
+          message: `The ${method.name} inference method is not yet implemented.`,
+          type: 'info'
+        });
+    }
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
@@ -390,7 +590,7 @@ export default function ResultPage() {
             )}
             
             {/* Analysis Tools */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
                 className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!inferTimesEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
                 disabled={!inferTimesEnabled}
@@ -401,38 +601,16 @@ export default function ResultPage() {
                 </svg>
                 Infer times (tsdate)
               </button>
-              <button
-                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!fastLocationInferenceEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'} ${isInferringLocationsFast && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
-                disabled={!fastLocationInferenceEnabled || isInferringLocationsFast}
-                onClick={handleFastLocationInference}
-              >
-                {isInferringLocationsFast && (
-                  <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
-                )}
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>
-                  {isInferringLocationsFast ? 'Inferring...' : getFastInferenceButtonText()}
-                </span>
-              </button>
-              <button
-                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!fastLocationInferenceEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'} ${isInferringLocationsGaiaQuadratic && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
-                disabled={!fastLocationInferenceEnabled || isInferringLocationsGaiaQuadratic}
-                onClick={handleGaiaQuadraticInference}
-              >
-                {isInferringLocationsGaiaQuadratic && (
-                  <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
-                )}
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                <span>
-                  {isInferringLocationsGaiaQuadratic ? 'Inferring...' : getGaiaQuadraticInferenceButtonText()}
-                </span>
-              </button>
+              <LocationInferenceDropdown
+                selectedMethod={selectedInferenceMethod}
+                onMethodSelect={(method) => {
+                  setSelectedInferenceMethod(method.id);
+                  handleLocationInference(method);
+                }}
+                disabled={!fastLocationInferenceEnabled}
+                isInferring={isInferringLocationsFast || isInferringLocationsGaiaQuadratic}
+                data={data}
+              />
             </div>
 
             {/* Sample count slider */}
