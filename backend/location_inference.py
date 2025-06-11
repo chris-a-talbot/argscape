@@ -42,6 +42,13 @@ except ImportError:
     logger.warning("Midpoint inference not available")
     MIDPOINT_AVAILABLE = False
 
+# Import geo_utils functions
+from geo_utils import (
+    apply_inferred_locations_to_tree_sequence,
+    apply_gaia_quadratic_locations_to_tree_sequence,
+    apply_gaia_linear_locations_to_tree_sequence
+)
+
 def run_fastgaia_inference(
     ts: tskit.TreeSequence,
     weight_span: bool = True,

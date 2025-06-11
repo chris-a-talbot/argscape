@@ -19,6 +19,7 @@ from .tree_sequence import (
     check_spatial_completeness,
     apply_inferred_locations_to_tree_sequence,
     apply_gaia_quadratic_locations_to_tree_sequence,
+    apply_gaia_linear_locations_to_tree_sequence,
     apply_custom_locations_to_tree_sequence
 )
 from .io import load_geojson_file, parse_location_csv
@@ -41,6 +42,7 @@ __all__ = [
     'check_spatial_completeness',
     'apply_inferred_locations_to_tree_sequence',
     'apply_gaia_quadratic_locations_to_tree_sequence',
+    'apply_gaia_linear_locations_to_tree_sequence',
     'apply_custom_locations_to_tree_sequence',
     
     # I/O

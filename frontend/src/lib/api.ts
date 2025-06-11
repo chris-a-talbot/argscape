@@ -210,7 +210,7 @@ class ApiService {
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
   }) {
-    return this.request<any>('/api/infer-locations-gaia-quadratic', {
+    return this.request<any>('/infer-locations-gaia-quadratic', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
@@ -220,7 +220,7 @@ class ApiService {
   async inferLocationsGaiaLinear(params: {
     filename: string;
   }) {
-    return this.request<any>('/api/infer-locations-gaia-linear', {
+    return this.request<any>('/infer-locations-gaia-linear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),

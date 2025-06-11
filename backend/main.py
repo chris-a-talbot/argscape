@@ -128,6 +128,7 @@ try:
     from location_inference import (
         run_fastgaia_inference,
         run_gaia_quadratic_inference,
+        run_gaia_linear_inference,
         run_midpoint_inference,
         FASTGAIA_AVAILABLE,
         GEOANCESTRY_AVAILABLE,
