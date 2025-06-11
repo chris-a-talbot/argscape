@@ -187,6 +187,9 @@ class FastGAIAInferenceRequest(BaseModel):
 class GAIAQuadraticInferenceRequest(BaseModel):
     filename: str
 
+class GAIALinearInferenceRequest(BaseModel):
+    filename: str
+
 class SimulationRequest(BaseModel):
     num_samples: int = 50
     num_local_trees: int = 10
@@ -899,6 +902,62 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
     except Exception as e:
         logger.error(f"Error during GAIA quadratic location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"GAIA quadratic location inference failed: {str(e)}")
+
+
+@app.post("/api/infer-locations-gaia-linear")
+async def infer_locations_gaia_linear(request: Request, inference_request: GAIALinearInferenceRequest):
+    """Infer locations using the GAIA linear parsimony algorithm (geoancestry package)."""
+    if not GEOANCESTRY_AVAILABLE:
+        raise HTTPException(status_code=503, detail="gaiapy package not available")
+    
+    logger.info(f"Received GAIA linear location inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has sample locations
+    spatial_info = check_spatial_completeness(ts)
+    if not spatial_info.get("has_sample_spatial", False):
+        raise HTTPException(
+            status_code=400, 
+            detail="GAIA linear inference requires tree sequences with location data for all sample nodes"
+        )
+    
+    try:
+        # Run GAIA linear inference
+        ts_with_locations, inference_info = run_gaia_linear_inference(ts)
+        
+        # Generate new filename
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_gaia_linear.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_gaia_linear.tsz'
+        else:
+            new_filename = base_filename + '_gaia_linear.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Update spatial info for the new tree sequence
+        updated_spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        logger.info(f"GAIA linear inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "GAIA linear location inference completed successfully",
+            "new_filename": new_filename,
+            **inference_info,
+            **updated_spatial_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during GAIA linear location inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"GAIA linear location inference failed: {str(e)}")
 
 
 @app.post("/api/infer-locations-midpoint")

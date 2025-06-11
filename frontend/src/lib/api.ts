@@ -210,8 +210,19 @@ class ApiService {
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
   }) {
-    return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_GAIA_QUADRATIC, {
+    return this.request<any>('/api/infer-locations-gaia-quadratic', {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params),
+    });
+  }
+
+  async inferLocationsGaiaLinear(params: {
+    filename: string;
+  }) {
+    return this.request<any>('/api/infer-locations-gaia-linear', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
   }
@@ -350,6 +361,8 @@ export const api = {
     apiService.inferLocationsSparg(params),
   inferLocationsGaiaQuadratic: (params: Parameters<typeof apiService.inferLocationsGaiaQuadratic>[0]) =>
     apiService.inferLocationsGaiaQuadratic(params),
+  inferLocationsGaiaLinear: (params: Parameters<typeof apiService.inferLocationsGaiaLinear>[0]) =>
+    apiService.inferLocationsGaiaLinear(params),
   inferLocationsMidpoint: (params: Parameters<typeof apiService.inferLocationsMidpoint>[0]) =>
     apiService.inferLocationsMidpoint(params),
 

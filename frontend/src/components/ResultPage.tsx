@@ -49,7 +49,17 @@ const locationInferenceMethods: LocationInferenceMethod[] = [
     description: 'High-accuracy spatial inference using quadratic parsimony. Best for small to medium ARGs.',
     reference: 'https://www.science.org/doi/10.1126/science.adp4642',
     github: 'https://github.com/chris-a-talbot/fastgaia',
-    github2: '',
+    github2: 'https://github.com/chris-a-talbot/gaiapy',
+    speed: 3,
+    enabled: true
+  },
+  {
+    id: 'gaia_linear',
+    name: 'gaia linear',
+    description: 'High-accuracy spatial inference using linear parsimony. Best for small to medium ARGs.',
+    reference: 'https://www.science.org/doi/10.1126/science.adp4642',
+    github: 'https://github.com/chris-a-talbot/fastgaia',
+    github2: 'https://github.com/chris-a-talbot/gaiapy',
     speed: 3,
     enabled: true
   },
@@ -167,7 +177,43 @@ function LocationInferenceDropdown({
                 {tooltipMethod?.id === method.id && (
                   <div 
                     data-tooltip-id={method.id}
-                    className="absolute z-50 w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl right-full mr-2 top-0"
+                    className="fixed z-50 w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl"
+                    style={{
+                      left: 'var(--tooltip-x, 0)',
+                      top: 'var(--tooltip-y, 0)'
+                    }}
+                    ref={(el) => {
+                      if (el) {
+                        const rect = el.parentElement?.getBoundingClientRect();
+                        if (rect) {
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          const spaceAbove = rect.top;
+                          const tooltipHeight = el.offsetHeight;
+                          
+                          // Position horizontally to the left of the menu
+                          const left = rect.left - el.offsetWidth - 8;
+                          
+                          // Determine vertical position
+                          let top;
+                          if (spaceBelow >= tooltipHeight) {
+                            // Enough space below - align with top of menu item
+                            top = rect.top;
+                          } else if (spaceAbove >= tooltipHeight) {
+                            // Not enough space below, but enough above - align with bottom of menu item
+                            top = rect.bottom - tooltipHeight;
+                          } else {
+                            // Not enough space either way - center in available space
+                            top = Math.max(8, Math.min(
+                              window.innerHeight - tooltipHeight - 8,
+                              rect.top - (tooltipHeight - rect.height) / 2
+                            ));
+                          }
+                          
+                          el.style.setProperty('--tooltip-x', `${left}px`);
+                          el.style.setProperty('--tooltip-y', `${top}px`);
+                        }
+                      }
+                    }}
                     onMouseEnter={() => setTooltipMethod(method)}
                     onMouseLeave={() => setTooltipMethod(null)}
                   >
@@ -207,7 +253,26 @@ function LocationInferenceDropdown({
                           View reference
                         </a>
                       )}
-                      {tooltipMethod.id === 'fastgaia' ? (
+                      {tooltipMethod.id === 'gaia_quadratic' || tooltipMethod.id === 'gaia_linear' ? (
+                        <>
+                          <a
+                            href={tooltipMethod.github}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          >
+                            View gaia on GitHub
+                          </a>
+                          <a
+                            href={tooltipMethod.github2}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          >
+                            View gaiapy on GitHub
+                          </a>
+                        </>
+                      ) : tooltipMethod.id === 'fastgaia' ? (
                         <>
                           <a
                             href={tooltipMethod.github}
@@ -269,6 +334,7 @@ export default function ResultPage() {
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
   const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
+  const [isInferringLocationsGaiaLinear, setIsInferringLocationsGaiaLinear] = useState(false);
   const [isInferringLocationsMidpoint, setIsInferringLocationsMidpoint] = useState(false);
   const [isInferringLocationsSparg, setIsInferringLocationsSparg] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
@@ -472,6 +538,55 @@ export default function ResultPage() {
       case 'gaia_quadratic':
         await handleGaiaQuadraticInference();
         break;
+      case 'gaia_linear':
+        if (isInferringLocationsGaiaLinear) return;
+        setIsInferringLocationsGaiaLinear(true);
+        try {
+          log.user.action('gaia-linear-inference-start', { filename: data.filename }, 'ResultPage');
+
+          const result = await api.inferLocationsGaiaLinear({
+            filename: data.filename,
+          });
+
+          log.info('GAIA linear inference completed successfully', {
+            component: 'ResultPage',
+            data: { filename: data.filename, result: result.data }
+          });
+
+          // Update the tree sequence context with the new filename and spatial info
+          const resultData = result.data as any;
+          const updatedData = {
+            ...data,
+            filename: resultData.new_filename,
+            has_sample_spatial: resultData.has_sample_spatial,
+            has_all_spatial: resultData.has_all_spatial,
+            spatial_status: resultData.spatial_status,
+          };
+
+          setTreeSequence(updatedData);
+
+          setAlertModal({
+            isOpen: true,
+            title: 'Success!',
+            message: `GAIA linear inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+            type: 'success'
+          });
+        } catch (error) {
+          log.error('GAIA linear inference failed', {
+            component: 'ResultPage',
+            error: error instanceof Error ? error : new Error(String(error)),
+            data: { filename: data.filename }
+          });
+          setAlertModal({
+            isOpen: true,
+            title: 'Error',
+            message: `GAIA linear inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            type: 'error'
+          });
+        } finally {
+          setIsInferringLocationsGaiaLinear(false);
+        }
+        break;
       case 'sparg':
         if (isInferringLocationsSparg) return;
         setIsInferringLocationsSparg(true);
@@ -579,6 +694,13 @@ export default function ResultPage() {
         });
     }
   };
+
+  // Update isInferring check in LocationInferenceDropdown
+  const isInferring = isInferringLocationsFast || 
+                     isInferringLocationsGaiaQuadratic || 
+                     isInferringLocationsGaiaLinear ||
+                     isInferringLocationsMidpoint || 
+                     isInferringLocationsSparg;
 
   if (!data) {
     return (
@@ -743,7 +865,7 @@ export default function ResultPage() {
                   handleLocationInference(method);
                 }}
                 disabled={!fastLocationInferenceEnabled}
-                isInferring={isInferringLocationsFast || isInferringLocationsGaiaQuadratic || isInferringLocationsMidpoint || isInferringLocationsSparg}
+                isInferring={isInferring}
                 data={data}
               />
             </div>

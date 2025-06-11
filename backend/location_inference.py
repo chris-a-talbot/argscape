@@ -180,4 +180,47 @@ def run_gaia_quadratic_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequ
         "total_nodes": locations.shape[0]
     }
     
+    return ts_with_locations, inference_info
+
+def run_gaia_linear_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dict]:
+    """Run GAIA linear inference on a tree sequence.
+    
+    Args:
+        ts: Input tree sequence
+        
+    Returns:
+        Tuple of (tree sequence with inferred locations, inference info dict)
+    """
+    if not GEOANCESTRY_AVAILABLE:
+        raise RuntimeError("gaiapy package not available")
+    
+    # Extract sample locations
+    logger.info("Extracting sample locations from tree sequence metadata...")
+    sample_locations = extract_sample_locations(ts)
+    logger.info(f"Extracted {len(sample_locations)} sample locations with shape {sample_locations.shape}")
+    
+    # Run linear MPR
+    logger.info("Computing linear MPR...")
+    mpr_linear = gp.linear_mpr(ts, sample_locations)
+    logger.info("Successfully computed linear MPR")
+    
+    # Minimize to find optimal locations
+    logger.info("Minimizing linear MPR to find optimal locations...")
+    locations = gp.linear_mpr_minimize(mpr_linear)
+    logger.info(f"Inferred locations for {locations.shape[0]} nodes with shape {locations.shape}")
+    
+    # Augment tree sequence with inferred locations
+    logger.info("Augmenting tree sequence with inferred locations...")
+    from geo_utils import apply_gaia_linear_locations_to_tree_sequence
+    ts_with_locations = apply_gaia_linear_locations_to_tree_sequence(ts, locations)
+    
+    # Count inferred locations (non-sample nodes)
+    num_samples = ts.num_samples
+    num_inferred_locations = locations.shape[0] - num_samples
+    
+    inference_info = {
+        "num_inferred_locations": num_inferred_locations,
+        "total_nodes": locations.shape[0]
+    }
+    
     return ts_with_locations, inference_info 
