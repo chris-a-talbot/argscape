@@ -1,5 +1,5 @@
 """
-Midpoint-based spatial inference for ARGscape.
+Midpoint-based spatial inference for ARGscape based on Wohns et al. 2022.
 Infers ancestral node locations using weighted midpoints of child locations.
 """
 
@@ -7,6 +7,7 @@ import logging
 from typing import Dict, Tuple, List
 import numpy as np
 import tskit
+import pandas as pd
 
 logger = logging.getLogger(__name__)
 
@@ -141,33 +142,15 @@ def run_midpoint_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, 
     
     logger.info(f"Inferred {inferred_count} node locations")
     
-    # Create new tree sequence with inferred locations
-    tables = ts.dump_tables()
+    # Convert locations to DataFrame format expected by apply_inferred_locations_to_tree_sequence
+    locations_df = pd.DataFrame([
+        {'node_id': node_id, 'x': loc[0], 'y': loc[1]} 
+        for node_id, loc in locations.items()
+    ])
     
-    # Update individual locations
-    new_individuals = tables.individuals.copy()
-    new_individuals.clear()
-    
-    for individual in ts.individuals():
-        if any(node_id in locations for node_id in individual.nodes):
-            # Use the first available node's location
-            for node_id in individual.nodes:
-                if node_id in locations:
-                    x, y = locations[node_id]
-                    new_location = np.array([x, y] + list(individual.location[2:]) if individual.location is not None else [x, y])
-                    break
-        else:
-            new_location = individual.location
-        
-        new_individuals.add_row(
-            flags=individual.flags,
-            location=new_location,
-            parents=individual.parents,
-            metadata=individual.metadata
-        )
-    
-    tables.individuals.replace_with(new_individuals)
-    ts_with_locations = tables.tree_sequence()
+    # Apply locations using the standard utility function
+    from geo_utils import apply_inferred_locations_to_tree_sequence
+    ts_with_locations = apply_inferred_locations_to_tree_sequence(ts, locations_df)
     
     inference_info = {
         "num_inferred_locations": inferred_count,
