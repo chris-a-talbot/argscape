@@ -145,7 +145,7 @@ def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, loca
         locations: numpy array of shape (n_nodes, 2) with x, y coordinates for all nodes
     
     Returns:
-        Tree sequence with locations applied to all nodes
+        Tree sequence with locations applied to all nodes, preserving original sample locations
     """
     logger.info("Applying GAIA quadratic locations to tree sequence...")
     
@@ -161,29 +161,48 @@ def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, loca
     tables.individuals.clear()
     tables.individuals.metadata_schema = tskit.MetadataSchema(None)
     
-    # Create individuals for all nodes with their inferred locations
+    # Create individuals for all nodes with their locations
     node_to_individual = {}
+    
+    # First, preserve original sample locations
+    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    for node_id in sample_node_ids:
+        node = ts.node(node_id)
+        if node.individual != -1:  # Node has an individual
+            individual = ts.individual(node.individual)
+            if len(individual.location) >= 2:  # Has x, y coordinates
+                # Create individual with original location
+                individual_id = tables.individuals.add_row(
+                    flags=0,
+                    location=individual.location,  # Keep original location including z if present
+                    parents=[],
+                    metadata=b''
+                )
+                node_to_individual[node_id] = individual_id
+    
+    # Then, apply GAIA inferred locations only for non-sample nodes
     for node_id in range(ts.num_nodes):
-        # Create 3D location array (x, y, z=0)
-        x_coord = float(locations[node_id, 0])
-        y_coord = float(locations[node_id, 1])
-        location_3d = np.array([x_coord, y_coord, 0.0])
-        
-        # Add individual with location
-        individual_id = tables.individuals.add_row(
-            flags=0,
-            location=location_3d,
-            parents=[],
-            metadata=b''
-        )
-        node_to_individual[node_id] = individual_id
+        if node_id not in sample_node_ids:  # Only apply GAIA locations to non-sample nodes
+            # Create 3D location array (x, y, z=0)
+            x_coord = float(locations[node_id, 0])
+            y_coord = float(locations[node_id, 1])
+            location_3d = np.array([x_coord, y_coord, 0.0])
+            
+            # Add individual with location
+            individual_id = tables.individuals.add_row(
+                flags=0,
+                location=location_3d,
+                parents=[],
+                metadata=b''
+            )
+            node_to_individual[node_id] = individual_id
     
     # Update nodes to reference their corresponding individuals
     new_nodes = tables.nodes.copy()
     new_nodes.clear()
     
     for node in ts.nodes():
-        individual_id = node_to_individual[node.id]
+        individual_id = node_to_individual.get(node.id, -1)
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
@@ -195,7 +214,7 @@ def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, loca
     tables.nodes.replace_with(new_nodes)
     
     result_ts = tables.tree_sequence()
-    logger.info(f"Applied GAIA quadratic locations to {ts.num_nodes} nodes")
+    logger.info(f"Applied GAIA quadratic locations to {len(node_to_individual)} nodes (preserved {len(sample_node_ids)} sample locations)")
     
     return result_ts
 
