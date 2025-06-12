@@ -12,6 +12,10 @@ interface ForceDirectedGraphControlPanelProps {
   nodeSizes: NodeSizeSettings;
   onNodeSizeChange: (sizes: NodeSizeSettings) => void;
   
+  // Edge thickness setting
+  edgeThickness: number;
+  onEdgeThicknessChange: (thickness: number) => void;
+  
   // Additional controls can be added here in the future
   isLoading?: boolean;
 }
@@ -21,6 +25,8 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
   onSampleOrderChange,
   nodeSizes,
   onNodeSizeChange,
+  edgeThickness,
+  onEdgeThicknessChange,
   isLoading = false
 }) => {
   const { colors } = useColorTheme();
@@ -185,6 +191,35 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
                   }}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Edge Thickness Setting */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Edge Thickness</h4>
+            
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium" style={{ color: colors.text }}>
+                  Edge Width
+                </label>
+                <span className="text-xs" style={{ color: colors.text }}>
+                  {edgeThickness}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.5"
+                max="3"
+                step="0.5"
+                value={edgeThickness}
+                onChange={(e) => onEdgeThicknessChange(parseFloat(e.target.value))}
+                className="w-full h-1 rounded-lg cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((edgeThickness - 0.5) / 2.5) * 100}%, ${colors.border} ${((edgeThickness - 0.5) / 2.5) * 100}%, ${colors.border} 100%)`,
+                  accentColor: colors.accentPrimary
+                }}
+              />
             </div>
           </div>
 

@@ -101,4 +101,5 @@ export interface ForceDirectedGraphProps {
     focalNode?: GraphNode | null;  // The node to focus on, if any
     nodeSizes?: NodeSizeSettings;  // Node size settings
     sampleOrder?: string;  // The ordering method for sample nodes
+    edgeThickness?: number;  // Edge thickness setting
 } 

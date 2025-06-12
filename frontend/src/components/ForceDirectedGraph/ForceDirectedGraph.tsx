@@ -301,7 +301,7 @@ function findNonOverlappingPosition(
 
     if (overlappingEdges.length === 0) {
         return { x: node.x!, y: node.y! };
-}
+    }
 
     // Try positions slightly to the left and right until we find a non-overlapping spot
     const maxOffset = 30; // Maximum distance to move node
@@ -363,7 +363,7 @@ function findNonOverlappingPosition(
         if (!overlapsLeft) {
             return { x: leftX, y: node.y! };
         }
-}
+    }
 
     // If we couldn't find a non-overlapping position, return original
     return { x: node.x!, y: node.y! };
@@ -934,7 +934,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     onEdgeClick,
     focalNode,
     nodeSizes = DEFAULT_NODE_SIZES,
-    sampleOrder = 'degree'
+    sampleOrder = 'degree',
+    edgeThickness = GRAPH_CONSTANTS.EDGE_STROKE_WIDTH
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     
@@ -1042,7 +1043,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .join("line")
             .attr("stroke", `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`)
             .attr("stroke-opacity", colors.edgeDefault[3] / 255)
-            .attr("stroke-width", GRAPH_CONSTANTS.EDGE_STROKE_WIDTH)
+            .attr("stroke-width", edgeThickness)
             .attr("x1", d => {
                 const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
                 return source?.x ?? 0;
@@ -1320,7 +1321,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             simulation.stop();
             tooltip.remove();
         };
-    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref, sampleOrder]);
+    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref, sampleOrder, edgeThickness]);
 
     return (
         <div className="w-full h-full">

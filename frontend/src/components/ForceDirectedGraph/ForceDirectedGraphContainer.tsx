@@ -72,6 +72,9 @@ const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): 
     return ancestors;
 };
 
+// Default edge thickness
+const DEFAULT_EDGE_THICKNESS = 1;
+
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({ 
     filename,
     max_samples = 25
@@ -96,13 +99,15 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [isUpdatingTreeRange, setIsUpdatingTreeRange] = useState(false);
     const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
     const [isFilterActive, setIsFilterActive] = useState(false);
-    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('custom');
+    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('degree');
     const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
     const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>({
-        sample: 8,  // Default sample node size
-        root: 6,    // Default root node size  
-        other: 5    // Default other node size
+        sample: 8,
+        root: 6,
+        other: 5
     });
+    const [edgeThickness, setEdgeThickness] = useState(DEFAULT_EDGE_THICKNESS);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Convert tree intervals from backend format
     const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
@@ -754,6 +759,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         focalNode={selectedNode}
                         nodeSizes={nodeSizes}
                         sampleOrder={sampleOrder}
+                        edgeThickness={edgeThickness}
                     />
                     
                     <ForceDirectedGraphControlPanel
@@ -761,6 +767,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         onSampleOrderChange={setSampleOrder}
                         nodeSizes={nodeSizes}
                         onNodeSizeChange={setNodeSizes}
+                        edgeThickness={edgeThickness}
+                        onEdgeThicknessChange={setEdgeThickness}
                         isLoading={loading}
                     />
                     
