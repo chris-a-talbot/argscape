@@ -35,7 +35,7 @@ except ImportError:
 
 # Import midpoint inference
 try:
-    from midpoint_inference import run_midpoint_inference
+    from argscape.backend.midpoint_inference import run_midpoint_inference
     logger.info("Midpoint inference successfully imported")
     MIDPOINT_AVAILABLE = True
 except ImportError:
@@ -43,7 +43,7 @@ except ImportError:
     MIDPOINT_AVAILABLE = False
 
 # Import geo_utils functions
-from geo_utils import (
+from argscape.backend.geo_utils import (
     apply_inferred_locations_to_tree_sequence,
     apply_gaia_quadratic_locations_to_tree_sequence,
     apply_gaia_linear_locations_to_tree_sequence
@@ -100,7 +100,7 @@ def run_fastgaia_inference(
         except ImportError:
             raise RuntimeError("pandas not available for location inference")
             
-        from geo_utils import apply_inferred_locations_to_tree_sequence
+        from argscape.backend.geo_utils import apply_inferred_locations_to_tree_sequence
         ts_with_locations = apply_inferred_locations_to_tree_sequence(ts, locations_df)
         
         inference_info = {
@@ -175,7 +175,7 @@ def run_gaia_quadratic_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequ
     
     # Augment tree sequence with inferred locations
     logger.info("Augmenting tree sequence with inferred locations...")
-    from geo_utils import apply_gaia_quadratic_locations_to_tree_sequence
+    from argscape.backend.geo_utils import apply_gaia_quadratic_locations_to_tree_sequence
     ts_with_locations = apply_gaia_quadratic_locations_to_tree_sequence(ts, locations)
     
     # Count inferred locations (non-sample nodes)
@@ -218,7 +218,7 @@ def run_gaia_linear_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequenc
     
     # Augment tree sequence with inferred locations
     logger.info("Augmenting tree sequence with inferred locations...")
-    from geo_utils import apply_gaia_linear_locations_to_tree_sequence
+    from argscape.backend.geo_utils import apply_gaia_linear_locations_to_tree_sequence
     ts_with_locations = apply_gaia_linear_locations_to_tree_sequence(ts, locations)
     
     # Count inferred locations (non-sample nodes)

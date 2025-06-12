@@ -149,7 +149,7 @@ def run_midpoint_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, 
     ])
     
     # Apply locations using the standard utility function
-    from geo_utils import apply_inferred_locations_to_tree_sequence
+    from argscape.backend.geo_utils import apply_inferred_locations_to_tree_sequence
     ts_with_locations = apply_inferred_locations_to_tree_sequence(ts, locations_df)
     
     inference_info = {

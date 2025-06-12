@@ -7,11 +7,11 @@ dependencies:
   - python=3.11
   - tskit
   - msprime
-  - numpy<2
+  - numpy>=1.24.0,<2.0.0
   - fastapi
   - uvicorn
   - python-multipart
-  - pandas
+  - pandas==2.0.3
   - scikit-learn
   - geopandas
   - pydantic

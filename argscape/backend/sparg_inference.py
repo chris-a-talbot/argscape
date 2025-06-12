@@ -306,7 +306,7 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
             raise ValueError(f"Missing non-sample node IDs in node locations: {sorted(missing_nodes)}")
         
         # Apply locations to tree sequence
-        from geo_utils import apply_custom_locations_to_tree_sequence
+        from argscape.backend.geo_utils import apply_custom_locations_to_tree_sequence
         ts_with_locations = apply_custom_locations_to_tree_sequence(
             ts,
             sample_locations=sample_locations,  # Pass sample locations explicitly
@@ -324,6 +324,7 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
         
         return ts_with_locations, inference_info
         
+    
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
         raise RuntimeError(f"Sparg inference failed: {str(e)}") 

@@ -15,7 +15,7 @@ import tskit
 import tszip
 import uvicorn
 import msprime
-from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks, Query
+from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -130,6 +130,9 @@ except ImportError as e:
     GEOANCESTRY_AVAILABLE = False
     MIDPOINT_AVAILABLE = False
 
+# Import graph utilities
+from argscape.backend.graph_utils import convert_tree_sequence_to_graph_data
+
 # FastAPI app instance
 app = FastAPI(
     title="ARGscape API",
@@ -145,6 +148,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Create a separate router for API endpoints
+api_router = APIRouter(prefix="/api")
 
 # Pydantic models
 class FastLocationInferenceRequest(BaseModel):
@@ -216,7 +222,7 @@ def get_client_ip(request: Request) -> str:
 print("🔥 MAIN BACKEND FILE LOADED")
 print("🔥 APP INSTANCE:", app)
 
-@app.get("/api")
+@api_router.get("/")
 async def api_root():
     """API root endpoint."""
     return {
@@ -233,12 +239,13 @@ async def api_root():
         }
     }
 
-@app.get("/api/health")
+@api_router.get("/health")
 async def health_check():
     """Comprehensive health check for Railway deployment."""
     try:
         # Test session storage
-        test_session = session_storage.create_session()
+        test_ip = "127.0.0.1"
+        test_session = session_storage.get_or_create_session(test_ip)
         session_storage._cleanup_session(test_session)
         
         # Test imports
@@ -269,7 +276,7 @@ async def health_check():
         }
 
 
-@app.get("/api/debug/geoancestry-status")
+@api_router.get("/debug/geoancestry-status")
 async def debug_geoancestry_status():
     """Debug endpoint to check geoancestry availability."""
     import sys
@@ -310,7 +317,7 @@ async def debug_geoancestry_status():
     }
 
 
-@app.post("/api/create-session")
+@api_router.post("/create-session")
 async def create_session(request: Request):
     """Get or create a persistent session for the client IP."""
     try:
@@ -328,7 +335,7 @@ async def create_session(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to get session: {str(e)}")
 
 
-@app.get("/api/session")
+@api_router.get("/session")
 async def get_current_session(request: Request):
     """Get or create the current session for this client IP."""
     try:
@@ -345,7 +352,7 @@ async def get_current_session(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to get session: {str(e)}")
 
 
-@app.get("/api/session-stats/{session_id}")
+@api_router.get("/session-stats/{session_id}")
 async def get_session_stats(session_id: str):
     """Get statistics for a specific session."""
     stats = session_storage.get_session_stats(session_id)
@@ -355,13 +362,13 @@ async def get_session_stats(session_id: str):
     return stats
 
 
-@app.get("/api/admin/storage-stats")
+@api_router.get("/admin/storage-stats")
 async def get_storage_stats(request: Request):
     """Get global storage statistics (admin endpoint)."""
     return session_storage.get_global_stats()
 
 
-@app.get("/api/uploaded-files/")
+@api_router.get("/uploaded-files/")
 async def list_uploaded_files_current(request: Request):
     """List uploaded files for current client IP session."""
     try:
@@ -374,7 +381,7 @@ async def list_uploaded_files_current(request: Request):
 
 #### Tree sequence API endpoints ####
 
-@app.post("/api/upload-tree-sequence")
+@api_router.post("/upload-tree-sequence")
 async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
     """Upload and process tree sequence files."""
     try:
@@ -418,7 +425,7 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail=f"Failed to upload: {str(e)}")
 
 
-@app.get("/api/tree-sequence-metadata/{filename}")
+@api_router.get("/tree-sequence-metadata/{filename}")
 async def get_tree_sequence_metadata(request: Request, filename: str):
     """Get metadata for a tree sequence."""
     try:
@@ -447,7 +454,7 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
         raise HTTPException(status_code=500, detail=f"Failed to get metadata: {str(e)}")
 
 
-@app.delete("/api/tree-sequence/{filename}")
+@api_router.delete("/tree-sequence/{filename}")
 async def delete_tree_sequence(request: Request, filename: str):
     """Delete a tree sequence file."""
     try:
@@ -466,7 +473,7 @@ async def delete_tree_sequence(request: Request, filename: str):
         raise HTTPException(status_code=500, detail=f"Failed to delete file: {str(e)}")
 
 
-@app.get("/api/download-tree-sequence/{filename}")
+@api_router.get("/download-tree-sequence/{filename}")
 async def download_tree_sequence(
     request: Request, 
     filename: str, 
@@ -536,7 +543,7 @@ async def download_tree_sequence(
         raise HTTPException(status_code=500, detail=f"Failed to download file: {str(e)}")
 
 
-@app.get("/api/graph-data/{filename}")
+@api_router.get("/graph-data/{filename}")
 async def get_graph_data(
     request: Request,
     filename: str, 
@@ -635,12 +642,12 @@ async def get_graph_data(
         raise HTTPException(status_code=500, detail=f"Failed to generate graph data: {str(e)}")
 
 
-@app.post("/api/simulate-tree-sequence")  # No trailing slash version
+@api_router.post("/simulate-tree-sequence")  # No trailing slash version
 async def simulate_tree_sequence_no_slash(request: Request, simulation_request: SimulationRequest):
     """Redirect to the trailing slash version."""
     return await simulate_tree_sequence(request, simulation_request)
 
-@app.post("/api/simulate-tree-sequence/")  # Original version with trailing slash
+@api_router.post("/simulate-tree-sequence/")  # Original version with trailing slash
 async def simulate_tree_sequence(request: Request, simulation_request: SimulationRequest):
     """Simulate a tree sequence with the given parameters."""
     logger.info(f"Simulating tree sequence with parameters: {simulation_request}")
@@ -746,7 +753,7 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
         raise HTTPException(status_code=500, detail=f"Failed to simulate tree sequence: {str(e)}")
 
 
-@app.post("/api/infer-locations-fast")
+@api_router.post("/infer-locations-fast")
 async def infer_locations_fast(request: Request, inference_request: FastLocationInferenceRequest):
     """Infer locations using the fastgaia package for fast spatial inference."""
     if not FASTGAIA_AVAILABLE:
@@ -793,7 +800,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         raise HTTPException(status_code=500, detail=f"Fast location inference failed: {str(e)}")
 
 
-@app.post("/api/infer-locations-gaia")
+@api_router.post("/infer-locations-gaia")
 async def infer_locations_gaia(request: Request, inference_request: FastGAIAInferenceRequest):
     """Infer locations using the GAIA R package for high-accuracy spatial inference."""
     if infer_locations_with_gaia is None or not check_gaia_availability():
@@ -840,7 +847,7 @@ async def infer_locations_gaia(request: Request, inference_request: FastGAIAInfe
         raise HTTPException(status_code=500, detail=f"GAIA location inference failed: {str(e)}")
 
 
-@app.post("/api/infer-locations-gaia-quadratic")
+@api_router.post("/infer-locations-gaia-quadratic")
 async def infer_locations_gaia_quadratic(request: Request, inference_request: GAIAQuadraticInferenceRequest):
     """Infer locations using the GAIA quadratic parsimony algorithm (geoancestry package)."""
     if not GEOANCESTRY_AVAILABLE:
@@ -896,7 +903,7 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         raise HTTPException(status_code=500, detail=f"GAIA quadratic location inference failed: {str(e)}")
 
 
-@app.post("/api/infer-locations-gaia-linear")
+@api_router.post("/infer-locations-gaia-linear")
 async def infer_locations_gaia_linear(request: Request, inference_request: GAIALinearInferenceRequest):
     """Infer locations using the GAIA linear parsimony algorithm (geoancestry package)."""
     if not GEOANCESTRY_AVAILABLE:
@@ -952,7 +959,7 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
         raise HTTPException(status_code=500, detail=f"GAIA linear location inference failed: {str(e)}")
 
 
-@app.post("/api/infer-locations-midpoint")
+@api_router.post("/infer-locations-midpoint")
 async def infer_locations_midpoint(request: Request, inference_request: MidpointInferenceRequest):
     """Infer locations using weighted midpoint method."""
     if not MIDPOINT_AVAILABLE:
@@ -1008,7 +1015,7 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
         raise HTTPException(status_code=500, detail=f"Midpoint location inference failed: {str(e)}")
 
 
-@app.post("/api/upload-location-csv")
+@api_router.post("/upload-location-csv")
 async def upload_location_csv(request: Request, csv_type: str, file: UploadFile = File(...)):
     """Upload CSV files containing node locations."""
     if csv_type not in ["sample_locations", "node_locations"]:
@@ -1053,7 +1060,7 @@ async def upload_location_csv(request: Request, csv_type: str, file: UploadFile 
         raise HTTPException(status_code=500, detail=f"Failed to upload CSV: {str(e)}")
 
 
-@app.post("/api/update-tree-sequence-locations")
+@api_router.post("/update-tree-sequence-locations")
 async def update_tree_sequence_locations(request: Request, location_request: CustomLocationRequest):
     """Update tree sequence with custom locations from CSV files."""
     try:
@@ -1162,7 +1169,7 @@ async def update_tree_sequence_locations(request: Request, location_request: Cus
         raise HTTPException(status_code=500, detail=f"Failed to update tree sequence: {str(e)}")
 
 
-@app.post("/api/infer-locations-sparg")
+@api_router.post("/infer-locations-sparg")
 async def infer_locations_sparg(request: Request, inference_request: SpargInferenceRequest):
     """Infer locations using the sparg package."""
     if not SPARG_AVAILABLE:
@@ -1219,7 +1226,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
 
 #### Geographic API endpoints ####
 
-@app.get("/api/geographic/crs")
+@api_router.get("/geographic/crs")
 async def get_available_crs():
     """Get list of available coordinate reference systems."""
     return {
@@ -1227,7 +1234,7 @@ async def get_available_crs():
 }
 
 
-@app.get("/api/geographic/shapes")
+@api_router.get("/geographic/shapes")
 async def get_available_shapes():
     """Get list of built-in geographic shapes."""
     try:
@@ -1240,7 +1247,7 @@ async def get_available_shapes():
         raise HTTPException(status_code=500, detail=f"Could not get shapes: {str(e)}")
 
 
-@app.post("/api/geographic/upload-shapefile")
+@api_router.post("/geographic/upload-shapefile")
 async def upload_shapefile(request: Request, file: UploadFile = File(...)):
     """Upload and process a shapefile."""
     client_ip = get_client_ip(request)
@@ -1272,7 +1279,7 @@ async def upload_shapefile(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=500, detail=f"Could not process shapefile: {str(e)}")
 
 
-@app.get("/api/geographic/shape/{shape_name}")
+@api_router.get("/geographic/shape/{shape_name}")
 async def get_shape_data(shape_name: str):
     """Get geometric data for a built-in shape."""
     try:
@@ -1288,7 +1295,7 @@ async def get_shape_data(shape_name: str):
         raise HTTPException(status_code=500, detail=f"Could not get shape data: {str(e)}")
 
 
-@app.post("/api/geographic/transform-coordinates")
+@api_router.post("/geographic/transform-coordinates")
 async def transform_tree_sequence_coordinates(request: Request, transform_request: CoordinateTransformRequest):
     """Transform coordinates of a tree sequence between CRS."""
     client_ip = get_client_ip(request)
@@ -1372,7 +1379,7 @@ async def transform_tree_sequence_coordinates(request: Request, transform_reques
         raise HTTPException(status_code=500, detail=f"Coordinate transformation failed: {str(e)}")
 
 
-@app.post("/api/geographic/validate-spatial")
+@api_router.post("/geographic/validate-spatial")
 async def validate_spatial_data(request: Request, validation_request: SpatialValidationRequest):
     """Validate that spatial coordinates fall within a given shape."""
     client_ip = get_client_ip(request)
@@ -1428,7 +1435,10 @@ async def validate_spatial_data(request: Request, validation_request: SpatialVal
         logger.error(f"Error validating spatial data: {e}")
         raise HTTPException(status_code=500, detail=f"Spatial validation failed: {str(e)}")
 
-# Mount static files AFTER all API routes
+# Mount the API router FIRST
+app.include_router(api_router)
+
+# Mount static files AFTER API router
 frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
@@ -1440,9 +1450,9 @@ else:
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """Catch-all route to serve the React SPA for client-side routing."""
-    # Skip API routes, static files, and assets
-    if full_path.startswith(("api", "api/", "/api", "/api/", "static/", "assets/")):
-        raise HTTPException(status_code=404, detail="Not found")
+    # Skip API routes
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API route not found")
     
     # Serve the frontend
     index_file = os.path.join(frontend_dist, "index.html")

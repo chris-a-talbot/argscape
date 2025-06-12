@@ -5,10 +5,11 @@ Graph data conversion utilities for ARG visualization
 
 import logging
 import math
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional, Union
 
 import numpy as np
 import tskit
+from argscape.backend.geo_utils import check_spatial_completeness
 
 logger = logging.getLogger(__name__)
 
@@ -343,7 +344,7 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
             coordinates_with_spatial.append((node['location']['x'], node['location']['y']))
     
     if coordinates_with_spatial:
-        from geo_utils.crs_detect import detect_coordinate_system
+        from argscape.backend.geo_utils.crs_detect import detect_coordinate_system
         crs_detection = detect_coordinate_system(coordinates_with_spatial)
         
         # Add detection results to metadata
@@ -371,4 +372,73 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
         'nodes': nodes,
         'edges': edges,
         'metadata': metadata
+    }
+
+
+def convert_tree_sequence_to_graph_data(
+    ts: tskit.TreeSequence,
+    max_samples: Optional[int] = None,
+    sample_order: str = "degree"
+) -> Dict:
+    """Convert a tree sequence to a graph data structure for visualization."""
+    logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
+    
+    # Get spatial info
+    spatial_info = check_spatial_completeness(ts)
+    has_locations = spatial_info.get("has_sample_spatial", False)
+    
+    # Extract nodes and edges
+    nodes = []
+    edges = []
+    node_times = []
+    
+    # Process nodes
+    for node in ts.nodes():
+        node_data = {
+            "id": str(node.id),
+            "time": node.time,
+            "is_sample": node.is_sample(),
+            "metadata": node.metadata
+        }
+        
+        # Add location data if available
+        if has_locations and hasattr(node, "location"):
+            node_data["location"] = {
+                "x": float(node.location[0]),
+                "y": float(node.location[1]),
+                "z": float(node.location[2]) if len(node.location) > 2 else 0.0
+            }
+        
+        nodes.append(node_data)
+        node_times.append(node.time)
+    
+    # Process edges
+    for edge in ts.edges():
+        edges.append({
+            "source": str(edge.parent),
+            "target": str(edge.child),
+            "left": edge.left,
+            "right": edge.right
+        })
+    
+    # Calculate time ranges for visualization
+    min_time = min(node_times)
+    max_time = max(node_times)
+    time_range = max_time - min_time
+    
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "metadata": {
+            "num_nodes": ts.num_nodes,
+            "num_edges": ts.num_edges,
+            "sequence_length": ts.sequence_length,
+            "num_trees": ts.num_trees,
+            "time_range": {
+                "min": min_time,
+                "max": max_time,
+                "range": time_range
+            },
+            "has_locations": has_locations
+        }
     } 
