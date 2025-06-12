@@ -219,6 +219,14 @@ def get_client_ip(request: Request) -> str:
 
 #### API endpoints ####
 
+@app.middleware("http")
+async def remove_double_slash_middleware(request: Request, call_next):
+    scope = request.scope
+    if "//" in scope["path"]:
+        scope["path"] = scope["path"].replace("//", "/")
+    return await call_next(request)
+
+
 print("🔥 MAIN BACKEND FILE LOADED")
 print("🔥 APP INSTANCE:", app)
 
@@ -1446,34 +1454,12 @@ if frontend_dist.exists():
 else:
     logger.warning(f"Frontend build directory not found: {frontend_dist}")
 
-# Catch-all route for React Router (must be last)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    """Catch-all route to serve the React SPA for client-side routing."""
-    # Skip API routes
-    if full_path.startswith("api/"):
-        raise HTTPException(status_code=404, detail="API route not found")
-    
-    # Serve the frontend
-    index_file = os.path.join(frontend_dist, "index.html")
-    
-    if os.path.exists(index_file):
-        return FileResponse(index_file)
-    else:
-        raise HTTPException(status_code=404, detail="Frontend not available")
-
-@app.get("/__debug_routes__")
-def debug_routes():
-    return [route.path for route in app.routes]
-
-@app.get("/__ping__")
-def ping():
-    return {"message": "pong"}
-
-print("🔥 Registered routes:")
-for route in app.routes:
-    methods = getattr(route, "methods", ["<mounted>"])
-    print(f"{route.path} ({','.join(methods)})")
+    index_path = frontend_dist / "index.html"
+    if index_path.exists():
+        return FileResponse(index_path)
+    return {"detail": "index.html not found"}, 404
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

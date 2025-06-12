@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 def main():
     """Main startup function."""
     logger.info("Starting ARGscape API...")
+
+    print("🚀 Starting ARGscape via startup.py")
     
     # Get port from environment (Railway sets this)
     port = int(os.getenv("PORT", 8000))

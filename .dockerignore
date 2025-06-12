@@ -24,3 +24,11 @@ frontend/dist/
 !frontend/
 !Dockerfile
 !railway.toml
+
+**/__pycache__
+**/.pytest_cache
+**/*.pyc
+**/node_modules
+**/build
+**/dist
+**/.git
