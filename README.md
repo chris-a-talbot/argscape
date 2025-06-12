@@ -158,19 +158,46 @@ Full API documentation available at `/docs` when running locally.
 ### Project Structure
 ```
 argscape/
-├── frontend/              # React TypeScript app
-│   ├── src/
-│   │   ├── components/    # UI components
-│   │   ├── context/       # React contexts
-│   │   ├── lib/          # Utilities
-│   │   └── config/       # Configuration
-│   └── package.json
-├── backend/              # FastAPI Python app
-│   ├── main.py          # API routes
-│   ├── session_storage.py # Session management
-│   ├── graph_utils.py   # Visualization utils
-│   └── requirements-web.txt
-└── docker-compose.yml   # Development setup
+├── argscape/                     # Main Python package
+│   ├── __init__.py
+│   ├── cli.py                    # Command-line interface
+│   ├── frontend_dist/            # Compiled frontend assets
+│   └── backend/                  # Backend application
+│       ├── __init__.py
+│       ├── main.py               # Main application entry point
+│       ├── startup.py            # Application startup logic
+│       ├── constants.py          # Application constants
+│       ├── session_storage.py    # Session management
+│       ├── location_inference.py # Location inference logic
+│       ├── midpoint_inference.py # Midpoint inference logic
+│       ├── sparg_inference.py    # SPARG inference logic
+│       ├── spatial_generation.py # Spatial data generation
+│       ├── graph_utils.py        # Graph utility functions
+│       ├── requirements-web.txt  # Web dependencies
+│       ├── environment.yml       # Conda environment
+│       ├── Dockerfile            # Backend container definition
+│       ├── geo_utils/            # Geographic utilities
+│       ├── sparg/                # SPARG algorithm implementation
+│       ├── tskit_utils/          # Tree sequence utilities
+├── frontend/                    # Frontend application (TypeScript/React)
+│   ├── src/                     # Source code
+│   ├── public/                  # Static assets
+│   ├── package.json             # Frontend dependencies
+│   ├── tsconfig.json            # TypeScript configuration
+│   ├── vite.config.ts           # Vite configuration
+│   ├── tailwind.config.js       # Tailwind CSS configuration
+│   ├── nginx.conf               # Nginx configuration
+│   └── Dockerfile               # Frontend container definition
+├── .dockerignore              # Docker ignore rules
+├── docker-compose.yml         # Docker Compose configuration
+├── Dockerfile                 # Root Dockerfile
+├── LICENSE                    # License file
+├── MANIFEST.in               # Python package manifest
+├── pyproject.toml            # Python project configuration
+├── railway.toml              # Railway deployment config
+├── README.md                 # Project documentation
+├── setup.cfg                 # Python setup configuration
+└── package.json              # Root package.json
 ```
 
 ## File Formats
