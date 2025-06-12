@@ -1,3 +1,0 @@
-"""
-ARGscape backend package.
-""" 
