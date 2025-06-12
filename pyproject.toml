@@ -5,14 +5,44 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "argscape"
 version = "0.1.0"
-authors = [
-  { name="Your Name", email="your.email@example.com" },
-]
-description = "ARGscape backend package"
+description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.8"
+authors = [{ name = "Chris Talbot", email = "chtalbot@umich.edu" }]
+license = { file = "LICENSE" }
+
+dependencies = [
+  "numpy>=1.24.0,<2.0.0",
+  "pandas",
+  "tskit==0.5.6",
+  "tszip==0.2.2",
+  "msprime",
+  "scikit-learn",
+  "fastapi==0.115.6",
+  "uvicorn[standard]==0.24.0",
+  "python-multipart==0.0.6",
+  "python-dotenv==1.0.0",
+  "apscheduler==3.10.4",
+  "tsdate",
+  "fastgaia",
+  "geoancestry",
+  "geopandas==0.14.1",
+  "shapely>=2.0.2,<3.0.0",
+  "pyproj==3.6.1",
+  "fiona==1.9.5",
+  "sympy",
+  "scipy",
+  "tqdm",
+  "matplotlib",
+  "pydantic"
+]
+
+[project.scripts]
+argscape = "argscape.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["argscape*"]
-namespaces = true
+
+[tool.setuptools.package-data]
+"argscape" = ["frontend_dist/**/*"]
