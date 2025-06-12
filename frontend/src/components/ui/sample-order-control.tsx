@@ -1,7 +1,7 @@
 import React from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
-export type SampleOrderType = 'degree' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric';
+export type SampleOrderType = 'degree' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre';
 
 interface SampleOrderControlProps {
   value: SampleOrderType;
@@ -34,6 +34,11 @@ const orderOptions: { value: SampleOrderType; label: string; description: string
     value: 'numeric',
     label: 'Numeric',
     description: 'Simple numeric order (0, 1, 2, ...)'
+  },
+  {
+    value: 'dagre',
+    label: 'Layer-based',
+    description: 'Order nodes in each layer using dagre-d3 algorithm'
   }
 ];
 

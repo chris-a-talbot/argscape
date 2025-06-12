@@ -753,6 +753,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         onEdgeClick={handleEdgeClick}
                         focalNode={selectedNode}
                         nodeSizes={nodeSizes}
+                        sampleOrder={sampleOrder}
                     />
                     
                     <ForceDirectedGraphControlPanel

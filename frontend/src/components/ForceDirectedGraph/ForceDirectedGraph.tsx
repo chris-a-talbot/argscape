@@ -1,5 +1,6 @@
 import { useEffect, forwardRef, ForwardedRef, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
+import * as dagre from 'dagre';
 import { ForceDirectedGraphProps, GraphNode, GraphEdge, NodeSizeSettings } from './ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
@@ -82,6 +83,7 @@ interface Node extends d3.SimulationNodeDatum {
     // Properties for combined nodes
     is_combined?: boolean;
     combined_nodes?: number[]; // Array of original node IDs that were combined
+    dagreX?: number; // For dagre-based ordering within layers
 }
 
 // Helper function to get source and target nodes from edge
@@ -140,6 +142,74 @@ function getDescendantSampleRange(node: Node, nodes: Node[], edges: GraphEdge[])
     };
 }
 
+// Helper function to find descendants of a node that are in a specific layer
+function getDescendantsInLayer(node: Node, allNodes: Node[], edges: GraphEdge[], layerNodeIds: Set<number>): Node[] {
+    const descendants: Node[] = [];
+    const visited = new Set<number>();
+    const queue: Node[] = [node];
+    
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (visited.has(current.id)) continue;
+        visited.add(current.id);
+        
+        const children = edges
+            .filter(e => {
+                const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
+                return sourceId === current.id;
+            })
+            .map(e => {
+                const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+                return allNodes.find(n => n.id === targetId);
+            })
+            .filter(n => n !== undefined) as Node[];
+        
+        children.forEach(child => {
+            if (layerNodeIds.has(child.id)) {
+                descendants.push(child);
+            } else if (!visited.has(child.id)) {
+                queue.push(child);
+            }
+        });
+    }
+    
+    return descendants;
+}
+
+// Helper function to find ancestors of a node that are in a specific layer
+function getAncestorsInLayer(node: Node, allNodes: Node[], edges: GraphEdge[], layerNodeIds: Set<number>): Node[] {
+    const ancestors: Node[] = [];
+    const visited = new Set<number>();
+    const queue: Node[] = [node];
+    
+    while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (visited.has(current.id)) continue;
+        visited.add(current.id);
+        
+        const parents = edges
+            .filter(e => {
+                const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+                return targetId === current.id;
+            })
+            .map(e => {
+                const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
+                return allNodes.find(n => n.id === sourceId);
+            })
+            .filter(n => n !== undefined) as Node[];
+        
+        parents.forEach(parent => {
+            if (layerNodeIds.has(parent.id)) {
+                ancestors.push(parent);
+            } else if (!visited.has(parent.id)) {
+                queue.push(parent);
+            }
+        });
+    }
+    
+    return ancestors;
+}
+
 // Helper function to enforce x position within descendant range
 function enforceDescendantRange(node: Node, nodes: Node[], edges: GraphEdge[]): void {
     const range = getDescendantSampleRange(node, nodes, edges);
@@ -174,100 +244,208 @@ function getSiblings(node: Node, nodes: Node[], edges: GraphEdge[]): Node[] {
     });
 }
 
-// Helper function to optimize node positions within a layer
-function optimizeLayerPositions(nodes: Node[], edges: GraphEdge[], layer: number, width: number): void {
-    const layerNodes = nodes.filter(n => n.layer === layer);
-    if (layerNodes.length <= 1) return;
-
-    const parentGroups = groupNodesByParent(layerNodes, nodes, edges);
-    const sortedGroups = sortParentGroups(parentGroups, nodes);
-    positionNodesInGroups(sortedGroups, width, nodes, edges);
-}
-
-// Helper function to group nodes by their parent
-function groupNodesByParent(layerNodes: Node[], nodes: Node[], edges: GraphEdge[]): Map<number, Node[]> {
-    const parentGroups = new Map<number, Node[]>();
+// Helper function to check if a point lies on a line segment
+function isPointOnLineSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number, tolerance: number = 5): boolean {
+    // Calculate distances
+    const d1 = Math.sqrt((px - x1) ** 2 + (py - y1) ** 2);
+    const d2 = Math.sqrt((px - x2) ** 2 + (py - y2) ** 2);
+    const lineLen = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
     
-    layerNodes.forEach(node => {
-        const parent = getParent(node, nodes, edges);
-        const parentId = parent?.id ?? -1;
-        
-        if (!parentGroups.has(parentId)) {
-            parentGroups.set(parentId, []);
-        }
-        parentGroups.get(parentId)!.push(node);
-    });
-
-    // Sort nodes within each group by descendant sample count
-    parentGroups.forEach(group => {
-        group.sort((a, b) => {
-            const aSampleCount = getDescendantSamples(a, nodes, edges).length;
-            const bSampleCount = getDescendantSamples(b, nodes, edges).length;
-            return bSampleCount - aSampleCount;
-        });
-    });
-
-    return parentGroups;
+    // Check if point is within tolerance of the line segment
+    return Math.abs(d1 + d2 - lineLen) <= tolerance;
 }
 
-// Helper function to sort parent groups by parent position
-function sortParentGroups(parentGroups: Map<number, Node[]>, nodes: Node[]): Array<[number, Node[]]> {
-    return Array.from(parentGroups.entries()).sort(([parentIdA], [parentIdB]) => {
-        if (parentIdA === -1) return -1;
-        if (parentIdB === -1) return 1;
-        
-        const parentA = nodes.find(n => n.id === parentIdA);
-        const parentB = nodes.find(n => n.id === parentIdB);
-        return (parentA?.x ?? 0) - (parentB?.x ?? 0);
+// Helper function to find a new position for a node that overlaps with edges
+function findNonOverlappingPosition(
+    node: Node,
+    edges: GraphEdge[],
+    nodes: Node[],
+    nodeRadius: number,
+    minX: number,
+    maxX: number,
+    nodeSizes: NodeSizeSettings
+): { x: number; y: number } {
+    const connectedEdgeIds = new Set(edges
+        .filter(e => {
+            const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
+            const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+            return sourceId === node.id || targetId === node.id;
+        })
+        .map(e => `${typeof e.source === 'number' ? e.source : e.source.id}-${typeof e.target === 'number' ? e.target : e.target.id}`));
+
+    const overlappingEdges = edges.filter(edge => {
+        // Skip edges connected to this node
+        const edgeId = `${typeof edge.source === 'number' ? edge.source : edge.source.id}-${typeof edge.target === 'number' ? edge.target : edge.target.id}`;
+        if (connectedEdgeIds.has(edgeId)) return false;
+
+        const sourceNode = typeof edge.source === 'number' 
+            ? nodes.find(n => n.id === edge.source) 
+            : edge.source as Node;
+        const targetNode = typeof edge.target === 'number' 
+            ? nodes.find(n => n.id === edge.target) 
+            : edge.target as Node;
+
+        if (!sourceNode || !targetNode) return false;
+
+        // Check if node overlaps with this edge
+        return isPointOnLineSegment(
+            node.x!,
+            node.y!,
+            sourceNode.x!,
+            sourceNode.y!,
+            targetNode.x!,
+            targetNode.y!,
+            nodeRadius * 2 // Use double the node radius as tolerance
+        );
     });
+
+    if (overlappingEdges.length === 0) {
+        return { x: node.x!, y: node.y! };
 }
 
-// Helper function to position nodes within their groups
-function positionNodesInGroups(
-    sortedGroups: Array<[number, Node[]]>, 
-    width: number, 
-    nodes: Node[], 
-    edges: GraphEdge[]
-): void {
-    const xPadding = width * GRAPH_CONSTANTS.PADDING_RATIO;
-    const availableWidth = width - (2 * xPadding);
-    let currentX = xPadding;
+    // Try positions slightly to the left and right until we find a non-overlapping spot
+    const maxOffset = 30; // Maximum distance to move node
+    const step = 5; // Step size for each attempt
 
-    sortedGroups.forEach(([, group]) => {
-        const groupWidth = (availableWidth * GRAPH_CONSTANTS.AVAILABLE_WIDTH_RATIO) / sortedGroups.length;
-        const nodeSpacing = groupWidth / (group.length + 1);
-
-        group.forEach((node, index) => {
-            if (!node.is_sample) {
-                const groupX = currentX + (index + 1) * nodeSpacing;
-                const descendantRange = getDescendantSampleRange(node, nodes, edges);
-                
-                node.x = descendantRange
-                    ? Math.max(descendantRange.min, Math.min(descendantRange.max, groupX))
-                    : groupX;
+    for (let offset = step; offset <= maxOffset; offset += step) {
+        // Try right first
+        const rightX = Math.min(node.x! + offset, maxX);
+        let overlapsRight = false;
+        for (const edge of overlappingEdges) {
+            const sourceNode = typeof edge.source === 'number' 
+                ? nodes.find(n => n.id === edge.source) 
+                : edge.source as Node;
+            const targetNode = typeof edge.target === 'number' 
+                ? nodes.find(n => n.id === edge.target) 
+                : edge.target as Node;
+            
+            if (isPointOnLineSegment(
+                rightX,
+                node.y!,
+                sourceNode!.x!,
+                sourceNode!.y!,
+                targetNode!.x!,
+                targetNode!.y!,
+                nodeRadius * 2
+            )) {
+                overlapsRight = true;
+                break;
             }
-        });
+        }
+        if (!overlapsRight) {
+            return { x: rightX, y: node.y! };
+        }
 
-        currentX += groupWidth;
-    });
+        // Try left
+        const leftX = Math.max(node.x! - offset, minX);
+        let overlapsLeft = false;
+        for (const edge of overlappingEdges) {
+            const sourceNode = typeof edge.source === 'number' 
+                ? nodes.find(n => n.id === edge.source) 
+                : edge.source as Node;
+            const targetNode = typeof edge.target === 'number' 
+                ? nodes.find(n => n.id === edge.target) 
+                : edge.target as Node;
+            
+            if (isPointOnLineSegment(
+                leftX,
+                node.y!,
+                sourceNode!.x!,
+                sourceNode!.y!,
+                targetNode!.x!,
+                targetNode!.y!,
+                nodeRadius * 2
+            )) {
+                overlapsLeft = true;
+                break;
+            }
+        }
+        if (!overlapsLeft) {
+            return { x: leftX, y: node.y! };
+        }
 }
 
-// Helper function to assign layers based on time and calculate degrees
-function assignLayers(nodes: Node[], edges: GraphEdge[]): void {
-    const timeLayers = new Map<number, number>();
-    
-    // Assign layers based on unique time points
-    nodes.forEach(node => {
-        if (!timeLayers.has(node.time)) {
-            timeLayers.set(node.time, timeLayers.size);
-        }
-        node.layer = timeLayers.get(node.time)!;
+    // If we couldn't find a non-overlapping position, return original
+    return { x: node.x!, y: node.y! };
+}
+
+// Improved getDagreOrderedNodes function with better edge handling
+function getDagreOrderedNodes(layerNodes: Node[], allNodes: Node[], edges: GraphEdge[]): Node[] {
+    // Create a new dagre graph for this layer
+    const g = new dagre.graphlib.Graph();
+    g.setGraph({
+        rankdir: 'TB', // Top to bottom for within-layer ordering
+        nodesep: 30,   // Horizontal space between nodes
+        ranksep: 50,   // Vertical space between ranks (not used much here)
+        marginx: 10,
+        marginy: 10,
+        ranker: 'network-simplex' // Best for minimizing crossings
+    });
+    g.setDefaultEdgeLabel(() => ({}));
+
+    // Add all nodes in this layer
+    layerNodes.forEach(node => {
+        g.setNode(node.id.toString(), { 
+            width: 20, 
+            height: 20,
+            label: node.id.toString()
+        });
     });
 
-    // Calculate node connectivity degrees
-    nodes.forEach(node => {
-        node.degree = getConnectedEdges(node, edges).length;
+    // Add edges that cross this layer (for proper ordering)
+    const layerNodeIds = new Set(layerNodes.map(n => n.id));
+    
+    edges.forEach(edge => {
+        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+        const source = allNodes.find(n => n.id === sourceId);
+        const target = allNodes.find(n => n.id === targetId);
+
+        if (!source || !target) return;
+
+        // Add edges that involve nodes in this layer
+        // This includes edges within the layer and edges crossing through the layer
+        const sourceInLayer = layerNodeIds.has(sourceId);
+        const targetInLayer = layerNodeIds.has(targetId);
+        
+        if (sourceInLayer && targetInLayer) {
+            // Edge within the layer
+            g.setEdge(sourceId.toString(), targetId.toString());
+        } else if (sourceInLayer || targetInLayer) {
+            // Edge crossing the layer - add virtual connection for ordering
+            if (sourceInLayer) {
+                // Find target's descendants in this layer
+                const descendants = getDescendantsInLayer(target, allNodes, edges, layerNodeIds);
+                descendants.forEach(desc => {
+                    g.setEdge(sourceId.toString(), desc.id.toString());
+                });
+            }
+            if (targetInLayer) {
+                // Find source's ancestors in this layer
+                const ancestors = getAncestorsInLayer(source, allNodes, edges, layerNodeIds);
+                ancestors.forEach(anc => {
+                    g.setEdge(anc.id.toString(), targetId.toString());
+                });
+            }
+        }
     });
+
+    // Run the dagre layout
+    dagre.layout(g);
+
+    // Get nodes in the order determined by dagre
+    const orderedNodes: Node[] = [];
+    g.nodes().forEach(nodeId => {
+        const node = layerNodes.find(n => n.id === parseInt(nodeId));
+        if (node) {
+            const dagreNode = g.node(nodeId);
+            node.dagreX = dagreNode.x;
+            orderedNodes.push(node);
+        }
+    });
+
+    // Sort nodes by their dagre x position
+    return orderedNodes.sort((a, b) => (a.dagreX ?? 0) - (b.dagreX ?? 0));
 }
 
 // Helper function to get all edges connected to a node
@@ -493,25 +671,232 @@ function calculateFitTransform(bounds: any, width: number, height: number) {
         .translate(-centerX, -centerY);
 }
 
+// Helper function to apply jitter to vertically aligned nodes
+function applyVerticalAlignmentJitter(nodes: Node[], edges: GraphEdge[], minX: number, maxX: number) {
+    // Group nodes by x-coordinate
+    const nodesByX = new Map<number, Node[]>();
+    nodes.forEach(node => {
+        if (!node.is_sample) { // Don't jitter sample nodes
+            const x = Math.round(node.x! * 100) / 100; // Round to 2 decimal places to group "nearly same" x values
+            const nodesAtX = nodesByX.get(x) || [];
+            nodesAtX.push(node);
+            nodesByX.set(x, nodesAtX);
+        }
+    });
+
+    // For each group of nodes at the same x, apply jitter if needed
+    nodesByX.forEach((nodesAtX, x) => {
+        if (nodesAtX.length > 1) {
+            // Sort nodes by y to process them in order
+            nodesAtX.sort((a, b) => a.y! - b.y!);
+            
+            // For each pair of nodes, check if they're connected
+            for (let i = 0; i < nodesAtX.length; i++) {
+                for (let j = i + 1; j < nodesAtX.length; j++) {
+                    const node1 = nodesAtX[i];
+                    const node2 = nodesAtX[j];
+                    
+                    // Check if these nodes are directly connected
+                    const areConnected = edges.some(edge => {
+                        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+                        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+                        return (sourceId === node1.id && targetId === node2.id) ||
+                               (sourceId === node2.id && targetId === node1.id);
+                    });
+                    
+                    if (!areConnected) {
+                        // Apply jitter to the second node
+                        // Use a consistent jitter based on node IDs to maintain stability
+                        const jitterSeed = (node2.id * 10000 + node1.id) % 1000 / 1000;
+                        const jitterAmount = 15; // Maximum jitter amount
+                        const jitter = (jitterSeed - 0.5) * jitterAmount;
+                        
+                        // Apply jitter while respecting bounds
+                        const newX = Math.max(minX, Math.min(maxX, node2.x! + jitter));
+                        node2.x = newX;
+                        node2.fx = newX;
+                    }
+                }
+            }
+        }
+    });
+}
+
 // Helper function to setup initial node positions
-function setupInitialNodePositions(combinedNodes: Node[], actualWidth: number, actualHeight: number) {
+function setupInitialNodePositions(
+    combinedNodes: Node[], 
+    combinedEdges: GraphEdge[], 
+    actualWidth: number, 
+    actualHeight: number, 
+    sampleOrder?: string,
+    nodeSizes?: NodeSizeSettings
+) {
     const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
     const timeToIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
     const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
     const timeSpacing = availableHeight / (uniqueTimes.length - 1 || 1);
+    const xPadding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
+    const availableWidth = actualWidth - (2 * xPadding);
     
     // Add timeIndex to each node
     combinedNodes.forEach(node => {
         node.timeIndex = timeToIndex.get(node.time) ?? 0;
     });
 
-    // Position sample nodes
+    if (sampleOrder === 'dagre') {
+        console.log('Setting up dagre layout...');
+        
+        // Create a full graph layout
+        const g = new dagre.graphlib.Graph();
+        g.setGraph({
+            rankdir: 'TB',     // Top to bottom layout
+            nodesep: 50,       // Horizontal space between nodes (increased for better edge routing)
+            ranksep: 75,       // Vertical space between ranks (increased for better edge routing)
+            marginx: xPadding,
+            marginy: 20,
+            ranker: 'network-simplex', // Best for minimizing edge crossings
+            acyclicer: 'greedy',  // Help handle cycles in the graph
+            align: 'UL'        // Align nodes upper-left within ranks
+        });
+        g.setDefaultEdgeLabel(() => ({}));
+
+        // Add all nodes to the graph
+        combinedNodes.forEach(node => {
+            g.setNode(node.id.toString(), {
+                width: 20,
+                height: 20,
+                // Optional: Add padding around nodes for better edge routing
+                paddingLeft: 5,
+                paddingRight: 5,
+                paddingTop: 5,
+                paddingBottom: 5
+            });
+        });
+
+        // Add edges with weights based on relationship type
+        combinedEdges.forEach(edge => {
+            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+            const sourceNode = combinedNodes.find(n => n.id === sourceId);
+            const targetNode = combinedNodes.find(n => n.id === targetId);
+            
+            // Calculate edge weight based on node types
+            let weight = 1;
+            if (sourceNode && targetNode) {
+                // Prioritize sample-connected edges
+                if (sourceNode.is_sample || targetNode.is_sample) {
+                    weight = 3;
+                }
+                // Give higher weight to edges between nodes in adjacent time layers
+                if (Math.abs(sourceNode.time - targetNode.time) === 1) {
+                    weight += 1;
+                }
+            }
+            
+            g.setEdge(sourceId.toString(), targetId.toString(), { weight });
+        });
+
+        // Run the dagre layout
+        dagre.layout(g);
+
+        // First pass: Get the range of x-coordinates for samples
     const sampleNodes = combinedNodes.filter(n => n.is_sample);
-    const xPadding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
-    const availableWidth = actualWidth - (2 * xPadding);
+        let minSampleX = Infinity;
+        let maxSampleX = -Infinity;
+        
+        sampleNodes.forEach(node => {
+            const dagreNode = g.node(node.id.toString());
+            if (dagreNode) {
+                minSampleX = Math.min(minSampleX, dagreNode.x);
+                maxSampleX = Math.max(maxSampleX, dagreNode.x);
+            }
+        });
+
+        // Calculate the desired sample spacing
+        const maxSampleSpacing = 100; // Maximum allowed space between samples
+        const sampleRange = maxSampleX - minSampleX;
+        const desiredRange = Math.min(sampleRange, maxSampleSpacing * (sampleNodes.length - 1));
+        const xScale = desiredRange / sampleRange;
+
+        // Apply positions with scaling
+        combinedNodes.forEach(node => {
+            const dagreNode = g.node(node.id.toString());
+            if (dagreNode) {
+                // Scale x positions to limit sample spacing
+                const scaledX = ((dagreNode.x - minSampleX) * xScale) + minSampleX;
+                node.x = scaledX;
+                node.y = dagreNode.y;
+                // Fix positions to prevent d3-force from moving them
+                node.fx = node.x;
+                node.fy = node.y;
+            }
+        });
+
+        // Apply jitter to vertically aligned nodes
+        applyVerticalAlignmentJitter(combinedNodes, combinedEdges, minSampleX, maxSampleX);
+
+        // After applying scaled positions, check and resolve node-edge overlaps
+        const processedNodes = new Set<number>();
+        let hasChanges = true;
+        const maxIterations = 3; // Limit the number of iterations to prevent infinite loops
+        let iteration = 0;
+
+        while (hasChanges && iteration < maxIterations) {
+            hasChanges = false;
+            iteration++;
+
+            // Process nodes in order of degree (higher degree nodes get priority)
+            const unprocessedNodes = combinedNodes
+                .filter(n => !processedNodes.has(n.id))
+                .sort((a, b) => {
+                    const degreeA = combinedEdges.filter(e => {
+                        const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
+                        const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+                        return sourceId === a.id || targetId === a.id;
+                    }).length;
+                    const degreeB = combinedEdges.filter(e => {
+                        const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
+                        const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+                        return sourceId === b.id || targetId === b.id;
+                    }).length;
+                    return degreeB - degreeA;
+                });
+
+            for (const node of unprocessedNodes) {
+                if (node.is_sample) {
+                    processedNodes.add(node.id);
+                    continue; // Skip sample nodes - keep them fixed
+                }
+
+                const nodeRadius = nodeSizes ? getNodeRadius(node, nodeSizes, combinedNodes, combinedEdges) : 5;
+                const newPos = findNonOverlappingPosition(
+                    node,
+                    combinedEdges,
+                    combinedNodes,
+                    nodeRadius,
+                    minSampleX,
+                    maxSampleX,
+                    nodeSizes || DEFAULT_NODE_SIZES
+                );
+
+                if (newPos.x !== node.x || newPos.y !== node.y) {
+                    node.x = newPos.x;
+                    node.fx = newPos.x;
+                    node.y = newPos.y;
+                    node.fy = newPos.y;
+                    hasChanges = true;
+                }
+
+                processedNodes.add(node.id);
+            }
+        }
+
+        console.log('Dagre layout complete. Node count:', combinedNodes.length);
+    } else {
+        // Original positioning logic for other ordering methods
+        const sampleNodes = combinedNodes.filter(n => n.is_sample);
     const sampleSpacing = availableWidth / (sampleNodes.length - 1 || 1);
 
-    // Sort sample nodes by order position or degree
     sampleNodes.sort((a, b) => {
         if (a.order_position !== undefined && b.order_position !== undefined) {
             return a.order_position - b.order_position;
@@ -525,7 +910,17 @@ function setupInitialNodePositions(combinedNodes: Node[], actualWidth: number, a
     sampleNodes.forEach((node, index) => {
         node.x = xPadding + (index * sampleSpacing);
         node.fx = node.x;
+            node.y = availableHeight - (node.timeIndex! * timeSpacing);
+            node.fy = node.y;
+        });
+
+        // Reset any fixed positions for non-sample nodes
+        combinedNodes.filter(n => !n.is_sample).forEach(node => {
+            node.fx = null;
+            node.fy = null;
+            node.y = availableHeight - (node.timeIndex! * timeSpacing);
     });
+    }
 
     return { timeSpacing, uniqueTimes };
 }
@@ -538,7 +933,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     onNodeRightClick,
     onEdgeClick,
     focalNode,
-    nodeSizes = DEFAULT_NODE_SIZES
+    nodeSizes = DEFAULT_NODE_SIZES,
+    sampleOrder = 'degree'
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     
@@ -589,25 +985,18 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         svg.call(zoom);
 
         const focusOnNode = createFocusFunction(svg, zoom, actualWidth, actualHeight, 0);
-        const { timeSpacing } = setupInitialNodePositions(combinedNodes, actualWidth, actualHeight);
-
-        assignLayers(combinedNodes, combinedEdges);
-
-        const layers = Array.from(new Set(combinedNodes.map(n => n.layer!))).sort((a, b) => a - b);
-
-        layers.forEach(layer => {
-            optimizeLayerPositions(combinedNodes, combinedEdges, layer, actualWidth);
-        });
+        const { timeSpacing } = setupInitialNodePositions(combinedNodes, combinedEdges, actualWidth, actualHeight, sampleOrder, nodeSizes);
 
         if (focalNode) {
             focusOnNode(focalNode, combinedNodes, combinedEdges);
         }
 
+        // Updated simulation setup
         const simulation = d3.forceSimulation<Node>(combinedNodes)
-            .alpha(GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START)
-            .alphaDecay(GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY)
-            .velocityDecay(GRAPH_CONSTANTS.FORCE_STRENGTH.VELOCITY_DECAY)
-            .force("link", d3.forceLink<Node, GraphEdge>(combinedEdges)
+            .alpha(sampleOrder === 'dagre' ? 0 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START) // Start with 0 alpha for dagre
+            .alphaDecay(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY) // Fast decay for dagre
+            .velocityDecay(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.VELOCITY_DECAY) // High decay for dagre
+            .force("link", sampleOrder === 'dagre' ? null : d3.forceLink<Node, GraphEdge>(combinedEdges)
                 .id(d => d.id)
                 .distance(50)
                 .strength(d => {
@@ -620,8 +1009,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     }
                     return (source?.is_sample || target?.is_sample) ? GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SAMPLE : GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT;
                 }))
-            .force("charge", d3.forceManyBody().strength(GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE))
-            .force("x", d3.forceX((d: Node) => {
+            .force("charge", sampleOrder === 'dagre' ? null : d3.forceManyBody().strength(GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE))
+            .force("x", sampleOrder === 'dagre' ? null : d3.forceX((d: Node) => {
                 if (d.is_sample) return d.x!;
                 
                 const descendantRange = getDescendantSampleRange(d, combinedNodes, combinedEdges);
@@ -643,59 +1032,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             }).strength(GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION))
             .force("y", d3.forceY((d: Node) => {
                 const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-                return d.fx === null ? availableHeight - (d.timeIndex! * timeSpacing) : d.y!;
-            }).strength(GRAPH_CONSTANTS.FORCE_STRENGTH.Y_POSITION))
-            .force("collision", d3.forceCollide().radius(GRAPH_CONSTANTS.COLLISION_RADIUS))
-            .force("descendantRange", () => {
-                let tickCount = 0;
-                return () => {
-                    tickCount++;
-                    if (tickCount % GRAPH_CONSTANTS.PERFORMANCE.TICK_SKIP_DESCENDANT !== 0) return;
-                    
-                    if (!stableData) return;
-                    combinedNodes.forEach(node => {
-                        if (!node.is_sample) {
-                            enforceDescendantRange(node, combinedNodes, combinedEdges);
-                        }
-                    });
-                };
-            })
-            .force("edgeCrossing", () => {
-                let tickCount = 0;
-                return (alpha: number) => {
-                    tickCount++;
-                    if (tickCount % GRAPH_CONSTANTS.PERFORMANCE.TICK_SKIP_CROSSING !== 0 || alpha < GRAPH_CONSTANTS.PERFORMANCE.ALPHA_THRESHOLD) return;
-                    
-                    if (!stableData) return;
-                    
-                    const nonSampleNodes = combinedNodes.filter(n => !n.is_sample);
-                    const nodesToCheck = nonSampleNodes.slice(0, Math.min(GRAPH_CONSTANTS.PERFORMANCE.MAX_NODES_TO_CHECK, nonSampleNodes.length));
-                    
-                    nodesToCheck.forEach(node => {
-                        const descendantRange = getDescendantSampleRange(node, combinedNodes, combinedEdges);
-                        const connectedEdges = combinedEdges.filter(e => {
-                            const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as Node;
-                            const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as Node;
-                            return source?.id === node.id || target?.id === node.id;
-                        });
-                        
-                        if (connectedEdges.length > 0) {
-                            const avgX = connectedEdges.reduce((sum, e) => {
-                                const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as Node;
-                                const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as Node;
-                                const otherNode = source?.id === node.id ? target : source;
-                                return sum + (otherNode?.x ?? 0);
-                            }, 0) / connectedEdges.length;
-                            
-                            let newX = node.x! + (avgX - node.x!) * alpha * 0.3;
-                            if (descendantRange) {
-                                newX = Math.max(descendantRange.min, Math.min(descendantRange.max, newX));
-                            }
-                            node.x! = newX;
-                        }
-                    });
-                };
-            });
+                return availableHeight - (d.timeIndex! * timeSpacing);
+            }).strength(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.Y_POSITION)) // Keep Y force for time-based positioning
+            .force("collision", sampleOrder === 'dagre' ? null : d3.forceCollide().radius(GRAPH_CONSTANTS.COLLISION_RADIUS));
 
         const edges = g.append("g")
             .selectAll<SVGLineElement, GraphEdge>("line")
@@ -981,7 +1320,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             simulation.stop();
             tooltip.remove();
         };
-    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref]);
+    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref, sampleOrder]);
 
     return (
         <div className="w-full h-full">
