@@ -9,13 +9,13 @@ import tskit
 from sklearn.manifold import MDS
 from typing import Optional, List
 from itertools import combinations
-from backend.constants import (
+from argscape.backend.constants import (
     MDS_MAX_ITERATIONS,
     MDS_N_INIT,
     SPATIAL_GRID_SIZE,
     MINIMUM_SAMPLES_REQUIRED
 )
-from backend.geo_utils import (
+from argscape.backend.geo_utils import (
     generate_wgs84_coordinates,
     generate_web_mercator_coordinates,
     generate_unit_grid_coordinates

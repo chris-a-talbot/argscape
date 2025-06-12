@@ -3,15 +3,21 @@
 
 FROM node:20-alpine AS base
 
-# Install dumb-init for better signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init and git for better dependency handling
+RUN apk add --no-cache dumb-init git
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files and install dependencies
+# Copy package files
 COPY package*.json ./
-RUN npm ci --prefer-offline --no-audit --progress=false
+
+# Install dependencies with retry logic and increased network timeout
+RUN npm config set fetch-retry-maxtimeout 600000 && \
+    npm config set fetch-retry-mintimeout 100000 && \
+    npm config set fetch-retries 5 && \
+    npm install --no-audit --progress=false || \
+    (npm cache clean --force && npm install --no-audit --progress=false)
 
 # Development stage
 FROM base AS development

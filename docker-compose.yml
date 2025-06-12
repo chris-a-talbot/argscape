@@ -30,13 +30,13 @@ services:
   # Backend FastAPI application  
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ./argscape/backend/Dockerfile
       target: development
     ports:
       - "8000:8000"
     volumes:
-      - ./backend:/app
+      - .:/app
     environment:
       - ENV=development
       - PYTHONPATH=/app

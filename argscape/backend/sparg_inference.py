@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 # Import sparg
 try:
-    import backend.sparg as sparg
+    import argscape.backend.sparg as sparg
     logger.info("sparg successfully imported")
     SPARG_AVAILABLE = True
 except ImportError:

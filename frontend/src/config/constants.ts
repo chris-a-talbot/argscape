@@ -5,21 +5,14 @@
 
 // API Configuration
 const getApiBaseUrl = () => {
-  // Check for explicit environment variable first
   if (import.meta.env.VITE_API_URL) {
     console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
-  
-  // In production (Railway), use relative path
-  if (import.meta.env.PROD || window.location.hostname !== 'localhost') {
-    console.log('Using production API base: /api (hostname:', window.location.hostname, ', PROD:', import.meta.env.PROD, ')');
-    return '/api';
-  }
-  
-  // In development, use localhost backend
-  console.log('Using development API base: http://localhost:8000/api');
-  return 'http://localhost:8000/api';
+
+  // Always use /api as the base URL - the Vite proxy will handle the rest
+  console.log('Using default API base: /api');
+  return '/api';
 };
 
 export const API_CONFIG = {
@@ -28,7 +21,7 @@ export const API_CONFIG = {
     CREATE_SESSION: '/create-session',
     GET_SESSION: '/session',
     UPLOAD: '/upload-tree-sequence',
-    UPLOADED_FILES: '/uploaded-files',
+    UPLOADED_FILES: '/uploaded-files/',
     TREE_SEQUENCE_METADATA: '/tree-sequence-metadata',
     DELETE_TREE_SEQUENCE: '/tree-sequence',
     DOWNLOAD_TREE_SEQUENCE: '/download-tree-sequence',
@@ -37,7 +30,7 @@ export const API_CONFIG = {
     INFER_LOCATIONS_GAIA_QUADRATIC: '/infer-locations-gaia-quadratic',
     INFER_LOCATIONS_MIDPOINT: '/infer-locations-midpoint',
     INFER_LOCATIONS_SPARG: '/infer-locations-sparg',
-    SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence',
+    SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence/',
   }
 } as const;
 

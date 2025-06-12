@@ -3,6 +3,6 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "python startup.py"
+startCommand = "python -m argscape.backend.startup"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10 

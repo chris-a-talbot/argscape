@@ -3,7 +3,7 @@ from .shapes import get_land_geometry_eastern_hemisphere, fallback_land_heuristi
 import logging
 from typing import Tuple
 import numpy as np
-from backend.constants import GEOGRAPHIC_LAND_REGIONS
+from argscape.backend.constants import GEOGRAPHIC_LAND_REGIONS
 
 logger = logging.getLogger(__name__)
 

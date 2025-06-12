@@ -38,21 +38,14 @@ def main():
     logger.info(f"File size limit: {os.getenv('MAX_FILE_SIZE_MB')} MB")
     
     try:
-        # Add the backend directory to Python path if not already there
-        backend_dir = os.path.dirname(os.path.abspath(__file__))
-        if backend_dir not in sys.path:
-            sys.path.insert(0, backend_dir)
-        
-        # Import the FastAPI app
-        from backend.main import app
-        
-        # Start the server
+        # Start the server using the correct module path
         uvicorn.run(
-            app, 
+            "argscape.backend.main:app",
             host="0.0.0.0", 
             port=port,
             log_level="info",
-            access_log=True
+            access_log=True,
+            reload=False  # Disable reload in production
         )
     except Exception as e:
         logger.error(f"Failed to start server: {e}")

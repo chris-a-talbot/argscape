@@ -1,7 +1,7 @@
 import numpy as np
 import logging
 from typing import Sequence, Tuple, List, Union
-from backend.constants import (
+from argscape.backend.constants import (
     WGS84_LONGITUDE_MIN,
     WGS84_LONGITUDE_MAX,
     WGS84_LATITUDE_MIN,

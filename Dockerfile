@@ -26,18 +26,20 @@ RUN apt-get update && apt-get install -y \
     libtool \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy the entire project for package installation
+COPY pyproject.toml .
+COPY argscape argscape/
+
 # Copy requirements first for better caching
-COPY backend/requirements-web.txt requirements.txt
+COPY argscape/backend/requirements-web.txt requirements.txt
 
-# Install Python dependencies with increased timeout
-RUN pip install --no-cache-dir --timeout 300 -r requirements.txt
-
-# Copy backend code
-COPY backend/ .
+# Install Python dependencies and the package itself
+RUN pip install --no-cache-dir --timeout 300 -r requirements.txt && \
+    pip install -e .
 
 # Copy built frontend from previous stage
-COPY --from=frontend-build /frontend/dist ./static
-RUN ls -la static/ || echo "Static directory not found"
+COPY --from=frontend-build /frontend/dist argscape/frontend_dist
+RUN ls -la argscape/frontend_dist/ || echo "Frontend dist directory not found"
 
 # Create temporary directory for file storage
 RUN mkdir -p /tmp/argscape_storage && chmod 777 /tmp/argscape_storage
@@ -51,4 +53,4 @@ ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 # Start command
-CMD ["python", "startup.py"] 
+CMD ["python", "-m", "argscape.backend.startup"] 

@@ -1,0 +1,3 @@
+"""
+Argscape package initialization.
+""" 

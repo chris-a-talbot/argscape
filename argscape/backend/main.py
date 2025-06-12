@@ -20,7 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from backend.tskit_utils import load_tree_sequence_from_file
+from argscape.backend.tskit_utils import load_tree_sequence_from_file
 from pathlib import Path
 
 # Configure logging first
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 # Development storage setup for Windows
 try:
-    from dev_storage_override import ensure_dev_storage_dir
+    from argscape.backend.dev_storage_override import ensure_dev_storage_dir
     ensure_dev_storage_dir()
 except ImportError:
     pass  # File doesn't exist, that's fine
@@ -47,7 +47,7 @@ except ImportError:
 
 # Import sparg utilities
 try:
-    from backend.sparg_inference import run_sparg_inference, SPARG_AVAILABLE
+    from argscape.backend.sparg_inference import run_sparg_inference, SPARG_AVAILABLE
     logger.info("sparg successfully imported")
 except ImportError:
     run_sparg_inference = None
@@ -65,24 +65,19 @@ except ImportError:
     GEOANCESTRY_AVAILABLE = False
 
 # Spatial generation utilities
-# Import spatial generation utilities from the same directory
-import os
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'sparg'))
-from backend.spatial_generation import generate_spatial_locations_for_samples
+from argscape.backend.spatial_generation import generate_spatial_locations_for_samples
 logger.info("Spatial location generation utilities successfully imported")
 
 # Session storage utilities
 try:
-    from backend.session_storage import session_storage
+    from argscape.backend.session_storage import session_storage
     logger.info("Session storage utilities successfully imported")
 except ImportError:
     logger.warning("Session storage utilities not available - session storage disabled")
 
 # Geographic utilities
 try:
-    from backend.geo_utils import (
+    from argscape.backend.geo_utils import (
         get_builtin_shapes,
         process_shapefile,
         generate_grid_outline,
@@ -94,14 +89,14 @@ try:
         apply_custom_locations_to_tree_sequence,
         parse_location_csv
     )
-    from backend.geo_utils.crs import BUILTIN_CRS
+    from argscape.backend.geo_utils.crs import BUILTIN_CRS
     logger.info("Geographic utilities successfully imported")
 except ImportError as e:
     logger.warning(f"Geographic utilities not available - geographic utilities disabled: {str(e)}")
     raise  # Re-raise to see the full error during development
 
 # Import constants and utilities
-from backend.constants import (
+from argscape.backend.constants import (
     DEFAULT_API_VERSION,
     REQUEST_TIMEOUT_SECONDS,
     FILENAME_TIMESTAMP_PRECISION_MICROSECONDS,
@@ -119,7 +114,7 @@ from backend.constants import (
 
 # Import location inference functionality
 try:
-    from backend.location_inference import (
+    from argscape.backend.location_inference import (
         run_fastgaia_inference,
         run_gaia_quadratic_inference,
         run_gaia_linear_inference,
@@ -138,27 +133,15 @@ except ImportError as e:
 # FastAPI app instance
 app = FastAPI(
     title="ARGscape API",
-    description="API for interactive ARG visualization and tree sequence analysis",
+    description="API for interactive ARG visualization and analysis",
     version=DEFAULT_API_VERSION
 )
 
-# Mount static files (frontend)
-frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
-if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
-    logger.info(f"Serving frontend from {frontend_dist}")
-else:
-    logger.warning(f"Frontend build directory not found: {frontend_dist}")
-
-# CORS middleware
-allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "*")
-allowed_origins = allowed_origins_str.split(",") if allowed_origins_str != "*" else ["*"]
-allow_credentials = allowed_origins != ["*"]
-
+# CORS middleware - make it more permissive for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=allow_credentials,
+    allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -212,23 +195,21 @@ class SpargInferenceRequest(BaseModel):
 #### Utility functions ####
 
 def get_client_ip(request: Request) -> str:
-    """Extract client IP address from request."""
-    # Check for forwarded IP (Railway/proxy headers)
-    forwarded_for = request.headers.get("x-forwarded-for")
+    """Get client IP from request, handling various proxy scenarios."""
+    # Try X-Forwarded-For first (standard proxy header)
+    forwarded_for = request.headers.get("X-Forwarded-For")
     if forwarded_for:
-        # Take the first IP if multiple are present
+        # Get the first IP in the chain
         return forwarded_for.split(",")[0].strip()
-
-    # Check for real IP header
-    real_ip = request.headers.get("x-real-ip")
+    
+    # Try X-Real-IP (used by some proxies)
+    real_ip = request.headers.get("X-Real-IP")
     if real_ip:
-        return real_ip
-
-    # Fallback to client host
-    if hasattr(request.client, 'host') and request.client.host:
-        return request.client.host
-
-    return "unknown"
+        return real_ip.strip()
+    
+    # Fall back to direct client IP
+    client_host = request.client.host if request.client else "127.0.0.1"
+    return client_host
 
 #### API endpoints ####
 
@@ -237,21 +218,20 @@ print("🔥 APP INSTANCE:", app)
 
 @app.get("/api")
 async def api_root():
-    return {"message": "ARGscape API", "status": "running"}
-
-
-# # Serve the frontend
-# @app.get("/")
-# async def serve_frontend():
-#     """Serve the React frontend."""
-#     static_dir = os.path.join(os.path.dirname(__file__), "static")
-#     index_file = os.path.join(static_dir, "index.html")
-    
-#     if os.path.exists(index_file):
-#         return FileResponse(index_file)
-#     else:
-#         return {"message": "ARGscape API", "status": "running", "note": "Frontend not built"}
-
+    """API root endpoint."""
+    return {
+        "status": "ok",
+        "version": DEFAULT_API_VERSION,
+        "endpoints": {
+            "session_storage": "ok",
+            "location_inference": {
+                "fastgaia": FASTGAIA_AVAILABLE,
+                "geoancestry": GEOANCESTRY_AVAILABLE,
+                "midpoint": MIDPOINT_AVAILABLE,
+                "sparg": SPARG_AVAILABLE
+            }
+        }
+    }
 
 @app.get("/api/health")
 async def health_check():
@@ -594,7 +574,7 @@ async def get_graph_data(
 
     try:
         # Import here to avoid import errors during startup
-        from backend.graph_utils import convert_to_graph_data, filter_by_tree_indices
+        from argscape.backend.graph_utils import convert_to_graph_data, filter_by_tree_indices
         
         expected_tree_count = None
         
@@ -655,9 +635,14 @@ async def get_graph_data(
         raise HTTPException(status_code=500, detail=f"Failed to generate graph data: {str(e)}")
 
 
-@app.post("/api/simulate-tree-sequence/")
+@app.post("/api/simulate-tree-sequence")  # No trailing slash version
+async def simulate_tree_sequence_no_slash(request: Request, simulation_request: SimulationRequest):
+    """Redirect to the trailing slash version."""
+    return await simulate_tree_sequence(request, simulation_request)
+
+@app.post("/api/simulate-tree-sequence/")  # Original version with trailing slash
 async def simulate_tree_sequence(request: Request, simulation_request: SimulationRequest):
-    """Simulate a tree sequence using msprime."""
+    """Simulate a tree sequence with the given parameters."""
     logger.info(f"Simulating tree sequence with parameters: {simulation_request}")
     
     client_ip = get_client_ip(request)
@@ -1443,23 +1428,29 @@ async def validate_spatial_data(request: Request, validation_request: SpatialVal
         logger.error(f"Error validating spatial data: {e}")
         raise HTTPException(status_code=500, detail=f"Spatial validation failed: {str(e)}")
 
+# Mount static files AFTER all API routes
+frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+    logger.info(f"Serving frontend from {frontend_dist}")
+else:
+    logger.warning(f"Frontend build directory not found: {frontend_dist}")
 
 # Catch-all route for React Router (must be last)
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
     """Catch-all route to serve the React SPA for client-side routing."""
     # Skip API routes, static files, and assets
-    if full_path.startswith("api/") or full_path.startswith("static/") or full_path.startswith("assets/"):
+    if full_path.startswith(("api", "api/", "/api", "/api/", "static/", "assets/")):
         raise HTTPException(status_code=404, detail="Not found")
     
-    # static_dir = os.path.join(os.path.dirname(__file__), "static")
+    # Serve the frontend
     index_file = os.path.join(frontend_dist, "index.html")
     
     if os.path.exists(index_file):
         return FileResponse(index_file)
     else:
         raise HTTPException(status_code=404, detail="Frontend not available")
-    
 
 @app.get("/__debug_routes__")
 def debug_routes():
@@ -1473,7 +1464,6 @@ print("🔥 Registered routes:")
 for route in app.routes:
     methods = getattr(route, "methods", ["<mounted>"])
     print(f"{route.path} ({','.join(methods)})")
-
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8000))

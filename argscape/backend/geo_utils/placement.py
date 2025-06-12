@@ -1,7 +1,7 @@
 from typing import Tuple
 import numpy as np
 import logging
-from backend.constants import (
+from argscape.backend.constants import (
     MAX_LAND_PLACEMENT_ATTEMPTS,
     LOCAL_SEARCH_STRATEGIES,
     LAND_SEARCH_RADIUS_BASE,

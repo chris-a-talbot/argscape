@@ -1,0 +1,26 @@
+name: argscape
+channels:
+  - defaults
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.11
+  - tskit
+  - msprime
+  - numpy<2
+  - fastapi
+  - uvicorn
+  - python-multipart
+  - pandas
+  - scikit-learn
+  - geopandas
+  - pydantic
+  - apscheduler
+  - pyproj
+  - shapely
+  - pip
+  - pip:
+    - tszip
+    - tsdate
+    - fastgaia
+    - geoancestry
