@@ -1,6 +1,6 @@
 # ARGscape
 
-**ARGscape** is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
+**ARGscape** (v0.1.3) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
 
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com)  
 📖 **API Documentation**: [www.argscape.com/docs](https://www.argscape.com/docs)
@@ -36,7 +36,30 @@
 ### Option 1: Use the Live Website
 Visit [argscape.com](https://argscape.com) to start visualizing tree sequences immediately - no installation required.
 
-### Option 2: Local Development
+### Option 2: Install via pip
+```bash
+# Windows users should first install msprime via conda-forge
+conda install -c conda-forge msprime
+
+# Then install argscape (start here for Linux/Mac)
+pip install argscape
+```
+
+To use ARGscape from the command line:
+```bash
+# Start the web interface
+argscape [--host HOST] [--port PORT] [--reload] [--no-browser]
+
+# Options:
+#   --host HOST       Host to run the server on (default: 127.0.0.1)
+#   --port PORT       Port to run the server on (default: 8000)
+#   --reload          Enable auto-reload for development
+#   --no-browser      Don't automatically open the web browser
+```
+
+Note: The web interface provides full functionality for simulating tree sequences and visualization. Additional CLI commands for direct simulation and visualization are planned for future releases.
+
+### Option 3: Local Development
 
 #### Prerequisites
 - **Node.js 20+** and **npm**
@@ -53,10 +76,15 @@ Visit [argscape.com](https://argscape.com) to start visualizing tree sequences i
 
 2. **Backend setup**:
    ```bash
-   cd backend
-   conda env create -f environment-local.yml
-   conda activate argscape-local
-   uvicorn main:app --reload --port 8000
+   # Create and activate conda environment
+   conda env create -f argscape/backend/environment.yml
+   conda activate argscape
+   
+   # Install the package in development mode
+   pip install -e .
+   
+   # Start the backend server
+   uvicorn argscape.backend.main:app --reload --port 8000
    ```
 
 3. **Frontend setup** (in new terminal):
@@ -71,15 +99,21 @@ Visit [argscape.com](https://argscape.com) to start visualizing tree sequences i
    - Backend API: http://localhost:8000
    - API docs: http://localhost:8000/docs
 
-### Option 3: Docker Development
+### Option 4: Docker Development
 
 ```bash
+# Clone and start the development environment
 git clone https://github.com/chris-a-talbot/argscape.git
 cd argscape
 docker compose up --build
 ```
 
-Access at http://localhost:5173 (frontend) and http://localhost:8000 (backend).
+The Docker setup provides a complete development environment with hot-reloading for both frontend and backend. Access at:
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API docs: http://localhost:8000/docs
+
+Note: The Docker setup mounts your local code directories, so changes to the code will be reflected immediately in the running containers.
 
 ## Usage Guide
 
