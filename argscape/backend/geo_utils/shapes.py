@@ -16,52 +16,82 @@ import importlib.resources
 import io
 from .io import load_geojson_file
 from .fallbacks import get_eastern_hemisphere_outline_fallback
+import fiona
 
 logger = logging.getLogger(__name__)
 
 
+def get_eastern_hemisphere_outline_fallback() -> Dict:
+    """
+    Returns a simplified fallback polygon of the Eastern Hemisphere (excluding Antarctica).
+    """
+    coords = [
+        (-15, -60), (-10, -60), (0, -60), (30, -60), (45, -35), (60, -25), (80, -10),
+        (100, 10), (120, 25), (140, 35), (160, 50), (180, 60), (180, 75), (150, 75),
+        (120, 70), (90, 65), (60, 55), (30, 60), (0, 70), (-10, 65), (-15, 60), (-15, -60)
+    ]
+    polygon = Polygon(coords)
+
+    return {
+        "type": polygon.geom_type,
+        "coordinates": polygon.__geo_interface__["coordinates"],
+        "crs": "EPSG:4326",
+        "name": "Eastern Hemisphere (Simplified, No Antarctica)",
+        "bounds": list(polygon.bounds)
+    }
+
+
 def load_natural_earth_land(filter_eastern_hemisphere: bool = True) -> Dict:
-    """
-    Load Natural Earth land shapefile and optionally filter to Eastern Hemisphere.
-    
-    Args:
-        filter_eastern_hemisphere: If True, returns dissolved geometry clipped to -15° to 180°.
-        
-    Returns:
-        Dictionary with geometry type, coordinates, CRS, and bounds.
-    """
+    """Load Natural Earth land shapefile with improved resource handling."""
     try:
-        # Try to load from package data first
+        # Try multiple approaches for package resource access
+        shapefile_path = None
+        
+        # Method 1: Try files() API (Python 3.9+)
         try:
-            with importlib.resources.path('argscape.backend.geo_utils.data.ne_110m_land', 'ne_110m_land.shp') as shapefile_path:
-                if shapefile_path.exists():
-                    gdf = gpd.read_file(shapefile_path)
-                    logger.info("Loaded Natural Earth data from package resources.")
-                else:
-                    raise FileNotFoundError("Shapefile not found in package resources")
-        except (ImportError, FileNotFoundError) as e:
-            logger.debug(f"Could not load from package resources: {e}")
-            # Fallback to direct file access (for development)
+            from importlib import resources
+            if hasattr(resources, 'files'):
+                files = resources.files('argscape.backend.geo_utils.data.ne_110m_land')
+                shapefile_path = files / 'ne_110m_land.shp'
+                if not shapefile_path.is_file():
+                    raise FileNotFoundError("Shapefile not found with files() API")
+        except Exception as e:
+            logger.debug(f"files() API failed: {e}")
+        
+        # Method 2: Try traditional path API
+        if not shapefile_path:
+            try:
+                with importlib.resources.path('argscape.backend.geo_utils.data.ne_110m_land', 'ne_110m_land.shp') as path:
+                    if path.exists():
+                        shapefile_path = path
+                    else:
+                        raise FileNotFoundError("Shapefile not found with path API")
+            except Exception as e:
+                logger.debug(f"path() API failed: {e}")
+        
+        # Method 3: Direct file access fallback
+        if not shapefile_path:
             base_dir = Path(__file__).resolve().parent
             search_paths = [
                 base_dir / "data" / "ne_110m_land" / "ne_110m_land.shp",
                 base_dir / "data" / "ne_50m_land" / "ne_50m_land.shp",
-                base_dir / "data" / "ne_110m_land.shp",
-                base_dir / "data" / "ne_50m_land.shp",
             ]
             shapefile_path = next((p for p in search_paths if p.exists()), None)
             if not shapefile_path:
-                logger.warning("Natural Earth shapefile not found.")
+                logger.warning("Natural Earth shapefile not found in any location.")
                 return get_eastern_hemisphere_outline_fallback()
-            gdf = gpd.read_file(shapefile_path)
 
+        # Read the shapefile
+        gdf = gpd.read_file(str(shapefile_path))
+        logger.info(f"Loaded Natural Earth data from {shapefile_path}")
+        
+        # Rest of your processing code...
         if filter_eastern_hemisphere:
             bbox = box(-15, -60, 180, 90)
             gdf = gdf.clip(bbox)
 
-        # Dissolve all geometries into one unified polygon
         geometry = gdf.unary_union
-
+        
         if hasattr(geometry, '__geo_interface__'):
             return {
                 "type": geometry.geom_type,

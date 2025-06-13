@@ -29,7 +29,7 @@ dependencies = [
   "geopandas==0.14.1",
   "shapely>=2.0.2,<3.0.0",
   "pyproj",
-  "fiona",
+  "fiona==1.9.5",
   "sympy",
   "scipy",
   "tqdm",
@@ -47,8 +47,11 @@ include = ["argscape*"]
 [tool.setuptools.package-data]
 "argscape" = [
     "frontend_dist/**/*",
-    "backend/geo_utils/data/**/*"
+    "backend/geo_utils/data/**/*.geojson",
+    "backend/geo_utils/data/**/*.shp",
+    "backend/geo_utils/data/**/*.shx", 
+    "backend/geo_utils/data/**/*.dbf",
+    "backend/geo_utils/data/**/*.prj",
+    "backend/geo_utils/data/**/*.cpg",
+    "backend/geo_utils/data/**/*.xml",
 ]
-
-[tool.setuptools]
-package-data = { "argscape.backend.geo_utils" = ["data/*", "data/ne_110m_land/*"] }
