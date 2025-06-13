@@ -30,6 +30,7 @@ export const API_CONFIG = {
     INFER_LOCATIONS_GAIA_QUADRATIC: '/infer-locations-gaia-quadratic',
     INFER_LOCATIONS_MIDPOINT: '/infer-locations-midpoint',
     INFER_LOCATIONS_SPARG: '/infer-locations-sparg',
+    INFER_TIMES_TSDATE: '/infer-times-tsdate',
     SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence/',
   }
 } as const;

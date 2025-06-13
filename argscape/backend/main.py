@@ -9,6 +9,7 @@ import tempfile
 import time
 import re
 from typing import Dict, Optional
+from datetime import datetime
 
 import numpy as np
 import tskit
@@ -133,6 +134,13 @@ except ImportError as e:
 # Import graph utilities
 from argscape.backend.graph_utils import convert_tree_sequence_to_graph_data
 
+# Import temporal inference functionality
+from argscape.backend.temporal_inference import (
+    run_tsdate_inference,
+    check_mutations_present,
+    TSDATE_AVAILABLE
+)
+
 # FastAPI app instance
 app = FastAPI(
     title="ARGscape API",
@@ -169,13 +177,15 @@ class GAIALinearInferenceRequest(BaseModel):
 
 class SimulationRequest(BaseModel):
     num_samples: int = 50
-    num_local_trees: int = 10
+    sequence_length: int = 1_000_000  # in base pairs
     max_time: int = 20
     population_size: Optional[int] = None
     random_seed: Optional[int] = None
     model: str = "dtwf"
     filename_prefix: str = "simulated"
     crs: Optional[str] = "unit_grid"  # Coordinate reference system for simulation
+    mutation_rate: Optional[float] = 1e-8  # Mutation rate for simulation
+    recombination_rate: Optional[float] = 1e-8  # Recombination rate for simulation
 
 class CoordinateTransformRequest(BaseModel):
     filename: str
@@ -197,6 +207,17 @@ class MidpointInferenceRequest(BaseModel):
 
 class SpargInferenceRequest(BaseModel):
     filename: str
+
+class TsdateInferenceRequest(BaseModel):
+    filename: str
+    mutation_rate: float = 1e-8
+    preprocess: bool = True
+    remove_telomeres: bool = False
+    minimum_gap: Optional[float] = None
+    split_disjoint: bool = True
+    filter_populations: bool = False
+    filter_individuals: bool = False
+    filter_sites: bool = False
 
 #### Utility functions ####
 
@@ -453,6 +474,7 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
             "num_edges": ts.num_edges,
             "num_samples": ts.num_samples,
             "num_trees": ts.num_trees,
+            "num_mutations": ts.num_mutations,
             "sequence_length": ts.sequence_length,
             "has_temporal": has_temporal,
             **spatial_info
@@ -650,114 +672,87 @@ async def get_graph_data(
         raise HTTPException(status_code=500, detail=f"Failed to generate graph data: {str(e)}")
 
 
-@api_router.post("/simulate-tree-sequence")  # No trailing slash version
-async def simulate_tree_sequence_no_slash(request: Request, simulation_request: SimulationRequest):
-    """Redirect to the trailing slash version."""
-    return await simulate_tree_sequence(request, simulation_request)
-
 @api_router.post("/simulate-tree-sequence/")  # Original version with trailing slash
 async def simulate_tree_sequence(request: Request, simulation_request: SimulationRequest):
-    """Simulate a tree sequence with the given parameters."""
-    logger.info(f"Simulating tree sequence with parameters: {simulation_request}")
-    
-    client_ip = get_client_ip(request)
-    session_id = session_storage.get_or_create_session(client_ip)
-    
-    # Validate parameters
-    if simulation_request.num_samples < MINIMUM_SAMPLES_REQUIRED:
-        raise HTTPException(status_code=400, detail=f"num_samples must be at least {MINIMUM_SAMPLES_REQUIRED}")
-    if simulation_request.num_samples > MAX_SAMPLES_FOR_PERFORMANCE:
-        raise HTTPException(status_code=400, detail=f"num_samples cannot exceed {MAX_SAMPLES_FOR_PERFORMANCE} for performance reasons")
-    if simulation_request.num_local_trees < 0:
-        raise HTTPException(status_code=400, detail="num_local_trees cannot be negative")
-    if simulation_request.num_local_trees > MAX_LOCAL_TREES_FOR_PERFORMANCE:
-        raise HTTPException(status_code=400, detail=f"num_local_trees cannot exceed {MAX_LOCAL_TREES_FOR_PERFORMANCE} for performance reasons")
-    if simulation_request.max_time <= 0:
-        raise HTTPException(status_code=400, detail="max_time must be positive")
-    if simulation_request.max_time > MAX_TIME_FOR_PERFORMANCE:
-        raise HTTPException(status_code=400, detail=f"max_time cannot exceed {MAX_TIME_FOR_PERFORMANCE} for performance reasons")
-    
+    """Simulate a tree sequence using msprime."""
     try:
-        # Set reasonable defaults
-        population_size = simulation_request.population_size or (simulation_request.num_samples * 2)
+        # Get session ID from request
+        session_id = session_storage.get_or_create_session(get_client_ip(request))
         
-        # For discrete genome: set sequence_length = num_local_trees to get exactly that many trees
-        # With discrete_genome=True, positions are 0, 1, 2, ..., sequence_length-1
-        # This allows for sequence_length-1 breakpoints maximum, giving us sequence_length trees
-        sequence_length = float(simulation_request.num_local_trees)
+        # Validate parameters
+        if simulation_request.num_samples < 2:
+            raise HTTPException(status_code=400, detail="Number of samples must be at least 2")
+        if simulation_request.sequence_length <= 0:
+            raise HTTPException(status_code=400, detail="Sequence length must be positive")
+        if simulation_request.max_time < 1:
+            raise HTTPException(status_code=400, detail="Maximum time must be at least 1")
+        if simulation_request.population_size is not None and simulation_request.population_size < 1:
+            raise HTTPException(status_code=400, detail="Population size must be at least 1")
+        if simulation_request.mutation_rate is not None and simulation_request.mutation_rate <= 0:
+            raise HTTPException(status_code=400, detail="Mutation rate must be positive")
+        if simulation_request.recombination_rate is not None and simulation_request.recombination_rate <= 0:
+            raise HTTPException(status_code=400, detail="Recombination rate must be positive")
         
-        # Use a high recombination rate to ensure we get recombination events at most positions
-        if simulation_request.num_local_trees > 1:
-            # High rate to maximize chance of breakpoints at each possible position
-            recombination_rate = RECOMBINATION_RATE_HIGH  # Very high rate to ensure breakpoints
-        else:
-            recombination_rate = 0.0
-        
-        logger.info(f"Simulating with recombination_rate={recombination_rate}, population_size={population_size}")
-        logger.info(f"Target number of local trees: {simulation_request.num_local_trees}")
-        logger.info(f"Setting sequence_length to: {sequence_length}")
+        # Log simulation parameters
+        logger.info(f"Simulating tree sequence with parameters: {simulation_request.dict()}")
         
         # Simulate the tree sequence
-        ts = msprime.sim_ancestry(
-            samples=simulation_request.num_samples,
-            recombination_rate=recombination_rate,
-            sequence_length=sequence_length,
-            population_size=population_size,
-            discrete_genome=True,  # Use discrete genome for predictable tree count
-            model=simulation_request.model,
-            random_seed=simulation_request.random_seed,
-            end_time=simulation_request.max_time
-        )
-        
-        # Add spatial locations to sample nodes based on genealogical relationships
-        logger.info(f"Adding spatial locations to simulated tree sequence using CRS: {simulation_request.crs}")
-        ts = generate_spatial_locations_for_samples(ts, random_seed=simulation_request.random_seed, crs=simulation_request.crs or "unit_grid")
-        
-        # Generate filename
-        # Check if the filename_prefix already includes a timestamp (indicated by 'd' followed by 10 digits)
-        if re.search(r'_d\d{10}$', simulation_request.filename_prefix):
-            # Filename already has a formatted timestamp, use as-is
-            filename = f"{simulation_request.filename_prefix}.trees"
-        else:
-            # Add timestamp for backward compatibility
-            timestamp = int(time.time())
+        try:
+            # First simulate ancestry
+            ts = msprime.sim_ancestry(
+                samples=simulation_request.num_samples,
+                sequence_length=simulation_request.sequence_length,
+                recombination_rate=simulation_request.recombination_rate,
+                population_size=simulation_request.population_size,
+                random_seed=simulation_request.random_seed,
+                model=simulation_request.model,
+                end_time=simulation_request.max_time
+            )
+            
+            # Then add mutations if mutation_rate is provided
+            if simulation_request.mutation_rate is not None:
+                logger.info(f"Adding mutations with rate {simulation_request.mutation_rate}")
+                ts = msprime.sim_mutations(
+                    ts,
+                    rate=simulation_request.mutation_rate,
+                    random_seed=simulation_request.random_seed
+                )
+                logger.info(f"Added {ts.num_mutations} mutations to the tree sequence")
+            
+            # Generate spatial locations for samples based on genealogical relationships
+            logger.info(f"Generating spatial locations for samples using CRS: {simulation_request.crs}")
+            ts = generate_spatial_locations_for_samples(
+                ts,
+                random_seed=simulation_request.random_seed,
+                crs=simulation_request.crs
+            )
+            
+            # Generate a unique filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{simulation_request.filename_prefix}_{timestamp}.trees"
-        
-        # Store the tree sequence
-        session_storage.store_tree_sequence(session_id, filename, ts)
-        
-        # Check spatial and temporal information
-        has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
-        spatial_info = check_spatial_completeness(ts)
-        
-        logger.info(f"Successfully simulated tree sequence: {ts.num_nodes} nodes, {ts.num_edges} edges")
-        logger.info(f"Actual number of trees generated: {ts.num_trees}")
-        
-        return {
-            "filename": filename,
-            "status": "tree_sequence_simulated",
-            "num_nodes": ts.num_nodes,
-            "num_edges": ts.num_edges,
-            "num_samples": ts.num_samples,
-            "num_trees": ts.num_trees,
-            "sequence_length": ts.sequence_length,
-            "has_temporal": has_temporal,
-            **spatial_info,
-            "simulation_parameters": {
-                "num_samples": simulation_request.num_samples,
-                "num_local_trees": simulation_request.num_local_trees,
-                "actual_num_trees": ts.num_trees,
+            
+            # Store in session (this will handle saving to disk)
+            session_storage.store_tree_sequence(session_id, filename, ts)
+            logger.info(f"Successfully simulated and saved tree sequence to {filename}")
+            
+            return {
+                "message": "Tree sequence simulated successfully",
+                "filename": filename,
+                "num_samples": ts.num_samples,
+                "num_trees": ts.num_trees,
+                "num_mutations": ts.num_mutations if simulation_request.mutation_rate is not None else 0,
                 "sequence_length": ts.sequence_length,
-                "max_time": simulation_request.max_time,
-                "population_size": population_size,
-                "recombination_rate": recombination_rate,
-                "model": simulation_request.model,
-                "random_seed": simulation_request.random_seed
+                "crs": simulation_request.crs
             }
-        }
-        
+            
+        except Exception as e:
+            logger.error(f"Error during tree sequence simulation: {str(e)}")
+            raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+            
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error simulating tree sequence: {str(e)}")
+        logger.error(f"Error in simulate_tree_sequence: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to simulate tree sequence: {str(e)}")
 
 
@@ -1231,6 +1226,72 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"sparg inference failed: {str(e)}")
+
+
+@api_router.post("/infer-times-tsdate")
+async def infer_times_tsdate(request: Request, inference_request: TsdateInferenceRequest):
+    """Infer node times using tsdate."""
+    if not TSDATE_AVAILABLE:
+        raise HTTPException(status_code=503, detail="tsdate package not available")
+    
+    logger.info(f"Received tsdate temporal inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has mutations
+    if not check_mutations_present(ts):
+        raise HTTPException(
+            status_code=400, 
+            detail="tsdate inference requires tree sequences with mutations"
+        )
+    
+    try:
+        # Run tsdate inference
+        ts_with_times, inference_info = run_tsdate_inference(
+            ts,
+            mutation_rate=inference_request.mutation_rate,
+            progress=True,
+            preprocess=inference_request.preprocess,
+            remove_telomeres=inference_request.remove_telomeres,
+            minimum_gap=inference_request.minimum_gap,
+            split_disjoint=inference_request.split_disjoint,
+            filter_populations=inference_request.filter_populations,
+            filter_individuals=inference_request.filter_individuals,
+            filter_sites=inference_request.filter_sites
+        )
+        
+        # Generate new filename
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_tsdate.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_tsdate.tsz'
+        else:
+            new_filename = base_filename + '_tsdate.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_times)
+        
+        # Get temporal info for the new tree sequence
+        has_temporal = True  # tsdate always adds temporal info
+        
+        logger.info(f"tsdate inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "tsdate temporal inference completed successfully",
+            "new_filename": new_filename,
+            "has_temporal": has_temporal,
+            **inference_info
+        }
+        
+    except Exception as e:
+        logger.error(f"Error during tsdate temporal inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"tsdate temporal inference failed: {str(e)}")
 
 #### Geographic API endpoints ####
 

@@ -5,17 +5,18 @@ import { log } from '../lib/logger';
 import ConfirmModal from './ui/ConfirmModal';
 import AlertModal from './ui/AlertModal';
 
-interface TreeSequenceInfo {
+type TreeSequenceInfo = {
   filename: string;
   num_samples: number;
   num_nodes: number;
   num_edges: number;
   num_trees: number;
+  num_mutations: number;
   has_temporal: boolean;
   has_sample_spatial: boolean;
   has_all_spatial: boolean;
   spatial_status: string;
-}
+};
 
 interface TreeSequenceSelectorProps {
   onSelect: (treeSequence: TreeSequenceInfo) => void;
@@ -88,7 +89,7 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
       
       log.debug(`Retrieved metadata for ${filename}`, {
         component: 'TreeSequenceSelector',
-        data: { filename, num_samples: data.num_samples, num_nodes: data.num_nodes }
+        data: { filename, num_samples: data.num_samples, num_nodes: data.num_nodes, num_mutations: data.num_mutations }
       });
       
       return {
@@ -97,6 +98,7 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
         num_nodes: data.num_nodes,
         num_edges: data.num_edges,
         num_trees: data.num_trees,
+        num_mutations: data.num_mutations,
         has_temporal: data.has_temporal,
         has_sample_spatial: data.has_sample_spatial,
         has_all_spatial: data.has_all_spatial,

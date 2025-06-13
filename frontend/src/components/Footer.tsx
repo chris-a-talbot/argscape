@@ -95,6 +95,48 @@ export default function Footer() {
             •
           </span>
           <a 
+            href="https://github.com/tskit-dev/tszip" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            tszip
+          </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
+            href="https://github.com/tskit-dev/tsdate" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            tsdate
+          </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
             href="https://tskit.dev/msprime/docs/stable/intro.html" 
             target="_blank" 
             rel="noopener noreferrer"
@@ -116,6 +158,48 @@ export default function Footer() {
             •
           </span>
           <a 
+            href="https://github.com/blueraleigh/gaia" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            gaia
+          </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
+            href="https://github.com/chris-a-talbot/gaiapy" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            gaiapy
+          </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
             href="https://github.com/chris-a-talbot/fastgaia" 
             target="_blank" 
             rel="noopener noreferrer"
@@ -126,6 +210,27 @@ export default function Footer() {
             } : {}}
           >
             fastgaia
+          </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
+            href="https://github.com/osmond-lab/sparg" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            sparg
           </a>
         </div>
       </div>

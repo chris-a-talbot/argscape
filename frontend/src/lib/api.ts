@@ -18,6 +18,18 @@ interface ApiError {
   details?: string;
 }
 
+interface TsdateInferenceRequest {
+  filename: string;
+  mutation_rate: number;
+  preprocess: boolean;
+  remove_telomeres: boolean;
+  minimum_gap?: number;
+  split_disjoint: boolean;
+  filter_populations: boolean;
+  filter_individuals: boolean;
+  filter_sites: boolean;
+}
+
 class ApiService {
   private baseURL: string;
 
@@ -239,13 +251,15 @@ class ApiService {
   // Tree sequence simulation
   async simulateTreeSequence(params: {
     num_samples?: number;
-    num_local_trees?: number;
+    sequence_length?: number;
     max_time?: number;
     population_size?: number;
     random_seed?: number;
     model?: string;
     filename_prefix?: string;
     crs?: string;
+    mutation_rate?: number;
+    recombination_rate?: number;
   }) {
     return this.request(API_CONFIG.ENDPOINTS.SIMULATE_TREE_SEQUENCE, {
       method: 'POST',
@@ -332,6 +346,13 @@ class ApiService {
       body: JSON.stringify(params),
     });
   }
+
+  async inferTimesTsdate(params: TsdateInferenceRequest) {
+    return this.request(API_CONFIG.ENDPOINTS.INFER_TIMES_TSDATE, {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
 }
 
 // Create singleton instance
@@ -385,4 +406,8 @@ export const api = {
     apiService.transformCoordinates(params),
   validateSpatialData: (params: Parameters<typeof apiService.validateSpatialData>[0]) =>
     apiService.validateSpatialData(params),
+
+  // Temporal inference
+  inferTimesTsdate: (params: TsdateInferenceRequest) =>
+    apiService.inferTimesTsdate(params),
 }; 

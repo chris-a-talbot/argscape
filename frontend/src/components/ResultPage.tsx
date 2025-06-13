@@ -327,6 +327,233 @@ function LocationInferenceDropdown({
   );
 }
 
+// Add this helper function near the top of the file
+const formatScientificNotation = (value: number): string => {
+  return value.toExponential(8);  // Format with 8 decimal places
+};
+
+// Add mutation rate modal component
+function MutationRateModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  defaultRate = 1e-8
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (
+    rate: number,
+    preprocess: boolean,
+    removeTelomeres: boolean,
+    minimumGap: number | undefined,
+    splitDisjoint: boolean,
+    filterPopulations: boolean,
+    filterIndividuals: boolean,
+    filterSites: boolean
+  ) => void;
+  defaultRate?: number;
+}) {
+  const [mutationRate, setMutationRate] = useState(formatScientificNotation(defaultRate));
+  const [preprocess, setPreprocess] = useState(true);
+  const [removeTelomeres, setRemoveTelomeres] = useState(false);
+  const [minimumGap, setMinimumGap] = useState<string>("1000000");  // Default from tsdate docs
+  const [splitDisjoint, setSplitDisjoint] = useState(true);
+  const [filterPopulations, setFilterPopulations] = useState(false);
+  const [filterIndividuals, setFilterIndividuals] = useState(false);
+  const [filterSites, setFilterSites] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const rate = parseFloat(mutationRate);
+    const minGap = minimumGap ? parseFloat(minimumGap) : undefined;
+    if (!isNaN(rate) && rate > 0) {
+      onConfirm(
+        rate,
+        preprocess,
+        removeTelomeres,
+        minGap,
+        splitDisjoint,
+        filterPopulations,
+        filterIndividuals,
+        filterSites
+      );
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-md">
+        <h3 className="text-xl font-bold text-sp-white mb-4">Set Mutation Rate</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="mutation-rate" className="block text-sm font-medium text-sp-white/80 mb-2">
+              Mutation Rate (per base pair per generation)
+            </label>
+            <input
+              type="text"
+              id="mutation-rate"
+              value={mutationRate}
+              onChange={(e) => {
+                const value = e.target.value;
+                setMutationRate(value);
+              }}
+              onBlur={(e) => {
+                const value = e.target.value;
+                const parsed = parseFloat(value);
+                if (isNaN(parsed) || parsed <= 0) {
+                  // Reset to default if invalid
+                  setMutationRate(formatScientificNotation(defaultRate));
+                } else {
+                  // Format the value nicely
+                  setMutationRate(formatScientificNotation(parsed));
+                }
+              }}
+              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+              placeholder="1e-8"
+            />
+            <p className="mt-1 text-xs text-sp-white/60">
+              Default: 1e-8 (0.00000001)
+            </p>
+          </div>
+
+          {/* Preprocessing Options */}
+          <div className="space-y-3">
+            <div className="flex items-center">
+              <input
+                type="checkbox"
+                id="preprocess"
+                checked={preprocess}
+                onChange={(e) => setPreprocess(e.target.checked)}
+                className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+              />
+              <label htmlFor="preprocess" className="ml-2 block text-sm text-sp-white/80">
+                Preprocess tree sequence
+              </label>
+            </div>
+
+            {/* Advanced preprocessing options - only shown if preprocess is enabled */}
+            {preprocess && (
+              <div className="ml-6 space-y-3 border-l-2 border-sp-pale-green/20 pl-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="remove-telomeres"
+                    checked={removeTelomeres}
+                    onChange={(e) => setRemoveTelomeres(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="remove-telomeres" className="ml-2 block text-sm text-sp-white/80">
+                    Remove telomeres (flanking regions)
+                  </label>
+                </div>
+
+                <div>
+                  <label htmlFor="minimum-gap" className="block text-sm text-sp-white/80 mb-1">
+                    Minimum gap between sites (bp)
+                  </label>
+                  <input
+                    type="text"
+                    id="minimum-gap"
+                    value={minimumGap}
+                    onChange={(e) => setMinimumGap(e.target.value)}
+                    onBlur={(e) => {
+                      const value = e.target.value;
+                      const parsed = parseFloat(value);
+                      if (isNaN(parsed) || parsed < 0) {
+                        setMinimumGap("1000000");  // Reset to default
+                      }
+                    }}
+                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                    placeholder="1000000"
+                  />
+                  <p className="mt-1 text-xs text-sp-white/60">
+                    Default: 1,000,000 bp
+                  </p>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="split-disjoint"
+                    checked={splitDisjoint}
+                    onChange={(e) => setSplitDisjoint(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="split-disjoint" className="ml-2 block text-sm text-sp-white/80">
+                    Split disjoint nodes
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-populations"
+                    checked={filterPopulations}
+                    onChange={(e) => setFilterPopulations(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-populations" className="ml-2 block text-sm text-sp-white/80">
+                    Filter populations
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-individuals"
+                    checked={filterIndividuals}
+                    onChange={(e) => setFilterIndividuals(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-individuals" className="ml-2 block text-sm text-sp-white/80">
+                    Filter individuals
+                  </label>
+                </div>
+
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-sites"
+                    checked={filterSites}
+                    onChange={(e) => setFilterSites(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-sites" className="ml-2 block text-sm text-sp-white/80">
+                    Filter sites
+                  </label>
+                </div>
+
+                <p className="text-xs text-sp-white/60">
+                  Preprocessing simplifies the tree sequence by removing unary nodes and splitting disjoint nodes.
+                  Telomeres are flanking regions that may contain missing data.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run tsdate
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -340,6 +567,8 @@ export default function ResultPage() {
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [inputValue, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
+  const [showMutationRateModal, setShowMutationRateModal] = useState(false);
+  const [isInferringTimes, setIsInferringTimes] = useState(false);
 
   // Modal states
   const [alertModal, setAlertModal] = useState<{
@@ -376,6 +605,9 @@ export default function ResultPage() {
 
   const visualizeArgEnabled = true; // Always available if data loaded
   const visualizeSpatialArgEnabled = !!(data?.has_temporal && data?.has_all_spatial);  // Require temporal and all spatial
+
+  // Add mutation data status check
+  const hasMutations = data?.num_mutations !== undefined && data.num_mutations > 0;
 
   const handleFastLocationInference = async () => {
     if (!data?.filename || isInferringLocationsFast) return;
@@ -702,6 +934,98 @@ export default function ResultPage() {
                      isInferringLocationsMidpoint || 
                      isInferringLocationsSparg;
 
+  // Add tsdate inference handler
+  const handleTsdateInference = async (
+    mutationRate: number,
+    preprocess: boolean,
+    removeTelomeres: boolean,
+    minimumGap: number | undefined,
+    splitDisjoint: boolean,
+    filterPopulations: boolean,
+    filterIndividuals: boolean,
+    filterSites: boolean
+  ) => {
+    if (!data?.filename || isInferringTimes) return;
+
+    setIsInferringTimes(true);
+    setShowMutationRateModal(false);
+
+    try {
+      log.user.action('tsdate-inference-start', { 
+        filename: data.filename, 
+        mutationRate,
+        preprocess,
+        removeTelomeres,
+        minimumGap,
+        splitDisjoint,
+        filterPopulations,
+        filterIndividuals,
+        filterSites
+      }, 'ResultPage');
+
+      const result = await api.inferTimesTsdate({
+        filename: data.filename,
+        mutation_rate: mutationRate,
+        preprocess,
+        remove_telomeres: removeTelomeres,
+        minimum_gap: minimumGap,
+        split_disjoint: splitDisjoint,
+        filter_populations: filterPopulations,
+        filter_individuals: filterIndividuals,
+        filter_sites: filterSites
+      });
+
+      log.info('tsdate inference completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+
+      // Update the tree sequence context with the new filename and temporal info
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data,
+        filename: resultData.new_filename,
+        has_temporal: resultData.has_temporal,
+      };
+
+      setTreeSequence(updatedData);
+
+      // Include preprocessing info in success message
+      const preprocessingInfo = resultData.preprocessing.preprocessed 
+        ? `\nPreprocessing: ${[
+            resultData.preprocessing.remove_telomeres ? 'with telomere removal' : 'without telomere removal',
+            resultData.preprocessing.minimum_gap ? `minimum gap ${resultData.preprocessing.minimum_gap}bp` : null,
+            resultData.preprocessing.split_disjoint ? 'split disjoint nodes' : null,
+            resultData.preprocessing.filter_populations ? 'filtered populations' : null,
+            resultData.preprocessing.filter_individuals ? 'filtered individuals' : null,
+            resultData.preprocessing.filter_sites ? 'filtered sites' : null
+          ].filter(Boolean).join(', ')}`
+        : '\nNo preprocessing applied';
+
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `tsdate inference completed successfully!${preprocessingInfo}\nInferred times for ${resultData.num_inferred_times} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+
+    } catch (error) {
+      log.error('tsdate inference failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: `tsdate inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        type: 'error'
+      });
+    } finally {
+      setIsInferringTimes(false);
+    }
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
@@ -768,6 +1092,14 @@ export default function ResultPage() {
                   </span>
                   All Coords
                 </div>
+                <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
+                  hasMutations ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
+                }`}>
+                  <span className={`inline-block ${hasMutations ? 'text-sp-white' : 'text-red-400'}`}>
+                    {hasMutations ? '✔️' : '✖️'}
+                  </span>
+                  Mutations
+                </div>
               </div>
               
               {/* Action Buttons - Right Side */}
@@ -803,7 +1135,7 @@ export default function ResultPage() {
             />
 
             {/* Data Overview Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
                 <div className="text-lg font-bold text-sp-pale-green">{data.num_samples}</div>
                 <div className="text-xs text-sp-white/70">Samples</div>
@@ -820,43 +1152,28 @@ export default function ResultPage() {
                 <div className="text-lg font-bold text-sp-pale-green">{data.num_trees}</div>
                 <div className="text-xs text-sp-white/70">Local Trees</div>
               </div>
-            </div>
-            
-            {/* Additional Stats */}
-            {(data.num_mutations !== undefined || data.num_sites !== undefined || data.num_recombination_nodes !== undefined) && (
-              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3">
-                <h4 className="text-sm font-medium text-sp-white mb-2">Additional Statistics</h4>
-                <div className="flex flex-wrap gap-2">
-                  {data.num_mutations !== undefined && (
-                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
-                      {data.num_mutations} mutations
-                    </span>
-                  )}
-                  {data.num_sites !== undefined && data.num_sites > 0 && (
-                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
-                      {data.num_sites} sites
-                    </span>
-                  )}
-                  {data.num_recombination_nodes !== undefined && data.num_recombination_nodes > 0 && (
-                    <span className="bg-sp-dark-blue text-sp-white px-2 py-1 rounded text-xs">
-                      {data.num_recombination_nodes} recombination nodes
-                    </span>
-                  )}
-                </div>
+              <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
+                <div className="text-lg font-bold text-sp-pale-green">{data.num_mutations ?? 0}</div>
+                <div className="text-xs text-sp-white/70">Mutations</div>
               </div>
-            )}
+            </div>
             
             {/* Analysis Tools */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <button
-                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!inferTimesEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                disabled={!inferTimesEnabled}
-                onClick={() => log.user.action('infer-times-clicked', { filename: data.filename }, 'ResultPage')}
+                className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!hasMutations && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                disabled={!hasMutations || isInferringTimes}
+                onClick={() => setShowMutationRateModal(true)}
               >
+                {isInferringTimes && (
+                  <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+                )}
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                Infer ages (tsdate)
+                <span>
+                  {isInferringTimes ? 'Inferring...' : 'Infer ages (tsdate)'}
+                </span>
               </button>
               <LocationInferenceDropdown
                 selectedMethod={selectedInferenceMethod}
@@ -993,6 +1310,13 @@ export default function ResultPage() {
           </div>
         </div>
       </div>
+
+      {/* Mutation Rate Modal */}
+      <MutationRateModal
+        isOpen={showMutationRateModal}
+        onClose={() => setShowMutationRateModal(false)}
+        onConfirm={handleTsdateInference}
+      />
 
       {/* Alert Modal */}
       <AlertModal

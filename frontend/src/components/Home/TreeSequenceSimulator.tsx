@@ -2,16 +2,30 @@ import { useState } from 'react';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
 
-type SimulationParams = {
+export type SimulationParams = {
   num_samples: number;
-  num_local_trees: number;
+  sequence_length: number;  // in base pairs
   max_time: number;
   population_size?: number;
   random_seed?: number;
-  model: string;
+  model?: string;
   filename_prefix: string;
   crs?: string;
-  ploidy: number;
+  ploidy?: number;
+  mutation_rate?: number;
+  recombination_rate?: number;  // per base pair per generation
+};
+
+export const DEFAULT_PARAMS: SimulationParams = {
+  num_samples: 25,  // 25 individuals
+  sequence_length: 1_000_000,  // 1.0Mb
+  max_time: 100,  // 100 generations
+  model: "dtwf",  // Discrete Time Wright-Fisher model
+  filename_prefix: "simulated",
+  crs: "EPSG:4326",  // WGS84
+  ploidy: 2,  // Diploid
+  mutation_rate: 1e-8,  // Per base pair per generation
+  recombination_rate: 1e-8  // Per base pair per generation
 };
 
 type TreeSequenceSimulatorProps = {
@@ -19,14 +33,32 @@ type TreeSequenceSimulatorProps = {
   setLoading: (isLoading: boolean) => void;
 };
 
-const DEFAULT_PARAMS: SimulationParams = {
-  num_samples: 50,
-  num_local_trees: 10,
-  max_time: 20,
-  model: 'dtwf',
-  filename_prefix: 'simulated',
-  crs: 'EPSG:4326',
-  ploidy: 2
+type SimulationResult = {
+  data: {
+    message: string;
+    filename: string;
+    num_samples: number;
+    num_trees: number;
+    num_mutations: number;
+    sequence_length: number;
+    crs: string;
+  }
+};
+
+type TreeSequenceMetadata = {
+  data: {
+    filename: string;
+    num_nodes: number;
+    num_edges: number;
+    num_samples: number;
+    num_trees: number;
+    num_mutations: number;
+    sequence_length: number;
+    has_temporal: boolean;
+    has_sample_spatial: boolean;
+    has_all_spatial: boolean;
+    spatial_status: string;
+  }
 };
 
 // Helper function to get model abbreviation for filename
@@ -62,14 +94,14 @@ const formatDateShort = (date: Date): string => {
 
 // Helper function to generate auto filename
 const generateAutoFilename = (params: SimulationParams, customSeed?: number, includeTimestamp = false): string => {
-  const modelAbbr = getModelAbbreviation(params.model);
+  const modelAbbr = getModelAbbreviation(params.model || 'dtwf');
   const crsAbbr = getCRSAbbreviation(params.crs || 'EPSG:4326');
   
   // Generate a 3-digit random seed if not provided
   const seed = customSeed ?? Math.floor(Math.random() * 1000);
   const seedPart = `r${seed}`;
   
-  let filename = `s${params.num_samples}_m${modelAbbr}_t${params.num_local_trees}_g${params.max_time}_p${params.ploidy}_c${crsAbbr}_${seedPart}`;
+  let filename = `s${params.num_samples}_m${modelAbbr}_t${params.sequence_length}_p${params.ploidy}_c${crsAbbr}_${seedPart}`;
   
   // Only add timestamp when actually simulating
   if (includeTimestamp) {
@@ -81,8 +113,39 @@ const generateAutoFilename = (params: SimulationParams, customSeed?: number, inc
   return filename;
 };
 
+// Add this helper function near the other helper functions
+const formatScientificNotation = (value: number): string => {
+  return value.toExponential(8);  // Format with 8 decimal places
+};
+
+// Helper function to format large numbers with units
+const formatSequenceLength = (length: number): string => {
+  if (length >= 1_000_000) {
+    return `${(length / 1_000_000).toFixed(1)}Mb`;
+  } else if (length >= 1_000) {
+    return `${(length / 1_000).toFixed(1)}kb`;
+  }
+  return `${length}bp`;
+};
+
+// Helper function to parse sequence length input
+const parseSequenceLength = (input: string): number => {
+  const value = input.toLowerCase().trim();
+  if (value.endsWith('mb')) {
+    return Math.round(parseFloat(value.slice(0, -2)) * 1_000_000);
+  } else if (value.endsWith('kb')) {
+    return Math.round(parseFloat(value.slice(0, -2)) * 1_000);
+  } else if (value.endsWith('bp')) {
+    return Math.round(parseFloat(value.slice(0, -2)));
+  }
+  return Math.round(parseFloat(value));
+};
+
 export default function TreeSequenceSimulator({ onSimulationComplete, setLoading }: TreeSequenceSimulatorProps) {
-  const [params, setParams] = useState<SimulationParams>(DEFAULT_PARAMS);
+  const [params, setParams] = useState<SimulationParams>({
+    ...DEFAULT_PARAMS,
+    filename_prefix: generateAutoFilename(DEFAULT_PARAMS)
+  });
   const [useCustomSeed, setUseCustomSeed] = useState(false);
   const [useAutoFilename, setUseAutoFilename] = useState(true);
   const [showFilenameExplanation, setShowFilenameExplanation] = useState(false);
@@ -90,10 +153,13 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   // Separate display state for inputs to allow temporary empty values
   const [inputValues, setInputValues] = useState({
     num_samples: DEFAULT_PARAMS.num_samples.toString(),
-    num_local_trees: DEFAULT_PARAMS.num_local_trees.toString(),
+    sequence_length: formatSequenceLength(DEFAULT_PARAMS.sequence_length),
     max_time: DEFAULT_PARAMS.max_time.toString(),
-    ploidy: DEFAULT_PARAMS.ploidy.toString(),
-    random_seed: DEFAULT_PARAMS.random_seed?.toString() || '42'
+    ploidy: DEFAULT_PARAMS.ploidy?.toString() || '2',
+    random_seed: DEFAULT_PARAMS.random_seed?.toString() || '42',
+    population_size: DEFAULT_PARAMS.population_size?.toString() || '',
+    mutation_rate: DEFAULT_PARAMS.mutation_rate?.toString() || formatScientificNotation(DEFAULT_PARAMS.mutation_rate!),
+    recombination_rate: DEFAULT_PARAMS.recombination_rate?.toString() || formatScientificNotation(DEFAULT_PARAMS.recombination_rate!),
   });
 
   const updateParam = (key: keyof SimulationParams, value: any) => {
@@ -137,6 +203,37 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     }
   };
 
+  const handleSequenceLengthInput = (value: string) => {
+    setInputValues(prev => ({ ...prev, sequence_length: value }));
+    try {
+      const parsedLength = parseSequenceLength(value);
+      if (!isNaN(parsedLength) && parsedLength > 0) {
+        setParams(prev => ({ ...prev, sequence_length: parsedLength }));
+      }
+    } catch (e) {
+      // Invalid input, keep previous value
+    }
+  };
+
+  const handleSequenceLengthBlur = (value: string) => {
+    try {
+      const parsedLength = parseSequenceLength(value);
+      if (isNaN(parsedLength) || parsedLength <= 0) {
+        // Reset to default if invalid
+        setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(DEFAULT_PARAMS.sequence_length) }));
+        setParams(prev => ({ ...prev, sequence_length: DEFAULT_PARAMS.sequence_length }));
+      } else {
+        // Format the value nicely
+        setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(parsedLength) }));
+        setParams(prev => ({ ...prev, sequence_length: parsedLength }));
+      }
+    } catch (e) {
+      // Reset to default if parsing fails
+      setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(DEFAULT_PARAMS.sequence_length) }));
+      setParams(prev => ({ ...prev, sequence_length: DEFAULT_PARAMS.sequence_length }));
+    }
+  };
+
   // Get the filename to display - auto-generated or custom
   const getDisplayFilename = (): string => {
     if (useAutoFilename) {
@@ -152,23 +249,33 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       log.user.action('simulate-start', { params }, 'TreeSequenceSimulator');
       
       // Prepare simulation parameters
-      const simulationParams = {
+      const simulationParams: SimulationParams = {
         ...params,
-        // Calculate population size from samples and ploidy
-        population_size: params.num_samples * params.ploidy,
+        population_size: params.num_samples * (params.ploidy ?? 2),
         random_seed: useCustomSeed ? params.random_seed : undefined,
         filename_prefix: useAutoFilename ? generateAutoFilename(params, useCustomSeed ? params.random_seed : undefined, true) : params.filename_prefix,
       };
       
-      const result = await api.simulateTreeSequence(simulationParams);
+      // Simulate tree sequence
+      const result = await api.simulateTreeSequence(simulationParams) as SimulationResult;
+      
+      // Fetch full metadata
+      const metadata = await api.getTreeSequenceMetadata(result.data.filename) as TreeSequenceMetadata;
+      
+      // Merge mutation data from simulation response with metadata
+      const mergedMetadata = {
+        ...metadata.data,
+        num_mutations: result.data.num_mutations,
+        crs: result.data.crs
+      };
       
       log.info('Tree sequence simulation completed successfully', {
         component: 'TreeSequenceSimulator',
-        data: { params: simulationParams, result }
+        data: { params: simulationParams, result, metadata: mergedMetadata }
       });
       
       if (onSimulationComplete) {
-        onSimulationComplete(result.data);
+        onSimulationComplete(mergedMetadata);
       }
     } catch (err) {
       log.error('Tree sequence simulation failed', {
@@ -236,22 +343,21 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             <span className="text-xs text-sp-white/60 mt-0.5">1-10 (2=diploid)</span>
           </div>
 
-          {/* Number of local trees */}
+          {/* Sequence Length */}
           <div className="flex flex-col">
             <label className="text-sm font-medium text-sp-white mb-1">
-              Local trees
+              Sequence Length (e.g., 1Mb, 100kb, 1000bp)
             </label>
             <input
-              type="number"
-              min="1"
-              max="1000"
-              value={inputValues.num_local_trees}
-              onChange={(e) => handleNumberInput('num_local_trees', e.target.value, 1, 1000, 1)}
-              onBlur={(e) => handleNumberBlur('num_local_trees', e.target.value, 1, 1000, 1)}
-              onKeyDown={handleKeyDown}
+              type="text"
+              value={inputValues.sequence_length}
+              onChange={(e) => handleSequenceLengthInput(e.target.value)}
+              onBlur={(e) => handleSequenceLengthBlur(e.target.value)}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
-            <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
+            <span className="text-xs text-sp-white/60 mt-0.5">
+              {formatSequenceLength(params.sequence_length)}
+            </span>
           </div>
 
           {/* Maximum time */}
@@ -278,7 +384,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               Model
             </label>
             <select
-              value={params.model}
+              value={params.model || 'dtwf'}
               onChange={(e) => updateParam('model', e.target.value)}
               onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
@@ -327,10 +433,10 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
           <div className="text-sm text-sp-white">
             <div className="flex justify-between items-center">
               <span>Total haplotypes:</span>
-              <span className="font-bold text-sp-pale-green">{params.num_samples * params.ploidy}</span>
+              <span className="font-bold text-sp-pale-green">{params.num_samples * (params.ploidy ?? 2)}</span>
             </div>
             <div className="text-xs text-sp-white/60">
-              {params.num_samples} individuals × {params.ploidy} ploidy
+              {params.num_samples} individuals × {params.ploidy ?? 2} ploidy
             </div>
           </div>
         </div>
@@ -457,6 +563,93 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                 <div className="ml-6 text-xs text-sp-white/60">Random seed will be generated automatically</div>
               )}
             </div>
+
+            {/* Population Size */}
+            <div className="space-y-2">
+              <label htmlFor="population-size" className="block text-sm font-medium text-sp-white/80">
+                Population Size (optional)
+              </label>
+              <input
+                type="number"
+                id="population-size"
+                value={inputValues.population_size}
+                onChange={(e) => handleNumberInput('population_size', e.target.value, 1, 1000000, 1000)}
+                onBlur={(e) => handleNumberBlur('population_size', e.target.value, 1, 1000000, 1000)}
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                placeholder="1000"
+              />
+              <p className="text-xs text-sp-white/60">
+                Default: 1000 (effective population size)
+              </p>
+            </div>
+
+            {/* Mutation Rate */}
+            <div className="space-y-2">
+              <label htmlFor="mutation-rate" className="block text-sm font-medium text-sp-white/80">
+                Mutation Rate (per base pair per generation)
+              </label>
+              <input
+                type="text"
+                id="mutation-rate"
+                value={inputValues.mutation_rate}
+                onChange={(e) => {
+                  setInputValues(prev => ({ ...prev, mutation_rate: e.target.value }));
+                  const rate = parseFloat(e.target.value);
+                  if (!isNaN(rate) && rate > 0) {
+                    setParams(prev => ({ ...prev, mutation_rate: rate }));
+                  }
+                }}
+                onBlur={(e) => {
+                  const rate = parseFloat(e.target.value);
+                  if (isNaN(rate) || rate <= 0) {
+                    setInputValues(prev => ({ ...prev, mutation_rate: formatScientificNotation(DEFAULT_PARAMS.mutation_rate!) }));
+                    setParams(prev => ({ ...prev, mutation_rate: DEFAULT_PARAMS.mutation_rate }));
+                  } else {
+                    setInputValues(prev => ({ ...prev, mutation_rate: formatScientificNotation(rate) }));
+                    setParams(prev => ({ ...prev, mutation_rate: rate }));
+                  }
+                }}
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                placeholder="1e-8"
+              />
+              <p className="text-xs text-sp-white/60">
+                Default: 1e-8 (0.00000001)
+              </p>
+            </div>
+
+            {/* Recombination Rate */}
+            <div className="space-y-2">
+              <label htmlFor="recombination-rate" className="block text-sm font-medium text-sp-white/80">
+                Recombination Rate (per base pair per generation)
+              </label>
+              <input
+                type="text"
+                id="recombination-rate"
+                value={inputValues.recombination_rate}
+                onChange={(e) => {
+                  setInputValues(prev => ({ ...prev, recombination_rate: e.target.value }));
+                  const rate = parseFloat(e.target.value);
+                  if (!isNaN(rate) && rate > 0) {
+                    setParams(prev => ({ ...prev, recombination_rate: rate }));
+                  }
+                }}
+                onBlur={(e) => {
+                  const rate = parseFloat(e.target.value);
+                  if (isNaN(rate) || rate <= 0) {
+                    setInputValues(prev => ({ ...prev, recombination_rate: formatScientificNotation(DEFAULT_PARAMS.recombination_rate!) }));
+                    setParams(prev => ({ ...prev, recombination_rate: DEFAULT_PARAMS.recombination_rate }));
+                  } else {
+                    setInputValues(prev => ({ ...prev, recombination_rate: formatScientificNotation(rate) }));
+                    setParams(prev => ({ ...prev, recombination_rate: rate }));
+                  }
+                }}
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                placeholder="1e-8"
+              />
+              <p className="text-xs text-sp-white/60">
+                Default: 1e-8 (0.00000001)
+              </p>
+            </div>
           </div>
         </details>
       </div>
@@ -496,10 +689,10 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               
               <div className="space-y-1.5">
                 <div><span className="font-bold text-sp-pale-green">s{params.num_samples}</span> - Sample individuals (2-500)</div>
-                <div><span className="font-bold text-sp-pale-green">m{getModelAbbreviation(params.model)}</span> - Model (dtwf, hud, smc, smcp)</div>
-                <div><span className="font-bold text-sp-pale-green">t{params.num_local_trees}</span> - Local trees (1-1000)</div>
+                <div><span className="font-bold text-sp-pale-green">m{getModelAbbreviation(params.model || 'dtwf')}</span> - Model (dtwf, hud, smc, smcp)</div>
+                <div><span className="font-bold text-sp-pale-green">t{params.sequence_length}</span> - Sequence Length ({formatSequenceLength(params.sequence_length)})</div>
                 <div><span className="font-bold text-sp-pale-green">g{params.max_time}</span> - Max generations (1-1000)</div>
-                <div><span className="font-bold text-sp-pale-green">p{params.ploidy}</span> - Ploidy (1-10)</div>
+                <div><span className="font-bold text-sp-pale-green">p{params.ploidy ?? 2}</span> - Ploidy (1-4)</div>
                 <div><span className="font-bold text-sp-pale-green">c{getCRSAbbreviation(params.crs || 'EPSG:4326')}</span> - Coordinate system</div>
                 <div><span className="font-bold text-sp-pale-green">r###</span> - Random seed (0-999)</div>
                 <div><span className="font-bold text-sp-pale-green">d##########</span> - Timestamp (MMDDYYHHMM)</div>

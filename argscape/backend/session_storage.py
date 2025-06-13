@@ -308,12 +308,22 @@ class PersistentSessionStorage:
             raise ValueError("Invalid or expired session")
         
         with self._lock:
+            # Log mutation count before storing
+            logger.info(f"Storing tree sequence {filename} with {ts.num_mutations} mutations")
+            
             session.tree_sequences[filename] = ts
             
             # Save tree sequence to disk
             session_dir = self._get_session_dir(session_id)
             ts_file_path = session_dir / f"{filename}.trees"
             ts.dump(str(ts_file_path))
+            
+            # Verify mutations after dump
+            try:
+                loaded_ts = tskit.load(str(ts_file_path))
+                logger.info(f"Verified stored tree sequence {filename}: {loaded_ts.num_mutations} mutations after dump")
+            except Exception as e:
+                logger.error(f"Failed to verify stored tree sequence {filename}: {e}")
             
             self._save_session_metadata(session)
             logger.info(f"Stored tree sequence {filename} in persistent session {session_id}")
@@ -326,7 +336,27 @@ class PersistentSessionStorage:
         if not session:
             return None
         
-        return session.tree_sequences.get(filename)
+        # Try to get from memory first
+        ts = session.tree_sequences.get(filename)
+        if ts is not None:
+            logger.info(f"Retrieved tree sequence {filename} from memory: {ts.num_mutations} mutations")
+            return ts
+        
+        # If not in memory, try to load from disk
+        session_dir = self._get_session_dir(session_id)
+        ts_file_path = session_dir / f"{filename}.trees"
+        
+        if ts_file_path.exists():
+            try:
+                ts = tskit.load(str(ts_file_path))
+                logger.info(f"Loaded tree sequence {filename} from disk: {ts.num_mutations} mutations")
+                # Cache in memory for future access
+                session.tree_sequences[filename] = ts
+                return ts
+            except Exception as e:
+                logger.error(f"Failed to load tree sequence {filename} from disk: {e}")
+        
+        return None
     
     def get_file_list(self, session_id: str) -> List[str]:
         """Get list of files in the session."""
