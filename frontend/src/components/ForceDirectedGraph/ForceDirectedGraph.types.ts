@@ -91,6 +91,8 @@ export interface NodeSizeSettings {
     other: number;
 }
 
+export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
+
 export interface ForceDirectedGraphProps {
     data: GraphData | null;
     width?: number;
@@ -102,4 +104,5 @@ export interface ForceDirectedGraphProps {
     nodeSizes?: NodeSizeSettings;  // Node size settings
     sampleOrder?: string;  // The ordering method for sample nodes
     edgeThickness?: number;  // Edge thickness setting
+    temporalSpacingMode?: TemporalSpacingMode;
 } 

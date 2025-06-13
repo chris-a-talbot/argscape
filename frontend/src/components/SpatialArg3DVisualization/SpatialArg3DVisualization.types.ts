@@ -1,0 +1,1 @@
+export type TemporalSpacingMode = 'equal' | 'log' | 'linear'; 

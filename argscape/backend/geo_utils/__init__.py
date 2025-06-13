@@ -23,6 +23,7 @@ from .tree_sequence import (
     apply_custom_locations_to_tree_sequence
 )
 from .io import load_geojson_file, parse_location_csv
+from .fallbacks import get_eastern_hemisphere_outline_fallback
 
 __all__ = [
     # Shapes
@@ -47,5 +48,8 @@ __all__ = [
     
     # I/O
     'parse_location_csv',
-    'load_geojson_file'
+    'load_geojson_file',
+    
+    # Fallbacks
+    'get_eastern_hemisphere_outline_fallback'
 ] 

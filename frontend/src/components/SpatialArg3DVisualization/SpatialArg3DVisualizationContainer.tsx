@@ -11,6 +11,7 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
+import { TemporalSpacingMode } from './SpatialArg3DVisualization.types';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -40,7 +41,8 @@ const DEFAULT_VISUAL_SETTINGS = {
   temporalGridOpacity: 30,
   geographicShapeOpacity: 70,
   maxNodeRadius: 25,
-  isFilterSectionCollapsed: true
+  isFilterSectionCollapsed: true,
+  temporalSpacingMode: 'equal' as TemporalSpacingMode
 };
 
 const formatGenomicPosition = (value: number): string => {
@@ -265,6 +267,7 @@ const Spatial3DWrapper: React.FC<{
   showTemporalPlanes?: boolean;
   temporalFilterMode?: TemporalFilterMode | null;
   temporalSpacing?: number;
+  temporalSpacingMode?: TemporalSpacingMode;
   spatialSpacing?: number;
   geographicShape?: GeographicShape | null;
   geographicMode?: GeographicMode;
@@ -273,7 +276,25 @@ const Spatial3DWrapper: React.FC<{
   maxNodeRadius?: number;
   onViewStateChange?: (viewState: any) => void;
   viewState?: any;
-}> = ({ data, onNodeClick, onNodeRightClick, selectedNode, temporalRange, showTemporalPlanes, temporalFilterMode, temporalSpacing, spatialSpacing, geographicShape, geographicMode, temporalGridOpacity, geographicShapeOpacity, maxNodeRadius, onViewStateChange, viewState }) => {
+}> = ({ 
+  data, 
+  onNodeClick, 
+  onNodeRightClick, 
+  selectedNode, 
+  temporalRange, 
+  showTemporalPlanes, 
+  temporalFilterMode, 
+  temporalSpacing,
+  temporalSpacingMode,
+  spatialSpacing, 
+  geographicShape, 
+  geographicMode, 
+  temporalGridOpacity, 
+  geographicShapeOpacity, 
+  maxNodeRadius, 
+  onViewStateChange, 
+  viewState 
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState(CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS);
 
@@ -326,6 +347,7 @@ const Spatial3DWrapper: React.FC<{
         maxNodeRadius={maxNodeRadius}
         onViewStateChange={onViewStateChange}
         externalViewState={viewState}
+        temporalSpacingMode={temporalSpacingMode}
       />
     </div>
   );
@@ -991,6 +1013,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             showTemporalPlanes={temporalState.isActive && temporalState.mode === 'planes'}
             temporalFilterMode={temporalState.isActive ? temporalState.mode : null}
             temporalSpacing={visualSettings.temporalSpacing}
+            temporalSpacingMode={visualSettings.temporalSpacingMode}
             spatialSpacing={visualSettings.spatialSpacing}
             geographicShape={geoState.currentShape}
             geographicMode={geoState.mode}
@@ -1010,6 +1033,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           <SpatialArg3DControlPanel
             temporalSpacing={visualSettings.temporalSpacing}
             onTemporalSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, temporalSpacing: value }))}
+            temporalSpacingMode={visualSettings.temporalSpacingMode}
+            onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
             spatialSpacing={visualSettings.spatialSpacing}
             onSpatialSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, spatialSpacing: value }))}
             temporalGridOpacity={visualSettings.temporalGridOpacity}

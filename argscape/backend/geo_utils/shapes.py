@@ -12,29 +12,12 @@ from shapely.geometry import Point
 from shapely.geometry import shape as shapely_shape
 from functools import lru_cache
 import random
+import importlib.resources
+import io
 from .io import load_geojson_file
+from .fallbacks import get_eastern_hemisphere_outline_fallback
 
 logger = logging.getLogger(__name__)
-
-
-def get_eastern_hemisphere_outline_fallback() -> Dict:
-    """
-    Returns a simplified fallback polygon of the Eastern Hemisphere (excluding Antarctica).
-    """
-    coords = [
-        (-15, -60), (-10, -60), (0, -60), (30, -60), (45, -35), (60, -25), (80, -10),
-        (100, 10), (120, 25), (140, 35), (160, 50), (180, 60), (180, 75), (150, 75),
-        (120, 70), (90, 65), (60, 55), (30, 60), (0, 70), (-10, 65), (-15, 60), (-15, -60)
-    ]
-    polygon = Polygon(coords)
-
-    return {
-        "type": polygon.geom_type,
-        "coordinates": polygon.__geo_interface__["coordinates"],
-        "crs": "EPSG:4326",
-        "name": "Eastern Hemisphere (Simplified, No Antarctica)",
-        "bounds": list(polygon.bounds)
-    }
 
 
 def load_natural_earth_land(filter_eastern_hemisphere: bool = True) -> Dict:
@@ -48,20 +31,29 @@ def load_natural_earth_land(filter_eastern_hemisphere: bool = True) -> Dict:
         Dictionary with geometry type, coordinates, CRS, and bounds.
     """
     try:
-        base_dir = Path(__file__).resolve().parent
-        search_paths = [
-            base_dir / "data" / "ne_110m_land" / "ne_110m_land.shp",
-            base_dir / "data" / "ne_50m_land" / "ne_50m_land.shp",
-            base_dir / "data" / "ne_110m_land.shp",
-            base_dir / "data" / "ne_50m_land.shp",
-        ]
-
-        shapefile_path = next((p for p in search_paths if p.exists()), None)
-        if not shapefile_path:
-            logger.warning("Natural Earth shapefile not found.")
-            return get_eastern_hemisphere_outline_fallback()
-
-        gdf = gpd.read_file(shapefile_path)
+        # Try to load from package data first
+        try:
+            with importlib.resources.path('argscape.backend.geo_utils.data.ne_110m_land', 'ne_110m_land.shp') as shapefile_path:
+                if shapefile_path.exists():
+                    gdf = gpd.read_file(shapefile_path)
+                    logger.info("Loaded Natural Earth data from package resources.")
+                else:
+                    raise FileNotFoundError("Shapefile not found in package resources")
+        except (ImportError, FileNotFoundError) as e:
+            logger.debug(f"Could not load from package resources: {e}")
+            # Fallback to direct file access (for development)
+            base_dir = Path(__file__).resolve().parent
+            search_paths = [
+                base_dir / "data" / "ne_110m_land" / "ne_110m_land.shp",
+                base_dir / "data" / "ne_50m_land" / "ne_50m_land.shp",
+                base_dir / "data" / "ne_110m_land.shp",
+                base_dir / "data" / "ne_50m_land.shp",
+            ]
+            shapefile_path = next((p for p in search_paths if p.exists()), None)
+            if not shapefile_path:
+                logger.warning("Natural Earth shapefile not found.")
+                return get_eastern_hemisphere_outline_fallback()
+            gdf = gpd.read_file(shapefile_path)
 
         if filter_eastern_hemisphere:
             bbox = box(-15, -60, 180, 90)
@@ -104,10 +96,18 @@ def get_eastern_hemisphere_outline() -> Dict:
         logger.debug(f"Natural Earth loading failed: {e}")
 
     # Fallback: try loading from a GeoJSON file
-    geojson_path = Path(__file__).resolve().parent / "data" / "eastern_hemisphere.geojson"
-    if geojson_path.exists():
-        logger.info("Using custom GeoJSON Eastern Hemisphere outline.")
-        return load_geojson_file(str(geojson_path))
+    try:
+        with importlib.resources.path('argscape.backend.geo_utils.data', 'eastern_hemisphere.geojson') as geojson_path:
+            if geojson_path.exists():
+                logger.info("Using custom GeoJSON Eastern Hemisphere outline.")
+                return load_geojson_file(str(geojson_path))
+    except (ImportError, FileNotFoundError) as e:
+        logger.debug(f"Could not load GeoJSON from package resources: {e}")
+        # Fallback to direct file access (for development)
+        geojson_path = Path(__file__).resolve().parent / "data" / "eastern_hemisphere.geojson"
+        if geojson_path.exists():
+            logger.info("Using custom GeoJSON Eastern Hemisphere outline.")
+            return load_geojson_file(str(geojson_path))
 
     # Final fallback: hardcoded simplified outline
     logger.info("Using hardcoded fallback Eastern Hemisphere outline.")
@@ -242,18 +242,27 @@ def get_land_geometry_eastern_hemisphere():
     Returns a shapely geometry or None.
     """
     try:
-        data_dir = Path(__file__).resolve().parent / "data"
-        search_paths = [
-            data_dir / "ne_110m_land" / "ne_110m_land.shp",
-            data_dir / "ne_50m_land" / "ne_50m_land.shp",
-        ]
-        shapefile_path = next((p for p in search_paths if p.exists()), None)
-
-        if not shapefile_path:
-            logger.warning("Natural Earth shapefile not found. Falling back to boundary-only checks.")
-            return None
-
-        gdf = gpd.read_file(shapefile_path)
+        # Try to load from package data first
+        try:
+            with importlib.resources.path('argscape.backend.geo_utils.data.ne_110m_land', 'ne_110m_land.shp') as shapefile_path:
+                if shapefile_path.exists():
+                    gdf = gpd.read_file(shapefile_path)
+                    logger.info("Loaded Natural Earth data from package resources.")
+                else:
+                    raise FileNotFoundError("Shapefile not found in package resources")
+        except (ImportError, FileNotFoundError) as e:
+            logger.debug(f"Could not load from package resources: {e}")
+            # Fallback to direct file access (for development)
+            data_dir = Path(__file__).resolve().parent / "data"
+            search_paths = [
+                data_dir / "ne_110m_land" / "ne_110m_land.shp",
+                data_dir / "ne_50m_land" / "ne_50m_land.shp",
+            ]
+            shapefile_path = next((p for p in search_paths if p.exists()), None)
+            if not shapefile_path:
+                logger.warning("Natural Earth shapefile not found. Falling back to boundary-only checks.")
+                return None
+            gdf = gpd.read_file(shapefile_path)
 
         # Clip to extended Eastern Hemisphere (-15 to 180 longitude, above -60 latitude)
         hemisphere_box = box(-15, -60, 180, 90)

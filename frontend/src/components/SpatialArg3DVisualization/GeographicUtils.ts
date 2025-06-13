@@ -182,6 +182,7 @@ export function calculateShapeBounds(shape: GeographicShape): [number, number, n
  * @param spatialSpacing - Scaling factor for spatial coordinates
  * @param baseColor - Base color for the lines [r, g, b]
  * @param temporalRange - Temporal range filter [min, max] - plane will be placed at center of this range
+ * @param z - Optional z position for the plane
  * @returns Array of 3D lines for the temporal plane
  */
 export function createGeographicTemporalPlanes(
@@ -190,7 +191,8 @@ export function createGeographicTemporalPlanes(
   temporalSpacing: number = 12,
   spatialSpacing: number = 160,
   baseColor: [number, number, number] = [100, 100, 100],
-  temporalRange?: [number, number]
+  temporalRange?: [number, number],
+  z?: number
 ): GeographicLine3D[] {
   const lines: GeographicLine3D[] = [];
 
@@ -198,59 +200,15 @@ export function createGeographicTemporalPlanes(
     return lines;
   }
 
-  // Calculate the center time of the temporal window
-  const centerTime = (temporalRange[0] + temporalRange[1]) / 2;
+  // Use provided z position if available, otherwise calculate it
+  const zPosition = z ?? 0.1; // Default to base elevation if no z provided
 
-  // Use the SAME time-to-index mapping that nodes use
-  // This ensures the plane aligns with the node positions
-  const uniqueTimes = Array.from(new Set(allTimeSlices)).sort((a, b) => a - b);
-  const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
-  
-  // Calculate Z position for center time using linear interpolation between time indices
-  let z = 0;
-  
-  if (uniqueTimes.length > 1) {
-    const minTime = uniqueTimes[0];
-    const maxTime = uniqueTimes[uniqueTimes.length - 1];
-    
-    // Clamp center time to data bounds
-    const clampedCenterTime = Math.max(minTime, Math.min(maxTime, centerTime));
-    
-    // Find the two time points that bracket the center time
-    let lowerIndex = 0;
-    let upperIndex = uniqueTimes.length - 1;
-    
-    for (let i = 0; i < uniqueTimes.length - 1; i++) {
-      if (uniqueTimes[i] <= clampedCenterTime && uniqueTimes[i + 1] >= clampedCenterTime) {
-        lowerIndex = i;
-        upperIndex = i + 1;
-        break;
-      }
-    }
-    
-    if (lowerIndex === upperIndex) {
-      // Center time exactly matches an existing time point
-      z = lowerIndex * temporalSpacing + 0.1;  // Add base elevation like nodes do
-    } else {
-      // Interpolate between the two bracketing time points
-      const lowerTime = uniqueTimes[lowerIndex];
-      const upperTime = uniqueTimes[upperIndex];
-      const t = (clampedCenterTime - lowerTime) / (upperTime - lowerTime);
-      const interpolatedIndex = lowerIndex + t;
-      z = interpolatedIndex * temporalSpacing + 0.1;  // Add base elevation like nodes do
-    }
-  } else if (uniqueTimes.length === 1) {
-    // Only one time point
-    z = 0.1;  // Same as nodes at time index 0
-  }
-
-  // Create a single plane at the center of the temporal window
-  // Use higher opacity and width for better visibility
+  // Create a single plane at the specified z position
   const opacity = 120; // More visible than regular time planes
   const width = 2.0;    // Thicker lines for the temporal reference plane
   const color: [number, number, number, number] = [baseColor[0], baseColor[1], baseColor[2], opacity];
 
-  const planeLines = convertShapeToLines3D(shape, z, spatialSpacing, color, width);
+  const planeLines = convertShapeToLines3D(shape, zPosition, spatialSpacing, color, width);
   lines.push(...planeLines);
 
   return lines;

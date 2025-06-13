@@ -5,7 +5,14 @@ I/O utility functions for handling geographic data.
 import logging
 import pandas as pd
 import io
-from typing import Dict
+from typing import Dict, List, Tuple, Optional
+import geopandas as gpd
+from shapely.geometry import Point, LineString, Polygon
+from shapely.geometry.base import BaseGeometry
+from pathlib import Path
+import csv
+import importlib.resources
+from .fallbacks import get_eastern_hemisphere_outline_fallback
 
 logger = logging.getLogger(__name__)
 
@@ -48,13 +55,24 @@ def load_geojson_file(filepath: str) -> Dict:
     Returns:
         Dictionary with geometry type, coordinates, bounds, CRS, and optional name.
     """
-    path = Path(filepath)
-    if not path.exists():
-        logger.warning(f"GeoJSON file not found: {filepath}")
-        return get_eastern_hemisphere_outline_fallback()
-
     try:
-        gdf = gpd.read_file(path)
+        # First try to load as a package resource
+        try:
+            with importlib.resources.path('argscape.backend.geo_utils.data', Path(filepath).name) as path:
+                if path.exists():
+                    gdf = gpd.read_file(path)
+                    logger.info(f"Loaded GeoJSON from package resources: {filepath}")
+                else:
+                    raise FileNotFoundError(f"GeoJSON not found in package resources: {filepath}")
+        except (ImportError, FileNotFoundError) as e:
+            logger.debug(f"Could not load GeoJSON from package resources: {e}")
+            # Fallback to direct file access (for development)
+            path = Path(filepath)
+            if not path.exists():
+                logger.warning(f"GeoJSON file not found: {filepath}")
+                return get_eastern_hemisphere_outline_fallback()
+            gdf = gpd.read_file(path)
+
         if gdf.empty:
             logger.warning("GeoJSON contains no features.")
             return get_eastern_hemisphere_outline_fallback()

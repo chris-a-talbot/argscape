@@ -1,7 +1,7 @@
 import { useEffect, forwardRef, ForwardedRef, useMemo, useRef } from 'react';
 import * as d3 from 'd3';
 import * as dagre from 'dagre';
-import { ForceDirectedGraphProps, GraphNode, GraphEdge, NodeSizeSettings } from './ForceDirectedGraph.types';
+import { ForceDirectedGraphProps, GraphNode, GraphEdge, NodeSizeSettings, TemporalSpacingMode } from './ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
 // Default node sizes - these will be overridden by props
@@ -722,6 +722,41 @@ function applyVerticalAlignmentJitter(nodes: Node[], edges: GraphEdge[], minX: n
     });
 }
 
+// Helper function to calculate y position based on temporal spacing mode
+function calculateYPosition(
+    time: number,
+    uniqueTimes: number[],
+    availableHeight: number,
+    temporalSpacingMode: TemporalSpacingMode
+): number {
+    if (uniqueTimes.length <= 1) return availableHeight / 2;
+
+    const minTime = uniqueTimes[0];
+    const maxTime = uniqueTimes[uniqueTimes.length - 1];
+    const timeRange = maxTime - minTime;
+
+    let normalizedTime: number;
+    switch (temporalSpacingMode) {
+        case 'log':
+            // Avoid log(0) by using a small offset
+            const minTimeOffset = minTime === 0 ? 0.1 : minTime;
+            const timeOffset = time === 0 ? 0.1 : time;
+            normalizedTime = (Math.log(timeOffset) - Math.log(minTimeOffset)) / 
+                           (Math.log(maxTime) - Math.log(minTimeOffset));
+            break;
+        case 'linear':
+            normalizedTime = (time - minTime) / timeRange;
+            break;
+        case 'equal':
+        default:
+            const timeIndex = uniqueTimes.indexOf(time);
+            normalizedTime = timeIndex / (uniqueTimes.length - 1);
+            break;
+    }
+
+    return availableHeight - (normalizedTime * availableHeight);
+}
+
 // Helper function to setup initial node positions
 function setupInitialNodePositions(
     combinedNodes: Node[], 
@@ -729,7 +764,8 @@ function setupInitialNodePositions(
     actualWidth: number, 
     actualHeight: number, 
     sampleOrder?: string,
-    nodeSizes?: NodeSizeSettings
+    nodeSizes?: NodeSizeSettings,
+    temporalSpacingMode: TemporalSpacingMode = 'equal'
 ) {
     const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
     const timeToIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
@@ -910,7 +946,7 @@ function setupInitialNodePositions(
     sampleNodes.forEach((node, index) => {
         node.x = xPadding + (index * sampleSpacing);
         node.fx = node.x;
-            node.y = availableHeight - (node.timeIndex! * timeSpacing);
+            node.y = calculateYPosition(node.time, uniqueTimes, availableHeight, temporalSpacingMode);
             node.fy = node.y;
         });
 
@@ -918,12 +954,15 @@ function setupInitialNodePositions(
         combinedNodes.filter(n => !n.is_sample).forEach(node => {
             node.fx = null;
             node.fy = null;
-            node.y = availableHeight - (node.timeIndex! * timeSpacing);
+            node.y = calculateYPosition(node.time, uniqueTimes, availableHeight, temporalSpacingMode);
     });
     }
 
     return { timeSpacing, uniqueTimes };
 }
+
+// Add type for simulation
+type Simulation = d3.Simulation<Node, undefined>;
 
 export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphProps>(({ 
     data, 
@@ -935,7 +974,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     focalNode,
     nodeSizes = DEFAULT_NODE_SIZES,
     sampleOrder = 'degree',
-    edgeThickness = GRAPH_CONSTANTS.EDGE_STROKE_WIDTH
+    edgeThickness = GRAPH_CONSTANTS.EDGE_STROKE_WIDTH,
+    temporalSpacingMode = 'equal'
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     
@@ -964,8 +1004,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const containerRect = ref.current.getBoundingClientRect();
         const actualWidth = width || containerRect.width || 800;
         const actualHeight = height || containerRect.height || 600;
+        const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
 
         const { nodes: combinedNodes, edges: combinedEdges } = combineIdenticalNodes(stableData.nodes, stableData.edges);
+        const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
 
         d3.select(ref.current).selectAll("*").remove();
 
@@ -986,14 +1028,28 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         svg.call(zoom);
 
         const focusOnNode = createFocusFunction(svg, zoom, actualWidth, actualHeight, 0);
-        const { timeSpacing } = setupInitialNodePositions(combinedNodes, combinedEdges, actualWidth, actualHeight, sampleOrder, nodeSizes);
+        const { timeSpacing, uniqueTimes: setupUniqueTimes } = setupInitialNodePositions(combinedNodes, combinedEdges, actualWidth, actualHeight, sampleOrder, nodeSizes, temporalSpacingMode);
 
         if (focalNode) {
             focusOnNode(focalNode, combinedNodes, combinedEdges);
         }
 
-        // Updated simulation setup
-        const simulation = d3.forceSimulation<Node>(combinedNodes)
+        // Create tooltip outside of simulation
+        const tooltip = d3.select("body")
+            .append("div")
+            .attr("class", "tooltip")
+            .style("position", "absolute")
+            .style("visibility", "hidden")
+            .style("background-color", colors.tooltipBackground)
+            .style("color", colors.tooltipText)
+            .style("border", `1px solid ${colors.border}`)
+            .style("padding", "8px")
+            .style("border-radius", "4px")
+            .style("font-size", GRAPH_CONSTANTS.TOOLTIP_FONT_SIZE)
+            .style("pointer-events", "none");
+
+        // Create simulation with proper typing
+        const simulation: Simulation = d3.forceSimulation<Node>(combinedNodes)
             .alpha(sampleOrder === 'dagre' ? 0 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START) // Start with 0 alpha for dagre
             .alphaDecay(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY) // Fast decay for dagre
             .velocityDecay(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.VELOCITY_DECAY) // High decay for dagre
@@ -1031,10 +1087,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 }
                 return d.x ?? actualWidth / 2;
             }).strength(GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION))
-            .force("y", d3.forceY((d: Node) => {
-                const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-                return availableHeight - (d.timeIndex! * timeSpacing);
-            }).strength(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.Y_POSITION)) // Keep Y force for time-based positioning
+            .force("y", d3.forceY((d: Node) => 
+                calculateYPosition(d.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode)
+            ).strength(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.Y_POSITION))
             .force("collision", sampleOrder === 'dagre' ? null : d3.forceCollide().radius(GRAPH_CONSTANTS.COLLISION_RADIUS));
 
         const edges = g.append("g")
@@ -1050,8 +1105,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .attr("y1", d => {
                 const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
-                const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-                return availableHeight - (source?.timeIndex! * timeSpacing);
+                return calculateYPosition(source!.time, setupUniqueTimes, availableHeight, temporalSpacingMode);
             })
             .attr("x2", d => {
                 const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as Node;
@@ -1059,29 +1113,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .attr("y2", d => {
                 const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as Node;
-                const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-                return availableHeight - (target?.timeIndex! * timeSpacing);
+                return calculateYPosition(target!.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
             })
             .on("click", (event, d) => onEdgeClick?.(d));
-
-        const tooltip = d3.select("body")
-            .append("div")
-            .attr("class", "tooltip")
-            .style("position", "absolute")
-            .style("visibility", "hidden")
-            .style("background-color", colors.tooltipBackground)
-            .style("color", colors.tooltipText)
-            .style("border", `1px solid ${colors.border}`)
-            .style("padding", "8px")
-            .style("border-radius", "4px")
-            .style("font-size", GRAPH_CONSTANTS.TOOLTIP_FONT_SIZE)
-            .style("pointer-events", "none");
 
         function dragstarted(event: d3.D3DragEvent<SVGCircleElement, Node, Node>) {
             if (!event.active) simulation.alphaTarget(GRAPH_CONSTANTS.ZOOM.ALPHA_TARGET).restart();
             event.subject.fx = event.subject.x;
-            const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-            event.subject.fy = availableHeight - (event.subject.timeIndex! * timeSpacing);
+            event.subject.fy = calculateYPosition(event.subject.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
         }
 
         function dragged(event: d3.D3DragEvent<SVGCircleElement, Node, Node>) {
@@ -1104,8 +1143,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             }
             
             event.subject.fx = x;
-            const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-            event.subject.fy = availableHeight - (event.subject.timeIndex! * timeSpacing);
+            event.subject.fy = calculateYPosition(event.subject.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
         }
 
         function dragended(event: d3.D3DragEvent<SVGCircleElement, Node, Node>) {
@@ -1123,8 +1161,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             }
             
             event.subject.x = x;
-            const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-            event.subject.fy = availableHeight - (event.subject.timeIndex! * timeSpacing);
+            event.subject.fy = calculateYPosition(event.subject.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
         }
 
         const nodes = g.append("g")
@@ -1288,8 +1325,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 });
             }
 
-            const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
-            
             edges
                 .attr("x1", d => {
                     const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
@@ -1297,7 +1332,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 })
                 .attr("y1", d => {
                     const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as Node;
-                    return availableHeight - (source?.timeIndex! * timeSpacing);
+                    return calculateYPosition(source!.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
                 })
                 .attr("x2", d => {
                     const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as Node;
@@ -1305,23 +1340,23 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 })
                 .attr("y2", d => {
                     const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as Node;
-                    return availableHeight - (target?.timeIndex! * timeSpacing);
+                    return calculateYPosition(target!.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode);
                 });
 
             nodes
                 .attr("cx", d => d.x ?? 0)
-                .attr("cy", d => availableHeight - (d.timeIndex! * timeSpacing));
+                .attr("cy", d => calculateYPosition(d.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode));
 
             labels
                 .attr("x", d => d.x ?? 0)
-                .attr("y", d => availableHeight - (d.timeIndex! * timeSpacing));
+                .attr("y", d => calculateYPosition(d.time, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode));
         });
 
         return () => {
-            simulation.stop();
-            tooltip.remove();
+            if (simulation) simulation.stop();
+            if (tooltip) tooltip.remove();
         };
-    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref, sampleOrder, edgeThickness]);
+    }, [stableData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, nodeSizes, ref, sampleOrder, edgeThickness, temporalSpacingMode]);
 
     return (
         <div className="w-full h-full">

@@ -8,6 +8,7 @@ import { convertShapeToLines3D, createGeographicTemporalPlanes, createUnitGridSh
 import { combineIdenticalNodes } from '../../utils/nodeCombining';
 import { isRootNode } from '../../utils/graphTraversal';
 import { formatCoordinates } from '../../utils/colorUtils';
+import { TemporalSpacingMode } from './SpatialArg3DVisualization.types';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 
@@ -42,6 +43,7 @@ interface SpatialArg3DProps {
     rotationOrbit: number;
     orbitAxis: 'Y';
   }>;
+  temporalSpacingMode?: TemporalSpacingMode;
 }
 
 interface Node3D extends GraphNode {
@@ -209,6 +211,37 @@ const createTimeMapping = (nodes: Node3D[]) => {
   return new Map(uniqueTimes.map((time, index) => [time, index]));
 };
 
+// Helper function to calculate z position based on temporal spacing mode
+function calculateZPosition(
+  time: number,
+  uniqueTimes: number[],
+  temporalSpacing: number,
+  temporalSpacingMode: TemporalSpacingMode
+): number {
+  if (uniqueTimes.length <= 1) return 0;
+
+  switch (temporalSpacingMode) {
+    case 'equal':
+      const timeIndex = uniqueTimes.indexOf(time);
+      return timeIndex * temporalSpacing;
+    
+    case 'log':
+      const minTime = Math.max(0.0001, uniqueTimes[0]); // Avoid log(0)
+      const maxTime = uniqueTimes[uniqueTimes.length - 1];
+      const logMin = Math.log(minTime);
+      const logMax = Math.log(maxTime);
+      const logTime = Math.log(Math.max(0.0001, time));
+      const normalizedLog = (logTime - logMin) / (logMax - logMin);
+      return normalizedLog * (uniqueTimes.length - 1) * temporalSpacing;
+    
+    case 'linear':
+      const minTimeLinear = uniqueTimes[0];
+      const maxTimeLinear = uniqueTimes[uniqueTimes.length - 1];
+      const normalizedTime = (time - minTimeLinear) / (maxTimeLinear - minTimeLinear);
+      return normalizedTime * (uniqueTimes.length - 1) * temporalSpacing;
+  }
+}
+
 const transformNodesToThreeD = (
   spatialNodes: GraphNode[],
   coordinateTransform: any,
@@ -216,7 +249,9 @@ const transformNodesToThreeD = (
   spatialSpacing: number,
   colors: any,
   combinedNodes: GraphNode[],
-  combinedEdges: GraphEdge[]
+  combinedEdges: GraphEdge[],
+  uniqueTimes: number[],
+  temporalSpacingMode: TemporalSpacingMode
 ): Node3D[] => {
   const { centerX, centerY, maxScale } = coordinateTransform;
   const timeToZIndex = createTimeMapping(spatialNodes as Node3D[]);
@@ -227,7 +262,7 @@ const transformNodesToThreeD = (
     const zIndex = timeToZIndex.get(node.time) || 0;
     
     const jitter = createNodeJitter(node.id);
-    const normalizedZ = zIndex * temporalSpacing + VISUALIZATION_CONSTANTS.BASE_ELEVATION + jitter;
+    const normalizedZ = calculateZPosition(node.time, uniqueTimes, temporalSpacing, temporalSpacingMode) + VISUALIZATION_CONSTANTS.BASE_ELEVATION + jitter;
 
     const size = calculateNodeSize(node, combinedNodes, combinedEdges);
     let color: [number, number, number, number];
@@ -402,7 +437,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   geographicShapeOpacity = 70,
   maxNodeRadius = 25,
   onViewStateChange,
-  externalViewState
+  externalViewState,
+  temporalSpacingMode = 'equal'
 }, ref) => {
   const deckRef = useRef<any>(null);
   const { colors } = useColorTheme();
@@ -435,6 +471,9 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
 
     const { nodes: combinedNodes, edges: combinedEdges } = combineIdenticalNodes(data!.nodes, data!.edges);
     
+    // Get unique times for z-position calculation
+    const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
+    
     const transformedNodes = transformNodesToThreeD(
       coordinateTransform.spatialNodes,
       coordinateTransform,
@@ -442,7 +481,9 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       spatialSpacing,
       colors,
       combinedNodes,
-      combinedEdges
+      combinedEdges,
+      uniqueTimes,
+      temporalSpacingMode
     );
 
     const nodeMap = new Map<number, Node3D>();
@@ -466,7 +507,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     };
 
     return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds };
-  }, [coordinateTransform, temporalSpacing, spatialSpacing, temporalFilterMode, temporalRange, colors]);
+  }, [coordinateTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors]);
 
   // No auto-center logic here - the container handles it
 
@@ -476,8 +517,12 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const shapeToRender = determineGeographicShape(geographicShape, geographicMode, spatialSpacing);
     if (!shapeToRender) return [];
 
-    const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time)));
+    const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
     const baseColor: [number, number, number] = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2]];
+    
+    // Calculate z position for the temporal plane using the same spacing mode
+    const centerTime = (temporalRange[0] + temporalRange[1]) / 2;
+    const z = calculateZPosition(centerTime, allUniqueTimes, temporalSpacing, temporalSpacingMode);
     
     return createGeographicTemporalPlanes(
       shapeToRender,
@@ -485,9 +530,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       temporalSpacing,
       spatialSpacing,
       baseColor,
-      temporalRange
+      temporalRange,
+      z
     );
-  }, [showTemporalPlanes, temporalRange, bounds, nodes3D, temporalSpacing, spatialSpacing, colors.textSecondary, geographicShape, geographicMode]);
+  }, [showTemporalPlanes, temporalRange, bounds, nodes3D, temporalSpacing, temporalSpacingMode, spatialSpacing, colors.textSecondary, geographicShape, geographicMode]);
 
   const geographicLines = useMemo(() => {
     if (!bounds || !nodes3D.length) return [];

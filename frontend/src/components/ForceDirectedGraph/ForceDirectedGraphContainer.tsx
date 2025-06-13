@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } f
 import { ForceDirectedGraph } from './ForceDirectedGraph';
 import { ForceDirectedGraphInfoPanel } from './ForceDirectedGraphInfoPanel';
 import { ForceDirectedGraphControlPanel } from './ForceDirectedGraphControlPanel';
-import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings } from './ForceDirectedGraph.types';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
@@ -75,6 +75,16 @@ const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): 
 // Default edge thickness
 const DEFAULT_EDGE_THICKNESS = 1;
 
+const DEFAULT_VISUAL_SETTINGS = {
+    nodeSizes: {
+        sample: 8,
+        root: 6,
+        other: 5
+    },
+    edgeThickness: 1,
+    temporalSpacingMode: 'equal' as TemporalSpacingMode
+};
+
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({ 
     filename,
     max_samples = 25
@@ -108,6 +118,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     });
     const [edgeThickness, setEdgeThickness] = useState(DEFAULT_EDGE_THICKNESS);
     const [isLoading, setIsLoading] = useState(false);
+    const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
+    const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
 
     // Convert tree intervals from backend format
     const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
@@ -760,16 +772,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         nodeSizes={nodeSizes}
                         sampleOrder={sampleOrder}
                         edgeThickness={edgeThickness}
+                        temporalSpacingMode={visualSettings.temporalSpacingMode}
                     />
                     
                     <ForceDirectedGraphControlPanel
                         sampleOrder={sampleOrder}
                         onSampleOrderChange={setSampleOrder}
                         nodeSizes={nodeSizes}
-                        onNodeSizeChange={setNodeSizes}
+                        onNodeSizeChange={(sizes) => setNodeSizes(sizes)}
                         edgeThickness={edgeThickness}
-                        onEdgeThicknessChange={setEdgeThickness}
-                        isLoading={loading}
+                        onEdgeThicknessChange={(thickness) => setEdgeThickness(thickness)}
+                        temporalSpacingMode={visualSettings.temporalSpacingMode}
+                        onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
+                        isLoading={isUpdatingOrder}
                     />
                     
                     <ForceDirectedGraphInfoPanel

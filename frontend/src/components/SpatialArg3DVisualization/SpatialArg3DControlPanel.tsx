@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useDraggable } from '../../hooks/useDraggable';
 import { GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { TemporalSpacingMode } from './SpatialArg3DVisualization.types';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 
@@ -9,6 +10,8 @@ interface SpatialArg3DControlPanelProps {
   // Temporal settings
   temporalSpacing: number;
   onTemporalSpacingChange: (value: number) => void;
+  temporalSpacingMode: TemporalSpacingMode;
+  onTemporalSpacingModeChange: (mode: TemporalSpacingMode) => void;
   
   // Spatial settings
   spatialSpacing: number;
@@ -43,6 +46,8 @@ interface SpatialArg3DControlPanelProps {
 export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> = ({
   temporalSpacing,
   onTemporalSpacingChange,
+  temporalSpacingMode,
+  onTemporalSpacingModeChange,
   spatialSpacing,
   onSpatialSpacingChange,
   temporalGridOpacity,
@@ -260,28 +265,85 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
             )}
           </div>
 
+          {/* Temporal Spacing Settings */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Temporal Spacing</h4>
+            
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-medium" style={{ color: colors.text }}>
+                  Spacing Mode
+                </label>
+                <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+                  <button
+                    onClick={() => onTemporalSpacingModeChange('equal')}
+                    className="px-2 py-1 text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: temporalSpacingMode === 'equal' ? colors.accentPrimary : colors.containerBackground,
+                      color: temporalSpacingMode === 'equal' ? colors.background : colors.text
+                    }}
+                  >
+                    Equal
+                  </button>
+                  <button
+                    onClick={() => onTemporalSpacingModeChange('log')}
+                    className="px-2 py-1 text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: temporalSpacingMode === 'log' ? colors.accentPrimary : colors.containerBackground,
+                      color: temporalSpacingMode === 'log' ? colors.background : colors.text
+                    }}
+                  >
+                    Log
+                  </button>
+                  <button
+                    onClick={() => onTemporalSpacingModeChange('linear')}
+                    className="px-2 py-1 text-xs font-medium transition-colors"
+                    style={{
+                      backgroundColor: temporalSpacingMode === 'linear' ? colors.accentPrimary : colors.containerBackground,
+                      color: temporalSpacingMode === 'linear' ? colors.background : colors.text
+                    }}
+                  >
+                    Linear
+                  </button>
+                </div>
+              </div>
+
+              {temporalSpacingMode === 'equal' && (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium" style={{ color: colors.text }}>
+                      Spacing: {temporalSpacing}
+                    </label>
+                  </div>
+                  <input
+                    type="range"
+                    min={5}
+                    max={50}
+                    step={1}
+                    value={temporalSpacing}
+                    onChange={(e) => onTemporalSpacingChange(Number(e.target.value))}
+                    className="w-full h-1 rounded-lg cursor-pointer"
+                    style={{
+                      background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} 100%)`,
+                      accentColor: colors.accentPrimary
+                    }}
+                  />
+                </div>
+              )}
+
+              {temporalSpacingMode !== 'equal' && (
+                <div className="text-xs" style={{ color: `${colors.text}CC` }}>
+                  {temporalSpacingMode === 'log' 
+                    ? 'Time points are spaced logarithmically based on their actual values'
+                    : 'Time points are spaced according to their actual time values'}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Spacing Controls */}
           <div className="space-y-3">
             <h4 className="text-sm font-bold" style={{ color: colors.text }}>Spacing</h4>
-            
-            <div className="space-y-2">
-              <label className="text-xs" style={{ color: colors.accentPrimary }}>
-                Temporal Spacing: {temporalSpacing}
-              </label>
-              <input
-                type="range"
-                min={5}
-                max={50}
-                step={1}
-                value={temporalSpacing}
-                onChange={(e) => onTemporalSpacingChange(Number(e.target.value))}
-                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
-                style={{
-                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} 100%)`,
-                  accentColor: colors.accentPrimary
-                }}
-              />
-            </div>
             
             <div className="space-y-2">
               <label className="text-xs" style={{ color: colors.accentPrimary }}>

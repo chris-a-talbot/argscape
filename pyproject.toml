@@ -49,3 +49,6 @@ include = ["argscape*"]
     "frontend_dist/**/*",
     "backend/geo_utils/data/**/*"
 ]
+
+[tool.setuptools]
+package-data = { "argscape.backend.geo_utils" = ["data/*", "data/ne_110m_land/*"] }

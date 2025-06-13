@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
-import { NodeSizeSettings } from './ForceDirectedGraph.types';
+import { NodeSizeSettings, TemporalSpacingMode } from './ForceDirectedGraph.types';
 
 interface ForceDirectedGraphControlPanelProps {
   // Sample order settings
@@ -15,6 +15,10 @@ interface ForceDirectedGraphControlPanelProps {
   // Edge thickness setting
   edgeThickness: number;
   onEdgeThicknessChange: (thickness: number) => void;
+
+  // Temporal spacing settings
+  temporalSpacingMode: TemporalSpacingMode;
+  onTemporalSpacingModeChange: (mode: TemporalSpacingMode) => void;
   
   // Additional controls can be added here in the future
   isLoading?: boolean;
@@ -27,6 +31,8 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
   onNodeSizeChange,
   edgeThickness,
   onEdgeThicknessChange,
+  temporalSpacingMode,
+  onTemporalSpacingModeChange,
   isLoading = false
 }) => {
   const { colors } = useColorTheme();
@@ -79,6 +85,80 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
       {/* Control Panel Content */}
       {isExpanded && (
         <div className="p-4 pt-0 space-y-4 max-h-96 overflow-y-auto">
+          {/* Temporal Spacing Settings */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Temporal Spacing</h4>
+            
+            <div className="flex gap-2">
+              <button
+                onClick={() => onTemporalSpacingModeChange('equal')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  temporalSpacingMode === 'equal' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+                style={{
+                  backgroundColor: temporalSpacingMode === 'equal' 
+                    ? colors.accentPrimary 
+                    : `${colors.border}40`,
+                  color: temporalSpacingMode === 'equal' 
+                    ? colors.background 
+                    : colors.text
+                }}
+              >
+                Equal
+              </button>
+              <button
+                onClick={() => onTemporalSpacingModeChange('log')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  temporalSpacingMode === 'log' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+                style={{
+                  backgroundColor: temporalSpacingMode === 'log' 
+                    ? colors.accentPrimary 
+                    : `${colors.border}40`,
+                  color: temporalSpacingMode === 'log' 
+                    ? colors.background 
+                    : colors.text
+                }}
+              >
+                Log
+              </button>
+              <button
+                onClick={() => onTemporalSpacingModeChange('linear')}
+                className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                  temporalSpacingMode === 'linear' 
+                    ? 'bg-blue-500 text-white' 
+                    : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
+                }`}
+                style={{
+                  backgroundColor: temporalSpacingMode === 'linear' 
+                    ? colors.accentPrimary 
+                    : `${colors.border}40`,
+                  color: temporalSpacingMode === 'linear' 
+                    ? colors.background 
+                    : colors.text
+                }}
+              >
+                Linear
+              </button>
+            </div>
+
+            <div className="text-xs" style={{ color: `${colors.text}CC` }}>
+              {temporalSpacingMode === 'equal' && (
+                <div>• Time points are spaced equally</div>
+              )}
+              {temporalSpacingMode === 'log' && (
+                <div>• Time points are spaced logarithmically</div>
+              )}
+              {temporalSpacingMode === 'linear' && (
+                <div>• Time points are spaced by true time</div>
+              )}
+            </div>
+          </div>
+
           {/* Sample Order Settings */}
           <div className="space-y-3">
             <h4 className="text-sm font-bold" style={{ color: colors.text }}>Sample Order</h4>
