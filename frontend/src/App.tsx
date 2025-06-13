@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { TreeSequenceProvider } from './context/TreeSequenceContext';
 import { ColorThemeProvider } from './context/ColorThemeContext';
 import SpatialArg3DVisualizationPage from './components/SpatialArg3DVisualizationPage';
+import SpatialArgDiffVisualizationPage from './components/SpatialArgDiffVisualizationPage';
 import IntroAnimation from './components/IntroAnimation';
 import LandingPage from './components/LandingPage';
 import IntermediatePage from './components/IntermediatePage';
@@ -182,6 +183,7 @@ function App() {
             <Route path="/result" element={<Layout><ResultPage /></Layout>} />
             <Route path="/visualize/:filename" element={<Layout><ArgVisualizationPage /></Layout>} />
             <Route path="/visualize-spatial/:filename" element={<Layout><SpatialArg3DVisualizationPage /></Layout>} />
+            <Route path="/visualize-spatial-diff/:filename" element={<Layout><SpatialArgDiffVisualizationPage /></Layout>} />
           </Routes>
         </Router>
       </TreeSequenceProvider>

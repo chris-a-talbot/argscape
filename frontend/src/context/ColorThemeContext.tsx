@@ -101,7 +101,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
   }
 };
 
-export type VisualizationType = 'force-directed' | 'spatial-3d' | 'any';
+export type VisualizationType = 'force-directed' | 'spatial-3d' | 'spatial-diff' | 'any';
 
 interface ColorThemeContextType {
   theme: ColorTheme;
@@ -327,6 +327,13 @@ export const getPrimaryColors = (visualizationType: VisualizationType): (keyof C
       return commonColors;
       
     case 'spatial-3d':
+      return [
+        ...commonColors,
+        'geographicGrid',
+        'temporalGrid'
+      ];
+      
+    case 'spatial-diff':
       return [
         ...commonColors,
         'geographicGrid',

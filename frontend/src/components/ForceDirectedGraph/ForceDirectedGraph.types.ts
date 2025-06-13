@@ -37,10 +37,13 @@ export interface TreeInterval {
 
 export interface GeographicShape {
     type: string;
-    coordinates: number[][][] | number[][][][];
-    crs: string;
+    coordinates: number[] | number[][] | number[][][] | number[][][][];
     name: string;
-    bounds?: [number, number, number, number];
+    bounds: [number, number, number, number];
+    geometries?: Array<{
+        type: string;
+        coordinates: number[][];
+    }>;
 }
 
 export interface CoordinateReferenceSystem {

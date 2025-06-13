@@ -9,6 +9,9 @@ import AlertModal from './ui/AlertModal';
 import { DownloadDropdown } from './ui/DownloadDropdown';
 import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
 
+// Use the TreeSequenceData type from the context
+type TreeSequence = NonNullable<ReturnType<typeof useTreeSequence>['treeSequence']>;
+
 // Add these type definitions at the top of the file
 type LocationInferenceMethod = {
   id: string;
@@ -569,6 +572,8 @@ export default function ResultPage() {
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
   const [showMutationRateModal, setShowMutationRateModal] = useState(false);
   const [isInferringTimes, setIsInferringTimes] = useState(false);
+  const [showSecondTreeSequenceSelector, setShowSecondTreeSequenceSelector] = useState(false);
+  const [selectedSecondTreeSequence, setSelectedSecondTreeSequence] = useState<TreeSequence | null>(null);
 
   // Modal states
   const [alertModal, setAlertModal] = useState<{
@@ -605,6 +610,7 @@ export default function ResultPage() {
 
   const visualizeArgEnabled = true; // Always available if data loaded
   const visualizeSpatialArgEnabled = !!(data?.has_temporal && data?.has_all_spatial);  // Require temporal and all spatial
+  const visualizeSpatialDiffEnabled = visualizeSpatialArgEnabled; // Same requirements as spatial ARG
 
   // Add mutation data status check
   const hasMutations = data?.num_mutations !== undefined && data.num_mutations > 0;
@@ -1026,6 +1032,27 @@ export default function ResultPage() {
     }
   };
 
+  const handleSpatialDiffClick = () => {
+    if (!visualizeSpatialDiffEnabled) return;
+    setShowSecondTreeSequenceSelector(true);
+  };
+
+  const handleSecondTreeSequenceSelect = (treeSequence: TreeSequence) => {
+    if (!data) return;
+    if (!treeSequence.has_temporal || !treeSequence.has_all_spatial || treeSequence.filename === data.filename) {
+      setAlertModal({
+        isOpen: true,
+        title: 'Invalid Selection',
+        message: 'The selected tree sequence must have temporal and spatial data, and must be different from the current tree sequence.',
+        type: 'error'
+      });
+      return;
+    }
+    setSelectedSecondTreeSequence(treeSequence);
+    setShowSecondTreeSequenceSelector(false);
+    navigate(`/visualize-spatial-diff/${encodeURIComponent(data.filename)}?second=${encodeURIComponent(treeSequence.filename)}`);
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
@@ -1280,6 +1307,19 @@ export default function ResultPage() {
                 </div>
               </button>
               <button
+                className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeSpatialDiffEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                disabled={!visualizeSpatialDiffEnabled}
+                onClick={handleSpatialDiffClick}
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                <div className="text-center">
+                  <span className="text-base font-bold">Spatial Diff</span>
+                  <span className="text-sm opacity-80 block">Compare locations</span>
+                </div>
+              </button>
+              <button
                 className="bg-sp-dark-blue text-sp-white/50 font-bold py-5 px-6 rounded-xl flex flex-col items-center gap-2 opacity-40 cursor-not-allowed"
                 disabled={true}
                 title="Pretty ARG visualization coming soon"
@@ -1289,19 +1329,6 @@ export default function ResultPage() {
                 </svg>
                 <div className="text-center">
                   <span className="text-base font-bold">Pretty ARG</span>
-                  <span className="text-sm opacity-60 block">Coming soon</span>
-                </div>
-              </button>
-              <button
-                className="bg-sp-dark-blue text-sp-white/50 font-bold py-5 px-6 rounded-xl flex flex-col items-center gap-2 opacity-40 cursor-not-allowed"
-                disabled={true}
-                title="Huge ARG visualization coming soon"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" />
-                </svg>
-                <div className="text-center">
-                  <span className="text-base font-bold">Huge ARG</span>
                   <span className="text-sm opacity-60 block">Coming soon</span>
                 </div>
               </button>
@@ -1317,6 +1344,15 @@ export default function ResultPage() {
         onClose={() => setShowMutationRateModal(false)}
         onConfirm={handleTsdateInference}
       />
+
+      {/* Tree Sequence Selector Modal for Diff */}
+      {showSecondTreeSequenceSelector && data && (
+        <TreeSequenceSelectorModal
+          isOpen={showSecondTreeSequenceSelector}
+          onClose={() => setShowSecondTreeSequenceSelector(false)}
+          onSelect={handleSecondTreeSequenceSelect}
+        />
+      )}
 
       {/* Alert Modal */}
       <AlertModal

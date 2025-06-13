@@ -217,38 +217,37 @@ export function createGeographicTemporalPlanes(
 /**
  * Create a simple unit grid for comparison
  * @param size - Grid size (size x size)
- * @param spatialSpacing - Scaling factor
  * @returns Grid shape data
  */
-export function createUnitGridShape(size: number = 10, spatialSpacing: number = 160): GeographicShape {
-  const gridLines = [];
+export function createUnitGridShape(size: number = 10): GeographicShape {
+  const coordinates: number[][][] = [];
   
-  // Vertical lines
+  // Create horizontal lines
   for (let i = 0; i <= size; i++) {
-    const x = i / size;
-    gridLines.push({
-      type: "LineString",
-      coordinates: [[x, 0], [x, 1]]
-    });
+    coordinates.push([
+      [0, i],
+      [size, i]
+    ]);
   }
   
-  // Horizontal lines
+  // Create vertical lines
   for (let i = 0; i <= size; i++) {
-    const y = i / size;
-    gridLines.push({
-      type: "LineString",
-      coordinates: [[0, y], [1, y]]
-    });
+    coordinates.push([
+      [i, 0],
+      [i, size]
+    ]);
   }
-  
+
   return {
-    type: "GeometryCollection",
-    coordinates: [], // Not used for GeometryCollection
-    crs: "unit_grid",
-    name: `${size}x${size} Unit Grid`,
-    bounds: [0, 0, 1, 1],
-    geometries: gridLines
-  } as GeographicShape & { geometries: any[] };
+    type: 'GeometryCollection',
+    name: 'Unit Grid',
+    bounds: [0, 0, size, size],
+    coordinates: coordinates.flat(),
+    geometries: coordinates.map(coords => ({
+      type: 'LineString',
+      coordinates: coords
+    }))
+  };
 }
 
 /**
