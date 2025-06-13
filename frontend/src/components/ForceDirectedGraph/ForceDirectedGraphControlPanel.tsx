@@ -17,6 +17,8 @@ interface ForceDirectedGraphControlPanelProps {
   onEdgeThicknessChange: (thickness: number) => void;
 
   // Temporal spacing settings
+  temporalSpacing: number;
+  onTemporalSpacingChange: (value: number) => void;
   temporalSpacingMode: TemporalSpacingMode;
   onTemporalSpacingModeChange: (mode: TemporalSpacingMode) => void;
   
@@ -31,6 +33,8 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
   onNodeSizeChange,
   edgeThickness,
   onEdgeThicknessChange,
+  temporalSpacing,
+  onTemporalSpacingChange,
   temporalSpacingMode,
   onTemporalSpacingModeChange,
   isLoading = false
@@ -146,15 +150,36 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
               </button>
             </div>
 
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium" style={{ color: colors.text }}>
+                  Spacing: {temporalSpacing}
+                </label>
+              </div>
+              <input
+                type="range"
+                min={5}
+                max={50}
+                step={1}
+                value={temporalSpacing}
+                onChange={(e) => onTemporalSpacingChange(Number(e.target.value))}
+                className="w-full h-1 rounded-lg cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} 100%)`,
+                  accentColor: colors.accentPrimary
+                }}
+              />
+            </div>
+
             <div className="text-xs" style={{ color: `${colors.text}CC` }}>
               {temporalSpacingMode === 'equal' && (
                 <div>• Time points are spaced equally</div>
               )}
               {temporalSpacingMode === 'log' && (
-                <div>• Time points are spaced logarithmically</div>
+                <div>• Time points are spaced logarithmically based on their actual values</div>
               )}
               {temporalSpacingMode === 'linear' && (
-                <div>• Time points are spaced by true time</div>
+                <div>• Time points are spaced according to their actual time values</div>
               )}
             </div>
           </div>

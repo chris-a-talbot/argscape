@@ -308,36 +308,38 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
                 </div>
               </div>
 
-              {temporalSpacingMode === 'equal' && (
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium" style={{ color: colors.text }}>
-                      Spacing: {temporalSpacing}
-                    </label>
-                  </div>
-                  <input
-                    type="range"
-                    min={5}
-                    max={50}
-                    step={1}
-                    value={temporalSpacing}
-                    onChange={(e) => onTemporalSpacingChange(Number(e.target.value))}
-                    className="w-full h-1 rounded-lg cursor-pointer"
-                    style={{
-                      background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} 100%)`,
-                      accentColor: colors.accentPrimary
-                    }}
-                  />
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-medium" style={{ color: colors.text }}>
+                    Spacing: {temporalSpacing}
+                  </label>
                 </div>
-              )}
+                <input
+                  type="range"
+                  min={5}
+                  max={50}
+                  step={1}
+                  value={temporalSpacing}
+                  onChange={(e) => onTemporalSpacingChange(Number(e.target.value))}
+                  className="w-full h-1 rounded-lg cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} ${((temporalSpacing - 5) / 45) * 100}%, ${colors.border} 100%)`,
+                    accentColor: colors.accentPrimary
+                  }}
+                />
+              </div>
 
-              {temporalSpacingMode !== 'equal' && (
-                <div className="text-xs" style={{ color: `${colors.text}CC` }}>
-                  {temporalSpacingMode === 'log' 
-                    ? 'Time points are spaced logarithmically based on their actual values'
-                    : 'Time points are spaced according to their actual time values'}
-                </div>
-              )}
+              <div className="text-xs" style={{ color: `${colors.text}CC` }}>
+                {temporalSpacingMode === 'equal' && (
+                  <div>• Time points are spaced equally</div>
+                )}
+                {temporalSpacingMode === 'log' && (
+                  <div>• Time points are spaced logarithmically based on their actual values</div>
+                )}
+                {temporalSpacingMode === 'linear' && (
+                  <div>• Time points are spaced according to their actual time values</div>
+                )}
+              </div>
             </div>
           </div>
 
