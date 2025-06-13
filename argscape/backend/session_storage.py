@@ -19,8 +19,10 @@ from pathlib import Path
 
 try:
     import tskit
+    import tszip
 except ImportError:
     tskit = None
+    tszip = None
 
 try:
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -313,17 +315,32 @@ class PersistentSessionStorage:
             
             session.tree_sequences[filename] = ts
             
-            # Save tree sequence to disk
+            # Save tree sequence to disk in compressed format
             session_dir = self._get_session_dir(session_id)
-            ts_file_path = session_dir / f"{filename}.trees"
-            ts.dump(str(ts_file_path))
+            ts_file_path = session_dir / f"{filename}.trees.tsz"
             
-            # Verify mutations after dump
             try:
-                loaded_ts = tskit.load(str(ts_file_path))
-                logger.info(f"Verified stored tree sequence {filename}: {loaded_ts.num_mutations} mutations after dump")
+                # Use tszip for compression
+                tszip.compress(ts, str(ts_file_path))
+                
+                # Verify mutations after compression
+                loaded_ts = tszip.load(str(ts_file_path))
+                logger.info(f"Verified stored tree sequence {filename}: {loaded_ts.num_mutations} mutations after compression")
+                
+                # Log compression stats
+                original_size = os.path.getsize(str(ts_file_path.with_suffix('.trees'))) if ts_file_path.with_suffix('.trees').exists() else None
+                compressed_size = os.path.getsize(str(ts_file_path))
+                if original_size:
+                    compression_ratio = original_size / compressed_size
+                    logger.info(f"Compression stats for {filename}: {compression_ratio:.2f}x reduction "
+                              f"({original_size/1024:.1f}KB -> {compressed_size/1024:.1f}KB)")
+                
             except Exception as e:
-                logger.error(f"Failed to verify stored tree sequence {filename}: {e}")
+                logger.error(f"Failed to compress tree sequence {filename}: {e}")
+                # Fall back to uncompressed storage if compression fails
+                ts_file_path = session_dir / f"{filename}.trees"
+                ts.dump(str(ts_file_path))
+                logger.info(f"Fell back to uncompressed storage for {filename}")
             
             self._save_session_metadata(session)
             logger.info(f"Stored tree sequence {filename} in persistent session {session_id}")
@@ -344,17 +361,29 @@ class PersistentSessionStorage:
         
         # If not in memory, try to load from disk
         session_dir = self._get_session_dir(session_id)
-        ts_file_path = session_dir / f"{filename}.trees"
         
-        if ts_file_path.exists():
-            try:
-                ts = tskit.load(str(ts_file_path))
-                logger.info(f"Loaded tree sequence {filename} from disk: {ts.num_mutations} mutations")
+        # Try loading with tszip first (handles both .trees.tsz and .trees files)
+        try:
+            # Try compressed format first
+            ts_file_path = session_dir / f"{filename}.trees.tsz"
+            if ts_file_path.exists():
+                ts = tszip.load(str(ts_file_path))
+                logger.info(f"Loaded compressed tree sequence {filename} from disk: {ts.num_mutations} mutations")
                 # Cache in memory for future access
                 session.tree_sequences[filename] = ts
                 return ts
-            except Exception as e:
-                logger.error(f"Failed to load tree sequence {filename} from disk: {e}")
+            
+            # Fall back to uncompressed format
+            ts_file_path = session_dir / f"{filename}.trees"
+            if ts_file_path.exists():
+                ts = tskit.load(str(ts_file_path))
+                logger.info(f"Loaded uncompressed tree sequence {filename} from disk: {ts.num_mutations} mutations")
+                # Cache in memory for future access
+                session.tree_sequences[filename] = ts
+                return ts
+                
+        except Exception as e:
+            logger.error(f"Failed to load tree sequence {filename} from disk: {e}")
         
         return None
     
