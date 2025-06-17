@@ -3,6 +3,7 @@ import webbrowser
 import threading
 import time
 import argparse
+import os
 
 
 def open_browser(host: str, port: int):
@@ -28,10 +29,18 @@ def main():
         "--no-browser", action="store_true",
         help="Don't automatically open the web browser"
     )
+    parser.add_argument(
+        "--no-tsdate", action="store_true",
+        help="Disable tsdate temporal inference"
+    )
     args = parser.parse_args()
 
     if not args.no_browser:
         threading.Thread(target=open_browser, args=(args.host, args.port), daemon=True).start()
+
+    # Set environment variable for tsdate
+    if args.no_tsdate:
+        os.environ["DISABLE_TSDATE"] = "1"
 
     uvicorn.run(
         "argscape.backend.main:app",

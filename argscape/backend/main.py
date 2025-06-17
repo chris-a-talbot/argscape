@@ -134,9 +134,9 @@ except ImportError as e:
 # Import graph utilities
 from argscape.backend.graph_utils import convert_tree_sequence_to_graph_data
 
-# Import temporal inference functionality - controlled by ENABLE_TSDATE env var
-ENABLE_TSDATE = os.getenv("ENABLE_TSDATE", "0").lower() in ("1", "true", "yes")
-if ENABLE_TSDATE:
+# Import temporal inference functionality - disabled by DISABLE_TSDATE env var
+DISABLE_TSDATE = os.getenv("DISABLE_TSDATE", "0").lower() in ("1", "true", "yes")
+if not DISABLE_TSDATE:
     from argscape.backend.temporal_inference import (
         run_tsdate_inference,
         check_mutations_present,
@@ -1239,8 +1239,8 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
 @api_router.post("/infer-times-tsdate")
 async def infer_times_tsdate(request: Request, inference_request: TsdateInferenceRequest):
     """Infer node times using tsdate."""
-    if not ENABLE_TSDATE:
-        raise HTTPException(status_code=503, detail="Temporal inference is disabled. Set ENABLE_TSDATE=1 to enable.")
+    if DISABLE_TSDATE:
+        raise HTTPException(status_code=503, detail="Temporal inference is disabled. Set DISABLE_TSDATE=0 to enable.")
     
     if not TSDATE_AVAILABLE:
         raise HTTPException(status_code=503, detail="tsdate package is not available")

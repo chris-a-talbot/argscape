@@ -48,13 +48,14 @@ pip install argscape
 To use ARGscape from the command line:
 ```bash
 # Start the web interface
-argscape [--host HOST] [--port PORT] [--reload] [--no-browser]
+argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
 
 # Options:
 #   --host HOST       Host to run the server on (default: 127.0.0.1)
 #   --port PORT       Port to run the server on (default: 8000)
 #   --reload          Enable auto-reload for development
 #   --no-browser      Don't automatically open the web browser
+#   --no-tsdate       Disable tsdate temporal inference (enabled by default)
 ```
 
 Note: The web interface provides full functionality for simulating tree sequences and visualization. Additional CLI commands for direct simulation and visualization are planned for future releases.

@@ -13,9 +13,9 @@ import tskit
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# Import tsdate only if enabled
-ENABLE_TSDATE = os.getenv("ENABLE_TSDATE", "0").lower() in ("1", "true", "yes")
-if ENABLE_TSDATE:
+# Import tsdate only if not explicitly disabled
+DISABLE_TSDATE = os.getenv("DISABLE_TSDATE", "0").lower() in ("1", "true", "yes")
+if not DISABLE_TSDATE:
     try:
         import tsdate
         TSDATE_AVAILABLE = True
