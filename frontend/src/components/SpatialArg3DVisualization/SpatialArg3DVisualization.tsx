@@ -4,7 +4,7 @@ import { ScatterplotLayer, LineLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
 import { GraphData, GraphNode, GraphEdge, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
-import { convertShapeToLines3D, createGeographicTemporalPlanes, createUnitGridShape } from './GeographicUtils';
+import { convertShapeToLines, createShapeLines, GeographicLine3D, createUnitGridShape } from './GeographicUtils';
 import { combineIdenticalNodes } from '../../utils/nodeCombining';
 import { isRootNode } from '../../utils/graphTraversal';
 import { formatCoordinates } from '../../utils/colorUtils';
@@ -222,8 +222,23 @@ function calculateZPosition(
 
   switch (temporalSpacingMode) {
     case 'equal':
-      const timeIndex = uniqueTimes.indexOf(time);
-      return timeIndex * temporalSpacing;
+      // Find the two closest time values and interpolate between them
+      let lowerIndex = 0;
+      for (let i = 0; i < uniqueTimes.length; i++) {
+        if (uniqueTimes[i] > time) break;
+        lowerIndex = i;
+      }
+      
+      // If we're at the last index or exact match, just return that position
+      if (lowerIndex === uniqueTimes.length - 1 || uniqueTimes[lowerIndex] === time) {
+        return lowerIndex * temporalSpacing;
+      }
+      
+      // Interpolate between the two closest positions
+      const lowerTime = uniqueTimes[lowerIndex];
+      const upperTime = uniqueTimes[lowerIndex + 1];
+      const fraction = (time - lowerTime) / (upperTime - lowerTime);
+      return (lowerIndex + fraction) * temporalSpacing;
     
     case 'log':
       const minTime = Math.max(0.0001, uniqueTimes[0]); // Avoid log(0)
@@ -511,55 +526,80 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
 
   // No auto-center logic here - the container handles it
 
-  const temporalPlaneLines = useMemo(() => {
-    if (!showTemporalPlanes || !temporalRange || !bounds) return [];
-
-    const shapeToRender = determineGeographicShape(geographicShape, geographicMode, spatialSpacing);
-    if (!shapeToRender) return [];
-
-    const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
-    const baseColor: [number, number, number] = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2]];
-    
-    // Calculate z position for the temporal plane using the same spacing mode
-    const centerTime = (temporalRange[0] + temporalRange[1]) / 2;
-    const z = calculateZPosition(centerTime, allUniqueTimes, temporalSpacing, temporalSpacingMode);
-    
-    return createGeographicTemporalPlanes(
-      shapeToRender,
-      allUniqueTimes,
-      temporalSpacing,
-      spatialSpacing,
-      baseColor,
-      temporalRange,
-      z
-    );
-  }, [showTemporalPlanes, temporalRange, bounds, nodes3D, temporalSpacing, temporalSpacingMode, spatialSpacing, colors.textSecondary, geographicShape, geographicMode]);
-
   const geographicLines = useMemo(() => {
     if (!bounds || !nodes3D.length) return [];
 
     const shapeToRender = determineGeographicShape(geographicShape, geographicMode, spatialSpacing);
     if (!shapeToRender) return [];
 
+    // Convert shape to 2D lines once
+    const baseLines = convertShapeToLines(shapeToRender, spatialSpacing);
     const isTemporalPlanesActive = showTemporalPlanes && temporalFilterMode === 'planes';
-    const baseGeographicOpacity = geographicShapeOpacity ?? 70;
-    const geographicOpacity = baseGeographicOpacity > 0 ? 
-      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_REDUCED_OPACITY, 8) : baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_OPACITY_SCALE) : 0;
-    const geographicLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.GEOGRAPHIC_ACTIVE : LINE_WIDTHS.GEOGRAPHIC_NORMAL;
-    const geographicColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], geographicOpacity] as [number, number, number, number];
-
-    const shapeLines = geographicOpacity > 0 ? convertShapeToLines3D(shapeToRender, 0, spatialSpacing, geographicColor, geographicLineWidth) : [];
-
-    const lines = [...shapeLines];
-    const uniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
-    const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
     
-    const baseOpacity = temporalGridOpacity ?? 30;
-    const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * VISUALIZATION_CONSTANTS.TEMPORAL_OPACITY_SCALE, 8) : baseOpacity;
-    const timeSliceLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.TIME_SLICE_ACTIVE : LINE_WIDTHS.TIME_SLICE_NORMAL;
-    const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
+    console.log('Temporal Filter State:', {
+      showTemporalPlanes,
+      temporalFilterMode,
+      isTemporalPlanesActive,
+      temporalRange,
+      temporalSpacing,
+      temporalSpacingMode
+    });
 
-    if (timeSliceOpacity > 0) {
+    const baseGeographicOpacity = geographicShapeOpacity ?? 70;
+    
+    // Create ground shape (dimmed when temporal planes are active)
+    const groundOpacity = baseGeographicOpacity > 0 ? 
+      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * 0.15, 8) : baseGeographicOpacity) : 0;
+    const groundColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], groundOpacity] as [number, number, number, number];
+    const groundShapeLines = createShapeLines(baseLines, 0, groundColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL);
+
+    // Create elevated shape if temporal filtering is active
+    let elevatedShapeLines: GeographicLine3D[] = [];
+    if (isTemporalPlanesActive && temporalRange) {
+      const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
+      const centerTime = (temporalRange[0] + temporalRange[1]) / 2;
+      const z = calculateZPosition(centerTime, allUniqueTimes, temporalSpacing, temporalSpacingMode);
+      
+      console.log('Elevated Shape Position:', {
+        centerTime,
+        allUniqueTimes,
+        z,
+        temporalRange,
+        temporalSpacing
+      });
+
+      const elevatedOpacity = baseGeographicOpacity * 2.5;
+      const elevatedColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], elevatedOpacity] as [number, number, number, number];
+      elevatedShapeLines = createShapeLines(baseLines, z, elevatedColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL * 1.5);
+      
+      console.log('Created Elevated Shape:', {
+        numLines: elevatedShapeLines.length,
+        firstLine: elevatedShapeLines[0],
+        opacity: elevatedOpacity,
+        color: elevatedColor
+      });
+    }
+
+    // Combine ground and elevated shapes
+    const lines = [...groundShapeLines, ...elevatedShapeLines];
+    
+    console.log('Final Lines:', {
+      totalLines: lines.length,
+      groundLines: groundShapeLines.length,
+      elevatedLines: elevatedShapeLines.length,
+      sampleGroundZ: groundShapeLines[0]?.source[2],
+      sampleElevatedZ: elevatedShapeLines[0]?.source[2]
+    });
+
+    // Add temporal grid lines
+    if (temporalGridOpacity > 0) {
+      const uniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
+      const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
+      
+      const baseOpacity = temporalGridOpacity;
+      const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * 0.3, 8) : baseOpacity;
+      const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
+
       uniqueTimes.forEach(time => {
         const zIndex = timeToZIndex.get(time) || 0;
         const z = zIndex * temporalSpacing;
@@ -569,45 +609,31 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
             source: [bounds.minX - VISUALIZATION_CONSTANTS.GRID_EXTENSION, 0, z],
             target: [bounds.maxX + VISUALIZATION_CONSTANTS.GRID_EXTENSION, 0, z],
             color: timeSliceColor,
-            width: timeSliceLineWidth
+            width: LINE_WIDTHS.TIME_SLICE_NORMAL
           });
           lines.push({
             source: [0, bounds.minY - VISUALIZATION_CONSTANTS.GRID_EXTENSION, z],
             target: [0, bounds.maxY + VISUALIZATION_CONSTANTS.GRID_EXTENSION, z],
             color: timeSliceColor,
-            width: timeSliceLineWidth
+            width: LINE_WIDTHS.TIME_SLICE_NORMAL
           });
         }
       });
     }
 
     return lines;
-  }, [bounds, colors.textSecondary, nodes3D, temporalSpacing, spatialSpacing, geographicShape, geographicMode, showTemporalPlanes, temporalFilterMode, temporalGridOpacity, geographicShapeOpacity]);
+  }, [bounds, colors.geographicGrid, colors.temporalGrid, nodes3D, temporalSpacing, temporalSpacingMode, spatialSpacing, showTemporalPlanes, temporalFilterMode, temporalGridOpacity, geographicShapeOpacity, geographicShape, geographicMode, temporalRange]);
 
   const layers = [
-    ...(geographicLines.length > 0 ? [
-      new LineLayer({
-        id: 'geographic-lines',
-        data: geographicLines,
-        pickable: false,
-        getSourcePosition: (d: any) => d.source,
-        getTargetPosition: (d: any) => d.target,
-        getColor: (d: any) => d.color,
-        getWidth: (d: any) => d.width || 0.5
-      })
-    ] : []),
-
-    ...(showTemporalPlanes && temporalPlaneLines.length > 0 ? [
-      new LineLayer({
-        id: 'temporal-plane-lines',
-        data: temporalPlaneLines,
-        pickable: false,
-        getSourcePosition: (d: any) => d.source,
-        getTargetPosition: (d: any) => d.target,
-        getColor: (d: any) => d.color,
-        getWidth: (d: any) => d.width
-      })
-    ] : []),
+    new LineLayer({
+      id: 'geographic-lines',
+      data: geographicLines,
+      pickable: false,
+      getSourcePosition: (d: any) => d.source,
+      getTargetPosition: (d: any) => d.target,
+      getColor: (d: any) => d.color,
+      getWidth: (d: any) => d.width || 0.5
+    }),
 
     new LineLayer<Edge3D>({
       id: 'edges',

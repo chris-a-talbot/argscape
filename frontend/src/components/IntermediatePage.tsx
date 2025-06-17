@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { VISUALIZATION_DEFAULTS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
+import Navbar from './ui/Navbar';
 
 interface IntermediatePageProps {
   selectedOption: 'upload' | 'simulate' | 'load';
@@ -95,35 +96,22 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
   };
 
   return (
-    <div className="bg-sp-very-dark-blue text-sp-white min-h-screen px-4 pt-8 pb-20 font-sans">
-      {/* Header with logo and back button */}
-      <div className="max-w-7xl mx-auto mb-8">
-        {/* Logo and Back Button Row */}
-        <div className="relative flex items-center justify-center mb-6">
-          <button
-            onClick={onBack}
-            className="absolute left-0 inline-flex items-center gap-2 text-sp-pale-green hover:text-sp-pale-green/80 transition-colors duration-200"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to options
-          </button>
-          
-          <ClickableLogo size="medium" />
+    <div className="bg-sp-very-dark-blue text-sp-white min-h-screen flex flex-col">
+      <Navbar />
+      <div className="flex-grow px-4 pt-24 pb-20">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-8">
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">{getTitle()}</h1>
+            <p className="text-sp-white/70 text-lg">{getDescription()}</p>
+          </div>
         </div>
-        
-        <div className="text-center mb-8">
-          <h1 className="text-3xl md:text-4xl font-bold mb-2">{getTitle()}</h1>
-          <p className="text-sp-white/70 text-lg">{getDescription()}</p>
-        </div>
-      </div>
 
-      {/* Main content area */}
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
-          <div className="p-8 min-h-[600px] flex items-start justify-center">
-            {renderComponent()}
+        {/* Main content area */}
+        <div className="max-w-7xl mx-auto">
+          <div className="bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
+            <div className="p-8 min-h-[600px] flex items-start justify-center">
+              {renderComponent()}
+            </div>
           </div>
         </div>
       </div>

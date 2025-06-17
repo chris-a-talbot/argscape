@@ -177,7 +177,7 @@ export default function IntroAnimation({ onComplete, isTransitioning = false }: 
             ${isTransitioning ? 'opacity-0' : 'opacity-100'}
           `}>
             <div className="text-sp-pale-green text-2xl md:text-3xl lg:text-4xl font-bold">
-              Visualizing Ancestral Recombination Graphs
+              Explore ancestry through space, time, and the genome.
             </div>
           </div>
         </div>

@@ -10,9 +10,13 @@ import SpatialArgDiffVisualizationPage from './components/SpatialArgDiffVisualiz
 import IntroAnimation from './components/IntroAnimation';
 import LandingPage from './components/LandingPage';
 import IntermediatePage from './components/IntermediatePage';
+import TutorialsPage from './components/TutorialsPage';
+import DocsPage from './components/DocsPage';
 import { isFirstVisit, markVisited } from './utils/session';
 import { api } from './lib/api';
 import { log } from './lib/logger';
+import Lesson1 from './components/tutorials/Lesson1';
+import Lesson2 from './components/tutorials/Lesson2';
 
 // Layout component that includes the footer
 function Layout({ children }: { children: React.ReactNode }) {
@@ -184,6 +188,13 @@ function App() {
             <Route path="/visualize/:filename" element={<Layout><ArgVisualizationPage /></Layout>} />
             <Route path="/visualize-spatial/:filename" element={<Layout><SpatialArg3DVisualizationPage /></Layout>} />
             <Route path="/visualize-spatial-diff/:filename" element={<Layout><SpatialArgDiffVisualizationPage /></Layout>} />
+            <Route path="/tutorials" element={<Layout><TutorialsPage /></Layout>} />
+            <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
+            <Route path="/upload" element={<Layout><IntermediatePage selectedOption="upload" onBack={() => {}} /></Layout>} />
+            <Route path="/simulate" element={<Layout><IntermediatePage selectedOption="simulate" onBack={() => {}} /></Layout>} />
+            <Route path="/load" element={<Layout><IntermediatePage selectedOption="load" onBack={() => {}} /></Layout>} />
+            <Route path="/tutorials/lesson-1-1" element={<Lesson1 />} />
+            <Route path="/tutorials/lesson-1-2" element={<Lesson2 />} />
           </Routes>
         </Router>
       </TreeSequenceProvider>

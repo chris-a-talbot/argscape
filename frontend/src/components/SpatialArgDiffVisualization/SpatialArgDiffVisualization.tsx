@@ -4,7 +4,7 @@ import { ScatterplotLayer, LineLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
 import { GraphData, GraphNode, GraphEdge, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
-import { convertShapeToLines3D, createGeographicTemporalPlanes, createUnitGridShape } from '../SpatialArg3DVisualization/GeographicUtils';
+import { convertShapeToLines, createShapeLines, GeographicLine3D, createUnitGridShape } from '../SpatialArg3DVisualization/GeographicUtils';
 import { combineIdenticalNodes } from '../../utils/nodeCombining';
 import { isRootNode } from '../../utils/graphTraversal';
 import { formatCoordinates } from '../../utils/colorUtils';
@@ -567,10 +567,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
 
     // Add geographic shape lines if shape exists
     if (shape) {
-      lines.push(...convertShapeToLines3D(
-        shape,
+      const baseLines = convertShapeToLines(shape, spatialSpacing);
+      lines.push(...createShapeLines(
+        baseLines,
         0,
-        spatialSpacing,
         geographicColor,
         geographicLineWidth
       ));

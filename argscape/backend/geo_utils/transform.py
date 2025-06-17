@@ -1,6 +1,9 @@
 import numpy as np
 import logging
-from typing import Sequence, Tuple, List, Union
+from typing import Sequence, Tuple, List
+from scipy.spatial import cKDTree
+from scipy.optimize import linear_sum_assignment
+import pyproj
 from argscape.backend.constants import (
     WGS84_LONGITUDE_MIN,
     WGS84_LONGITUDE_MAX,
@@ -20,6 +23,115 @@ from argscape.backend.constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _sample_land_candidates(
+    n_samples: int,
+    *,
+    oversample: int = 3,               # lower factor – enough because we no longer discard many
+    rng: np.random.Generator,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Fast land-only sampler (global).
+
+    • We just ask “is this random lon/lat on land?” once.
+    • If not, we throw it away and draw another point – no local search.
+
+    Returns
+    -------
+    lonlat      (m,2) float64  – on-land geographic coords
+    lonlat_norm (m,2) float64  – same, normalised to [0,1]²
+    """
+    from argscape.backend.geo_utils.land_detect import is_point_on_land_eastern_hemisphere
+
+    want   = max(oversample * n_samples, n_samples + 500)
+    lonlat = np.empty((want, 2), dtype=np.float64)
+    count  = 0
+    tries  = 0
+    max_tries = want * 10  # plenty – aborts only in pathological cases
+
+    while count < want and tries < max_tries:
+        tries += 1
+        # uniform lon/lat
+        x_n, y_n = rng.random(2)
+        lon = x_n * WGS84_LONGITUDE_RANGE + WGS84_LONGITUDE_MIN
+        lat = y_n * WGS84_LATITUDE_RANGE + WGS84_LATITUDE_MIN
+        if is_point_on_land_eastern_hemisphere(lon, lat):
+            lonlat[count] = (lon, lat)
+            count += 1
+
+    if count < n_samples:
+        raise RuntimeError("Could not collect enough land points – check land mask")
+
+    lonlat = lonlat[:count]
+    lonlat_norm = np.column_stack([
+        (lonlat[:, 0] - WGS84_LONGITUDE_MIN) / WGS84_LONGITUDE_RANGE,
+        (lonlat[:, 1] - WGS84_LATITUDE_MIN) / WGS84_LATITUDE_RANGE,
+    ])
+    return lonlat, lonlat_norm
+
+
+def _compute_coastal_mask(
+    lonlat: np.ndarray,
+    *,
+    step_deg: float = 2.0,
+) -> np.ndarray:
+    """
+    Return a boolean mask: True = coastal (land within ≤ step_deg of sea).
+    We test the 4 cardinal neighbours only – cheap and good enough.
+    """
+    from argscape.backend.geo_utils.land_detect import (
+        is_point_on_land_eastern_hemisphere as _is_land,
+    )
+
+    coast = np.empty(lonlat.shape[0], dtype=bool)
+    for i, (lon, lat) in enumerate(lonlat):
+        coast[i] = (
+            not _is_land(lon + step_deg, lat)
+            or not _is_land(lon - step_deg, lat)
+            or not _is_land(lon, lat + step_deg)
+            or not _is_land(lon, lat - step_deg)
+        )
+    return coast
+
+
+def _assign_land_points(
+    src_norm: np.ndarray,
+    cand_norm: np.ndarray,
+    cand_geo: np.ndarray,
+) -> np.ndarray:
+    """
+    Match each source point to a unique land candidate.
+
+    • Hungarian for n ≤ 300  → exact, still O( n³ ) but tiny.  
+    • Greedy KD-tree for n > 300  → O( n log m ) and minimal memory.
+    """
+    n, m = src_norm.shape[0], cand_norm.shape[0]
+
+    # -------- small job: Hungarian -------------------------------------
+    if n <= 300:
+        cost = np.linalg.norm(src_norm[:, None, :] - cand_norm[None, :, :], axis=2)
+        _, cols = linear_sum_assignment(cost)
+        return cand_geo[cols]
+
+    # -------- big job: greedy KD-tree ----------------------------------
+    tree  = cKDTree(cand_norm)
+    taken = np.full(m, False, dtype=bool)
+    out   = np.empty((n, 2), dtype=np.float64)
+
+    for i, pt in enumerate(src_norm):
+        k = 4                       # start with 4 neighbours
+        while True:
+            _, idxs = tree.query(pt, k=k)
+            idxs = np.atleast_1d(idxs)
+            free = idxs[~taken[idxs]]
+            if free.size:
+                chosen = free[0]
+                taken[chosen] = True
+                out[i] = cand_geo[chosen]
+                break
+            k = min(k * 2, m)  # widen search if all taken
+    return out
 
 
 def normalize_coordinates_to_unit_space(
@@ -51,43 +163,40 @@ def normalize_coordinates_to_unit_space(
     return [tuple(pt) for pt in arr]
 
 
-def generate_wgs84_coordinates(normalized_coords: np.ndarray) -> np.ndarray:
+def generate_wgs84_coordinates(normalized_coords: np.ndarray,
+                               *,
+                               random_seed: int | None = None
+) -> np.ndarray:
     """
-    Generate WGS84 geographic coordinates with land placement.
-    
-    Args:
-        normalized_coords: Normalized coordinates in [0,1]
-        
-    Returns:
-        Final coordinates in WGS84 (longitude, latitude)
-    """
-    # Import here to avoid circular import
-    from .placement import attempt_land_placement
+    **Smart land embedding** – projects the MDS points to real-world land
+    while *globally* preserving their mutual geometry.
 
-    # Initialize final_coords with proper shape
-    final_coords = np.zeros_like(normalized_coords)
-    
-    # Scale normalized coordinates to geographic ranges
-    final_coords[:, 0] = normalized_coords[:, 0] * WGS84_LONGITUDE_RANGE + WGS84_LONGITUDE_MIN  # Longitude
-    final_coords[:, 1] = normalized_coords[:, 1] * WGS84_LATITUDE_RANGE + WGS84_LATITUDE_MIN  # Latitude
-    
-    # Add geographic noise
-    noise = np.random.normal(0, WGS84_GEOGRAPHIC_NOISE_SCALE, final_coords.shape)
-    final_coords += noise
-    
-    # Ensure coordinates stay within geographic bounds
-    final_coords[:, 0] = np.clip(final_coords[:, 0], WGS84_LONGITUDE_MIN + 1.0, WGS84_LONGITUDE_MAX - 1.0)
-    final_coords[:, 1] = np.clip(final_coords[:, 1], WGS84_LATITUDE_MIN + 1.0, WGS84_LATITUDE_MAX - 1.0)
-    
-    # Enhanced land placement for Eastern Hemisphere
-    for i in range(len(final_coords)):
-        final_coords[i, 0], final_coords[i, 1] = attempt_land_placement(
-            final_coords[i, 0], 
-            final_coords[i, 1],
-            normalized_coords[i, 0],
-            normalized_coords[i, 1]
-        )
-    
+    Steps
+    -----
+      1.  Draw a generous pool of random land points (oversampling factor = 5);
+      2.  Convert both pools to the same [0,1]² space;
+      3.  Solve the optimal assignment problem (Hungarian or greedy KD-tree)
+          to pair every sample with the *nearest unique* land point;
+      4.  Add very small isotropic jitter to break sub-pixel ties.
+
+    Returns
+    -------
+    (n,2) float64 array of *(lon, lat)* – each point guaranteed to be on land.
+    """
+    rng = np.random.default_rng(random_seed)
+    n_samples = normalized_coords.shape[0]
+
+    # 1. make candidate land bank
+    cand_geo, cand_norm = _sample_land_candidates(n_samples, rng=rng)
+
+    # 2. decide per-sample land point (global optimum when possible)
+    final_coords = _assign_land_points(normalized_coords, cand_norm, cand_geo)
+
+    # 3. optional microscopic noise (keeps visibly identical nodes apart, but
+    #    never pushes a point into the sea because the oracle keeps it inland)
+    jitter = rng.normal(0, WGS84_GEOGRAPHIC_NOISE_SCALE * 0.25, size=final_coords.shape)
+    final_coords += jitter
+
     return final_coords
 
 
@@ -163,15 +272,13 @@ def transform_coordinates(
         ValueError: If CRS transformation fails or if CRS is not supported
     """
     try:
-        import pyproj
-        from pyproj import Transformer
         
         # Handle special cases for unit grid
         if source_crs == "unit_grid" or target_crs == "unit_grid":
             raise ValueError("Cannot transform to/from unit_grid CRS - it's a special case")
         
         # Create transformer
-        transformer = Transformer.from_crs(source_crs, target_crs, always_xy=True)
+        transformer = pyproj.Transformer.from_crs(source_crs, target_crs, always_xy=True)
         
         # Convert coordinates to arrays for vectorized transformation
         coords_array = np.array(coordinates)

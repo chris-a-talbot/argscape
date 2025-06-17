@@ -13,22 +13,13 @@ export interface GeographicLine3D {
 }
 
 /**
- * Convert geographic shape coordinates to 3D lines for rendering
- * @param shape - Geographic shape data
- * @param zPosition - Z position for the lines (time slice)
- * @param spatialSpacing - Scaling factor for spatial coordinates
- * @param color - Color for the lines [r, g, b, a]
- * @param width - Line width (minimum width for visibility)
- * @returns Array of 3D lines representing the shape
+ * Convert geographic shape to a set of 2D lines that can be rendered at any z-height
  */
-export function convertShapeToLines3D(
+export function convertShapeToLines(
   shape: GeographicShape | any,
-  zPosition: number,
   spatialSpacing: number = 160,
-  color: [number, number, number, number] = [100, 100, 100, 255],
-  width: number = 2  // Increased default width for better visibility
-): GeographicLine3D[] {
-  const lines: GeographicLine3D[] = [];
+): [number, number, number, number][] {
+  const lines: [number, number, number, number][] = [];
 
   if (!shape || !shape.coordinates) {
     return lines;
@@ -53,26 +44,16 @@ export function convertShapeToLines3D(
     for (let i = 0; i < coords.length - 1; i++) {
       const [x1, y1] = normalizeCoordinate(coords[i][0], coords[i][1]);
       const [x2, y2] = normalizeCoordinate(coords[i + 1][0], coords[i + 1][1]);
-      
-      lines.push({
-        source: [x1, y1, zPosition],
-        target: [x2, y2, zPosition],
-        color,
-        width
-      });
+      lines.push([x1, y1, x2, y2]);
     }
   };
 
   // Handle different geometry types
   switch (shape.type) {
     case 'Polygon':
-      // shape.coordinates is number[][][]
       const polygonCoords = shape.coordinates as number[][][];
       if (polygonCoords.length > 0) {
-        // Process exterior ring
         coordinateArrayToLines(polygonCoords[0]);
-        
-        // Process holes (interior rings)
         for (let i = 1; i < polygonCoords.length; i++) {
           coordinateArrayToLines(polygonCoords[i]);
         }
@@ -80,14 +61,10 @@ export function convertShapeToLines3D(
       break;
 
     case 'MultiPolygon':
-      // shape.coordinates is number[][][][]
       const multiPolygonCoords = shape.coordinates as number[][][][];
       for (const polygon of multiPolygonCoords) {
         if (polygon.length > 0) {
-          // Process exterior ring
           coordinateArrayToLines(polygon[0]);
-          
-          // Process holes (interior rings)
           for (let i = 1; i < polygon.length; i++) {
             coordinateArrayToLines(polygon[i]);
           }
@@ -96,14 +73,12 @@ export function convertShapeToLines3D(
       break;
 
     case 'LineString':
-      // shape.coordinates is number[][]
-      if (Array.isArray(shape.coordinates) && shape.coordinates.length > 0 && Array.isArray(shape.coordinates[0]) && typeof shape.coordinates[0][0] === 'number') {
+      if (Array.isArray(shape.coordinates) && shape.coordinates.length > 0) {
         coordinateArrayToLines(shape.coordinates as number[][]);
       }
       break;
 
     case 'MultiLineString':
-      // shape.coordinates is number[][][]
       const multiLineCoords = shape.coordinates as number[][][];
       for (const line of multiLineCoords) {
         coordinateArrayToLines(line);
@@ -111,7 +86,6 @@ export function convertShapeToLines3D(
       break;
 
     case 'GeometryCollection':
-      // Handle geometry collection (like grid outlines)
       if ('geometries' in shape) {
         const geometries = (shape as any).geometries;
         for (const geometry of geometries) {
@@ -130,9 +104,24 @@ export function convertShapeToLines3D(
 }
 
 /**
+ * Create lines for rendering a shape at a specific z-height
+ */
+export function createShapeLines(
+  shapeLines: [number, number, number, number][],
+  zHeight: number,
+  color: [number, number, number, number],
+  width: number
+): GeographicLine3D[] {
+  return shapeLines.map(([x1, y1, x2, y2]) => ({
+    source: [x1, y1, zHeight] as [number, number, number],
+    target: [x2, y2, zHeight] as [number, number, number],
+    color,
+    width
+  }));
+}
+
+/**
  * Calculate bounding box for a geographic shape
- * @param shape - Geographic shape data
- * @returns Bounds [minX, minY, maxX, maxY]
  */
 export function calculateShapeBounds(shape: GeographicShape): [number, number, number, number] {
   let minX = Infinity;
@@ -142,14 +131,12 @@ export function calculateShapeBounds(shape: GeographicShape): [number, number, n
 
   const processCoordinates = (coords: number[] | number[][] | number[][][] | number[][][][]) => {
     if (typeof coords[0] === 'number') {
-      // Single coordinate [x, y]
       const [x, y] = coords as number[];
       minX = Math.min(minX, x);
       minY = Math.min(minY, y);
       maxX = Math.max(maxX, x);
       maxY = Math.max(maxY, y);
     } else {
-      // Nested array
       for (const coord of coords as any[]) {
         processCoordinates(coord);
       }
@@ -160,7 +147,6 @@ export function calculateShapeBounds(shape: GeographicShape): [number, number, n
     processCoordinates(shape.coordinates);
   }
 
-  // Handle geometry collections
   if ('geometries' in shape) {
     const geometries = (shape as any).geometries;
     for (const geometry of geometries) {
@@ -208,18 +194,21 @@ export function createGeographicTemporalPlanes(
   const width = 2.0;    // Thicker lines for the temporal reference plane
   const color: [number, number, number, number] = [baseColor[0], baseColor[1], baseColor[2], opacity];
 
-  const planeLines = convertShapeToLines3D(shape, zPosition, spatialSpacing, color, width);
-  lines.push(...planeLines);
+  const planeLines = convertShapeToLines(shape, spatialSpacing);
+  lines.push(...planeLines.map(([x1, y1, x2, y2]) => ({
+    source: [x1, y1, zPosition],
+    target: [x2, y2, zPosition],
+    color,
+    width
+  })));
 
   return lines;
 }
 
 /**
- * Create a simple unit grid for comparison
- * @param size - Grid size (size x size)
- * @returns Grid shape data
+ * Create a simple unit grid
  */
-export function createUnitGridShape(size: number = 10): GeographicShape {
+export function createUnitGridShape(size: number = 10, spatialSpacing: number = 160): GeographicShape {
   const coordinates: number[][][] = [];
   
   // Create horizontal lines

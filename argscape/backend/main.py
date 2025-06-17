@@ -134,12 +134,20 @@ except ImportError as e:
 # Import graph utilities
 from argscape.backend.graph_utils import convert_tree_sequence_to_graph_data
 
-# Import temporal inference functionality
-from argscape.backend.temporal_inference import (
-    run_tsdate_inference,
-    check_mutations_present,
-    TSDATE_AVAILABLE
-)
+# Import temporal inference functionality - controlled by ENABLE_TSDATE env var
+ENABLE_TSDATE = os.getenv("ENABLE_TSDATE", "0").lower() in ("1", "true", "yes")
+if ENABLE_TSDATE:
+    from argscape.backend.temporal_inference import (
+        run_tsdate_inference,
+        check_mutations_present,
+        TSDATE_AVAILABLE
+    )
+    logger.info("Temporal inference utilities successfully imported")
+else:
+    run_tsdate_inference = None
+    check_mutations_present = None
+    TSDATE_AVAILABLE = False
+    logger.info("Temporal inference disabled by configuration")
 
 # FastAPI app instance
 app = FastAPI(
@@ -1231,8 +1239,11 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
 @api_router.post("/infer-times-tsdate")
 async def infer_times_tsdate(request: Request, inference_request: TsdateInferenceRequest):
     """Infer node times using tsdate."""
+    if not ENABLE_TSDATE:
+        raise HTTPException(status_code=503, detail="Temporal inference is disabled. Set ENABLE_TSDATE=1 to enable.")
+    
     if not TSDATE_AVAILABLE:
-        raise HTTPException(status_code=503, detail="tsdate package not available")
+        raise HTTPException(status_code=503, detail="tsdate package is not available")
     
     logger.info(f"Received tsdate temporal inference request for file: {inference_request.filename}")
     
