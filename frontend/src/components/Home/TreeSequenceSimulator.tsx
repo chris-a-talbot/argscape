@@ -58,6 +58,7 @@ type TreeSequenceMetadata = {
     has_sample_spatial: boolean;
     has_all_spatial: boolean;
     spatial_status: string;
+    is_simulated?: boolean;
   }
 };
 
@@ -398,8 +399,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
 
           {/* Coordinate System */}
           <div className="flex flex-col">
-            <label className="text-sm font-medium text-sp-white mb-1">
+            <label className="text-sm font-medium text-sp-white mb-1 flex items-center gap-1">
               Coordinate System
+              <div className="relative group">
+                <div className="w-4 h-4 bg-sp-pale-green/20 rounded-full flex items-center justify-center cursor-help">
+                  <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="hidden group-hover:block absolute left-0 top-full mt-1 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl z-50 text-xs text-sp-white/80">
+                  While samples will be assigned coordinates in the specified coordinate system, these locations are simulated separately from the coalescent simulation and may not reflect real-world evolutionary processes accurately.
+                </div>
+              </div>
             </label>
             <select
               value={params.crs || 'EPSG:4326'}

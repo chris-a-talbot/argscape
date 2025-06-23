@@ -272,7 +272,6 @@ def transform_coordinates(
         ValueError: If CRS transformation fails or if CRS is not supported
     """
     try:
-        
         # Handle special cases for unit grid
         if source_crs == "unit_grid" or target_crs == "unit_grid":
             raise ValueError("Cannot transform to/from unit_grid CRS - it's a special case")

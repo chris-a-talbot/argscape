@@ -7,6 +7,7 @@ import { useTreeSequence } from '../context/TreeSequenceContext';
 import { VISUALIZATION_DEFAULTS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
 import Navbar from './ui/Navbar';
+import ParticleBackground from './ui/ParticleBackground';
 
 interface IntermediatePageProps {
   selectedOption: 'upload' | 'simulate' | 'load';
@@ -96,21 +97,25 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
   };
 
   return (
-    <div className="bg-sp-very-dark-blue text-sp-white min-h-screen flex flex-col">
-      <Navbar />
-      <div className="flex-grow px-4 pt-24 pb-20">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">{getTitle()}</h1>
-            <p className="text-sp-white/70 text-lg">{getDescription()}</p>
+    <div className="min-h-screen bg-sp-very-dark-blue relative">
+      <ParticleBackground />
+      <div className="text-sp-white min-h-screen flex flex-col">
+        <Navbar />
+        <div className="flex-grow px-4 pt-24 pb-20">
+          {/* Header with title */}
+          <div className="max-w-7xl mx-auto mb-8">
+            <div className="text-center mb-8">
+              <h1 className="text-3xl md:text-4xl font-bold mb-2">{getTitle()}</h1>
+              <p className="text-sp-white/70 text-lg">{getDescription()}</p>
+            </div>
           </div>
-        </div>
 
-        {/* Main content area */}
-        <div className="max-w-7xl mx-auto">
-          <div className="bg-sp-very-dark-blue rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
-            <div className="p-8 min-h-[600px] flex items-start justify-center">
-              {renderComponent()}
+          {/* Main content area */}
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
+              <div className="p-8 min-h-[600px] flex items-start justify-center">
+                {renderComponent()}
+              </div>
             </div>
           </div>
         </div>

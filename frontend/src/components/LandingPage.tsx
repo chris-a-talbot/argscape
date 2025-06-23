@@ -3,6 +3,7 @@ import { api } from '../lib/api';
 import { log } from '../lib/logger';
 import ClickableLogo from './ui/ClickableLogo';
 import Navbar from './ui/Navbar';
+import ParticleBackground from './ui/ParticleBackground';
 import { useNavigate } from 'react-router-dom';
 
 interface LandingPageProps {
@@ -59,9 +60,10 @@ export default function LandingPage({ onOptionSelect, isTransitioning = false }:
 
   return (
     <div className={`
-      text-sp-white min-h-screen flex flex-col bg-sp-very-dark-blue
+      text-sp-white min-h-screen flex flex-col bg-sp-very-dark-blue relative
       ${isTransitioning ? 'absolute inset-0 z-40' : ''}
     `}>
+      <ParticleBackground />
       <Navbar />
       <div className="flex-grow flex items-center justify-center px-4 pt-16">
         <div className="text-center">
@@ -181,8 +183,8 @@ export default function LandingPage({ onOptionSelect, isTransitioning = false }:
             ${isTransitioning && !showContent ? 'opacity-0 translate-y-8' : 'opacity-100 translate-y-0'}
           `}>
             <p className="text-amber-200 text-xs md:text-sm text-center leading-relaxed">
-              <span className="font-semibold">⚠️ Beta Notice:</span> Tree sequences are stored on a secure server for up to 24 hours. 
-              This is a beta application and data may be wiped during updates. Please download your results and respect our limited resources.
+              <span className="font-semibold">⚠️ Beta Notice:</span> If you're using ARGscape.com, your data will be stored on a secure, private server for up to 24 hours. 
+              Data may be wiped at any time during updates. Please download your results often and respect our limited resources by clearing data when you're done.
             </p>
           </div>
 

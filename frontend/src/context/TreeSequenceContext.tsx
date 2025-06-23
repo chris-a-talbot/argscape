@@ -18,6 +18,7 @@ interface TreeSequenceData {
   has_sample_spatial: boolean;
   has_all_spatial: boolean;
   spatial_status: string;
+  is_simulated?: boolean;  // Optional - indicates if the tree sequence was generated through simulation
 }
 
 interface TreeSequenceContextType {

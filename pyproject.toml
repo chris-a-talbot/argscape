@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "argscape"
-version = "0.1.5"
+version = "0.1.6"
 description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
 requires-python = ">=3.8"
