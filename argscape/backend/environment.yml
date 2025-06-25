@@ -1,26 +1,35 @@
-name: argscape
+name: argscape_env
 channels:
-  - defaults
   - conda-forge
-  - bioconda
 dependencies:
   - python=3.11
-  - tskit
-  - msprime
-  - numpy>=1.24.0,<2.0.0
-  - fastapi
-  - uvicorn
-  - python-multipart
-  - pandas==2.0.3
-  - scikit-learn
-  - geopandas
-  - pydantic
-  - apscheduler
-  - pyproj
-  - shapely
   - pip
+  - numpy>=1.24.0,<2.0.0
+  - pandas
+  - tskit
+  - tszip>=0.2.3
+  - msprime
+  - scikit-learn
+  - fastapi
+  - uvicorn=0.24.0
+  - python-multipart=0.0.6
+  - python-dotenv=1.0.0
+  - apscheduler=3.10.4
+  - geopandas=0.14.1
+  - shapely=2.0.2
+  - pyproj=3.6.1
+  - fiona=1.9.5
+  - gdal=3.7.2
+  - sympy
+  - scipy
+  - tqdm
+  - matplotlib
+  - pydantic
+  - gsl=2.7
+  - zarr=2.16.1
+  - numcodecs=0.11.0
   - pip:
-    - tszip
-    - tsdate
-    - fastgaia
-    - geoancestry
+      - fastgaia
+      - geoancestry
+      - tsdate
+      - argscape
