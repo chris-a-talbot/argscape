@@ -467,7 +467,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   geographicMode = 'unit_grid',
   temporalGridOpacity = 30,
   geographicShapeOpacity = 70,
-  maxNodeRadius = 35,
+  maxNodeRadius = 15,
   onViewStateChange,
   externalViewState,
   temporalSpacingMode = 'equal'

@@ -29,10 +29,10 @@ export default function SpatialArgDiffVisualizationPage() {
     const handleTreeSequenceSelect = (treeSequence: any) => {
         if (selectedTreeSequenceToChange === 'first') {
             // Update first tree sequence
-            navigate(`/visualize-spatial-diff/${treeSequence.filename}?second=${decodedFilename}`);
+            navigate(`/spatial-diff/${encodeURIComponent(treeSequence.filename)}?second=${encodeURIComponent(decodedFilename)}`);
         } else if (selectedTreeSequenceToChange === 'second') {
             // Update second tree sequence
-            navigate(`/visualize-spatial-diff/${decodedFilename}?second=${treeSequence.filename}`);
+            navigate(`/spatial-diff/${encodeURIComponent(decodedFilename)}?second=${encodeURIComponent(treeSequence.filename)}`);
         }
         setShowTreeSequenceSelector(false);
         setSelectedTreeSequenceToChange(null);

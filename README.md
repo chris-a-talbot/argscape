@@ -1,6 +1,6 @@
 # ARGscape
 
-**ARGscape** (v0.1.3) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
+**ARGscape** (v0.1.8) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
 
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com)  
 📖 **API Documentation**: [www.argscape.com/docs](https://www.argscape.com/docs)

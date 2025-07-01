@@ -147,13 +147,13 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
         // Show error modal - can't select same tree sequence
         return;
       }
-      navigate(`/visualize-spatial-diff/${encodeURIComponent(treeSequence.filename)}?second=${encodeURIComponent(secondFilename)}`);
+      navigate(`/spatial-diff/${encodeURIComponent(treeSequence.filename)}?second=${encodeURIComponent(secondFilename)}`);
     } else {
       if (treeSequence.filename === firstFilename) {
         // Show error modal - can't select same tree sequence
         return;
       }
-      navigate(`/visualize-spatial-diff/${encodeURIComponent(firstFilename)}?second=${encodeURIComponent(treeSequence.filename)}`);
+      navigate(`/spatial-diff/${encodeURIComponent(firstFilename)}?second=${encodeURIComponent(treeSequence.filename)}`);
     }
     setSelectedTreeSequenceToChange(null);
   };

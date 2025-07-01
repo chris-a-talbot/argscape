@@ -51,7 +51,7 @@ export default function ArgVisualizationPage() {
         setTreeSequence(treeSequence);
         setShowTreeSequenceSelector(false);
         // Navigate to the new tree sequence while maintaining all visualization settings
-        navigate(`/visualize/${encodeURIComponent(treeSequence.filename)}`);
+        navigate(`/graph/${encodeURIComponent(treeSequence.filename)}`);
     };
 
     const handleDownloadImage = async () => {

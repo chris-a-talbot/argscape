@@ -60,7 +60,7 @@ export default function SpatialArg3DVisualizationPage() {
         setTreeSequence(treeSequence);
         setShowTreeSequenceSelector(false);
         // Navigate to the new tree sequence while maintaining all visualization settings
-        navigate(`/visualize-spatial/${encodeURIComponent(treeSequence.filename)}`);
+        navigate(`/spatial/${encodeURIComponent(treeSequence.filename)}`);
     };
 
     const handleDownload = async () => {

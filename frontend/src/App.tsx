@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import ResultPage from './components/ResultPage';
 import ArgVisualizationPage from './components/ArgVisualizationPage';
 import Footer from './components/Footer';
@@ -93,8 +93,16 @@ function Home() {
     const selectedOptionFromResult = location.state?.selectedOption;
     const forceIntro = location.state?.forceIntro;
     
+    // Check if we're navigating to a specific option via URL
+    const pathOption = location.pathname === '/upload' ? 'upload' : 
+                      location.pathname === '/simulate' ? 'simulate' : 
+                      location.pathname === '/load' ? 'load' : null;
+    
     // Determine if we should show intro based on the new rules
     const shouldShowIntro = () => {
+      // If we're navigating to a specific option, don't show intro
+      if (pathOption) return false;
+      
       // If tree sequences are available (1+), never show animation
       if (availableTreeSequences.length > 0) {
         return false;
@@ -114,7 +122,12 @@ function Home() {
       }
     };
     
-    if (fromResult && selectedOptionFromResult) {
+    if (pathOption) {
+      // Direct navigation to a specific option
+      setSelectedOption(pathOption);
+      setAppState('intermediate');
+      setShowIntro(false);
+    } else if (fromResult && selectedOptionFromResult) {
       // Coming back from result page with a specific option to restore
       setSelectedOption(selectedOptionFromResult);
       setAppState('intermediate');
@@ -131,7 +144,7 @@ function Home() {
       setShowIntro(false);
       setSelectedOption(null);
     }
-  }, [location.state, hasCheckedSequences, availableTreeSequences.length]);
+  }, [location.pathname, location.state, hasCheckedSequences, availableTreeSequences.length]);
 
   const handleIntroComplete = () => {
     setTransitionStarted(true);
@@ -251,10 +264,13 @@ function App() {
         <Router>
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/graph/:sessionId" element={<ArgVisualizationPage />} />
-            <Route path="/spatial/:sessionId" element={<SpatialArg3DVisualizationPage />} />
-            <Route path="/spatial-diff/:sessionId" element={<SpatialArgDiffVisualizationPage />} />
-            <Route path="/results/:sessionId" element={<ResultPage />} />
+            <Route path="/upload" element={<Home />} />
+            <Route path="/simulate" element={<Home />} />
+            <Route path="/load" element={<Home />} />
+            <Route path="/graph/:filename" element={<ArgVisualizationPage />} />
+            <Route path="/spatial/:filename" element={<SpatialArg3DVisualizationPage />} />
+            <Route path="/spatial-diff/:filename" element={<SpatialArgDiffVisualizationPage />} />
+            <Route path="/result" element={<ResultPage />} />
             <Route path="/tutorials" element={<TutorialsPage />} />
             <Route path="/tutorials/:lessonId" element={<LessonPage />} />
             <Route path="/docs" element={<DocsPage />} />
