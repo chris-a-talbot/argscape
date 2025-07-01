@@ -1023,10 +1023,22 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
+      
+      // Extract error message from API error
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        // Try to extract message from error object
+        errorMessage = (error as any).message || (error as any).detail || String(error);
+      } else {
+        errorMessage = String(error);
+      }
+      
       setAlertModal({
         isOpen: true,
         title: 'Error',
-        message: `tsdate inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: errorMessage,
         type: 'error'
       });
     } finally {

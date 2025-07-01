@@ -15,6 +15,21 @@ import DocsPage from './components/DocsPage';
 import { isFirstVisit, markVisited } from './utils/session';
 import { api } from './lib/api';
 import { log } from './lib/logger';
+import LessonPage from './components/LessonPage';
+
+// Loading screen component
+function LoadingScreen({ logs }: { logs: string[] }) {
+  return (
+    <div className="fixed inset-0 bg-sp-very-dark-blue flex flex-col items-center justify-center">
+      <div className="text-sp-pale-green text-2xl mb-8">Starting ARGscape...</div>
+      <div className="w-96 h-64 bg-black/30 rounded-lg p-4 overflow-auto font-mono text-sm">
+        {logs.map((log, i) => (
+          <div key={i} className="text-sp-white/80">{log}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 // Layout component that includes the footer
 function Layout({ children }: { children: React.ReactNode }) {
@@ -38,7 +53,6 @@ function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [availableTreeSequences, setAvailableTreeSequences] = useState<string[]>([]);
   const [hasCheckedSequences, setHasCheckedSequences] = useState(false);
-  const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionStarted, setTransitionStarted] = useState(false);
 
   // Fetch available tree sequences to determine animation behavior
@@ -176,21 +190,74 @@ function Home() {
 }
 
 function App() {
+  const [isBackendReady, setIsBackendReady] = useState(false);
+  const [startupLogs, setStartupLogs] = useState<string[]>([]);
+
+  useEffect(() => {
+    const checkBackendHealth = async () => {
+      try {
+        const response = await api.checkHealth();
+        console.log('Health check response:', response);
+        
+        // Check if we have a valid response with status
+        if (!response?.data) {
+          setStartupLogs(prev => [...prev, '⚠️ Invalid response from backend']);
+          return false;
+        }
+
+        if (response.data.status === 'healthy') {
+          setStartupLogs(prev => [...prev, '✅ Backend is ready']);
+          setIsBackendReady(true);
+          return true;
+        }
+
+        // Log the actual response for debugging
+        setStartupLogs(prev => [...prev, `⚠️ Backend not ready: ${JSON.stringify(response.data)}`]);
+      } catch (error) {
+        console.error('Health check error:', error);
+        setStartupLogs(prev => [...prev, `⚠️ Failed to connect to backend: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      }
+      return false;
+    };
+
+    const startupSequence = async () => {
+      setStartupLogs(prev => [...prev, '🚀 Starting ARGscape...']);
+      
+      // Try to connect to backend with timeout
+      const startTime = Date.now();
+      const timeout = 30000; // 30 seconds
+      
+      while (Date.now() - startTime < timeout) {
+        if (await checkBackendHealth()) {
+          return;
+        }
+        setStartupLogs(prev => [...prev, '⏳ Waiting for backend to start...']);
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      setStartupLogs(prev => [...prev, '❌ Backend failed to start within timeout period']);
+    };
+
+    startupSequence();
+  }, []);
+
+  if (!isBackendReady) {
+    return <LoadingScreen logs={startupLogs} />;
+  }
+
   return (
     <ColorThemeProvider>
       <TreeSequenceProvider>
         <Router>
           <Routes>
-            <Route path="/" element={<Layout><Home /></Layout>} />
-            <Route path="/result" element={<Layout><ResultPage /></Layout>} />
-            <Route path="/visualize/:filename" element={<Layout><ArgVisualizationPage /></Layout>} />
-            <Route path="/visualize-spatial/:filename" element={<Layout><SpatialArg3DVisualizationPage /></Layout>} />
-            <Route path="/visualize-spatial-diff/:filename" element={<Layout><SpatialArgDiffVisualizationPage /></Layout>} />
-            <Route path="/tutorials" element={<Layout><TutorialsPage /></Layout>} />
-            <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
-            <Route path="/upload" element={<Layout><IntermediatePage selectedOption="upload" onBack={() => {}} /></Layout>} />
-            <Route path="/simulate" element={<Layout><IntermediatePage selectedOption="simulate" onBack={() => {}} /></Layout>} />
-            <Route path="/load" element={<Layout><IntermediatePage selectedOption="load" onBack={() => {}} /></Layout>} />
+            <Route path="/" element={<Home />} />
+            <Route path="/graph/:sessionId" element={<ArgVisualizationPage />} />
+            <Route path="/spatial/:sessionId" element={<SpatialArg3DVisualizationPage />} />
+            <Route path="/spatial-diff/:sessionId" element={<SpatialArgDiffVisualizationPage />} />
+            <Route path="/results/:sessionId" element={<ResultPage />} />
+            <Route path="/tutorials" element={<TutorialsPage />} />
+            <Route path="/tutorials/:lessonId" element={<LessonPage />} />
+            <Route path="/docs" element={<DocsPage />} />
           </Routes>
         </Router>
       </TreeSequenceProvider>

@@ -5,13 +5,15 @@ interface LessonCompletionModalProps {
   onClose: () => void;
   nextLessonId?: string;
   lessonTitle: string;
+  onGamesToResources?: () => void;
 }
 
 export default function LessonCompletionModal({
   isOpen,
   onClose,
   nextLessonId,
-  lessonTitle
+  lessonTitle,
+  onGamesToResources
 }: LessonCompletionModalProps) {
   const navigate = useNavigate();
 
@@ -22,6 +24,13 @@ export default function LessonCompletionModal({
       navigate(`/tutorials/${nextLessonId}`);
     } else {
       navigate('/tutorials');
+    }
+    onClose();
+  };
+
+  const handleGamesToResources = () => {
+    if (onGamesToResources) {
+      onGamesToResources();
     }
     onClose();
   };
@@ -49,6 +58,14 @@ export default function LessonCompletionModal({
           >
             {nextLessonId ? 'Continue to Next Lesson' : 'Return to Tutorials'}
           </button>
+          {onGamesToResources && (
+            <button
+              onClick={handleGamesToResources}
+              className="w-full px-6 py-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold transition-colors"
+            >
+              Games & Resources
+            </button>
+          )}
           <button
             onClick={onClose}
             className="w-full px-6 py-3 rounded-lg bg-sp-dark-blue hover:bg-sp-dark-blue/80 text-sp-white/70 transition-colors"

@@ -32,6 +32,7 @@ export const API_CONFIG = {
     INFER_LOCATIONS_SPARG: '/infer-locations-sparg',
     INFER_TIMES_TSDATE: '/infer-times-tsdate',
     SIMULATE_TREE_SEQUENCE: '/simulate-tree-sequence/',
+    HEALTH: '/health'
   }
 } as const;
 

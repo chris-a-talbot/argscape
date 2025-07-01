@@ -49,14 +49,14 @@ export default function TutorialsPage() {
           title: "Life's Code: DNA, Genes, Alleles, and Variation",
           description: 'Discover the basics of DNA, genes, and how genetic variation shapes diversity within populations.',
           duration: '20 min',
-          status: 'coming-soon'
+          status: 'available'
         },
         {
           id: 'lesson-1-2',
           title: 'Passing the Torch: Inheritance, Meiosis, and Generations',
           description: 'Learn about Mendelian inheritance, meiosis, and how genetic information flows through generations.',
-          duration: '25 min',
-          status: 'coming-soon'
+          duration: '30 min',
+          status: 'available'
         },
         {
           id: 'lesson-1-3',

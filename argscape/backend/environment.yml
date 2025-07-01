@@ -23,11 +23,12 @@ dependencies:
   - sympy
   - scipy
   - tqdm
-  - matplotlib
   - pydantic
   - gsl=2.7
   - zarr=2.16.1
   - numcodecs=0.11.0
+  - requests>=2.31.0
+  - conda-pack
   - pip:
       - fastgaia
       - geoancestry

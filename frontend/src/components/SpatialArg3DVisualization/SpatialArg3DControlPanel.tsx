@@ -416,18 +416,18 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
             
             <div className="space-y-2">
               <label className="text-xs" style={{ color: colors.accentPrimary }}>
-                Max Node Radius: {maxNodeRadius}px
+                Node Size: {maxNodeRadius}
               </label>
               <input
                 type="range"
-                min={10}
-                max={50}
+                min={1}
+                max={100}
                 step={1}
                 value={maxNodeRadius}
                 onChange={(e) => onMaxNodeRadiusChange(Number(e.target.value))}
                 className="w-full h-2 rounded-lg appearance-none cursor-pointer"
                 style={{
-                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((maxNodeRadius - 10) / 40) * 100}%, ${colors.border} ${((maxNodeRadius - 10) / 40) * 100}%, ${colors.border} 100%)`,
+                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((maxNodeRadius - 1) / 99) * 100}%, ${colors.border} ${((maxNodeRadius - 1) / 99) * 100}%, ${colors.border} 100%)`,
                   accentColor: colors.accentPrimary
                 }}
               />

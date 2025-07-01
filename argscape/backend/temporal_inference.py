@@ -13,6 +13,9 @@ import tskit
 # Configure logging
 logger = logging.getLogger(__name__)
 
+# Minimum number of mutations required for tsdate to run reliably
+MIN_MUTATIONS_FOR_TSDATE = 3
+
 # Import tsdate only if not explicitly disabled
 DISABLE_TSDATE = os.getenv("DISABLE_TSDATE", "0").lower() in ("1", "true", "yes")
 if not DISABLE_TSDATE:
@@ -56,7 +59,7 @@ def preprocess_tree_sequence(
             filter_sites=filter_sites
         )
     except Exception as e:
-        logger.error(f"Preprocessing failed: {e}")
+        logger.error("Preprocessing failed", exc_info=True)
         raise RuntimeError(f"Preprocessing failed: {e}")
 
 
@@ -81,8 +84,11 @@ def run_tsdate_inference(
     if not TSDATE_AVAILABLE:
         raise RuntimeError("tsdate package is not available.")
 
-    if not check_mutations_present(ts):
-        raise ValueError("Input tree sequence must contain mutations.")
+    if ts.num_mutations < MIN_MUTATIONS_FOR_TSDATE:
+        raise ValueError(
+            f"Temporal inference with tsdate requires at least {MIN_MUTATIONS_FOR_TSDATE} mutations, "
+            f"but the input tree sequence has only {ts.num_mutations}."
+        )
 
     logger.info(f"Starting tsdate inference with mutation rate={mutation_rate}")
     ts_copy = ts.dump_tables().tree_sequence()
@@ -101,15 +107,43 @@ def run_tsdate_inference(
         logger.info("Preprocessing complete.")
 
     try:
+        logger.info("Attempting tsdate.date with default parameters...")
         ts_with_times = tsdate.date(
             ts_copy,
             mutation_rate=mutation_rate,
             progress=progress
         )
-        logger.info("tsdate inference complete.")
+        logger.info("tsdate inference successful on first attempt.")
+    except AssertionError:
+        logger.warning(
+            "tsdate.date failed with an AssertionError. This is a known issue in tsdate, "
+            "often with low mutation counts. Retrying with a smaller number of "
+            "rescaling_intervals as a workaround."
+        )
+        try:
+            ts_with_times = tsdate.date(
+                ts_copy,
+                mutation_rate=mutation_rate,
+                progress=progress,
+                rescaling_intervals=10  # Workaround for tsdate issue
+            )
+            logger.info("tsdate inference successful on second attempt with workaround.")
+        except Exception as e:
+            logger.error(
+                "tsdate inference failed on second attempt (with workaround).",
+                exc_info=True
+            )
+            raise RuntimeError(
+                "Temporal inference with tsdate failed, even after attempting a "
+                "workaround for a known issue in the library. This can occur with "
+                "very few mutations or specific tree sequence topologies."
+            ) from e
     except Exception as e:
-        logger.error(f"tsdate inference failed: {e}")
-        raise RuntimeError(f"tsdate inference failed: {e}")
+        logger.error("tsdate inference failed on first attempt.", exc_info=True)
+        raise RuntimeError(
+             "Temporal inference with tsdate failed. "
+             "This may be due to a known issue in the underlying tsdate library."
+        ) from e
 
     num_inferred = ts_with_times.num_nodes - ts_with_times.num_samples
 

@@ -1,7 +1,7 @@
 {
-  "name": "frontend",
+  "name": "ARGscape",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.7",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "tauri": "tauri",
-    "pretauri": "poetry run python src-python/pyinstaller.py"
+    "pretauri": "python ../pyinstaller.py",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "npm run pretauri && tauri build",
+    "tauri:build-fast": "tauri build"
   },
   "dependencies": {
     "@deck.gl/core": "^9.1.12",

@@ -30,6 +30,25 @@ interface TsdateInferenceRequest {
   filter_sites: boolean;
 }
 
+interface HealthCheckResponse {
+  status: 'healthy' | 'unhealthy';
+  message: string;
+  error?: string;
+  components?: {
+    session_storage: 'ok' | string;
+    numpy: 'ok' | string;
+    tskit: 'ok' | string;
+    fastgaia: 'ok' | 'not available';
+    gaia: 'ok' | 'not available';
+    gaiapy: 'ok' | 'not available';
+  };
+  environment?: {
+    max_session_age_hours: string | null;
+    max_files_per_session: string | null;
+    max_file_size_mb: string | null;
+  };
+}
+
 class ApiService {
   private baseURL: string;
 
@@ -46,57 +65,63 @@ class ApiService {
 
     log.api.call(endpoint, method, options.body);
 
-    try {
-      // Add timeout for long-running operations
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    // Add retries for initial connection
+    const maxRetries = 3;
+    const retryDelay = 1000; // 1 second
+    let lastError: Error | null = null;
 
-      const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-        signal: controller.signal,
-      });
+    for (let attempt = 0; attempt < maxRetries; attempt++) {
+      try {
+        // Add timeout for long-running operations
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-      clearTimeout(timeoutId);
+        const response = await fetch(url, {
+          ...options,
+          headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+          signal: controller.signal,
+        });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        const error: ApiError = {
-          message: `HTTP error! status: ${response.status}`,
-          status: response.status,
-          details: errorData?.detail || 'No details available',
-        };
+        clearTimeout(timeoutId);
+
+        const data = await response.json();
         
-        log.api.error(endpoint, new Error(error.message), method);
-        throw error;
-      }
-
-      const data = await response.json();
-      log.api.success(endpoint, method, data);
-      
-      return { data, status: response.status };
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          const timeoutError = new Error('Request timed out after 60 seconds');
-          log.api.error(endpoint, timeoutError, method);
-          throw timeoutError;
+        if (!response.ok) {
+          // For HTTP errors, create an error with the detail from the response
+          const errorDetail = data?.detail || `HTTP error! status: ${response.status}`;
+          throw new Error(errorDetail);
         }
-        log.api.error(endpoint, error, method);
-        throw error;
+        
+        log.api.success(endpoint, method, data);
+        return { data, status: response.status };
+      } catch (error) {
+        // If this is already an Error object with a message from our error handling above, use it
+        lastError = error instanceof Error ? error : new Error(String(error));
+        
+        if (error instanceof Error) {
+          if (error.name === 'AbortError') {
+            const timeoutError = new Error('Request timed out after 60 seconds');
+            log.api.error(endpoint, timeoutError, method);
+            throw timeoutError;
+          }
+        }
+        
+        // If this was the last attempt, throw the error
+        if (attempt === maxRetries - 1) {
+          log.api.error(endpoint, lastError, method);
+          throw lastError;
+        }
+        
+        // Otherwise wait and retry
+        await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
-      
-      const apiError: ApiError = {
-        message: ERROR_MESSAGES.UNKNOWN_ERROR,
-        details: String(error),
-      };
-      
-      log.api.error(endpoint, new Error(apiError.message), method);
-      throw apiError;
     }
+
+    // This should never be reached due to the throw in the loop
+    throw new Error('Unexpected error in request retry loop');
   }
 
   private async uploadFile(endpoint: string, file: File): Promise<ApiResponse> {
@@ -353,6 +378,11 @@ class ApiService {
       body: JSON.stringify(params),
     });
   }
+
+  // Add health check endpoint
+  async checkHealth() {
+    return this.request<HealthCheckResponse>(API_CONFIG.ENDPOINTS.HEALTH);
+  }
 }
 
 // Create singleton instance
@@ -410,4 +440,7 @@ export const api = {
   // Temporal inference
   inferTimesTsdate: (params: TsdateInferenceRequest) =>
     apiService.inferTimesTsdate(params),
+
+  // Health check
+  checkHealth: () => apiService.checkHealth(),
 }; 

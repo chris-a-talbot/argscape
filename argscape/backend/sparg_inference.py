@@ -120,34 +120,12 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
         raise RuntimeError("sparg package not available")
     
     try:
-        logger.info(f"Running sparg inference for {ts.num_nodes} nodes...")
+        logger.info(f"Running sparg inference for ts with {ts.num_nodes} nodes, "
+                    f"{ts.num_samples} samples, {ts.num_edges} edges.")
         
         # Extract sample locations as dictionary for later use
         sample_locations = extract_sample_locations_dict(ts)
         logger.info(f"Extracted locations for {len(sample_locations)} samples")
-        
-        # Debug node 25
-        node_25 = ts.node(25)
-        logger.info(f"Node 25 properties: time={node_25.time}, flags={node_25.flags}, individual={node_25.individual}")
-        
-        # Check if node 25 appears as a parent in any edges
-        edges_as_parent = [edge for edge in ts.edges() if edge.parent == 25]
-        logger.info(f"Node 25 appears as parent in {len(edges_as_parent)} edges")
-        if edges_as_parent:
-            logger.info(f"Node 25 edge details as parent: {[(edge.left, edge.right, edge.child) for edge in edges_as_parent]}")
-        
-        # Check if node 25 appears as a child in any edges
-        edges_as_child = [edge for edge in ts.edges() if edge.child == 25]
-        logger.info(f"Node 25 appears as child in {len(edges_as_child)} edges")
-        if edges_as_child:
-            logger.info(f"Node 25 edge details as child: {[(edge.left, edge.right, edge.parent) for edge in edges_as_child]}")
-        
-        # Check if node 25 appears in any trees
-        trees_with_25 = []
-        for tree in ts.trees():
-            if tree.parent(25) != -1 or len(list(tree.children(25))) > 0:
-                trees_with_25.append((tree.index, tree.interval))
-        logger.info(f"Node 25 appears in {len(trees_with_25)} trees: {trees_with_25}")
         
         # Create SpatialARG object
         spatial_arg = sparg.SpatialARG(ts=ts, verbose=True)
@@ -164,6 +142,8 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
             if not node.is_sample():
                 non_sample_nodes.append(node_id)
         
+        logger.debug(f"Found {len(non_sample_nodes)} non-sample nodes to locate.")
+
         # For each non-sample node, find all trees where it appears and all its samples
         for node_id in non_sample_nodes:
             node = ts.node(node_id)
@@ -188,16 +168,10 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
                                 'original_node_id': node_id  # Add original node ID
                             }
                             node_entries.append(entry)
-                            
-                            # Debug log for node 25
-                            if node_id == 25:
-                                logger.info(f"Created entry for node 25: sample={sample_id}, pos={pos}, time={node.time}")
             
             # If we found any valid entries for this node, add them
             if node_entries:
                 all_nodes_df.extend(node_entries)
-                if node_id == 25:
-                    logger.info(f"Added {len(node_entries)} entries for node 25")
             else:
                 # If no valid entries found, try to find any position where this node appears
                 parent_edges = [edge for edge in ts.edges() if edge.parent == node_id]
@@ -219,40 +193,30 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
                             'original_node_id': node_id  # Add original node ID
                         }
                         all_nodes_df.append(entry)
-                        if node_id == 25:
-                            logger.info(f"Added fallback entry for node 25: sample={sample_id}, pos={pos}, time={node.time}")
         
         if not all_nodes_df:
             raise ValueError("No non-sample nodes found in tree sequence")
             
         # Create dataframe for sparg
         ancestors_df = pd.DataFrame(all_nodes_df)
+        logger.debug(f"Created ancestors dataframe with {len(ancestors_df)} rows before dropping duplicates.")
         # Remove duplicates while preserving the first occurrence
         ancestors_df = ancestors_df.drop_duplicates(['sample', 'genome_position', 'time'])
-        logger.info(f"Created ancestors dataframe with {len(ancestors_df)} nodes")
-        
-        # Debug node 25 entries in dataframe
-        node_25_entries = ancestors_df[ancestors_df['original_node_id'] == 25]
-        logger.info(f"Found {len(node_25_entries)} entries for node 25 in final dataframe")
-        if not node_25_entries.empty:
-            logger.info(f"Node 25 entries: {node_25_entries.to_dict('records')}")
+        logger.info(f"Created ancestors dataframe with {len(ancestors_df)} unique rows for sparg.")
+        logger.debug(f"Ancestors dataframe columns: {ancestors_df.columns.tolist()}")
+        logger.debug(f"Ancestors dataframe head:\n{ancestors_df.head().to_string()}")
         
         # Estimate locations using ARG method
+        logger.info("Estimating locations with sparg...")
         ancestor_locations = sparg.estimate_locations_of_ancestors_in_dataframe_using_arg(
             df=ancestors_df,
             spatial_arg=spatial_arg,
             verbose=True
         )
-        
-        # Debug node 25 in results
-        node_25_results = ancestor_locations[
-            (ancestor_locations['sample'].isin(node_25_entries['sample'])) &
-            (ancestor_locations['genome_position'].isin(node_25_entries['genome_position'])) &
-            (ancestor_locations['time'].isin(node_25_entries['time']))
-        ]
-        logger.info(f"Found {len(node_25_results)} results for node 25 entries")
-        if not node_25_results.empty:
-            logger.info(f"Node 25 results: {node_25_results.to_dict('records')}")
+        logger.info("sparg location estimation complete.")
+        logger.debug(f"Ancestor locations dataframe shape: {ancestor_locations.shape}")
+        logger.debug(f"Ancestor locations dataframe columns: {ancestor_locations.columns.tolist()}")
+        logger.debug(f"Ancestor locations dataframe head:\n{ancestor_locations.head().to_string()}")
         
         # Convert locations to format for tree sequence
         node_locations = {}
@@ -276,7 +240,8 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
         # If we're still missing nodes, try to get them from the original dataframe
         missing_nodes = set(non_sample_nodes) - set(node_locations.keys())
         if missing_nodes:
-            logger.warning(f"Some nodes missing after ARG inference, trying to recover from original entries: {sorted(missing_nodes)}")
+            logger.warning(f"{len(missing_nodes)} nodes missing after ARG inference, "
+                           f"trying to recover from original entries: {sorted(list(missing_nodes))[:10]}...")
             for node_id in missing_nodes:
                 # Find entries in the original dataframe for this node
                 node_entries = ancestors_df[ancestors_df['original_node_id'] == node_id]
@@ -297,14 +262,16 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
                             0.0
                         ]
                         node_locations[node_id] = location
-                        if node_id == 25:
-                            logger.info(f"Recovered location for node 25: {location}")
         
         # Final check for missing nodes
-        missing_nodes = set(non_sample_nodes) - set(node_locations.keys())
-        if missing_nodes:
-            raise ValueError(f"Missing non-sample node IDs in node locations: {sorted(missing_nodes)}")
+        missing_nodes_final = set(non_sample_nodes) - set(node_locations.keys())
+        if missing_nodes_final:
+            raise ValueError(f"Missing non-sample node IDs in node locations: "
+                             f"{len(missing_nodes_final)} nodes missing. "
+                             f"Examples: {sorted(list(missing_nodes_final))[:10]}")
         
+        logger.info(f"Successfully inferred locations for {len(node_locations) - len(sample_locations)} non-sample nodes.")
+
         # Apply locations to tree sequence
         from argscape.backend.geo_utils import apply_custom_locations_to_tree_sequence
         ts_with_locations = apply_custom_locations_to_tree_sequence(
@@ -326,5 +293,12 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
         
     
     except Exception as e:
-        logger.error(f"Error during sparg inference: {str(e)}")
+        logger.error("Error during sparg inference", exc_info=True)
+        # Check for the specific "more than 2 parents" error
+        if "Nodes has more than 2 parents" in str(e):
+            raise RuntimeError(
+                "This ARG contains nodes with more than 2 parents. "
+                "Please try a different location inference method."
+            )
+        # For all other errors, pass through the original error message
         raise RuntimeError(f"Sparg inference failed: {str(e)}") 

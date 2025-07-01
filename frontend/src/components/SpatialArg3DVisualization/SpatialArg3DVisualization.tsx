@@ -1,4 +1,19 @@
-import React, { useMemo, useState, useRef } from 'react';
+/*
+ * 3D Spatial ARG Visualization - World-Space Consistency System
+ * 
+ * SOLUTION FOR TRUE 3D NAVIGATION WITH CONSTANT RELATIVE SIZES:
+ * - All elements (nodes, edges, geographic shapes) use world-space 'meters' units
+ * - Dynamic zoom limits scale with Z-axis height: maxZoom = baseMax * (zHeight * scaleFactor)  
+ * - Node sizes controlled by control panel maintain constant relative size to 3D space
+ * - Geographic features scale consistently with nodes at all zoom levels
+ * - Seamless navigation from top temporal layers to Z=0 without size distortion
+ * - Camera can approach any layer from any angle while maintaining proportions
+ * 
+ * This creates a true 3D environment where all elements maintain their spatial
+ * relationships regardless of camera position, zoom level, or viewing angle.
+ */
+
+import React, { useMemo, useState, useRef, useCallback } from 'react';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
@@ -61,16 +76,18 @@ interface Edge3D {
   color: [number, number, number, number];
 }
 
-// Constants
+// Constants - World-space 3D system with dynamic zoom calculation
 const VISUALIZATION_CONSTANTS = {
   DEFAULT_ZOOM: 2.5,
   AUTO_FIT_ZOOM: 1.8,
-  MIN_ZOOM: 0.01,
-  MAX_ZOOM: 50,
+  BASE_MIN_ZOOM: 0.001, // Much lower minimum for extreme deep z-axis navigation
+  BASE_MAX_ZOOM: 500, // Much higher base maximum for better z-axis reach
+  ZOOM_SCALE_FACTOR: 1.0, // Significantly increased factor for aggressive z-axis navigation
   NODE_OPACITY: 0.85,
-  NODE_RADIUS_SCALE: 6,
-  MIN_NODE_RADIUS: 1,
-  EDGE_WIDTH: 2,
+  NODE_RADIUS_SCALE: 8, // For compatibility (not used in world-space mode)
+  MIN_NODE_RADIUS: 2, // For compatibility (not used in world-space mode)  
+  MAX_NODE_RADIUS: 50, // Default control panel maximum
+  EDGE_WIDTH: 1, // World-space width for edges
   JITTER_SCALE: 0.001,
   JITTER_RANGE: 0.02,
   JITTER_OFFSET: 0.01,
@@ -95,10 +112,10 @@ const NODE_SIZES = {
 } as const;
 
 const LINE_WIDTHS = {
-  GEOGRAPHIC_ACTIVE: 0.5,
-  GEOGRAPHIC_NORMAL: 3,
-  TIME_SLICE_ACTIVE: 0.5,
-  TIME_SLICE_NORMAL: 1.5,
+  GEOGRAPHIC_ACTIVE: 0.8, // Reduced for cleaner appearance
+  GEOGRAPHIC_NORMAL: 1.5, // Reduced for cleaner appearance
+  TIME_SLICE_ACTIVE: 0.5, // Reduced thickness
+  TIME_SLICE_NORMAL: 0.8, // Reduced thickness
   NODE_OUTLINE_SELECTED: 2,
   NODE_OUTLINE_ROOT: 1.5,
   NODE_OUTLINE_SAMPLE: 0.8,
@@ -450,18 +467,40 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   geographicMode = 'unit_grid',
   temporalGridOpacity = 30,
   geographicShapeOpacity = 70,
-  maxNodeRadius = 25,
+  maxNodeRadius = 35,
   onViewStateChange,
   externalViewState,
   temporalSpacingMode = 'equal'
 }, ref) => {
+  // OrbitView zoom behavior: Higher zoom = closer to object, Lower zoom = farther away
+  // With maxZoom: 1000, users can now zoom very close to objects for detailed inspection
+  // Physical units (meters) ensure consistent object sizes regardless of zoom level
   const deckRef = useRef<any>(null);
   const { colors } = useColorTheme();
+  // Calculate dynamic zoom limits based on Z-axis height
+  const calculateZoomLimits = useCallback((bounds: any) => {
+    if (!bounds) {
+      return {
+        minZoom: VISUALIZATION_CONSTANTS.BASE_MIN_ZOOM,
+        maxZoom: VISUALIZATION_CONSTANTS.BASE_MAX_ZOOM
+      };
+    }
+    
+    const zHeight = bounds.maxZ - bounds.minZ;
+    // Scale zoom limits based on Z-axis height - more layers need higher zoom capability
+    const scaleFactor = Math.max(1, zHeight * VISUALIZATION_CONSTANTS.ZOOM_SCALE_FACTOR);
+    
+    return {
+      minZoom: VISUALIZATION_CONSTANTS.BASE_MIN_ZOOM / scaleFactor,
+      maxZoom: VISUALIZATION_CONSTANTS.BASE_MAX_ZOOM * scaleFactor
+    };
+  }, []);
+
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number],
     zoom: VISUALIZATION_CONSTANTS.AUTO_FIT_ZOOM as number, // Use fit all zoom instead of default
-    minZoom: VISUALIZATION_CONSTANTS.MIN_ZOOM,
-    maxZoom: VISUALIZATION_CONSTANTS.MAX_ZOOM,
+    minZoom: VISUALIZATION_CONSTANTS.BASE_MIN_ZOOM as number,
+    maxZoom: VISUALIZATION_CONSTANTS.BASE_MAX_ZOOM as number,
     rotationX: 30, // Start with 30 degree angle view
     rotationOrbit: 0, // Head on
     orbitAxis: 'Y' as const
@@ -524,6 +563,34 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds };
   }, [coordinateTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors]);
 
+  // Update view state with dynamic zoom limits when bounds change
+  React.useEffect(() => {
+    if (bounds) {
+      const zoomLimits = calculateZoomLimits(bounds);
+      const zHeight = bounds.maxZ - bounds.minZ;
+      
+      console.log('World-Space 3D Navigation Calculation:', {
+        zHeight,
+        temporalLayers: Math.round(zHeight / 12), // Approximate layer count
+        minZ: bounds.minZ,
+        maxZ: bounds.maxZ,
+        baseMinZoom: VISUALIZATION_CONSTANTS.BASE_MIN_ZOOM,
+        baseMaxZoom: VISUALIZATION_CONSTANTS.BASE_MAX_ZOOM,
+        dynamicMinZoom: zoomLimits.minZoom,
+        dynamicMaxZoom: zoomLimits.maxZoom,
+        scaleFactor: zHeight * VISUALIZATION_CONSTANTS.ZOOM_SCALE_FACTOR,
+        zoomMultiplier: Math.max(1, zHeight * VISUALIZATION_CONSTANTS.ZOOM_SCALE_FACTOR),
+        worldSpaceUnits: 'meters'
+      });
+      
+      setViewState(prev => ({
+        ...prev,
+        minZoom: zoomLimits.minZoom,
+        maxZoom: zoomLimits.maxZoom
+      }));
+    }
+  }, [bounds, calculateZoomLimits]);
+
   // No auto-center logic here - the container handles it
 
   const geographicLines = useMemo(() => {
@@ -570,7 +637,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
 
       const elevatedOpacity = baseGeographicOpacity * 2.5;
       const elevatedColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], elevatedOpacity] as [number, number, number, number];
-      elevatedShapeLines = createShapeLines(baseLines, z, elevatedColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL * 1.5);
+      elevatedShapeLines = createShapeLines(baseLines, z, elevatedColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL);
       
       console.log('Created Elevated Shape:', {
         numLines: elevatedShapeLines.length,
@@ -629,20 +696,26 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       id: 'geographic-lines',
       data: geographicLines,
       pickable: false,
+      widthUnits: 'meters', // World-space units for consistent 3D scaling
+      widthScale: 1,
+      widthMinPixels: 1, // Improved pixel fallback for better rendering quality
       getSourcePosition: (d: any) => d.source,
       getTargetPosition: (d: any) => d.target,
       getColor: (d: any) => d.color,
-      getWidth: (d: any) => d.width || 0.5
+      getWidth: (d: any) => d.width || 1.5 // Use direct width without additional scaling
     }),
 
     new LineLayer<Edge3D>({
       id: 'edges',
       data: edges3D,
       pickable: false,
+      widthUnits: 'meters', // World-space units for consistent 3D scaling
+      widthScale: 1,
+      widthMinPixels: 1, // Improved pixel fallback for better rendering quality
       getSourcePosition: (d: Edge3D) => d.source,
       getTargetPosition: (d: Edge3D) => d.target,
       getColor: (d: Edge3D) => d.color,
-      getWidth: VISUALIZATION_CONSTANTS.EDGE_WIDTH
+      getWidth: VISUALIZATION_CONSTANTS.EDGE_WIDTH * 0.5 // Reduced thickness for cleaner appearance
     }),
     
     new ScatterplotLayer<Node3D>({
@@ -652,19 +725,44 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       opacity: VISUALIZATION_CONSTANTS.NODE_OPACITY,
       stroked: true,
       filled: true,
-      radiusScale: VISUALIZATION_CONSTANTS.NODE_RADIUS_SCALE,
-      radiusMinPixels: VISUALIZATION_CONSTANTS.MIN_NODE_RADIUS,
-      radiusMaxPixels: maxNodeRadius,
-      lineWidthMinPixels: VISUALIZATION_CONSTANTS.MIN_NODE_RADIUS,
-      lineWidthMaxPixels: LINE_WIDTHS.MAX_NODE_OUTLINE,
+      radiusUnits: 'meters', // World-space units for consistent 3D scaling
+      radiusScale: 1, // Direct world-space scaling
+      radiusMinPixels: 1, // Minimal pixel fallback for extreme zoom-out
+      lineWidthUnits: 'meters', // World-space units for outlines
+      lineWidthScale: 1,
+      lineWidthMinPixels: 1, // Improved pixel fallback for better rendering quality
       getPosition: (d: Node3D) => d.position,
       getRadius: (d: Node3D) => {
         const isSelected = selectedNode && d.id === selectedNode.id;
-        return isSelected ? d.size * VISUALIZATION_CONSTANTS.SELECTED_NODE_SCALE : d.size;
+        // The control panel value is now treated as a base world-space radius
+        // Increased the scaling factor significantly to ensure visibility.
+        const baseRadius = (maxNodeRadius || 35) * 0.5;
+        
+        // Apply a multiplier based on node type for relative sizing
+        const relativeScale = d.size / NODE_SIZES.DEFAULT;
+        const worldSpaceRadius = baseRadius * relativeScale;
+        
+        return isSelected ? worldSpaceRadius * VISUALIZATION_CONSTANTS.SELECTED_NODE_SCALE : worldSpaceRadius;
       },
       getFillColor: (d: Node3D) => calculateNodeColor(d, selectedNode || null, temporalRange || null, temporalFilterMode || null, colors),
       getLineColor: (d: Node3D) => calculateNodeOutlineColor(d, selectedNode || null, data, temporalRange || null, temporalFilterMode || null, colors),
-      getLineWidth: (d: Node3D) => calculateNodeOutlineWidth(d, selectedNode || null, data),
+      getLineWidth: (d: Node3D) => {
+        const outlineWidth = calculateNodeOutlineWidth(d, selectedNode || null, data);
+        
+        // Scale outline proportionally to the new node radius logic
+        const baseRadius = (maxNodeRadius || 35) * 0.5;
+        const relativeScale = d.size / NODE_SIZES.DEFAULT;
+        const worldSpaceRadius = baseRadius * relativeScale;
+        
+        // Make outline width a fraction of the node's radius
+        const scaleFactor = worldSpaceRadius * 0.1;
+        
+        return outlineWidth * scaleFactor;
+      },
+      updateTriggers: {
+        getRadius: [maxNodeRadius],
+        getLineWidth: [maxNodeRadius]
+      },
       onClick: (info: any, event: any) => {
         event.srcEvent.preventDefault();
         if (info.object && onNodeClick) {
@@ -743,8 +841,13 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         views={new OrbitView()}
         viewState={viewState}
         onViewStateChange={({ viewState: newViewState }: any) => {
-          setViewState(newViewState);
-          onViewStateChange?.(newViewState);
+          // Clamp zoom to prevent precision issues and ensure smooth zooming using dynamic limits
+          const clampedViewState = {
+            ...newViewState,
+            zoom: Math.min(Math.max(newViewState.zoom, viewState.minZoom), viewState.maxZoom)
+          };
+          setViewState(clampedViewState);
+          onViewStateChange?.(clampedViewState);
         }}
         controller={{
           scrollZoom: true,

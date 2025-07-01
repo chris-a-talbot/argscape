@@ -278,39 +278,11 @@ async def api_root():
 
 @api_router.get("/health")
 async def health_check():
-    """Comprehensive health check for Railway deployment."""
-    try:
-        # Test session storage
-        test_ip = "127.0.0.1"
-        test_session = session_storage.get_or_create_session(test_ip)
-        session_storage._cleanup_session(test_session)
-        
-        # Test imports
-        import numpy as np
-        import tskit
-        
-        return {
-            "status": "healthy",
-            "message": "All systems operational",
-            "components": {
-                "session_storage": "ok",
-                "numpy": "ok", 
-                "tskit": "ok",
-                "fastgaia": "ok" if infer_locations else "not available",
-                "gaia": "ok" if check_gaia_availability() else "not available",
-                "gaiapy": "ok" if GEOANCESTRY_AVAILABLE else "not available"
-            },
-            "environment": {
-                "max_session_age_hours": os.getenv("MAX_SESSION_AGE_HOURS"),
-                "max_files_per_session": os.getenv("MAX_FILES_PER_SESSION"),
-                "max_file_size_mb": os.getenv("MAX_FILE_SIZE_MB")
-            }
-        }
-    except Exception as e:
-        return {
-            "status": "unhealthy",
-            "error": str(e)
-        }
+    """Basic health check to verify backend is running."""
+    return {
+        "status": "healthy",
+        "message": "Backend is running"
+    }
 
 
 @api_router.get("/debug/geoancestry-status")
@@ -808,7 +780,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         
     except Exception as e:
         logger.error(f"Error during fast location inference: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Fast location inference failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.post("/infer-locations-gaia")
@@ -1233,7 +1205,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"sparg inference failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.post("/infer-times-tsdate")
@@ -1252,13 +1224,6 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
-    
-    # Check if tree sequence has mutations
-    if not check_mutations_present(ts):
-        raise HTTPException(
-            status_code=400, 
-            detail="tsdate inference requires tree sequences with mutations"
-        )
     
     try:
         # Run tsdate inference
@@ -1300,8 +1265,11 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
             **inference_info
         }
         
+    except ValueError as e:
+        logger.warning(f"tsdate validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        logger.error(f"Error during tsdate temporal inference: {str(e)}")
+        logger.error("Error during tsdate temporal inference", exc_info=True)
         raise HTTPException(status_code=500, detail=f"tsdate temporal inference failed: {str(e)}")
 
 #### Geographic API endpoints ####

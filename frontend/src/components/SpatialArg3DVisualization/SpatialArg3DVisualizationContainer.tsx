@@ -40,7 +40,7 @@ const DEFAULT_VISUAL_SETTINGS = {
   spatialSpacing: 160,
   temporalGridOpacity: 30,
   geographicShapeOpacity: 70,
-  maxNodeRadius: 25,
+  maxNodeRadius: 35, // Increased default for better visibility in geographic space
   isFilterSectionCollapsed: true,
   temporalSpacingMode: 'equal' as TemporalSpacingMode
 };
@@ -393,6 +393,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number], // Temporary, will be updated by auto-center
     zoom: 1.8, // Fit all zoom
+    minZoom: 0.01 as number, // Lower limit for deep z-axis navigation - will be updated dynamically
+    maxZoom: 100 as number, // Higher limit for world-space scaling - will be updated dynamically  
     rotationX: 30, // 30 degree angle
     rotationOrbit: 0, // Head on
     orbitAxis: 'Y' as const
