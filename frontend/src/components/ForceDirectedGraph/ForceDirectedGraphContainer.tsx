@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } f
 import { ForceDirectedGraph } from './ForceDirectedGraph';
 import { ForceDirectedGraphInfoPanel } from './ForceDirectedGraphInfoPanel';
 import { ForceDirectedGraphControlPanel } from './ForceDirectedGraphControlPanel';
-import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings } from './ForceDirectedGraph.types';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
@@ -89,6 +89,9 @@ const DEFAULT_VISUAL_SETTINGS = {
         showEdgeLabels: false,
         labelFontSize: 14
     },
+    edgeMutationSettings: {
+        showMutationMarkers: true
+    },
     edgeThickness: 2.5,
     edgeOpacity: 95,
     temporalSpacingMode: 'equal' as TemporalSpacingMode,
@@ -125,6 +128,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>(DEFAULT_VISUAL_SETTINGS.nodeSizes);
     const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
     const [edgeLabelSettings, setEdgeLabelSettings] = useState<EdgeLabelSettings>(DEFAULT_VISUAL_SETTINGS.edgeLabelSettings);
+    const [edgeMutationSettings, setEdgeMutationSettings] = useState<EdgeMutationSettings>(DEFAULT_VISUAL_SETTINGS.edgeMutationSettings);
     const [edgeThickness, setEdgeThickness] = useState(DEFAULT_VISUAL_SETTINGS.edgeThickness);
     const [edgeOpacity, setEdgeOpacity] = useState(DEFAULT_VISUAL_SETTINGS.edgeOpacity);
     const [isLoading, setIsLoading] = useState(false);
@@ -785,6 +789,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         nodeSizes={nodeSizes}
                         nodeIdSettings={nodeIdSettings}
                         edgeLabelSettings={edgeLabelSettings}
+                        edgeMutationSettings={edgeMutationSettings}
                         sampleOrder={sampleOrder}
                         edgeThickness={edgeThickness}
                         edgeOpacity={edgeOpacity}
@@ -802,6 +807,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
                         edgeLabelSettings={edgeLabelSettings}
                         onEdgeLabelSettingsChange={(settings) => setEdgeLabelSettings(settings)}
+                        edgeMutationSettings={edgeMutationSettings}
+                        onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
                         edgeThickness={edgeThickness}
                         onEdgeThicknessChange={(thickness) => setEdgeThickness(thickness)}
                         edgeOpacity={edgeOpacity}

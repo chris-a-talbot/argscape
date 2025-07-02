@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useDraggable } from '../../hooks/useDraggable';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
-import { NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings } from './ForceDirectedGraph.types';
+import { NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
 import { Tooltip } from '../ui/tooltip';
 
 interface ForceDirectedGraphControlPanelProps {
@@ -27,6 +27,10 @@ interface ForceDirectedGraphControlPanelProps {
   // Edge label settings
   edgeLabelSettings: EdgeLabelSettings;
   onEdgeLabelSettingsChange: (settings: EdgeLabelSettings) => void;
+
+  // Edge mutation settings
+  edgeMutationSettings: EdgeMutationSettings;
+  onEdgeMutationSettingsChange: (settings: EdgeMutationSettings) => void;
 
   // Temporal spacing settings
   temporalSpacingMode: TemporalSpacingMode;
@@ -55,6 +59,8 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
   onEdgeOpacityChange,
   edgeLabelSettings,
   onEdgeLabelSettingsChange,
+  edgeMutationSettings,
+  onEdgeMutationSettingsChange,
   temporalSpacingMode,
   onTemporalSpacingModeChange,
   temporalSpacing,
@@ -511,16 +517,9 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
                 }}
               />
             </div>
-          </div>
 
-          {/* Edge Label Settings */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1" style={{ borderBottom: `1px solid ${colors.border}40` }}>
-              <h5 className="text-base font-bold" style={{ color: colors.accentPrimary }}>Edge Labels</h5>
-              <Tooltip content="Show genomic spans for edges. Displays the genomic regions covered by each edge connection, including merged spans for complex edge relationships." />
-            </div>
-            
-            <div className="space-y-2">
+            {/* Edge Labels */}
+            <div className="space-y-1">
               <label className="flex items-center justify-between">
                 <span className="text-xs font-medium" style={{ color: colors.text }}>
                   Show Edge Labels
@@ -544,7 +543,7 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-sm font-semibold" style={{ color: colors.text }}>
-                      Font Size
+                      Label Font Size
                     </label>
                     <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ 
                       color: `${colors.text}CC`, 
@@ -571,6 +570,27 @@ export const ForceDirectedGraphControlPanel: React.FC<ForceDirectedGraphControlP
                   />
                 </div>
               )}
+            </div>
+
+            {/* Mutation Markers */}
+            <div className="space-y-1">
+              <label className="flex items-center justify-between">
+                <span className="text-xs font-medium" style={{ color: colors.text }}>
+                  Show Mutation Markers
+                </span>
+                <input
+                  type="checkbox"
+                  checked={edgeMutationSettings.showMutationMarkers}
+                  onChange={(e) => onEdgeMutationSettingsChange({
+                    ...edgeMutationSettings,
+                    showMutationMarkers: e.target.checked
+                  })}
+                  className="w-4 h-4 rounded focus:ring-2"
+                  style={{
+                    accentColor: colors.accentPrimary
+                  }}
+                />
+              </label>
             </div>
           </div>
 

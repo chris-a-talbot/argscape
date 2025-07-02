@@ -11,7 +11,7 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
-import { TemporalSpacingMode, NodeIdSettings } from './SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings, EdgeMutationSettings } from './SpatialArg3DVisualization.types';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -53,6 +53,9 @@ const DEFAULT_VISUAL_SETTINGS = {
   edgeLabelSettings: {
     showEdgeLabels: false,
     labelFontSize: 3
+  },
+  edgeMutationSettings: {
+    showMutationMarkers: true
   },
   edgeThickness: 1.0,
   edgeOpacity: 60,
@@ -293,6 +296,7 @@ const Spatial3DWrapper: React.FC<{
   edgeThickness?: number;
   edgeOpacity?: number;
   edgeLabelSettings?: { showEdgeLabels: boolean; labelFontSize: number };
+  edgeMutationSettings?: EdgeMutationSettings;
   onViewStateChange?: (viewState: any) => void;
   viewState?: any;
 }> = ({ 
@@ -315,6 +319,7 @@ const Spatial3DWrapper: React.FC<{
   edgeThickness,
   edgeOpacity,
   edgeLabelSettings,
+  edgeMutationSettings,
   onViewStateChange, 
   viewState 
 }) => {
@@ -372,6 +377,7 @@ const Spatial3DWrapper: React.FC<{
         edgeThickness={edgeThickness}
         edgeOpacity={edgeOpacity}
         edgeLabelSettings={edgeLabelSettings}
+        edgeMutationSettings={edgeMutationSettings}
         onViewStateChange={onViewStateChange}
         externalViewState={viewState}
         temporalSpacingMode={temporalSpacingMode}
@@ -417,6 +423,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   
   const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
   const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
+  const [edgeMutationSettings, setEdgeMutationSettings] = useState<EdgeMutationSettings>(DEFAULT_VISUAL_SETTINGS.edgeMutationSettings);
   const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
   
   const [viewState, setViewState] = useState({
@@ -1055,6 +1062,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             edgeThickness={visualSettings.edgeThickness}
             edgeOpacity={visualSettings.edgeOpacity}
             edgeLabelSettings={visualSettings.edgeLabelSettings}
+            edgeMutationSettings={edgeMutationSettings}
             onViewStateChange={handleViewStateChange}
             viewState={viewState}
           />
@@ -1086,6 +1094,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             onEdgeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, edgeOpacity: value }))}
             edgeLabelSettings={visualSettings.edgeLabelSettings}
             onEdgeLabelSettingsChange={(settings) => setVisualSettings(prev => ({ ...prev, edgeLabelSettings: settings }))}
+            edgeMutationSettings={edgeMutationSettings}
+            onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
             geographicMode={geoState.mode}
             onGeographicModeChange={(mode) => setGeoState(prev => ({ ...prev, mode }))}
             customShapeFile={geoState.customShapeFile}

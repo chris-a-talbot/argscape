@@ -10,6 +10,7 @@ import { DownloadDropdown } from './ui/DownloadDropdown';
 import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
 import Navbar from './ui/Navbar';
 import ParticleBackground from './ui/ParticleBackground';
+import Footer from './Footer';
 
 // Use the TreeSequenceData type from the context
 type TreeSequence = NonNullable<ReturnType<typeof useTreeSequence>['treeSequence']>;
@@ -1353,6 +1354,7 @@ export default function ResultPage() {
           onSelect={handleSecondTreeSequenceSelect}
         />
       )}
+      <Footer />
     </div>
   );
 } 

@@ -1,7 +1,7 @@
 import { useEffect, forwardRef, ForwardedRef, useMemo, useRef, useCallback } from 'react';
 import * as d3 from 'd3';
 import * as dagre from 'dagre';
-import { ForceDirectedGraphProps, GraphNode, GraphEdge, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings } from './ForceDirectedGraph.types';
+import { ForceDirectedGraphProps, GraphNode, GraphEdge, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { 
   combineGenealogyIdenticalNodes, 
@@ -1611,6 +1611,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     nodeSizes = DEFAULT_NODE_SIZES,
     nodeIdSettings = DEFAULT_NODE_ID_SETTINGS,
     edgeLabelSettings = DEFAULT_EDGE_LABEL_SETTINGS,
+    edgeMutationSettings,
     sampleOrder = 'consensus',
     edgeThickness = GRAPH_CONSTANTS.EDGE_STROKE_WIDTH,
     edgeOpacity = 95,
@@ -1954,6 +1955,44 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     calculateYPosition(target?.time ?? 0, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode, temporalSpacing);
             })
             .on("click", (event, d) => onEdgeClick?.(d));
+
+        // Create mutation markers (red "x"s) on edges that have mutations  
+        let mutationMarkers: d3.Selection<SVGTextElement, GraphEdge, SVGGElement, unknown> | null = null;
+        
+        if (edgeMutationSettings?.showMutationMarkers) {
+            const edgesWithMutations = combinedEdges.filter(d => d.has_mutations);
+            console.log('Force-directed mutation markers debug:', {
+                totalEdges: combinedEdges.length,
+                edgesWithMutations: edgesWithMutations.length,
+                firstFewMutationEdges: edgesWithMutations.slice(0, 5).map(edge => ({
+                    source: typeof edge.source === 'number' ? edge.source : (edge.source as any).id,
+                    target: typeof edge.target === 'number' ? edge.target : (edge.target as any).id,
+                    has_mutations: edge.has_mutations,
+                    left: edge.left,
+                    right: edge.right
+                })),
+                percentageWithMutations: `${Math.round((edgesWithMutations.length / combinedEdges.length) * 100)}%`,
+                note: 'High percentage is normal - most edges span large genomic regions containing mutations'
+            });
+            
+            mutationMarkers = g.append("g")
+                .attr("class", "mutation-markers")
+                .selectAll<SVGTextElement, GraphEdge>("text")
+                .data(edgesWithMutations)
+                .join("text")
+                .text("×") // Use multiplication sign for a clean "x" appearance
+                .attr("font-size", "14px") // Slightly larger for visibility
+                .attr("fill", "#dc2626") // Red color for mutation markers
+                .attr("stroke", colors.background) // Background stroke for visibility
+                .attr("stroke-width", "2px") // Thicker stroke for better contrast
+                .attr("paint-order", "stroke fill")
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("font-weight", "bold")
+                .attr("font-family", "monospace, Arial, sans-serif") // Monospace for better symbol rendering
+                .style("pointer-events", "none")
+                .style("user-select", "none");
+        }
 
         // Calculate edge groups for labels (only if labels are enabled)
         let edgeGroups: EdgeGroupWithSpans[] = [];
@@ -2623,6 +2662,53 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             d3.select(this)
                                 .attr("x", pos.x)
                                 .attr("y", pos.y);
+                        }
+                    });
+            }
+            
+            // Update mutation markers to follow their corresponding edges
+            if (mutationMarkers) {
+                mutationMarkers
+                    .each(function(d) {
+                        // Use the same node-finding logic as edge labels
+                        let sourceNode = combinedNodes.find(n => n.id === (typeof d.source === 'number' ? d.source : (d.source as any).id));
+                        let targetNode = combinedNodes.find(n => n.id === (typeof d.target === 'number' ? d.target : (d.target as any).id));
+                        
+                        // Fallback to original nodes if not found in combined nodes
+                        if (!sourceNode) {
+                            const sourceId = typeof d.source === 'number' ? d.source : (d.source as any).id;
+                            const originalSource = stableData.nodes.find(n => n.id === sourceId);
+                            if (originalSource) {
+                                sourceNode = combinedNodes.find(cn => 
+                                    cn.combined_nodes?.includes(sourceId) || cn.id === sourceId
+                                );
+                            }
+                        }
+                        
+                        if (!targetNode) {
+                            const targetId = typeof d.target === 'number' ? d.target : (d.target as any).id;
+                            const originalTarget = stableData.nodes.find(n => n.id === targetId);
+                            if (originalTarget) {
+                                targetNode = combinedNodes.find(cn => 
+                                    cn.combined_nodes?.includes(targetId) || cn.id === targetId
+                                );
+                            }
+                        }
+                        
+                        if (sourceNode && targetNode) {
+                            // Position at edge midpoint (simpler than edge labels which need offset)
+                            const midX = ((sourceNode.x ?? 0) + (targetNode.x ?? 0)) / 2;
+                            
+                            // Calculate Y positions using the same logic as edges
+                            const sourceY = sampleOrder === 'dagre' ? (sourceNode.y ?? 0) : 
+                                calculateYPosition(sourceNode.time ?? 0, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode, temporalSpacing);
+                            const targetY = sampleOrder === 'dagre' ? (targetNode.y ?? 0) : 
+                                calculateYPosition(targetNode.time ?? 0, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode, temporalSpacing);
+                            const midY = (sourceY + targetY) / 2;
+                            
+                            d3.select(this)
+                                .attr("x", midX)
+                                .attr("y", midY);
                         }
                     });
             }

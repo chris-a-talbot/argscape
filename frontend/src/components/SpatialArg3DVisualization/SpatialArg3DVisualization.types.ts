@@ -17,6 +17,10 @@ export interface EdgeLabelSettings {
     labelFontSize: number;
 }
 
+export interface EdgeMutationSettings {
+    showMutationMarkers: boolean;
+}
+
 export interface LabelConnectingLine3D {
     source: [number, number, number];
     target: [number, number, number];

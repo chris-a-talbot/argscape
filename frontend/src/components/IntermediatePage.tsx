@@ -8,6 +8,7 @@ import { VISUALIZATION_DEFAULTS } from '../config/constants';
 import ClickableLogo from './ui/ClickableLogo';
 import Navbar from './ui/Navbar';
 import ParticleBackground from './ui/ParticleBackground';
+import Footer from './Footer';
 
 interface IntermediatePageProps {
   selectedOption: 'upload' | 'simulate' | 'load';
@@ -120,6 +121,7 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
           </div>
         </div>
       </div>
+      <Footer />
     </div>
   );
 } 

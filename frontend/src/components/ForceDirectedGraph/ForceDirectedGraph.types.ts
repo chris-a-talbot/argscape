@@ -35,6 +35,7 @@ export interface GraphEdge {
     // tskit-compatible properties
     bounds?: string; // String representation of regions like "0-1 5-8 9-10"
     region_fraction?: number; // Fraction of chromosome covered by this edge
+    has_mutations?: boolean; // Whether this edge has mutations within its genomic span
 }
 
 export interface TreeInterval {
@@ -113,6 +114,10 @@ export interface EdgeLabelSettings {
     labelFontSize: number;
 }
 
+export interface EdgeMutationSettings {
+    showMutationMarkers: boolean;
+}
+
 export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
 
 export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre' | 'coalescence';
@@ -128,6 +133,7 @@ export interface ForceDirectedGraphProps {
     nodeSizes?: NodeSizeSettings;  // Node size settings
     nodeIdSettings?: NodeIdSettings;  // Node ID visibility settings
     edgeLabelSettings?: EdgeLabelSettings;  // Edge label settings
+    edgeMutationSettings?: EdgeMutationSettings;  // Edge mutation marker settings
     sampleOrder?: string;  // The ordering method for sample nodes
     edgeThickness?: number;  // Edge thickness setting
     edgeOpacity?: number;  // Edge opacity setting (0-100)

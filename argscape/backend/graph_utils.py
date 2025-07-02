@@ -252,6 +252,68 @@ def filter_by_tree_indices(ts: tskit.TreeSequence, start_tree_idx: int, end_tree
     return filtered_ts, expected_tree_count
 
 
+def detect_edges_with_mutations(ts: tskit.TreeSequence) -> set:
+    """
+    Detect which edges have mutations using efficient tskit methods.
+    
+    This is the recommended approach for detecting mutations on edges:
+    1. Build a mapping of (parent, child, position) -> edge for quick lookup
+    2. For each mutation, find its parent in the tree at that position
+    3. Look up the corresponding edge efficiently
+    
+    Args:
+        ts: The tree sequence to analyze
+        
+    Returns:
+        A set of tuples (parent, child, left, right) for edges that have mutations
+    """
+    edges_with_mutations = set()
+    
+    if ts.num_mutations == 0:
+        return edges_with_mutations
+    
+    # Build an efficient edge lookup: (parent, child) -> list of edges
+    edge_lookup = {}
+    for edge in ts.edges():
+        key = (edge.parent, edge.child)
+        if key not in edge_lookup:
+            edge_lookup[key] = []
+        edge_lookup[key].append(edge)
+    
+    # Track which sites we've processed to avoid duplicate trees
+    processed_positions = set()
+    position_to_tree = {}
+    
+    # Process each mutation
+    for mutation in ts.mutations():
+        site = ts.site(mutation.site)
+        position = site.position
+        
+        # Get or create tree for this position (cached)
+        if position not in position_to_tree:
+            position_to_tree[position] = ts.at(position)
+        tree = position_to_tree[position]
+        
+        # Find the parent of the mutation node
+        mutation_node = mutation.node
+        parent_node = tree.parent(mutation_node)
+        
+        if parent_node != tskit.NULL:
+            # Look up edges for this parent-child pair
+            key = (parent_node, mutation_node)
+            if key in edge_lookup:
+                # Find the edge that spans this position
+                for edge in edge_lookup[key]:
+                    if edge.left <= position < edge.right:
+                        edge_key = (edge.parent, edge.child, edge.left, edge.right)
+                        edges_with_mutations.add(edge_key)
+                        break
+    
+    logger.info(f"Found {len(edges_with_mutations)} edges with mutations out of {ts.num_edges} total edges")
+    logger.info(f"Processed {len(position_to_tree)} unique positions with mutations")
+    return edges_with_mutations
+
+
 def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = None, sample_order: str = "custom") -> Dict[str, Any]:
     """Convert a tskit.TreeSequence to graph data format for D3 visualization.
     
@@ -261,6 +323,9 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
         sample_order: Method for ordering samples ("degree", "center_minlex", "first_tree", "custom")
     """
     logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
+    
+    # Detect edges with mutations
+    edges_with_mutations = detect_edges_with_mutations(ts)
     
     # Build node and edge data
     connected_node_ids = set()
@@ -295,15 +360,20 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
             
             nodes.append(node_data)
     
-    edges = [
-        {
+    edges = []
+    for edge in ts.edges():
+        edge_data = {
             'source': edge.parent,
             'target': edge.child,
             'left': edge.left,
             'right': edge.right
         }
-        for edge in ts.edges()
-    ]
+        
+        # Add mutation information
+        edge_key = (edge.parent, edge.child, edge.left, edge.right)
+        edge_data['has_mutations'] = edge_key in edges_with_mutations
+        
+        edges.append(edge_data)
     
     # Apply sample ordering
     nodes = apply_sample_ordering(nodes, sample_order, ts)

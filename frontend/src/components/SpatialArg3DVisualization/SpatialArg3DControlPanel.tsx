@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useDraggable } from '../../hooks/useDraggable';
 import { GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
-import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings } from './SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './SpatialArg3DVisualization.types';
 import { Tooltip } from '../ui/tooltip';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
@@ -44,6 +44,10 @@ interface SpatialArg3DControlPanelProps {
   edgeLabelSettings: EdgeLabelSettings;
   onEdgeLabelSettingsChange: (settings: EdgeLabelSettings) => void;
   
+  // Edge mutation settings
+  edgeMutationSettings: EdgeMutationSettings;
+  onEdgeMutationSettingsChange: (settings: EdgeMutationSettings) => void;
+  
   // Geographic settings
   geographicMode: GeographicMode;
   onGeographicModeChange: (mode: GeographicMode) => void;
@@ -81,6 +85,8 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
   onEdgeOpacityChange,
   edgeLabelSettings,
   onEdgeLabelSettingsChange,
+  edgeMutationSettings,
+  onEdgeMutationSettingsChange,
   geographicMode,
   onGeographicModeChange,
   customShapeFile,
@@ -710,41 +716,40 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
                   }}
                 />
               </div>
-            </div>
-          </div>
 
-          {/* Edge Label Settings */}
-          <div className="space-y-3">
-            <div className="flex items-center gap-2 pb-1" style={{ borderBottom: `1px solid ${colors.border}40` }}>
-              <h4 className="text-base font-bold" style={{ color: colors.accentPrimary }}>Edge Labels</h4>
-              <Tooltip content="Show genomic spans on edges. Shows which parts of the genome are inherited along each edge, with [Inclusive, Exclusive) notation." />
-            </div>
-            
-            <div className="space-y-2">
-              <label className="flex items-center justify-between">
-                <span className="text-xs font-medium" style={{ color: colors.text }}>
-                  Show Edge Labels
-                </span>
-                <input
-                  type="checkbox"
-                  checked={edgeLabelSettings.showEdgeLabels}
-                  onChange={(e) => onEdgeLabelSettingsChange({
-                    ...edgeLabelSettings,
-                    showEdgeLabels: e.target.checked
-                  })}
-                  className="w-4 h-4 rounded focus:ring-2"
-                  style={{
-                    accentColor: colors.accentPrimary
-                  }}
-                />
-              </label>
+              {/* Edge Labels */}
+              <div className="space-y-1">
+                <label className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: colors.text }}>
+                    Show Edge Labels
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={edgeLabelSettings.showEdgeLabels}
+                    onChange={(e) => onEdgeLabelSettingsChange({
+                      ...edgeLabelSettings,
+                      showEdgeLabels: e.target.checked
+                    })}
+                    className="w-4 h-4 rounded focus:ring-2"
+                    style={{
+                      accentColor: colors.accentPrimary
+                    }}
+                  />
+                </label>
 
-              {edgeLabelSettings.showEdgeLabels && (
-                <div className="space-y-2">
-                  <label className="block">
-                    <span className="text-xs font-medium mb-1 block" style={{ color: colors.text }}>
-                      Font Size: {edgeLabelSettings.labelFontSize}px
-                    </span>
+                {edgeLabelSettings.showEdgeLabels && (
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold" style={{ color: colors.text }}>
+                        Label Font Size
+                      </label>
+                      <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ 
+                        color: `${colors.text}CC`, 
+                        backgroundColor: `${colors.containerBackground}80` 
+                      }}>
+                        {edgeLabelSettings.labelFontSize}px
+                      </span>
+                    </div>
                     <input
                       type="range"
                       min="1"
@@ -754,16 +759,40 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
                         ...edgeLabelSettings,
                         labelFontSize: parseInt(e.target.value)
                       })}
-                      className="w-full"
+                      className="w-full h-1 rounded-lg cursor-pointer"
                       style={{
+                        background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((edgeLabelSettings.labelFontSize - 1) / 19) * 100}%, ${colors.border} ${((edgeLabelSettings.labelFontSize - 1) / 19) * 100}%, ${colors.border} 100%)`,
                         accentColor: colors.accentPrimary
                       }}
                     />
-                  </label>
-                </div>
-              )}
+                  </div>
+                )}
+              </div>
+
+              {/* Mutation Markers */}
+              <div className="space-y-1">
+                <label className="flex items-center justify-between">
+                  <span className="text-xs font-medium" style={{ color: colors.text }}>
+                    Show Mutation Markers
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={edgeMutationSettings.showMutationMarkers}
+                    onChange={(e) => onEdgeMutationSettingsChange({
+                      ...edgeMutationSettings,
+                      showMutationMarkers: e.target.checked
+                    })}
+                    className="w-4 h-4 rounded focus:ring-2"
+                    style={{
+                      accentColor: colors.accentPrimary
+                    }}
+                  />
+                </label>
+              </div>
             </div>
           </div>
+
+
         </div>
       )}
     </div>

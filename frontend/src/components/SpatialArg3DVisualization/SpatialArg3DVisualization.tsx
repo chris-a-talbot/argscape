@@ -23,7 +23,7 @@ import { convertShapeToLines, createShapeLines, GeographicLine3D, createUnitGrid
 import { combineSpatiallyColocatedNodes, analyzeNodeCombining } from '../../utils/nodeCombining';
 import { isRootNode } from '../../utils/graphTraversal';
 import { formatCoordinates } from '../../utils/colorUtils';
-import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, LabelConnectingLine3D, LabelPositionResult } from './SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, LabelConnectingLine3D, LabelPositionResult } from './SpatialArg3DVisualization.types';
 import { 
   groupEdgesByPairs, 
   expandEdgeSpansForCombinedNodes,
@@ -68,6 +68,7 @@ interface SpatialArg3DProps {
   }>;
   temporalSpacingMode?: TemporalSpacingMode;
   edgeLabelSettings?: EdgeLabelSettings;
+  edgeMutationSettings?: EdgeMutationSettings;
 }
 
 interface Node3D extends GraphNode {
@@ -97,6 +98,15 @@ interface NodeLabel3D {
 }
 
 interface EdgeLabel3D {
+  position: [number, number, number];
+  text: string;
+  color: [number, number, number, number];
+  size: number;
+  sourceId: number;
+  targetId: number;
+}
+
+interface MutationMarker3D {
   position: [number, number, number];
   text: string;
   color: [number, number, number, number];
@@ -1091,6 +1101,73 @@ const createEdgeLabels = (
   return labels;
 };
 
+const createMutationMarkers = (
+  edges3D: Edge3D[],
+  combinedEdges: GraphEdge[],
+  nodeMap: Map<number, Node3D>,
+  edgeMutationSettings: EdgeMutationSettings | undefined,
+  colors: any
+): MutationMarker3D[] => {
+  if (!edgeMutationSettings?.showMutationMarkers) {
+    return [];
+  }
+
+  const markers: MutationMarker3D[] = [];
+  
+  // Filter edges that have mutations
+  const mutationEdges = combinedEdges.filter(edge => edge.has_mutations);
+  
+  console.log('Spatial 3D mutation markers debug:', {
+    totalEdges: combinedEdges.length,
+    edgesWithMutations: mutationEdges.length,
+    firstFewMutationEdges: mutationEdges.slice(0, 5).map(edge => ({
+      source: typeof edge.source === 'number' ? edge.source : (edge.source as any).id,
+      target: typeof edge.target === 'number' ? edge.target : (edge.target as any).id,
+      has_mutations: edge.has_mutations,
+      left: edge.left,
+      right: edge.right
+    })),
+    sampleEdgesMutationStatus: combinedEdges.slice(0, 10).map(edge => ({
+      source: typeof edge.source === 'number' ? edge.source : (edge.source as any).id,
+      target: typeof edge.target === 'number' ? edge.target : (edge.target as any).id,
+      has_mutations: edge.has_mutations,
+      left: edge.left,
+      right: edge.right
+    }))
+  });
+  
+  mutationEdges.forEach(graphEdge => {
+    const sourceId = typeof graphEdge.source === 'number' ? graphEdge.source : (graphEdge.source as any).id;
+    const targetId = typeof graphEdge.target === 'number' ? graphEdge.target : (graphEdge.target as any).id;
+    
+    const sourceNode = nodeMap.get(sourceId);
+    const targetNode = nodeMap.get(targetId);
+    
+    if (sourceNode && targetNode) {
+      // Calculate midpoint position for marker
+      const midX = (sourceNode.position[0] + targetNode.position[0]) / 2;
+      const midY = (sourceNode.position[1] + targetNode.position[1]) / 2;
+      const midZ = (sourceNode.position[2] + targetNode.position[2]) / 2;
+      
+      markers.push({
+        position: [midX, midY, midZ],
+        text: "×", // Use multiplication sign for clean "x" appearance
+        color: [220, 38, 38, 255], // Red color (#dc2626)
+        size: 14, // Slightly larger for better visibility in 3D
+        sourceId: sourceId,
+        targetId: targetId
+      });
+    }
+  });
+
+  console.log('Created mutation markers:', {
+    totalMarkers: markers.length,
+    percentageOfEdgesWithMutations: `${Math.round((mutationEdges.length / combinedEdges.length) * 100)}%`,
+    note: 'High percentage is normal - most edges span large genomic regions containing mutations'
+  });
+  return markers;
+};
+
 const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DProps>(({
   data,
   width,
@@ -1114,7 +1191,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   onViewStateChange,
   externalViewState,
   temporalSpacingMode = 'equal',
-  edgeLabelSettings
+  edgeLabelSettings,
+  edgeMutationSettings
 }, ref) => {
   // OrbitView zoom behavior: Higher zoom = closer to object, Lower zoom = farther away
   // With maxZoom: 1000, users can now zoom very close to objects for detailed inspection
@@ -1393,6 +1471,17 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     return createEdgeLabels(edges3D, expandedEdgeGroups, edgeLabelSettings, colors, nodes3D);
   }, [data, edgeLabelSettings, edges3D, combinedEdgesForTransform, combinedNodesForTransform, colors, nodes3D]);
 
+  // Create mutation markers (red "x"s) on edges that have mutations
+  const mutationMarkers = useMemo(() => {
+    if (!edges3D.length || !combinedEdgesForTransform.length || !nodes3D.length) return [];
+    
+    // Create node map for mutation marker positioning
+    const nodeMap = new Map<number, Node3D>();
+    nodes3D.forEach(node => nodeMap.set(node.id, node));
+    
+    return createMutationMarkers(edges3D, combinedEdgesForTransform, nodeMap, edgeMutationSettings, colors);
+  }, [edges3D, combinedEdgesForTransform, nodes3D, edgeMutationSettings, colors]);
+
   const layers = [
     new LineLayer({
       id: 'geographic-lines',
@@ -1646,6 +1735,32 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         getText: [edgeLabelSettings, data?.metadata.sequence_length],
         getColor: [colors],
         getSize: [edgeLabelSettings]
+      }
+    }),
+
+    new TextLayer<MutationMarker3D>({
+      id: 'mutation-markers',
+      data: mutationMarkers,
+      pickable: false,
+      sizeUnits: 'meters', // Use same world-space units as other elements
+      sizeScale: 1, // Direct scaling 
+      getPosition: (d: MutationMarker3D) => d.position,
+      getText: (d: MutationMarker3D) => d.text,
+      getColor: (d: MutationMarker3D) => d.color,
+      getSize: (d: MutationMarker3D) => d.size * 1.8, // Make larger for visibility in 3D
+      getTextAnchor: 'middle' as const,
+      getAlignmentBaseline: 'center' as const,
+      fontFamily: 'monospace, Arial, sans-serif', // Monospace for better symbol rendering
+      fontWeight: 'bold', // Bold for better visibility
+      billboard: true, // Face camera for better readability in 3D
+      background: true, // Add background for better contrast
+      backgroundColor: [255, 255, 255, 220], // More opaque white background for better contrast
+      backgroundPadding: [4, 3, 4, 3], // More padding around the text for better visibility
+      updateTriggers: {
+        getPosition: [edgeMutationSettings, mutationMarkers],
+        getText: [edgeMutationSettings],
+        getColor: [edgeMutationSettings],
+        getSize: [edgeMutationSettings]
       }
     })
   ];
