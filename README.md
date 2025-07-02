@@ -1,6 +1,8 @@
-# ARGscape
+<p align="center">
+  <img src="https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/banner.png" alt="ARGscape Banner">
+</p>
 
-![ARGscape Banner](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/banner.png)
+#
 
 **ARGscape** (v0.1.9) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
 
