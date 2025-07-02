@@ -1,8 +1,12 @@
 # ARGscape
 
+![ARGscape Banner](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/banner.png)
+
 **ARGscape** (v0.1.9) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
 
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com)  
+
+![ARGscape Homepage](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/home.png)
 
 ## Features
 
@@ -36,6 +40,28 @@
 - **Batch Processing**: Handle multiple files per session
 - **Custom color themes**: Personalize visualization appearance
 - **Differential Visualization**: Compare multiple tree sequences with spatial data
+
+## Visualization Gallery
+
+### 2D Network Visualization
+Interactive force-directed layouts showing genealogical relationships with node IDs and genomic spans.
+
+![2D ARG Visualization](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/2D.png)
+
+#### Genomic Filtering
+Navigate through specific genomic regions using the interactive slider.
+
+![Genomic Slider](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/genomic_slider.png)
+
+### 3D Spatial Visualization
+Three-dimensional rendering of spatially-embedded tree sequences with geographic context.
+
+![3D ARG Visualization](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/3D.png)
+
+#### Temporal Filtering
+Explore different time periods using the temporal slider controls.
+
+![Temporal Slider](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/temporal_slider.png)
 
 ## Quick Start
 
