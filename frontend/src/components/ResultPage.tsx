@@ -179,49 +179,30 @@ function LocationInferenceDropdown({
                   </div>
                 </button>
                 {/* Tooltip */}
-                {tooltipMethod?.id === method.id && (
-                  <div 
-                    data-tooltip-id={method.id}
-                    className="fixed z-50 w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl"
-                    style={{
-                      left: 'var(--tooltip-x, 0)',
-                      top: 'var(--tooltip-y, 0)'
-                    }}
-                    ref={(el) => {
-                      if (el) {
-                        const rect = el.parentElement?.getBoundingClientRect();
-                        if (rect) {
-                          const spaceBelow = window.innerHeight - rect.bottom;
-                          const spaceAbove = rect.top;
-                          const tooltipHeight = el.offsetHeight;
-                          
-                          // Position horizontally to the left of the menu
-                          const left = rect.left - el.offsetWidth - 8;
-                          
-                          // Determine vertical position
-                          let top;
-                          if (spaceBelow >= tooltipHeight) {
-                            // Enough space below - align with top of menu item
-                            top = rect.top;
-                          } else if (spaceAbove >= tooltipHeight) {
-                            // Not enough space below, but enough above - align with bottom of menu item
-                            top = rect.bottom - tooltipHeight;
-                          } else {
-                            // Not enough space either way - center in available space
-                            top = Math.max(8, Math.min(
-                              window.innerHeight - tooltipHeight - 8,
-                              rect.top - (tooltipHeight - rect.height) / 2
-                            ));
-                          }
-                          
-                          el.style.setProperty('--tooltip-x', `${left}px`);
-                          el.style.setProperty('--tooltip-y', `${top}px`);
-                        }
-                      }
-                    }}
-                    onMouseEnter={() => setTooltipMethod(method)}
-                    onMouseLeave={() => setTooltipMethod(null)}
-                  >
+                {tooltipMethod?.id === method.id ? (() => {
+                  const methodIndex = availableMethods.findIndex(m => m.id === method.id);
+                  let positioning = {};
+                  
+                  if (methodIndex <= 1) {
+                    // Top 2 methods: align tooltip top with entry top
+                    positioning = { top: '0' };
+                  } else if (methodIndex <= 3) {
+                    // Middle 2 methods: center tooltip with entry
+                    positioning = { top: '50%', transform: 'translateY(-50%)' };
+                  } else {
+                    // Bottom 2 methods: align tooltip bottom with entry bottom
+                    positioning = { bottom: '0' };
+                  }
+                  
+                  return (
+                    <div 
+                      className="absolute z-[200] w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl"
+                      style={{
+                        right: '100%',
+                        marginRight: '8px',
+                        ...positioning
+                      }}
+                    >
                     <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
                     <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
                     <div className="flex items-center gap-2 mb-2">
@@ -308,7 +289,8 @@ function LocationInferenceDropdown({
                       )}
                     </div>
                   </div>
-                )}
+                  );
+                })() : null}
               </div>
             ))}
           </div>
@@ -1157,12 +1139,7 @@ export default function ResultPage() {
                   </div>
                 </div>
                 
-                {/* Tree Sequence Selector Modal */}
-                <TreeSequenceSelectorModal
-                  isOpen={showTreeSequenceSelector}
-                  onClose={() => setShowTreeSequenceSelector(false)}
-                  onSelect={handleTreeSequenceSelect}
-                />
+
 
                 {/* Data Overview Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -1348,14 +1325,7 @@ export default function ResultPage() {
             onConfirm={handleTsdateInference}
           />
 
-          {/* Tree Sequence Selector Modal for Diff */}
-          {showSecondTreeSequenceSelector && data && (
-            <TreeSequenceSelectorModal
-              isOpen={showSecondTreeSequenceSelector}
-              onClose={() => setShowSecondTreeSequenceSelector(false)}
-              onSelect={handleSecondTreeSequenceSelect}
-            />
-          )}
+
 
           {/* Alert Modal */}
           <AlertModal
@@ -1367,6 +1337,22 @@ export default function ResultPage() {
           />
         </div>
       </div>
+
+      {/* Tree Sequence Selector Modal - Main */}
+      <TreeSequenceSelectorModal
+        isOpen={showTreeSequenceSelector}
+        onClose={() => setShowTreeSequenceSelector(false)}
+        onSelect={handleTreeSequenceSelect}
+      />
+
+      {/* Tree Sequence Selector Modal - For Diff */}
+      {showSecondTreeSequenceSelector && data && (
+        <TreeSequenceSelectorModal
+          isOpen={showSecondTreeSequenceSelector}
+          onClose={() => setShowSecondTreeSequenceSelector(false)}
+          onSelect={handleSecondTreeSequenceSelect}
+        />
+      )}
     </div>
   );
 } 

@@ -2,5 +2,7 @@ recursive-include argscape/frontend_dist *
 recursive-include argscape/backend/geo_utils/data *
 include LICENSE
 include README.md
+include argscape/backend/environment.yml
+include argscape/frontend_dist/environment.yml
 include argscape/backend/geo_utils/data/eastern_hemisphere.geojson
 recursive-include argscape/backend/geo_utils/data/ne_110m_land *

@@ -20,6 +20,11 @@ export interface GraphNode {
     // New properties for combined nodes
     is_combined?: boolean;
     combined_nodes?: number[]; // Array of original node IDs that were combined
+    spatial_combine_only?: boolean; // True if combined only for spatial visualization (type 3)
+    // tskit-compatible properties
+    ts_flags?: number; // msprime node flags (e.g., NODE_IS_RE_EVENT)
+    is_recombination?: boolean; // Whether this is a recombination node
+    label?: string; // Node label (for combined nodes, shows "id1/id2/id3")
 }
 
 export interface GraphEdge {
@@ -27,6 +32,9 @@ export interface GraphEdge {
     target: number | GraphNode;
     left: number;
     right: number;
+    // tskit-compatible properties
+    bounds?: string; // String representation of regions like "0-1 5-8 9-10"
+    region_fraction?: number; // Fraction of chromosome covered by this edge
 }
 
 export interface TreeInterval {
@@ -94,7 +102,20 @@ export interface NodeSizeSettings {
     other: number;
 }
 
+export interface NodeIdSettings {
+    showSampleIds: boolean;
+    showRootIds: boolean;
+    showInternalIds: boolean;
+}
+
+export interface EdgeLabelSettings {
+    showEdgeLabels: boolean;
+    labelFontSize: number;
+}
+
 export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
+
+export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre' | 'coalescence';
 
 export interface ForceDirectedGraphProps {
     data: GraphData | null;
@@ -105,7 +126,12 @@ export interface ForceDirectedGraphProps {
     onEdgeClick?: (edge: GraphEdge) => void;
     focalNode?: GraphNode | null;  // The node to focus on, if any
     nodeSizes?: NodeSizeSettings;  // Node size settings
+    nodeIdSettings?: NodeIdSettings;  // Node ID visibility settings
+    edgeLabelSettings?: EdgeLabelSettings;  // Edge label settings
     sampleOrder?: string;  // The ordering method for sample nodes
     edgeThickness?: number;  // Edge thickness setting
+    edgeOpacity?: number;  // Edge opacity setting (0-100)
     temporalSpacingMode?: TemporalSpacingMode;
+    temporalSpacing?: number;  // Temporal spacing factor for layer separation
+    sampleSpacing?: number;  // Sample spacing factor for horizontal sample separation
 } 

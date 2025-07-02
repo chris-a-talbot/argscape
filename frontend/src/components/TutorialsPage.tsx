@@ -282,7 +282,7 @@ export default function TutorialsPage() {
       <ParticleBackground />
       <div className="text-sp-white min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex-grow px-4 pt-24 pb-20">
+        <div className="flex-grow px-4 pt-24 pb-32">
           <div className="max-w-7xl mx-auto">
             <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden p-8">
               <div className="text-center mb-12">

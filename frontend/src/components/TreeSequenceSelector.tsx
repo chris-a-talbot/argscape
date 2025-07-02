@@ -371,9 +371,9 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
   }
 
   return (
-    <div className={className}>
+    <div className={`flex flex-col ${className}`}>
       {/* Header Card */}
-      <div className="bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl p-5 mb-4">
+      <div className="bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl p-5 mb-4 flex-1 flex flex-col">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-8 h-8 bg-sp-pale-green/10 rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -404,7 +404,7 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
         </div>
         
         {/* File List */}
-        <div className="space-y-3 max-h-60 overflow-y-auto select-none">
+        <div className="space-y-3 flex-1 min-h-[300px] overflow-y-auto select-none">
           {availableTreeSequences.map((filename, index) => {
             const info = treeSequenceInfos[filename];
             const isCurrentlySelected = currentTreeSequence?.filename === filename;
@@ -488,7 +488,7 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
       </div>
 
       {/* Action Buttons */}
-      <div className="flex gap-2">
+      <div className="flex gap-2 flex-shrink-0">
         <button
           onClick={handleSelect}
           disabled={!selectedFilename || !treeSequenceInfos[selectedFilename]}

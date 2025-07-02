@@ -383,6 +383,34 @@ class ApiService {
   async checkHealth() {
     return this.request<HealthCheckResponse>(API_CONFIG.ENDPOINTS.HEALTH);
   }
+
+  async downloadEnvironmentFile(): Promise<ApiResponse<string>> {
+    const url = `${this.baseURL}/api/download-environment`;
+    
+    log.api.call('/api/download-environment', 'GET', {});
+    
+    try {
+      const response = await fetch(url, {
+        redirect: 'follow' // Handle redirects automatically
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to download environment.yml: ${response.status} ${response.statusText}`);
+      }
+      
+      const text = await response.text();
+      log.api.success('/api/download-environment', 'GET', { 
+        size: text.length,
+        finalUrl: response.url // Log final URL in case of redirect
+      });
+      
+      return { data: text, status: response.status };
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : 'Failed to download environment.yml';
+      log.api.error('/api/download-environment', new Error(errorMsg), 'GET');
+      throw error;
+    }
+  }
 }
 
 // Create singleton instance
@@ -443,4 +471,7 @@ export const api = {
 
   // Health check
   checkHealth: () => apiService.checkHealth(),
+  
+  // Environment file download
+  downloadEnvironmentFile: () => apiService.downloadEnvironmentFile(),
 }; 

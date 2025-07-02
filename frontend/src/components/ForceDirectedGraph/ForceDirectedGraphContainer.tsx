@@ -2,7 +2,7 @@ import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } f
 import { ForceDirectedGraph } from './ForceDirectedGraph';
 import { ForceDirectedGraphInfoPanel } from './ForceDirectedGraphInfoPanel';
 import { ForceDirectedGraphControlPanel } from './ForceDirectedGraphControlPanel';
-import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode } from './ForceDirectedGraph.types';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
 import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
@@ -72,17 +72,28 @@ const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): 
     return ancestors;
 };
 
-// Default edge thickness
-const DEFAULT_EDGE_THICKNESS = 1;
+
 
 const DEFAULT_VISUAL_SETTINGS = {
     nodeSizes: {
-        sample: 8,
-        root: 6,
-        other: 5
+        sample: 12,
+        root: 10,
+        other: 8
     },
-    edgeThickness: 1,
-    temporalSpacingMode: 'equal' as TemporalSpacingMode
+    nodeIdSettings: {
+        showSampleIds: true,
+        showRootIds: true,
+        showInternalIds: false
+    },
+    edgeLabelSettings: {
+        showEdgeLabels: false,
+        labelFontSize: 14
+    },
+    edgeThickness: 2.5,
+    edgeOpacity: 95,
+    temporalSpacingMode: 'equal' as TemporalSpacingMode,
+    temporalSpacing: 12,
+    sampleSpacing: 20
 };
 
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({ 
@@ -109,17 +120,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [isUpdatingTreeRange, setIsUpdatingTreeRange] = useState(false);
     const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
     const [isFilterActive, setIsFilterActive] = useState(false);
-    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('degree');
+    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('custom');
     const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
-    const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>({
-        sample: 8,
-        root: 6,
-        other: 5
-    });
-    const [edgeThickness, setEdgeThickness] = useState(DEFAULT_EDGE_THICKNESS);
+    const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>(DEFAULT_VISUAL_SETTINGS.nodeSizes);
+    const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
+    const [edgeLabelSettings, setEdgeLabelSettings] = useState<EdgeLabelSettings>(DEFAULT_VISUAL_SETTINGS.edgeLabelSettings);
+    const [edgeThickness, setEdgeThickness] = useState(DEFAULT_VISUAL_SETTINGS.edgeThickness);
+    const [edgeOpacity, setEdgeOpacity] = useState(DEFAULT_VISUAL_SETTINGS.edgeOpacity);
     const [isLoading, setIsLoading] = useState(false);
     const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
     const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+
+    // Destructure visual settings for easier access
+    const { nodeSizes: visualNodeSizes, edgeThickness: visualEdgeThickness, temporalSpacingMode: visualTemporalSpacingMode, temporalSpacing: visualTemporalSpacing, sampleSpacing: visualSampleSpacing } = visualSettings;
 
     // Convert tree intervals from backend format
     const convertTreeIntervals = useCallback((backendIntervals: [number, number, number][]): TreeInterval[] => {
@@ -770,9 +783,14 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         onEdgeClick={handleEdgeClick}
                         focalNode={selectedNode}
                         nodeSizes={nodeSizes}
+                        nodeIdSettings={nodeIdSettings}
+                        edgeLabelSettings={edgeLabelSettings}
                         sampleOrder={sampleOrder}
                         edgeThickness={edgeThickness}
-                        temporalSpacingMode={visualSettings.temporalSpacingMode}
+                        edgeOpacity={edgeOpacity}
+                        temporalSpacingMode={visualTemporalSpacingMode}
+                        temporalSpacing={visualTemporalSpacing}
+                        sampleSpacing={visualSampleSpacing}
                     />
                     
                     <ForceDirectedGraphControlPanel
@@ -780,10 +798,20 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         onSampleOrderChange={setSampleOrder}
                         nodeSizes={nodeSizes}
                         onNodeSizeChange={(sizes) => setNodeSizes(sizes)}
+                        nodeIdSettings={nodeIdSettings}
+                        onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
+                        edgeLabelSettings={edgeLabelSettings}
+                        onEdgeLabelSettingsChange={(settings) => setEdgeLabelSettings(settings)}
                         edgeThickness={edgeThickness}
                         onEdgeThicknessChange={(thickness) => setEdgeThickness(thickness)}
-                        temporalSpacingMode={visualSettings.temporalSpacingMode}
+                        edgeOpacity={edgeOpacity}
+                        onEdgeOpacityChange={(opacity) => setEdgeOpacity(opacity)}
+                        temporalSpacingMode={visualTemporalSpacingMode}
                         onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
+                        temporalSpacing={visualTemporalSpacing}
+                        onTemporalSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, temporalSpacing: spacing }))}
+                        sampleSpacing={visualSampleSpacing}
+                        onSampleSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, sampleSpacing: spacing }))}
                         isLoading={isUpdatingOrder}
                     />
                     

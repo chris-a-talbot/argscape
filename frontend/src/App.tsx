@@ -16,6 +16,7 @@ import { isFirstVisit, markVisited } from './utils/session';
 import { api } from './lib/api';
 import { log } from './lib/logger';
 import LessonPage from './components/LessonPage';
+import InstallPage from './components/InstallPage';
 
 // Loading screen component
 function LoadingScreen({ logs }: { logs: string[] }) {
@@ -267,13 +268,14 @@ function App() {
             <Route path="/upload" element={<Home />} />
             <Route path="/simulate" element={<Home />} />
             <Route path="/load" element={<Home />} />
+            <Route path="/install" element={<Layout><InstallPage /></Layout>} />
             <Route path="/graph/:filename" element={<ArgVisualizationPage />} />
             <Route path="/spatial/:filename" element={<SpatialArg3DVisualizationPage />} />
             <Route path="/spatial-diff/:filename" element={<SpatialArgDiffVisualizationPage />} />
             <Route path="/result" element={<ResultPage />} />
-            <Route path="/tutorials" element={<TutorialsPage />} />
-            <Route path="/tutorials/:lessonId" element={<LessonPage />} />
-            <Route path="/docs" element={<DocsPage />} />
+            <Route path="/tutorials" element={<Layout><TutorialsPage /></Layout>} />
+            <Route path="/tutorials/:lessonId" element={<Layout><LessonPage /></Layout>} />
+            <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
           </Routes>
         </Router>
       </TreeSequenceProvider>

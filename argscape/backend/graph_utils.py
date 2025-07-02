@@ -278,7 +278,8 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
                 'time': time,
                 'log_time': log_time,
                 'is_sample': node.is_sample(),
-                'individual': node.individual
+                'individual': node.individual,
+                'ts_flags': int(node.flags)  # Include tskit node flags for recombination detection
             }
             
             # Add spatial location if available

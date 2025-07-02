@@ -11,7 +11,7 @@ import { ArgStatsData } from '../ui/arg-stats-display';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
-import { TemporalSpacingMode } from './SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings } from './SpatialArg3DVisualization.types';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -36,11 +36,26 @@ const CONTAINER_CONSTANTS = {
 };
 
 const DEFAULT_VISUAL_SETTINGS = {
-  temporalSpacing: 12,
+  temporalSpacing: 10,
   spatialSpacing: 160,
-  temporalGridOpacity: 30,
-  geographicShapeOpacity: 70,
-  maxNodeRadius: 35, // Increased default for better visibility in geographic space
+  temporalGridOpacity: 15,
+  geographicShapeOpacity: 100,
+  nodeSizes: {
+    sample: 10,
+    root: 12,
+    other: 10
+  },
+  nodeIdSettings: {
+    showSampleIds: true,
+    showRootIds: true,
+    showInternalIds: false
+  },
+  edgeLabelSettings: {
+    showEdgeLabels: false,
+    labelFontSize: 3
+  },
+  edgeThickness: 1.0,
+  edgeOpacity: 60,
   isFilterSectionCollapsed: true,
   temporalSpacingMode: 'equal' as TemporalSpacingMode
 };
@@ -273,7 +288,11 @@ const Spatial3DWrapper: React.FC<{
   geographicMode?: GeographicMode;
   temporalGridOpacity?: number;
   geographicShapeOpacity?: number;
-  maxNodeRadius?: number;
+  nodeSizes?: { sample: number; root: number; other: number };
+  nodeIdSettings?: NodeIdSettings;
+  edgeThickness?: number;
+  edgeOpacity?: number;
+  edgeLabelSettings?: { showEdgeLabels: boolean; labelFontSize: number };
   onViewStateChange?: (viewState: any) => void;
   viewState?: any;
 }> = ({ 
@@ -291,7 +310,11 @@ const Spatial3DWrapper: React.FC<{
   geographicMode, 
   temporalGridOpacity, 
   geographicShapeOpacity, 
-  maxNodeRadius, 
+  nodeSizes,
+  nodeIdSettings,
+  edgeThickness,
+  edgeOpacity,
+  edgeLabelSettings,
   onViewStateChange, 
   viewState 
 }) => {
@@ -344,7 +367,11 @@ const Spatial3DWrapper: React.FC<{
         geographicMode={geographicMode}
         temporalGridOpacity={temporalGridOpacity}
         geographicShapeOpacity={geographicShapeOpacity}
-        maxNodeRadius={maxNodeRadius}
+        nodeSizes={nodeSizes}
+        nodeIdSettings={nodeIdSettings}
+        edgeThickness={edgeThickness}
+        edgeOpacity={edgeOpacity}
+        edgeLabelSettings={edgeLabelSettings}
         onViewStateChange={onViewStateChange}
         externalViewState={viewState}
         temporalSpacingMode={temporalSpacingMode}
@@ -389,6 +416,8 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   });
   
   const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
+  const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
+  const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
   
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number], // Temporary, will be updated by auto-center
@@ -1021,7 +1050,11 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             geographicMode={geoState.mode}
             temporalGridOpacity={visualSettings.temporalGridOpacity}
             geographicShapeOpacity={visualSettings.geographicShapeOpacity}
-            maxNodeRadius={visualSettings.maxNodeRadius}
+            nodeSizes={visualSettings.nodeSizes}
+            nodeIdSettings={nodeIdSettings}
+            edgeThickness={visualSettings.edgeThickness}
+            edgeOpacity={visualSettings.edgeOpacity}
+            edgeLabelSettings={visualSettings.edgeLabelSettings}
             onViewStateChange={handleViewStateChange}
             viewState={viewState}
           />
@@ -1043,8 +1076,16 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             onTemporalGridOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, temporalGridOpacity: value }))}
             geographicShapeOpacity={visualSettings.geographicShapeOpacity}
             onGeographicShapeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, geographicShapeOpacity: value }))}
-            maxNodeRadius={visualSettings.maxNodeRadius}
-            onMaxNodeRadiusChange={(value) => setVisualSettings(prev => ({ ...prev, maxNodeRadius: value }))}
+            nodeSizes={visualSettings.nodeSizes}
+            onNodeSizeChange={(sizes) => setVisualSettings(prev => ({ ...prev, nodeSizes: sizes }))}
+            nodeIdSettings={nodeIdSettings}
+            onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
+            edgeThickness={visualSettings.edgeThickness}
+            onEdgeThicknessChange={(value) => setVisualSettings(prev => ({ ...prev, edgeThickness: value }))}
+            edgeOpacity={visualSettings.edgeOpacity}
+            onEdgeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, edgeOpacity: value }))}
+            edgeLabelSettings={visualSettings.edgeLabelSettings}
+            onEdgeLabelSettingsChange={(settings) => setVisualSettings(prev => ({ ...prev, edgeLabelSettings: settings }))}
             geographicMode={geoState.mode}
             onGeographicModeChange={(mode) => setGeoState(prev => ({ ...prev, mode }))}
             customShapeFile={geoState.customShapeFile}

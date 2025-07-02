@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { useDraggable } from '../../hooks/useDraggable';
 
 interface ForceDirectedGraphInfoPanelProps {
   // ARG Statistics
@@ -33,6 +34,12 @@ export const ForceDirectedGraphInfoPanel: React.FC<ForceDirectedGraphInfoPanelPr
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
+
+  const { elementRef, dragProps, hasMoved, isRepositioned } = useDraggable({
+    initialPosition: { x: 0, y: 0 },
+    dragHandleRef: dragHandleRef as React.RefObject<HTMLElement>
+  });
 
   // Calculate percentage if we have both original and subarg data
   const nodePercentage = originalNodeCount && subargNodeCount 
@@ -58,16 +65,22 @@ export const ForceDirectedGraphInfoPanel: React.FC<ForceDirectedGraphInfoPanelPr
 
   return (
     <div 
-      className="absolute top-4 right-4 border rounded-lg shadow-lg z-20"
+      ref={elementRef as React.RefObject<HTMLDivElement>}
+      className={`border rounded-lg shadow-lg z-20 ${
+        isRepositioned ? '' : 'absolute top-4 right-4'
+      }`}
       style={{ 
         backgroundColor: `${colors.background}F0`, // 94% opacity
         borderColor: colors.border,
-        color: colors.text
+        color: colors.text,
+        ...dragProps.style
       }}
+      onMouseDown={dragProps.onMouseDown}
     >
       {/* Info Panel Header */}
       <div 
-        onClick={() => setIsExpanded(!isExpanded)}
+        ref={dragHandleRef}
+        onClick={() => !hasMoved && setIsExpanded(!isExpanded)}
         className="flex items-center justify-between p-4 cursor-pointer rounded-t-lg transition-colors"
         style={{
           backgroundColor: isExpanded ? 'transparent' : `${colors.containerBackground}80`

@@ -113,7 +113,7 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
           {/* Main content area */}
           <div className="max-w-7xl mx-auto">
             <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
-              <div className="p-8 min-h-[600px] flex items-start justify-center">
+              <div className="p-8 min-h-[600px] max-h-[80vh] overflow-y-auto flex items-start justify-center">
                 {renderComponent()}
               </div>
             </div>

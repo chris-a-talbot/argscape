@@ -141,29 +141,36 @@ def generate_spatial_locations_for_samples(
 
     sample_nodes = ts.samples()
     from collections import defaultdict
+    
+    # Determine individual groupings (same logic as create_tree_sequence_with_spatial_data)
     individual_to_nodes = defaultdict(list)
     node_to_individual = {}
 
-    # Group nodes by individual
+    # First, check existing individual assignments
     for node_id in sample_nodes:
         node = ts.node(node_id)
         if node.individual != -1:
             individual_to_nodes[node.individual].append(node_id)
             node_to_individual[node_id] = node.individual
 
-    # Map each node to a representative
+    # If no existing individuals, assume diploid pairing
+    if not individual_to_nodes:
+        logger.info("No existing individual assignments found, assuming diploid pairing")
+        for i, node_id in enumerate(sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_nodes[individual_id].append(node_id)
+            node_to_individual[node_id] = individual_id
+
+    # Create representative nodes list (consistent with create_tree_sequence_with_spatial_data)
     representative_nodes = []
-    node_to_representative = {}
-    seen_reps = set()
+    for individual_id in sorted(individual_to_nodes.keys()):
+        nodes_for_individual = individual_to_nodes[individual_id]
+        representative_node = min(nodes_for_individual)  # Use lowest node ID as representative
+        representative_nodes.append(representative_node)
+    
+    logger.info(f"Using {len(representative_nodes)} representatives for {len(individual_to_nodes)} individuals")
 
-    for node_id in sample_nodes:
-        rep = node_to_individual.get(node_id, node_id)
-        node_to_representative[node_id] = rep
-        if rep not in seen_reps:
-            representative_nodes.append(rep)
-            seen_reps.add(rep)
-
-    # Distance matrix and 2D embedding
+    # Distance matrix and 2D embedding based on representatives
     distances = calculate_genealogical_distances(representative_nodes, ts)
     coords_2d = embed_distances_in_2d(distances, random_seed)
     normalized_coords = normalize_coordinates(coords_2d)
@@ -187,11 +194,8 @@ def generate_spatial_locations_for_samples(
         f"to ({np.max(final_coords[:, 0]):.2f}, {np.max(final_coords[:, 1]):.2f})"
     )
 
-    # Map coordinates back to sample nodes
-    rep_index = {rep: i for i, rep in enumerate(representative_nodes)}
-    all_node_coords = np.array([final_coords[rep_index[node_to_representative[n]]] for n in sample_nodes])
-
-    return create_tree_sequence_with_spatial_data(ts, sample_nodes, all_node_coords)
+    # Pass coordinates to create_tree_sequence_with_spatial_data
+    return create_tree_sequence_with_spatial_data(ts, sample_nodes, final_coords)
 
 
 def create_tree_sequence_with_spatial_data(
@@ -202,46 +206,93 @@ def create_tree_sequence_with_spatial_data(
     """
     Create a new tree sequence with spatial locations for sample nodes.
     
-    Each sample node is assigned to a newly created individual with a 3D location 
-    (z = 0). All other nodes remain unchanged, except for being linked to their
-    corresponding individual if applicable.
+    Preserves the original individual-to-node relationships while adding spatial
+    coordinates. For diploid individuals, both sample nodes will have the same
+    spatial location.
     
     Args:
         ts: Original tree sequence.
         sample_nodes: List of sample node IDs.
-        final_coords: 2D array of spatial coordinates (n_samples, 2).
+        final_coords: 2D array of spatial coordinates (n_representatives, 2).
     
     Returns:
         A new tree sequence with spatial locations added to individuals.
     """
     tables = ts.dump_tables()
-
-    # Clear and reset individuals table
-    tables.individuals.clear()
-
-    # Create new individuals for each sample node with spatial data
+    
+    # Group sample nodes by their existing individual assignments
+    from collections import defaultdict
+    individual_to_nodes = defaultdict(list)
     node_to_individual = {}
-    for i, node_id in enumerate(sample_nodes):
-        lon, lat = final_coords[i]
-        individual_id = tables.individuals.add_row(
+    
+    # First, check existing individual assignments
+    for node_id in sample_nodes:
+        node = ts.node(node_id)
+        if node.individual != -1:
+            individual_to_nodes[node.individual].append(node_id)
+            node_to_individual[node_id] = node.individual
+    
+    # If no existing individuals, assume diploid pairing (nodes 0,1 → individual 0; nodes 2,3 → individual 1; etc.)
+    if not individual_to_nodes:
+        logger.info("No existing individual assignments found, assuming diploid pairing")
+        for i, node_id in enumerate(sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_nodes[individual_id].append(node_id)
+            node_to_individual[node_id] = individual_id
+    
+    # Create mapping from individual to representative node (for coordinate lookup)
+    representative_nodes = []
+    individual_to_rep_index = {}
+    
+    for individual_id in sorted(individual_to_nodes.keys()):
+        nodes_for_individual = individual_to_nodes[individual_id]
+        representative_node = min(nodes_for_individual)  # Use lowest node ID as representative
+        representative_nodes.append(representative_node)
+        individual_to_rep_index[individual_id] = len(representative_nodes) - 1
+    
+    logger.info(f"Found {len(individual_to_nodes)} individuals with representatives: {representative_nodes}")
+    
+    # Ensure final_coords matches the number of representatives
+    if len(final_coords) != len(representative_nodes):
+        logger.error(f"Coordinate array length ({len(final_coords)}) doesn't match representatives ({len(representative_nodes)})")
+        raise ValueError(f"Expected {len(representative_nodes)} coordinate pairs, got {len(final_coords)}")
+    
+    # Clear and rebuild individuals table with spatial data
+    tables.individuals.clear()
+    old_to_new_individual_id = {}
+    
+    for individual_id in sorted(individual_to_nodes.keys()):
+        rep_index = individual_to_rep_index[individual_id]
+        lon, lat = final_coords[rep_index]
+        
+        new_individual_id = tables.individuals.add_row(
             location=[lon, lat, 0.0],  # z = 0 for 2D spatial data
         )
-        node_to_individual[node_id] = individual_id
-
-    # Rebuild nodes table to assign individuals
+        old_to_new_individual_id[individual_id] = new_individual_id
+        
+        logger.debug(f"Individual {individual_id} → {new_individual_id}: nodes {individual_to_nodes[individual_id]} at ({lon:.3f}, {lat:.3f})")
+    
+    # Rebuild nodes table with corrected individual assignments
     new_nodes = tskit.NodeTable()
     for node in ts.nodes():
-        individual = node_to_individual.get(node.id, tskit.NULL)
+        if node.id in node_to_individual:
+            # This is a sample node - assign to its individual
+            old_individual_id = node_to_individual[node.id]
+            new_individual_id = old_to_new_individual_id[old_individual_id]
+        else:
+            # Non-sample node - no individual assignment
+            new_individual_id = tskit.NULL
+            
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual,
+            individual=new_individual_id,
             metadata=node.metadata,
         )
     tables.nodes.replace_with(new_nodes)
 
     result_ts = tables.tree_sequence()
-    logger.info(f"Added spatial locations to {len(sample_nodes)} sample individuals")
+    logger.info(f"Added spatial locations to {len(individual_to_nodes)} individuals covering {len(sample_nodes)} sample nodes")
 
     return result_ts

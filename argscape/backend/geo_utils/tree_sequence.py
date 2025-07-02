@@ -81,16 +81,14 @@ def check_spatial_completeness(ts: tskit.TreeSequence) -> Dict[str, bool]:
 
 
 def apply_inferred_locations_to_tree_sequence(ts: tskit.TreeSequence, locations_df) -> tskit.TreeSequence:
-    """Apply inferred locations from fastgaia to a tree sequence."""
+    """Apply inferred locations from fastgaia to a tree sequence, preserving existing individual assignments for samples only."""
     logger.info("Applying inferred locations to tree sequence...")
+    
+    from collections import defaultdict
     
     tables = ts.dump_tables()
     
-    # Clear the individuals table and any metadata schema that might cause validation issues
-    tables.individuals.clear()
-    # Clear the individual metadata schema to avoid validation errors
-    tables.individuals.metadata_schema = tskit.MetadataSchema(None)
-    
+    # Parse location data
     dim_columns = [col for col in locations_df.columns if col != 'node_id']
     num_dims = len(dim_columns)
     
@@ -105,40 +103,121 @@ def apply_inferred_locations_to_tree_sequence(ts: tskit.TreeSequence, locations_
                 location_3d[i] = float(row[dim_col])
         node_to_location[node_id] = location_3d
     
-    node_to_individual = {}
-    for node_id, location in node_to_location.items():
-        # Add individual with empty metadata (schema is now cleared)
-        individual_id = tables.individuals.add_row(
+    # Get sample and non-sample node IDs
+    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    non_sample_node_ids = set(node.id for node in ts.nodes() if not (node.flags & tskit.NODE_IS_SAMPLE))
+    
+    # Group ONLY SAMPLE NODES by their existing individual assignments
+    individual_to_sample_nodes = defaultdict(list)
+    sample_node_to_individual = {}
+    
+    # First, collect existing individual assignments for sample nodes only
+    for node in ts.nodes():
+        if node.flags & tskit.NODE_IS_SAMPLE and node.individual != -1:
+            individual_to_sample_nodes[node.individual].append(node.id)
+            sample_node_to_individual[node.id] = node.individual
+    
+    # If no existing individuals for samples, assume diploid pairing
+    if not individual_to_sample_nodes and sample_node_ids:
+        logger.info("No existing individual assignments found for samples, assuming diploid pairing")
+        sorted_sample_nodes = sorted(sample_node_ids)
+        for i, node_id in enumerate(sorted_sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_sample_nodes[individual_id].append(node_id)
+            sample_node_to_individual[node_id] = individual_id
+    
+    # Clear and rebuild individuals table
+    tables.individuals.clear()
+    tables.individuals.metadata_schema = tskit.MetadataSchema(None)
+    
+    node_to_new_individual = {}
+    
+    # Create individuals for sample nodes (grouped by original individual assignments)
+    for old_individual_id in sorted(individual_to_sample_nodes.keys()):
+        sample_nodes_for_individual = individual_to_sample_nodes[old_individual_id]
+        
+        # Find a representative sample node with location data (prefer lowest ID)
+        representative_node = None
+        for node_id in sorted(sample_nodes_for_individual):
+            if node_id in node_to_location:
+                representative_node = node_id
+                break
+        
+        if representative_node is not None:
+            # Use inferred location for this individual
+            location = node_to_location[representative_node]
+        else:
+            # Fallback to original location if available
+            original_individual = ts.individual(old_individual_id)
+            if original_individual.location is not None and len(original_individual.location) >= 2:
+                location = np.array([
+                    original_individual.location[0],
+                    original_individual.location[1],
+                    original_individual.location[2] if len(original_individual.location) > 2 else 0.0
+                ])
+            else:
+                location = np.array([0.0, 0.0, 0.0])
+        
+        new_individual_id = tables.individuals.add_row(
             flags=0,
             location=location,
             parents=[],
             metadata=b''
         )
-        node_to_individual[node_id] = individual_id
+        
+        # Assign this individual to all sample nodes in the group
+        for sample_node_id in sample_nodes_for_individual:
+            node_to_new_individual[sample_node_id] = new_individual_id
     
+    # Create separate individuals for each internal node with its own unique location
+    for node_id in non_sample_node_ids:
+        if node_id in node_to_location:
+            location = node_to_location[node_id]
+            new_individual_id = tables.individuals.add_row(
+                flags=0,
+                location=location,
+                parents=[],
+                metadata=b''
+            )
+            node_to_new_individual[node_id] = new_individual_id
+    
+    # Handle sample nodes that don't have individual assignments but have locations
+    for node_id in sample_node_ids:
+        if node_id not in node_to_new_individual and node_id in node_to_location:
+            location = node_to_location[node_id]
+            new_individual_id = tables.individuals.add_row(
+                flags=0,
+                location=location,
+                parents=[],
+                metadata=b''
+            )
+            node_to_new_individual[node_id] = new_individual_id
+    
+    # Rebuild nodes table with corrected individual assignments
     new_nodes = tables.nodes.copy()
     new_nodes.clear()
     
     for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
+        new_individual_id = node_to_new_individual.get(node.id, -1)
+        
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual_id,
+            individual=new_individual_id,
             metadata=node.metadata
         )
     
     tables.nodes.replace_with(new_nodes)
     
     result_ts = tables.tree_sequence()
-    logger.info(f"Applied inferred locations to {len(node_to_location)} nodes")
+    logger.info(f"Applied inferred locations: {len(individual_to_sample_nodes)} sample individuals, {len([n for n in non_sample_node_ids if n in node_to_location])} internal nodes")
     
     return result_ts
 
 
 def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, locations: np.ndarray) -> tskit.TreeSequence:
-    """Apply inferred locations from GAIA quadratic algorithm to a tree sequence.
+    """Apply inferred locations from GAIA quadratic algorithm to a tree sequence, preserving individual assignments for samples only.
     
     Args:
         ts: Tree sequence to modify
@@ -149,6 +228,8 @@ def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, loca
     """
     logger.info("Applying GAIA quadratic locations to tree sequence...")
     
+    from collections import defaultdict
+    
     if locations.shape[1] != 2:
         raise ValueError(f"Expected locations with 2 dimensions (x, y), got {locations.shape[1]}")
     
@@ -157,70 +238,116 @@ def apply_gaia_quadratic_locations_to_tree_sequence(ts: tskit.TreeSequence, loca
     
     tables = ts.dump_tables()
     
-    # Clear the individuals table and metadata schema
+    # Get sample and non-sample node IDs
+    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    non_sample_node_ids = set(node.id for node in ts.nodes() if not (node.flags & tskit.NODE_IS_SAMPLE))
+    
+    # Group ONLY SAMPLE NODES by their existing individual assignments
+    individual_to_sample_nodes = defaultdict(list)
+    sample_node_to_individual = {}
+    
+    # First, collect existing individual assignments for sample nodes only
+    for node in ts.nodes():
+        if node.flags & tskit.NODE_IS_SAMPLE and node.individual != -1:
+            individual_to_sample_nodes[node.individual].append(node.id)
+            sample_node_to_individual[node.id] = node.individual
+    
+    # If no existing individuals for samples, assume diploid pairing
+    if not individual_to_sample_nodes and sample_node_ids:
+        logger.info("No existing individual assignments found for samples, assuming diploid pairing")
+        sorted_sample_nodes = sorted(sample_node_ids)
+        for i, node_id in enumerate(sorted_sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_sample_nodes[individual_id].append(node_id)
+            sample_node_to_individual[node_id] = individual_id
+    
+    # Clear and rebuild individuals table
     tables.individuals.clear()
     tables.individuals.metadata_schema = tskit.MetadataSchema(None)
     
-    # Create individuals for all nodes with their locations
-    node_to_individual = {}
+    node_to_new_individual = {}
     
-    # First, preserve original sample locations
-    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    # Create individuals for sample nodes (grouped by original individual assignments)
+    for old_individual_id in sorted(individual_to_sample_nodes.keys()):
+        sample_nodes_for_individual = individual_to_sample_nodes[old_individual_id]
+        
+        # Check if original individual had a location to preserve
+        original_individual = ts.individual(old_individual_id)
+        if original_individual.location is not None and len(original_individual.location) >= 2:
+            # Preserve original sample location
+            location = original_individual.location  # Keep original location including z if present
+        else:
+            # Fallback to GAIA location from first sample node if original not available
+            sample_node = min(sample_nodes_for_individual)  # Use lowest ID
+            x_coord = float(locations[sample_node, 0])
+            y_coord = float(locations[sample_node, 1])
+            location = np.array([x_coord, y_coord, 0.0])
+        
+        new_individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location,
+            parents=[],
+            metadata=b''
+        )
+        
+        # Assign this individual to all sample nodes in the group
+        for sample_node_id in sample_nodes_for_individual:
+            node_to_new_individual[sample_node_id] = new_individual_id
+    
+    # Create separate individuals for each internal node with its own unique GAIA location
+    for node_id in non_sample_node_ids:
+        x_coord = float(locations[node_id, 0])
+        y_coord = float(locations[node_id, 1])
+        location = np.array([x_coord, y_coord, 0.0])
+        
+        new_individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location,
+            parents=[],
+            metadata=b''
+        )
+        node_to_new_individual[node_id] = new_individual_id
+    
+    # Handle sample nodes that don't have individual assignments
     for node_id in sample_node_ids:
-        node = ts.node(node_id)
-        if node.individual != -1:  # Node has an individual
-            individual = ts.individual(node.individual)
-            if len(individual.location) >= 2:  # Has x, y coordinates
-                # Create individual with original location
-                individual_id = tables.individuals.add_row(
-                    flags=0,
-                    location=individual.location,  # Keep original location including z if present
-                    parents=[],
-                    metadata=b''
-                )
-                node_to_individual[node_id] = individual_id
-    
-    # Then, apply GAIA inferred locations only for non-sample nodes
-    for node_id in range(ts.num_nodes):
-        if node_id not in sample_node_ids:  # Only apply GAIA locations to non-sample nodes
-            # Create 3D location array (x, y, z=0)
+        if node_id not in node_to_new_individual:
             x_coord = float(locations[node_id, 0])
             y_coord = float(locations[node_id, 1])
-            location_3d = np.array([x_coord, y_coord, 0.0])
+            location = np.array([x_coord, y_coord, 0.0])
             
-            # Add individual with location
-            individual_id = tables.individuals.add_row(
+            new_individual_id = tables.individuals.add_row(
                 flags=0,
-                location=location_3d,
+                location=location,
                 parents=[],
                 metadata=b''
             )
-            node_to_individual[node_id] = individual_id
+            node_to_new_individual[node_id] = new_individual_id
     
-    # Update nodes to reference their corresponding individuals
+    # Rebuild nodes table with corrected individual assignments
     new_nodes = tables.nodes.copy()
     new_nodes.clear()
     
     for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
+        new_individual_id = node_to_new_individual.get(node.id, -1)
+        
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual_id,
+            individual=new_individual_id,
             metadata=node.metadata
         )
     
     tables.nodes.replace_with(new_nodes)
     
     result_ts = tables.tree_sequence()
-    logger.info(f"Applied GAIA quadratic locations to {len(node_to_individual)} nodes (preserved {len(sample_node_ids)} sample locations)")
+    logger.info(f"Applied GAIA quadratic locations: {len(individual_to_sample_nodes)} sample individuals, {len(non_sample_node_ids)} internal nodes")
     
     return result_ts
 
 
 def apply_gaia_linear_locations_to_tree_sequence(ts: tskit.TreeSequence, locations: np.ndarray) -> tskit.TreeSequence:
-    """Apply inferred locations from GAIA linear algorithm to a tree sequence.
+    """Apply inferred locations from GAIA linear algorithm to a tree sequence, preserving individual assignments for samples only.
     
     Args:
         ts: Tree sequence to modify
@@ -231,6 +358,8 @@ def apply_gaia_linear_locations_to_tree_sequence(ts: tskit.TreeSequence, locatio
     """
     logger.info("Applying GAIA linear locations to tree sequence...")
     
+    from collections import defaultdict
+    
     if locations.shape[1] != 2:
         raise ValueError(f"Expected locations with 2 dimensions (x, y), got {locations.shape[1]}")
     
@@ -239,64 +368,110 @@ def apply_gaia_linear_locations_to_tree_sequence(ts: tskit.TreeSequence, locatio
     
     tables = ts.dump_tables()
     
-    # Clear the individuals table and metadata schema
+    # Get sample and non-sample node IDs
+    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    non_sample_node_ids = set(node.id for node in ts.nodes() if not (node.flags & tskit.NODE_IS_SAMPLE))
+    
+    # Group ONLY SAMPLE NODES by their existing individual assignments
+    individual_to_sample_nodes = defaultdict(list)
+    sample_node_to_individual = {}
+    
+    # First, collect existing individual assignments for sample nodes only
+    for node in ts.nodes():
+        if node.flags & tskit.NODE_IS_SAMPLE and node.individual != -1:
+            individual_to_sample_nodes[node.individual].append(node.id)
+            sample_node_to_individual[node.id] = node.individual
+    
+    # If no existing individuals for samples, assume diploid pairing
+    if not individual_to_sample_nodes and sample_node_ids:
+        logger.info("No existing individual assignments found for samples, assuming diploid pairing")
+        sorted_sample_nodes = sorted(sample_node_ids)
+        for i, node_id in enumerate(sorted_sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_sample_nodes[individual_id].append(node_id)
+            sample_node_to_individual[node_id] = individual_id
+    
+    # Clear and rebuild individuals table
     tables.individuals.clear()
     tables.individuals.metadata_schema = tskit.MetadataSchema(None)
     
-    # Create individuals for all nodes with their locations
-    node_to_individual = {}
+    node_to_new_individual = {}
     
-    # First, preserve original sample locations
-    sample_node_ids = set(node.id for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+    # Create individuals for sample nodes (grouped by original individual assignments)
+    for old_individual_id in sorted(individual_to_sample_nodes.keys()):
+        sample_nodes_for_individual = individual_to_sample_nodes[old_individual_id]
+        
+        # Check if original individual had a location to preserve
+        original_individual = ts.individual(old_individual_id)
+        if original_individual.location is not None and len(original_individual.location) >= 2:
+            # Preserve original sample location
+            location = original_individual.location  # Keep original location including z if present
+        else:
+            # Fallback to GAIA location from first sample node if original not available
+            sample_node = min(sample_nodes_for_individual)  # Use lowest ID
+            x_coord = float(locations[sample_node, 0])
+            y_coord = float(locations[sample_node, 1])
+            location = np.array([x_coord, y_coord, 0.0])
+        
+        new_individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location,
+            parents=[],
+            metadata=b''
+        )
+        
+        # Assign this individual to all sample nodes in the group
+        for sample_node_id in sample_nodes_for_individual:
+            node_to_new_individual[sample_node_id] = new_individual_id
+    
+    # Create separate individuals for each internal node with its own unique GAIA location
+    for node_id in non_sample_node_ids:
+        x_coord = float(locations[node_id, 0])
+        y_coord = float(locations[node_id, 1])
+        location = np.array([x_coord, y_coord, 0.0])
+        
+        new_individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location,
+            parents=[],
+            metadata=b''
+        )
+        node_to_new_individual[node_id] = new_individual_id
+    
+    # Handle sample nodes that don't have individual assignments
     for node_id in sample_node_ids:
-        node = ts.node(node_id)
-        if node.individual != -1:  # Node has an individual
-            individual = ts.individual(node.individual)
-            if len(individual.location) >= 2:  # Has x, y coordinates
-                # Create individual with original location
-                individual_id = tables.individuals.add_row(
-                    flags=0,
-                    location=individual.location,  # Keep original location including z if present
-                    parents=[],
-                    metadata=b''
-                )
-                node_to_individual[node_id] = individual_id
-    
-    # Then, apply GAIA inferred locations only for non-sample nodes
-    for node_id in range(ts.num_nodes):
-        if node_id not in sample_node_ids:  # Only apply GAIA locations to non-sample nodes
-            # Create 3D location array (x, y, z=0)
+        if node_id not in node_to_new_individual:
             x_coord = float(locations[node_id, 0])
             y_coord = float(locations[node_id, 1])
-            location_3d = np.array([x_coord, y_coord, 0.0])
+            location = np.array([x_coord, y_coord, 0.0])
             
-            # Add individual with location
-            individual_id = tables.individuals.add_row(
+            new_individual_id = tables.individuals.add_row(
                 flags=0,
-                location=location_3d,
+                location=location,
                 parents=[],
                 metadata=b''
             )
-            node_to_individual[node_id] = individual_id
+            node_to_new_individual[node_id] = new_individual_id
     
-    # Update nodes to reference their corresponding individuals
+    # Rebuild nodes table with corrected individual assignments
     new_nodes = tables.nodes.copy()
     new_nodes.clear()
     
     for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
+        new_individual_id = node_to_new_individual.get(node.id, -1)
+        
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual_id,
+            individual=new_individual_id,
             metadata=node.metadata
         )
     
     tables.nodes.replace_with(new_nodes)
     
     result_ts = tables.tree_sequence()
-    logger.info(f"Applied GAIA linear locations to {len(node_to_individual)} nodes (preserved {len(sample_node_ids)} sample locations)")
+    logger.info(f"Applied GAIA linear locations: {len(individual_to_sample_nodes)} sample individuals, {len(non_sample_node_ids)} internal nodes")
     
     return result_ts
 
@@ -306,8 +481,10 @@ def apply_custom_locations_to_tree_sequence(
     sample_locations: Dict[int, tuple], 
     node_locations: Dict[int, tuple]
 ) -> tskit.TreeSequence:
-    """Apply custom locations from CSV files to a tree sequence."""
+    """Apply custom locations from CSV files to a tree sequence, preserving individual assignments for samples only."""
     logger.info("Applying custom locations to tree sequence...")
+    
+    from collections import defaultdict
     
     # Get sample and non-sample node IDs
     sample_node_ids = set(node.id for node in ts.nodes() if node.is_sample())
@@ -337,57 +514,100 @@ def apply_custom_locations_to_tree_sequence(
     if missing_nodes:
         raise ValueError(f"Missing non-sample node IDs in node locations: {sorted(missing_nodes)}")
     
+    # Group ONLY SAMPLE NODES by their existing individual assignments
+    individual_to_sample_nodes = defaultdict(list)
+    sample_node_to_individual = {}
+    
+    # First, collect existing individual assignments for sample nodes only
+    for node in ts.nodes():
+        if node.flags & tskit.NODE_IS_SAMPLE and node.individual != -1:
+            individual_to_sample_nodes[node.individual].append(node.id)
+            sample_node_to_individual[node.id] = node.individual
+    
+    # If no existing individuals for samples, assume diploid pairing
+    if not individual_to_sample_nodes and sample_node_ids:
+        logger.info("No existing individual assignments found for samples, assuming diploid pairing")
+        sorted_sample_nodes = sorted(sample_node_ids)
+        for i, node_id in enumerate(sorted_sample_nodes):
+            individual_id = node_id // 2  # Integer division: 0,1→0; 2,3→1; 4,5→2; etc.
+            individual_to_sample_nodes[individual_id].append(node_id)
+            sample_node_to_individual[node_id] = individual_id
+    
     # Create new tree sequence with custom locations
     tables = ts.dump_tables()
     
-    # Clear individuals table
+    # Clear and rebuild individuals table
     tables.individuals.clear()
     tables.individuals.metadata_schema = tskit.MetadataSchema(None)
     
-    # Create individuals for all nodes with locations
-    node_to_individual = {}
+    node_to_new_individual = {}
     
-    # Add individuals for sample nodes
+    # Create individuals for sample nodes (grouped by original individual assignments)
+    for old_individual_id in sorted(individual_to_sample_nodes.keys()):
+        sample_nodes_for_individual = individual_to_sample_nodes[old_individual_id]
+        
+        # Use sample location for this individual (all sample nodes in individual get same location)
+        representative_sample = min(sample_nodes_for_individual)  # Use lowest ID as representative
+        x, y, z = sample_locations[representative_sample]
+        location = np.array([x, y, z])
+        
+        new_individual_id = tables.individuals.add_row(
+            flags=0,
+            location=location,
+            parents=[],
+            metadata=b''
+        )
+        
+        # Assign this individual to all sample nodes in the group
+        for sample_node_id in sample_nodes_for_individual:
+            node_to_new_individual[sample_node_id] = new_individual_id
+    
+    # Create separate individuals for each internal node with its own unique location
+    for node_id in non_sample_node_ids:
+        if node_id in valid_node_location_ids:
+            x, y, z = node_locations[node_id]
+            location = np.array([x, y, z])
+            
+            new_individual_id = tables.individuals.add_row(
+                flags=0,
+                location=location,
+                parents=[],
+                metadata=b''
+            )
+            node_to_new_individual[node_id] = new_individual_id
+    
+    # Handle sample nodes that don't have individual assignments
     for node_id in sample_node_ids:
-        x, y, z = sample_locations[node_id]
-        location_3d = np.array([x, y, z])
-        individual_id = tables.individuals.add_row(
-            flags=0,
-            location=location_3d,
-            parents=[],
-            metadata=b''
-        )
-        node_to_individual[node_id] = individual_id
+        if node_id not in node_to_new_individual:
+            x, y, z = sample_locations[node_id]
+            location = np.array([x, y, z])
+            
+            new_individual_id = tables.individuals.add_row(
+                flags=0,
+                location=location,
+                parents=[],
+                metadata=b''
+            )
+            node_to_new_individual[node_id] = new_individual_id
     
-    # Add individuals for non-sample nodes
-    for node_id in valid_node_location_ids:
-        x, y, z = node_locations[node_id]
-        location_3d = np.array([x, y, z])
-        individual_id = tables.individuals.add_row(
-            flags=0,
-            location=location_3d,
-            parents=[],
-            metadata=b''
-        )
-        node_to_individual[node_id] = individual_id
-    
-    # Update nodes to reference individuals
+    # Rebuild nodes table with corrected individual assignments
     new_nodes = tables.nodes.copy()
     new_nodes.clear()
     
     for node in ts.nodes():
-        individual_id = node_to_individual.get(node.id, -1)
+        new_individual_id = node_to_new_individual.get(node.id, -1)
+        
         new_nodes.add_row(
             time=node.time,
             flags=node.flags,
             population=node.population,
-            individual=individual_id,
+            individual=new_individual_id,
             metadata=node.metadata
         )
     
     tables.nodes.replace_with(new_nodes)
     
     result_ts = tables.tree_sequence()
-    logger.info(f"Applied custom locations to {len(node_to_individual)} nodes")
+    logger.info(f"Applied custom locations: {len(individual_to_sample_nodes)} sample individuals, {len(valid_node_location_ids)} internal nodes")
     
     return result_ts 

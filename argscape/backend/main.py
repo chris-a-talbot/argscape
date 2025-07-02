@@ -18,7 +18,7 @@ import uvicorn
 import msprime
 from fastapi import FastAPI, File, HTTPException, UploadFile, Request, BackgroundTasks, Query, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from argscape.backend.tskit_utils import load_tree_sequence_from_file
@@ -283,6 +283,52 @@ async def health_check():
         "status": "healthy",
         "message": "Backend is running"
     }
+
+
+@api_router.get("/download-environment")
+async def download_environment_file():
+    """Download the environment.yml file for local installation"""
+    try:
+        # Try multiple locations for the environment.yml file
+        current_dir = Path(__file__).parent
+        possible_paths = [
+            current_dir / "environment.yml",  # Direct relative path
+            current_dir.parent / "backend" / "environment.yml",  # If running from argscape root
+            Path.cwd() / "argscape" / "backend" / "environment.yml",  # Development setup
+        ]
+        
+        logger.info(f"Looking for environment.yml file. Current dir: {current_dir}")
+        logger.info(f"Checking paths: {[str(p) for p in possible_paths]}")
+        
+        environment_file = None
+        for path in possible_paths:
+            logger.info(f"Checking path: {path}, exists: {path.exists()}")
+            if path.exists():
+                environment_file = path
+                logger.info(f"Found environment.yml at: {environment_file}")
+                break
+        
+        if environment_file is None:
+            logger.warning(f"Environment file not found in any of the expected locations: {[str(p) for p in possible_paths]}")
+            # Instead of failing, redirect to GitHub
+            github_url = "https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/backend/environment.yml"
+            logger.info(f"Redirecting to GitHub: {github_url}")
+            return RedirectResponse(url=github_url)
+        
+        logger.info(f"Serving environment.yml from: {environment_file}")
+        
+        # Return the file as a response
+        return FileResponse(
+            path=str(environment_file),
+            filename="environment.yml",
+            media_type="text/yaml"
+        )
+    except Exception as e:
+        logger.error(f"Failed to serve environment.yml: {str(e)}", exc_info=True)
+        # Fallback to GitHub redirect
+        github_url = "https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/backend/environment.yml"
+        logger.info(f"Falling back to GitHub redirect: {github_url}")
+        return RedirectResponse(url=github_url)
 
 
 @api_router.get("/debug/geoancestry-status")
@@ -592,6 +638,7 @@ async def get_graph_data(
     try:
         # Import here to avoid import errors during startup
         from argscape.backend.graph_utils import convert_to_graph_data, filter_by_tree_indices
+        from argscape.backend.sparg import simplify_with_recombination
         
         expected_tree_count = None
         
@@ -643,8 +690,14 @@ async def get_graph_data(
             logger.info(f"Simplified to {max_samples} samples: {ts.num_nodes} nodes, {ts.num_edges} edges")
 
         logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
+        
+        # Apply recombination flagging before conversion to ensure frontend can detect recombination nodes
+        logger.info("Applying recombination node flagging...")
+        ts_with_recomb_flags, _ = simplify_with_recombination(ts, flag_recomb=True)
+        logger.info(f"Recombination flagging complete: {ts_with_recomb_flags.num_nodes} nodes, {ts_with_recomb_flags.num_edges} edges")
+        
         # Pass expected tree count if we filtered by tree indices and sample ordering
-        graph_data = convert_to_graph_data(ts, expected_tree_count, sample_order)
+        graph_data = convert_to_graph_data(ts_with_recomb_flags, expected_tree_count, sample_order)
         
         return graph_data
     except Exception as e:

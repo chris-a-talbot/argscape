@@ -11,12 +11,14 @@ export default function Navbar() {
     { label: 'Upload', path: '/upload' },
     { label: 'Simulate', path: '/simulate' },
     { label: 'Load', path: '/load' },
+    { label: 'Install', path: '/install' },
     { label: 'Learn', path: '/tutorials' },
     { label: 'Docs', path: '/docs' }
   ];
 
   const isActive = (path: string) => {
-    if (path === '/upload' && location.pathname === '/') return true;
+    // Don't highlight any tab when on the homepage
+    if (location.pathname === '/') return false;
     return location.pathname.startsWith(path);
   };
 
