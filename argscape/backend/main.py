@@ -227,6 +227,21 @@ class TsdateInferenceRequest(BaseModel):
     filter_individuals: bool = False
     filter_sites: bool = False
 
+class SimplifyTreeSequenceRequest(BaseModel):
+    filename: str
+    samples: Optional[list] = None  # List of sample node IDs
+    map_nodes: bool = False
+    reduce_to_site_topology: bool = False
+    filter_populations: Optional[bool] = None
+    filter_individuals: Optional[bool] = None
+    filter_sites: Optional[bool] = None
+    filter_nodes: Optional[bool] = None
+    update_sample_flags: Optional[bool] = None
+    keep_unary: bool = False
+    keep_unary_in_individuals: Optional[bool] = None
+    keep_input_roots: bool = False
+    record_provenance: bool = True
+
 #### Utility functions ####
 
 def get_client_ip(request: Request) -> str:
@@ -456,6 +471,15 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
         has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
         spatial_info = check_spatial_completeness(ts)
         
+        # Calculate temporal range
+        temporal_range = None
+        if has_temporal:
+            node_times = [node.time for node in ts.nodes()]
+            temporal_range = {
+                "min_time": float(min(node_times)),
+                "max_time": float(max(node_times))
+            }
+        
         logger.info(f"Successfully loaded tree sequence: {ts.num_nodes} nodes, {ts.num_edges} edges")
         
         return {
@@ -469,6 +493,7 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
             "num_samples": ts.num_samples,
             "num_trees": ts.num_trees,
             "has_temporal": has_temporal,
+            "temporal_range": temporal_range,
             **spatial_info
         }
     except ValueError as e:
@@ -494,6 +519,15 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
         has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
         spatial_info = check_spatial_completeness(ts)
         
+        # Calculate temporal range
+        temporal_range = None
+        if has_temporal:
+            node_times = [node.time for node in ts.nodes()]
+            temporal_range = {
+                "min_time": float(min(node_times)),
+                "max_time": float(max(node_times))
+            }
+        
         return {
             "filename": filename,
             "num_nodes": ts.num_nodes,
@@ -503,6 +537,7 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
             "num_mutations": ts.num_mutations,
             "sequence_length": ts.sequence_length,
             "has_temporal": has_temporal,
+            "temporal_range": temporal_range,
             **spatial_info
         }
     except Exception as e:
@@ -608,6 +643,8 @@ async def get_graph_data(
     genomic_end: float = None,
     tree_start_idx: int = None,
     tree_end_idx: int = None,
+    temporal_start: float = None,
+    temporal_end: float = None,
     sample_order: str = "custom"
 ):
     """Get graph data for visualization.
@@ -615,6 +652,7 @@ async def get_graph_data(
     Can filter by either:
     - Genomic range: genomic_start and genomic_end
     - Tree index range: tree_start_idx and tree_end_idx (inclusive)
+    - Temporal range: temporal_start and temporal_end
     
     Tree index filtering takes precedence if both are provided.
     """
@@ -642,7 +680,7 @@ async def get_graph_data(
         
         expected_tree_count = None
         
-        # Apply filtering - tree index filtering takes precedence
+        # Apply tree index filtering FIRST - takes precedence over other filtering
         if tree_start_idx is not None or tree_end_idx is not None:
             # Handle default values for tree index filtering
             start_idx = tree_start_idx if tree_start_idx is not None else 0
@@ -660,7 +698,7 @@ async def get_graph_data(
             logger.info(f"After tree index filtering: {ts.num_nodes} nodes, {ts.num_edges} edges")
             
         elif genomic_start is not None or genomic_end is not None:
-            # Apply genomic filtering if tree index filtering not specified
+            # Apply genomic filtering only if tree index filtering not specified
             start = genomic_start if genomic_start is not None else 0
             end = genomic_end if genomic_end is not None else ts.sequence_length
             
@@ -682,6 +720,117 @@ async def get_graph_data(
                 ts = ts.delete_intervals(intervals_to_delete, simplify=True)
             logger.info(f"After genomic filtering: {ts.num_nodes} nodes, {ts.num_edges} edges")
 
+        # Apply temporal filtering AFTER genomic/tree filtering to preserve tree structure
+        if temporal_start is not None or temporal_end is not None:
+            start_time = temporal_start if temporal_start is not None else 0
+            end_time = temporal_end if temporal_end is not None else max(node.time for node in ts.nodes())
+            
+            if start_time >= end_time:
+                raise HTTPException(status_code=400, detail="temporal_start must be less than temporal_end")
+            
+            logger.info(f"Applying temporal filter: {start_time} - {end_time}")
+            
+            try:
+                # Count nodes in temporal range
+                total_internal_nodes = sum(1 for node in ts.nodes() if not node.is_sample())
+                internal_nodes_in_range = sum(1 for node in ts.nodes() 
+                                            if not node.is_sample() and start_time <= node.time <= end_time)
+                
+                if internal_nodes_in_range < total_internal_nodes:
+                    logger.info(f"Temporal filtering: {internal_nodes_in_range}/{total_internal_nodes} internal nodes in range")
+                    
+                    # Use a table-based approach to filter by time while preserving structure
+                    tables = ts.dump_tables()
+                    
+                    # Create new node table with only nodes in temporal range (plus all samples)
+                    old_nodes = tables.nodes
+                    new_nodes = old_nodes.copy()
+                    new_nodes.clear()
+                    
+                    # Map old node IDs to new node IDs
+                    old_to_new = {}
+                    new_node_id = 0
+                    
+                    # First pass: add all samples (always keep samples)
+                    for i, node in enumerate(ts.nodes()):
+                        if node.is_sample():
+                            old_to_new[node.id] = new_node_id
+                            new_nodes.add_row(
+                                flags=node.flags,
+                                time=node.time,
+                                population=node.population,
+                                individual=node.individual,
+                                metadata=node.metadata
+                            )
+                            new_node_id += 1
+                    
+                    # Second pass: add internal nodes in temporal range
+                    for i, node in enumerate(ts.nodes()):
+                        if not node.is_sample() and start_time <= node.time <= end_time:
+                            old_to_new[node.id] = new_node_id
+                            new_nodes.add_row(
+                                flags=node.flags,
+                                time=node.time,
+                                population=node.population,
+                                individual=node.individual,
+                                metadata=node.metadata
+                            )
+                            new_node_id += 1
+                    
+                    # Update edges to only include edges between kept nodes
+                    old_edges = tables.edges
+                    new_edges = old_edges.copy()
+                    new_edges.clear()
+                    
+                    for edge in ts.edges():
+                        if edge.parent in old_to_new and edge.child in old_to_new:
+                            new_edges.add_row(
+                                left=edge.left,
+                                right=edge.right,
+                                parent=old_to_new[edge.parent],
+                                child=old_to_new[edge.child],
+                                metadata=edge.metadata
+                            )
+                    
+                    # Update mutations to only include mutations on kept nodes
+                    old_mutations = tables.mutations
+                    new_mutations = old_mutations.copy()
+                    new_mutations.clear()
+                    
+                    for mutation in ts.mutations():
+                        if mutation.node in old_to_new:
+                            new_mutations.add_row(
+                                site=mutation.site,
+                                node=old_to_new[mutation.node],
+                                time=mutation.time,
+                                derived_state=mutation.derived_state,
+                                parent=mutation.parent,
+                                metadata=mutation.metadata
+                            )
+                    
+                    # Replace tables
+                    tables.nodes.replace_with(new_nodes)
+                    tables.edges.replace_with(new_edges)
+                    tables.mutations.replace_with(new_mutations)
+                    
+                    # Create new tree sequence
+                    ts_filtered = tables.tree_sequence()
+                    
+                    # Verify the filtered tree sequence has the same sequence length
+                    if ts_filtered.sequence_length == ts.sequence_length and ts_filtered.num_trees > 0:
+                        ts = ts_filtered
+                        logger.info(f"After temporal filtering: {ts.num_nodes} nodes, {ts.num_edges} edges, {ts.num_trees} trees")
+                    else:
+                        logger.warning("Temporal filtering broke tree structure - keeping original")
+                        
+                else:
+                    logger.info("No temporal filtering needed - all internal nodes within range")
+                    
+            except Exception as e:
+                logger.warning(f"Temporal filtering failed: {e} - keeping original tree sequence")
+                # On any error, continue with original tree sequence
+
+        # Apply sample subsetting last (after all other filtering)
         if ts.num_samples > max_samples:
             sample_nodes = [node for node in ts.nodes() if node.is_sample()]
             indices = [int(i * (len(sample_nodes) - 1) / (max_samples - 1)) for i in range(max_samples)]
@@ -697,7 +846,11 @@ async def get_graph_data(
         logger.info(f"Recombination flagging complete: {ts_with_recomb_flags.num_nodes} nodes, {ts_with_recomb_flags.num_edges} edges")
         
         # Pass expected tree count if we filtered by tree indices and sample ordering
-        graph_data = convert_to_graph_data(ts_with_recomb_flags, expected_tree_count, sample_order)
+        graph_data = convert_to_graph_data(
+            ts_with_recomb_flags, 
+            expected_tree_count, 
+            sample_order
+        )
         
         return graph_data
     except Exception as e:
@@ -768,6 +921,17 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
             session_storage.store_tree_sequence(session_id, filename, ts)
             logger.info(f"Successfully simulated and saved tree sequence to {filename}")
             
+            # Calculate temporal range and spatial info
+            has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
+            temporal_range = None
+            if has_temporal:
+                node_times = [node.time for node in ts.nodes()]
+                temporal_range = {
+                    "min_time": float(min(node_times)),
+                    "max_time": float(max(node_times))
+                }
+            spatial_info = check_spatial_completeness(ts)
+            
             return {
                 "message": "Tree sequence simulated successfully",
                 "filename": filename,
@@ -775,7 +939,10 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
                 "num_trees": ts.num_trees,
                 "num_mutations": ts.num_mutations if simulation_request.mutation_rate is not None else 0,
                 "sequence_length": ts.sequence_length,
-                "crs": simulation_request.crs
+                "has_temporal": has_temporal,
+                "temporal_range": temporal_range,
+                "crs": simulation_request.crs,
+                **spatial_info
             }
             
         except Exception as e:
@@ -1324,6 +1491,95 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
     except Exception as e:
         logger.error("Error during tsdate temporal inference", exc_info=True)
         raise HTTPException(status_code=500, detail=f"tsdate temporal inference failed: {str(e)}")
+
+@api_router.post("/simplify-tree-sequence")
+async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTreeSequenceRequest):
+    """Simplify tree sequence using tskit's simplify function."""
+    logger.info(f"Received simplify request for file: {simplify_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, simplify_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    try:
+        # Prepare samples list - if not provided, use all samples
+        samples = simplify_request.samples
+        if samples is None:
+            samples = ts.samples()
+        else:
+            # Convert to numpy array and validate
+            samples = np.array(samples, dtype=np.int32)
+            # Validate that all samples are valid node IDs
+            if not all(0 <= s < ts.num_nodes for s in samples):
+                raise HTTPException(status_code=400, detail="Invalid sample node IDs provided")
+        
+        logger.info(f"Simplifying with {len(samples)} samples")
+        
+        # Run simplification
+        new_ts = ts.simplify(
+            samples=samples,
+            map_nodes=simplify_request.map_nodes,
+            reduce_to_site_topology=simplify_request.reduce_to_site_topology,
+            filter_populations=simplify_request.filter_populations,
+            filter_individuals=simplify_request.filter_individuals,
+            filter_sites=simplify_request.filter_sites,
+            filter_nodes=simplify_request.filter_nodes,
+            update_sample_flags=simplify_request.update_sample_flags,
+            keep_unary=simplify_request.keep_unary,
+            keep_unary_in_individuals=simplify_request.keep_unary_in_individuals,
+            keep_input_roots=simplify_request.keep_input_roots,
+            record_provenance=simplify_request.record_provenance
+        )
+        
+        # Check spatial completeness of the simplified tree sequence
+        spatial_info = check_spatial_completeness(new_ts)
+        has_sample_spatial = spatial_info["has_sample_spatial"]
+        has_all_spatial = spatial_info["has_all_spatial"]
+        spatial_status = spatial_info["spatial_status"]
+        
+        # Generate new filename
+        base_filename = simplify_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_simplified.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_simplified.tsz'
+        else:
+            new_filename = base_filename + '_simplified.trees'
+        
+        # Store the simplified tree sequence
+        session_storage.store_tree_sequence(session_id, new_filename, new_ts)
+        
+        # Check if mutations are present
+        has_mutations = bool(new_ts.num_mutations > 0)
+        has_temporal = bool(np.any(new_ts.nodes_time > 0))
+        
+        logger.info(f"Simplification completed: {new_ts.num_samples} samples, {new_ts.num_nodes} nodes")
+        
+        # Return results with full metadata
+        return {
+            "status": "success",
+            "message": "Tree sequence simplified successfully",
+            "new_filename": new_filename,
+            "num_samples": int(new_ts.num_samples),
+            "num_nodes": int(new_ts.num_nodes),
+            "num_edges": int(new_ts.num_edges),
+            "num_trees": int(new_ts.num_trees),
+            "num_mutations": int(new_ts.num_mutations),
+            "has_temporal": has_temporal,
+            "has_sample_spatial": bool(has_sample_spatial),
+            "has_all_spatial": bool(has_all_spatial),
+            "spatial_status": spatial_status,
+            "has_mutations": has_mutations,
+            "original_samples": int(ts.num_samples),
+            "original_nodes": int(ts.num_nodes),
+            "samples_simplified": int(len(samples))
+        }
+        
+    except Exception as e:
+        logger.error(f"Tree sequence simplification failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Tree sequence simplification failed: {str(e)}")
 
 #### Geographic API endpoints ####
 

@@ -15,6 +15,10 @@ interface TreeSequenceData {
   num_recombination_nodes?: number;  // Optional - only present for ARG simulations
   sequence_length?: number;
   has_temporal: boolean;
+  temporal_range?: {       // Optional - contains min/max time values when has_temporal is true
+    min_time: number;
+    max_time: number;
+  };
   has_sample_spatial: boolean;
   has_all_spatial: boolean;
   spatial_status: string;
@@ -26,6 +30,12 @@ interface TreeSequenceContextType {
   setTreeSequence: (data: TreeSequenceData | null) => void;
   maxSamples: number;
   setMaxSamples: (value: number) => void;
+  temporalRange: [number, number] | null;
+  setTemporalRange: (range: [number, number] | null) => void;
+  genomicRange: [number, number] | null;
+  setGenomicRange: (range: [number, number] | null) => void;
+  genomicMode: 'base_pairs' | 'tree_indices';
+  setGenomicMode: (mode: 'base_pairs' | 'tree_indices') => void;
 }
 
 const TreeSequenceContext = createContext<TreeSequenceContextType | undefined>(undefined);
@@ -33,6 +43,9 @@ const TreeSequenceContext = createContext<TreeSequenceContextType | undefined>(u
 export function TreeSequenceProvider({ children }: { children: ReactNode }) {
   const [treeSequence, setTreeSequence] = useState<TreeSequenceData | null>(null);
   const [maxSamples, setMaxSamples] = useState<number>(SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES);
+  const [temporalRange, setTemporalRange] = useState<[number, number] | null>(null);
+  const [genomicRange, setGenomicRange] = useState<[number, number] | null>(null);
+  const [genomicMode, setGenomicMode] = useState<'base_pairs' | 'tree_indices'>('base_pairs');
 
   // Custom setTreeSequence that also updates maxSamples appropriately
   const setTreeSequenceWithSamples = (data: TreeSequenceData | null) => {
@@ -62,7 +75,13 @@ export function TreeSequenceProvider({ children }: { children: ReactNode }) {
         treeSequence, 
         setTreeSequence: setTreeSequenceWithSamples, 
         maxSamples, 
-        setMaxSamples: setMaxSamplesWithLimit 
+        setMaxSamples: setMaxSamplesWithLimit,
+        temporalRange,
+        setTemporalRange,
+        genomicRange,
+        setGenomicRange,
+        genomicMode,
+        setGenomicMode
       }}
     >
       {children}

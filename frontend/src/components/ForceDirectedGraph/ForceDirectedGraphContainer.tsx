@@ -18,6 +18,12 @@ type FilterMode = 'genomic' | 'tree';
 interface ForceDirectedGraphContainerProps {
     filename: string;
     max_samples?: number;
+    temporalStart?: number;
+    temporalEnd?: number;
+    genomicStart?: number;
+    genomicEnd?: number;
+    treeStartIdx?: number;
+    treeEndIdx?: number;
 }
 
 // Helper function to get all descendants of a node
@@ -101,7 +107,13 @@ const DEFAULT_VISUAL_SETTINGS = {
 
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({ 
     filename,
-    max_samples = 25
+    max_samples = 25,
+    temporalStart,
+    temporalEnd,
+    genomicStart,
+    genomicEnd,
+    treeStartIdx,
+    treeEndIdx
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     const { treeSequence } = useTreeSequence();
@@ -175,14 +187,35 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         return () => clearTimeout(timer);
     }, [treeRange, isFilterActive, filterMode]);
 
-    // Initial data loading (without genomic filtering)
+    // Initial data loading (now including URL parameters for filtering)
     useEffect(() => {
         const fetchInitialData = async () => {
             try {
                 setLoading(true);
                 console.log('Fetching initial graph data for file:', filename, 'with max_samples:', max_samples);
                 
-                const response = await api.getGraphData(filename, { maxSamples: max_samples, sampleOrder });
+                // Build options including URL parameters
+                const options: any = { maxSamples: max_samples, sampleOrder };
+                
+                // Add temporal filtering if provided via URL
+                if (temporalStart !== undefined && temporalEnd !== undefined) {
+                    options.temporalStart = temporalStart;
+                    options.temporalEnd = temporalEnd;
+                    console.log('Applying temporal filtering:', temporalStart, '-', temporalEnd);
+                }
+                
+                // Add genomic filtering if provided via URL
+                if (genomicStart !== undefined && genomicEnd !== undefined) {
+                    options.genomicStart = genomicStart;
+                    options.genomicEnd = genomicEnd;
+                    console.log('Applying genomic filtering:', genomicStart, '-', genomicEnd);
+                } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
+                    options.treeStartIdx = treeStartIdx;
+                    options.treeEndIdx = treeEndIdx;
+                    console.log('Applying tree index filtering:', treeStartIdx, '-', treeEndIdx);
+                }
+                
+                const response = await api.getGraphData(filename, options);
                 const graphData = response.data as GraphData;
                 console.log('Received initial graph data:', graphData);
                 
@@ -220,7 +253,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         setIsInitialized(false);
         setIsFilterActive(false); // Also reset filter state
         fetchInitialData();
-    }, [filename, max_samples, convertTreeIntervals]);
+    }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, convertTreeIntervals]);
 
     // Data loading with filtering and sample order changes
     useEffect(() => {
@@ -276,6 +309,12 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 
                 let options: any = { maxSamples: max_samples, sampleOrder };
                 
+                // Always include URL parameters if present
+                if (temporalStart !== undefined && temporalEnd !== undefined) {
+                    options.temporalStart = temporalStart;
+                    options.temporalEnd = temporalEnd;
+                }
+                
                 if (genomicParams) {
                     console.log('Fetching filtered graph data for genomic range:', debouncedGenomicRange);
                     options.genomicStart = genomicParams.genomic_start;
@@ -284,6 +323,14 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     console.log('Fetching filtered graph data for tree range:', debouncedTreeRange);
                     options.treeStartIdx = treeParams.tree_start_idx;
                     options.treeEndIdx = treeParams.tree_end_idx;
+                } else if (genomicStart !== undefined && genomicEnd !== undefined) {
+                    // Apply URL genomic parameters if no local filter is active
+                    options.genomicStart = genomicStart;
+                    options.genomicEnd = genomicEnd;
+                } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
+                    // Apply URL tree parameters if no local filter is active
+                    options.treeStartIdx = treeStartIdx;
+                    options.treeEndIdx = treeEndIdx;
                 } else {
                     console.log('Fetching unfiltered graph data');
                 }
