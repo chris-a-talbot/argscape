@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { ForceDirectedGraphContainer } from './ForceDirectedGraph/ForceDirectedGraphContainer';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { useColorTheme } from '../context/ColorThemeContext';
@@ -14,10 +14,45 @@ import { log } from '../lib/logger';
 export default function ArgVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const { maxSamples, treeSequence: data, setTreeSequence } = useTreeSequence();
     const { colors, setCurrentVisualizationType } = useColorTheme();
     const svgRef = useRef<SVGSVGElement>(null);
     const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
+
+    // Parse URL parameters for filtering
+    const urlParams = useMemo(() => {
+        const params: {
+            temporalStart?: number;
+            temporalEnd?: number;
+            genomicStart?: number;
+            genomicEnd?: number;
+            treeStartIdx?: number;
+            treeEndIdx?: number;
+        } = {};
+
+        const temporalStart = searchParams.get('temporal_start');
+        const temporalEnd = searchParams.get('temporal_end');
+        const genomicStart = searchParams.get('genomic_start');
+        const genomicEnd = searchParams.get('genomic_end');
+        const treeStartIdx = searchParams.get('tree_start_idx');
+        const treeEndIdx = searchParams.get('tree_end_idx');
+
+        if (temporalStart && temporalEnd) {
+            params.temporalStart = parseFloat(temporalStart);
+            params.temporalEnd = parseFloat(temporalEnd);
+        }
+
+        if (genomicStart && genomicEnd) {
+            params.genomicStart = parseInt(genomicStart);
+            params.genomicEnd = parseInt(genomicEnd);
+        } else if (treeStartIdx && treeEndIdx) {
+            params.treeStartIdx = parseInt(treeStartIdx);
+            params.treeEndIdx = parseInt(treeEndIdx);
+        }
+
+        return params;
+    }, [searchParams]);
 
     // Set visualization type when component mounts
     useEffect(() => {
@@ -51,7 +86,8 @@ export default function ArgVisualizationPage() {
         setTreeSequence(treeSequence);
         setShowTreeSequenceSelector(false);
         // Navigate to the new tree sequence while maintaining all visualization settings
-        navigate(`/graph/${encodeURIComponent(treeSequence.filename)}`);
+        const currentParams = searchParams.toString();
+        navigate(`/graph/${encodeURIComponent(treeSequence.filename)}${currentParams ? `?${currentParams}` : ''}`);
     };
 
     const handleDownloadImage = async () => {
@@ -197,8 +233,14 @@ export default function ArgVisualizationPage() {
                         ref={svgRef}
                         filename={decodedFilename}
                         max_samples={maxSamples}
+                        temporalStart={urlParams.temporalStart}
+                        temporalEnd={urlParams.temporalEnd}
+                        genomicStart={urlParams.genomicStart}
+                        genomicEnd={urlParams.genomicEnd}
+                        treeStartIdx={urlParams.treeStartIdx}
+                        treeEndIdx={urlParams.treeEndIdx}
                     />
-                ), [decodedFilename, maxSamples])}
+                ), [decodedFilename, maxSamples, urlParams])}
             </main>
         </div>
     );

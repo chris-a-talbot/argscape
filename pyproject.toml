@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "argscape"
-version = "0.1.9"
+version = "0.3.0"
 description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
 requires-python = ">=3.8"
-authors = [{ name = "Chris Talbot", email = "chtalbot@umich.edu" }]
+authors = [{ name = "Chris Talbot", email = "cat267@cornell.edu" }]
 license = { file = "LICENSE" }
 
 dependencies = [
@@ -39,6 +39,10 @@ dependencies = [
 
 [project.scripts]
 argscape = "argscape.cli:main"
+argscape_infer = "argscape.spatial_cli:main"
+# argscape_vis is disabled in 0.3.0 pending stabilization
+# argscape_vis = "argscape.vis_cli:main"
+argscape_load = "argscape.load_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

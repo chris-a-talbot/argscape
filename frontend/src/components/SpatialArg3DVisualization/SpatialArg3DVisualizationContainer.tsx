@@ -21,6 +21,12 @@ type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 interface SpatialArg3DVisualizationContainerProps {
   filename: string;
   max_samples: number;
+  temporalStart?: number;
+  temporalEnd?: number;
+  genomicStart?: number;
+  genomicEnd?: number;
+  treeStartIdx?: number;
+  treeEndIdx?: number;
 }
 
 // Constants
@@ -388,7 +394,13 @@ const Spatial3DWrapper: React.FC<{
 
 const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationContainerProps> = ({
   filename,
-  max_samples
+  max_samples,
+  temporalStart,
+  temporalEnd,
+  genomicStart,
+  genomicEnd,
+  treeStartIdx,
+  treeEndIdx
 }) => {
   const { colors } = useColorTheme();
   const { treeSequence } = useTreeSequence();
@@ -481,7 +493,29 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const response = await api.getGraphData(filename, { maxSamples: max_samples });
+        
+        // Build options including URL parameters
+        const options: any = { maxSamples: max_samples };
+        
+        // Add temporal filtering if provided via URL
+        if (temporalStart !== undefined && temporalEnd !== undefined) {
+          options.temporalStart = temporalStart;
+          options.temporalEnd = temporalEnd;
+          console.log('Applying temporal filtering:', temporalStart, '-', temporalEnd);
+        }
+        
+        // Add genomic filtering if provided via URL
+        if (genomicStart !== undefined && genomicEnd !== undefined) {
+          options.genomicStart = genomicStart;
+          options.genomicEnd = genomicEnd;
+          console.log('Applying genomic filtering:', genomicStart, '-', genomicEnd);
+        } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
+          options.treeStartIdx = treeStartIdx;
+          options.treeEndIdx = treeEndIdx;
+          console.log('Applying tree index filtering:', treeStartIdx, '-', treeEndIdx);
+        }
+        
+        const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
         
         if (graphData.metadata.sequence_length) {
@@ -529,7 +563,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     };
 
     fetchInitialData();
-  }, [filename, max_samples]);
+  }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx]);
 
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -545,6 +579,24 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         setLoading(true);
         
         const options = createFilterOptions(filterState, metadata, max_samples);
+        
+        // Always include URL parameters if present
+        if (temporalStart !== undefined && temporalEnd !== undefined) {
+          options.temporalStart = temporalStart;
+          options.temporalEnd = temporalEnd;
+        }
+        
+        // Add URL genomic parameters if no local filter is active
+        if (!options.genomicStart && !options.genomicEnd && !options.treeStartIdx && !options.treeEndIdx) {
+          if (genomicStart !== undefined && genomicEnd !== undefined) {
+            options.genomicStart = genomicStart;
+            options.genomicEnd = genomicEnd;
+          } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
+            options.treeStartIdx = treeStartIdx;
+            options.treeEndIdx = treeEndIdx;
+          }
+        }
+        
         const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
         
@@ -570,7 +622,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length]);
+  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx]);
 
   useEffect(() => {
     setVisualSettings(prev => ({

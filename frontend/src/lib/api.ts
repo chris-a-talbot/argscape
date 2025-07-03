@@ -87,16 +87,30 @@ class ApiService {
 
         clearTimeout(timeoutId);
 
-        const data = await response.json();
-        
+        // Safely parse response as JSON if possible, else fallback to text
+        const contentType = response.headers.get('content-type') || '';
+        let data: any = null;
+        let rawText: string | null = null;
+
+        if (contentType.includes('application/json')) {
+          data = await response.json();
+        } else {
+          // Fallback to text and try JSON parse just in case
+          rawText = await response.text();
+          try {
+            data = JSON.parse(rawText);
+          } catch {
+            data = null;
+          }
+        }
+
         if (!response.ok) {
-          // For HTTP errors, create an error with the detail from the response
-          const errorDetail = data?.detail || `HTTP error! status: ${response.status}`;
+          const errorDetail = (data && (data.detail || data.message)) || rawText || `HTTP error! status: ${response.status}`;
           throw new Error(errorDetail);
         }
-        
-        log.api.success(endpoint, method, data);
-        return { data, status: response.status };
+
+        log.api.success(endpoint, method, data ?? rawText);
+        return { data: (data ?? (rawText as any)), status: response.status };
       } catch (error) {
         // If this is already an Error object with a message from our error handling above, use it
         lastError = error instanceof Error ? error : new Error(String(error));
@@ -137,14 +151,28 @@ class ApiService {
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error(ERROR_MESSAGES.UPLOAD_FAILED);
+      const contentType = response.headers.get('content-type') || '';
+      let data: any = null;
+      let rawText: string | null = null;
+
+      if (contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        rawText = await response.text();
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = null;
+        }
       }
 
-      const data = await response.json();
-      log.api.success(endpoint, 'POST', data);
-      
-      return { data, status: response.status };
+      if (!response.ok) {
+        const errorDetail = (data && (data.detail || data.message)) || rawText || ERROR_MESSAGES.UPLOAD_FAILED;
+        throw new Error(errorDetail);
+      }
+
+      log.api.success(endpoint, 'POST', data ?? rawText);
+      return { data: (data ?? (rawText as any)), status: response.status };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.UPLOAD_FAILED;
       log.api.error(endpoint, new Error(errorMsg), 'POST');
@@ -208,6 +236,8 @@ class ApiService {
       genomicEnd?: number;
       treeStartIdx?: number;
       treeEndIdx?: number;
+      temporalStart?: number;
+      temporalEnd?: number;
       sampleOrder?: string;
     } = {}
   ) {
@@ -217,6 +247,8 @@ class ApiService {
     if (options.genomicEnd !== undefined) params.append('genomic_end', options.genomicEnd.toString());
     if (options.treeStartIdx !== undefined) params.append('tree_start_idx', options.treeStartIdx.toString());
     if (options.treeEndIdx !== undefined) params.append('tree_end_idx', options.treeEndIdx.toString());
+    if (options.temporalStart !== undefined) params.append('temporal_start', options.temporalStart.toString());
+    if (options.temporalEnd !== undefined) params.append('temporal_end', options.temporalEnd.toString());
     if (options.sampleOrder) params.append('sample_order', options.sampleOrder);
     
     const endpoint = `${API_CONFIG.ENDPOINTS.GRAPH_DATA}/${encodeURIComponent(filename)}?${params}`;
@@ -379,6 +411,27 @@ class ApiService {
     });
   }
 
+  async simplifyTreeSequence(params: {
+    filename: string;
+    samples?: number[];
+    map_nodes?: boolean;
+    reduce_to_site_topology?: boolean;
+    filter_populations?: boolean;
+    filter_individuals?: boolean;
+    filter_sites?: boolean;
+    filter_nodes?: boolean;
+    update_sample_flags?: boolean;
+    keep_unary?: boolean;
+    keep_unary_in_individuals?: boolean;
+    keep_input_roots?: boolean;
+    record_provenance?: boolean;
+  }) {
+    return this.request('/simplify-tree-sequence', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
+  }
+
   // Add health check endpoint
   async checkHealth() {
     return this.request<HealthCheckResponse>(API_CONFIG.ENDPOINTS.HEALTH);
@@ -468,6 +521,10 @@ export const api = {
   // Temporal inference
   inferTimesTsdate: (params: TsdateInferenceRequest) =>
     apiService.inferTimesTsdate(params),
+
+  // Tree sequence simplification
+  simplifyTreeSequence: (params: Parameters<typeof apiService.simplifyTreeSequence>[0]) =>
+    apiService.simplifyTreeSequence(params),
 
   // Health check
   checkHealth: () => apiService.checkHealth(),

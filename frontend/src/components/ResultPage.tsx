@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { useTreeSequence } from '../context/TreeSequenceContext';
 import { api } from '../lib/api';
@@ -320,6 +320,507 @@ const formatScientificNotation = (value: number): string => {
   return value.toExponential(8);  // Format with 8 decimal places
 };
 
+// Add advanced subsetting modal component
+function AdvancedSubsettingModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  totalSamples
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    filename: string;
+    samples?: number[];
+    map_nodes?: boolean;
+    reduce_to_site_topology?: boolean;
+    filter_populations?: boolean;
+    filter_individuals?: boolean;
+    filter_sites?: boolean;
+    filter_nodes?: boolean;
+    update_sample_flags?: boolean;
+    keep_unary?: boolean;
+    keep_unary_in_individuals?: boolean;
+    keep_input_roots?: boolean;
+    record_provenance?: boolean;
+  }) => void;
+  totalSamples: number;
+}) {
+  const [sampleInput, setSampleInput] = useState('');
+  const [sampleInputType, setSampleInputType] = useState<'comma' | 'range' | 'file'>('comma');
+  const [rangeStart, setRangeStart] = useState('0');
+  const [rangeEnd, setRangeEnd] = useState(totalSamples.toString());
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [mapNodes, setMapNodes] = useState(false);
+  const [reduceToSiteTopology, setReduceToSiteTopology] = useState(false);
+  const [filterPopulations, setFilterPopulations] = useState(false);
+  const [filterIndividuals, setFilterIndividuals] = useState(false);
+  const [filterSites, setFilterSites] = useState(false);
+  const [filterNodes, setFilterNodes] = useState(false);
+  const [updateSampleFlags, setUpdateSampleFlags] = useState(false);
+  const [keepUnary, setKeepUnary] = useState(false);
+  const [keepUnaryInIndividuals, setKeepUnaryInIndividuals] = useState(false);
+  const [keepInputRoots, setKeepInputRoots] = useState(false);
+  const [recordProvenance, setRecordProvenance] = useState(true);
+  const [samplePreviews, setSamplePreviews] = useState<number[]>([]);
+
+  const parseSamples = async (): Promise<number[]> => {
+    switch (sampleInputType) {
+      case 'comma':
+        if (!sampleInput.trim()) return [];
+        return sampleInput.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      
+      case 'range':
+        const start = parseInt(rangeStart);
+        const end = parseInt(rangeEnd);
+        if (isNaN(start) || isNaN(end) || start > end) return [];
+        return Array.from({ length: end - start + 1 }, (_, i) => start + i);
+      
+      case 'file':
+        if (!uploadedFile) return [];
+        const text = await uploadedFile.text();
+        const lines = text.split('\n').map(line => line.trim()).filter(line => line);
+        const samples = [];
+        for (const line of lines) {
+          // Try comma-separated values first
+          const values = line.split(',').map(v => v.trim());
+          for (const value of values) {
+            const num = parseInt(value);
+            if (!isNaN(num)) samples.push(num);
+          }
+        }
+        return samples;
+      
+      default:
+        return [];
+    }
+  };
+
+  const updatePreview = async () => {
+    try {
+      const samples = await parseSamples();
+      setSamplePreviews(samples.slice(0, 10)); // Preview first 10 samples
+    } catch (error) {
+      setSamplePreviews([]);
+    }
+  };
+
+  useEffect(() => {
+    updatePreview();
+  }, [sampleInput, sampleInputType, rangeStart, rangeEnd, uploadedFile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const samples = await parseSamples();
+      onConfirm({
+        filename: '', // Will be set by the calling component
+        samples: samples.length > 0 ? samples : undefined,
+        map_nodes: mapNodes,
+        reduce_to_site_topology: reduceToSiteTopology,
+        filter_populations: filterPopulations || undefined,
+        filter_individuals: filterIndividuals || undefined,
+        filter_sites: filterSites || undefined,
+        filter_nodes: filterNodes || undefined,
+        update_sample_flags: updateSampleFlags || undefined,
+        keep_unary: keepUnary,
+        keep_unary_in_individuals: keepUnaryInIndividuals || undefined,
+        keep_input_roots: keepInputRoots,
+        record_provenance: recordProvenance
+      });
+    } catch (error) {
+      console.error('Error parsing samples:', error);
+    }
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      setUploadedFile(file);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">Advanced Subsetting</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Sample Selection */}
+          <div>
+            <label className="block text-sm font-medium text-sp-white/80 mb-2">
+              Sample Selection Method
+            </label>
+            <select
+              value={sampleInputType}
+              onChange={(e) => setSampleInputType(e.target.value as 'comma' | 'range' | 'file')}
+              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+            >
+              <option value="comma">Comma-separated list</option>
+              <option value="range">Range</option>
+              <option value="file">Upload file</option>
+            </select>
+          </div>
+
+          {/* Sample Input Based on Type */}
+          {sampleInputType === 'comma' && (
+            <div>
+              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                Sample IDs (comma-separated)
+              </label>
+              <textarea
+                value={sampleInput}
+                onChange={(e) => setSampleInput(e.target.value)}
+                placeholder="0, 1, 2, 5, 10, 15"
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                rows={3}
+              />
+            </div>
+          )}
+
+          {sampleInputType === 'range' && (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                  Start Sample ID
+                </label>
+                <input
+                  type="number"
+                  value={rangeStart}
+                  onChange={(e) => setRangeStart(e.target.value)}
+                  min="0"
+                  max={totalSamples - 1}
+                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                  End Sample ID
+                </label>
+                <input
+                  type="number"
+                  value={rangeEnd}
+                  onChange={(e) => setRangeEnd(e.target.value)}
+                  min="0"
+                  max={totalSamples - 1}
+                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                />
+              </div>
+            </div>
+          )}
+
+          {sampleInputType === 'file' && (
+            <div>
+              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                Upload CSV/TSV File
+              </label>
+              <input
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleFileUpload}
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              />
+              <p className="text-xs text-sp-white/60 mt-1">
+                Upload a CSV or TSV file with sample IDs in a single column or row
+              </p>
+            </div>
+          )}
+
+          {/* Sample Preview */}
+          {samplePreviews.length > 0 && (
+            <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded p-3">
+              <p className="text-sm text-sp-white/80 mb-2">
+                Sample Preview ({samplePreviews.length} samples{samplePreviews.length === 10 ? '+' : ''}):
+              </p>
+              <p className="text-xs text-sp-white/60 font-mono">
+                {samplePreviews.join(', ')}{samplePreviews.length === 10 ? '...' : ''}
+              </p>
+            </div>
+          )}
+
+          {/* Simplify Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Simplification Options</h4>
+            
+            <div className="grid grid-cols-1 gap-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="map-nodes"
+                    checked={mapNodes}
+                    onChange={(e) => setMapNodes(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="map-nodes" className="ml-2 text-sm text-sp-white/80">
+                    Map nodes
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Return a mapping array showing how node IDs have changed in the simplified tree sequence.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="reduce-to-site-topology"
+                    checked={reduceToSiteTopology}
+                    onChange={(e) => setReduceToSiteTopology(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="reduce-to-site-topology" className="ml-2 text-sm text-sp-white/80">
+                    Reduce to site topology
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Only keep topology necessary to represent trees containing sites. Removes all trees without sites.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-populations"
+                    checked={filterPopulations}
+                    onChange={(e) => setFilterPopulations(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-populations" className="ml-2 text-sm text-sp-white/80">
+                    Filter populations
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Remove populations that are not referenced by any nodes after simplification. Population IDs may change.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-individuals"
+                    checked={filterIndividuals}
+                    onChange={(e) => setFilterIndividuals(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-individuals" className="ml-2 text-sm text-sp-white/80">
+                    Filter individuals
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Remove individuals that are not referenced by any nodes after simplification. Individual IDs may change.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-sites"
+                    checked={filterSites}
+                    onChange={(e) => setFilterSites(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-sites" className="ml-2 text-sm text-sp-white/80">
+                    Filter sites
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Remove sites that are not referenced by any mutations after simplification. Site IDs may change.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="filter-nodes"
+                    checked={filterNodes}
+                    onChange={(e) => setFilterNodes(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="filter-nodes" className="ml-2 text-sm text-sp-white/80">
+                    Filter nodes
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Remove nodes that are not referenced by any edges after simplification. This is the standard behavior.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="update-sample-flags"
+                    checked={updateSampleFlags}
+                    onChange={(e) => setUpdateSampleFlags(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="update-sample-flags" className="ml-2 text-sm text-sp-white/80">
+                    Update sample flags
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Update node flags so that only the specified samples have the IS_SAMPLE flag set.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="keep-unary"
+                    checked={keepUnary}
+                    onChange={(e) => setKeepUnary(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="keep-unary" className="ml-2 text-sm text-sp-white/80">
+                    Keep unary nodes
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Preserve nodes with exactly one child that exist on the path from samples to root.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="keep-unary-in-individuals"
+                    checked={keepUnaryInIndividuals}
+                    onChange={(e) => setKeepUnaryInIndividuals(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="keep-unary-in-individuals" className="ml-2 text-sm text-sp-white/80">
+                    Keep unary in individuals
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Keep unary nodes only if they are associated with an individual in the individuals table.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="keep-input-roots"
+                    checked={keepInputRoots}
+                    onChange={(e) => setKeepInputRoots(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="keep-input-roots" className="ml-2 text-sm text-sp-white/80">
+                    Keep input roots
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Retain history ancestral to the MRCA of the samples. Preserves the original tree roots.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="record-provenance"
+                    checked={recordProvenance}
+                    onChange={(e) => setRecordProvenance(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="record-provenance" className="ml-2 text-sm text-sp-white/80">
+                    Record provenance
+                  </label>
+                </div>
+                <div className="group relative">
+                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                    Record details of this simplification operation in the tree sequence's provenance information.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Simplify Tree Sequence
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Add mutation rate modal component
 function MutationRateModal({
   isOpen,
@@ -545,7 +1046,18 @@ function MutationRateModal({
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { treeSequence: data, maxSamples, setMaxSamples, setTreeSequence } = useTreeSequence();
+  const { 
+    treeSequence: data, 
+    maxSamples, 
+    setMaxSamples, 
+    setTreeSequence,
+    temporalRange,
+    setTemporalRange,
+    genomicRange,
+    setGenomicRange,
+    genomicMode,
+    setGenomicMode
+  } = useTreeSequence();
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
   const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
@@ -559,6 +1071,73 @@ export default function ResultPage() {
   const [isInferringTimes, setIsInferringTimes] = useState(false);
   const [showSecondTreeSequenceSelector, setShowSecondTreeSequenceSelector] = useState(false);
   const [selectedSecondTreeSequence, setSelectedSecondTreeSequence] = useState<TreeSequence | null>(null);
+  const [showAdvancedSubsettingModal, setShowAdvancedSubsettingModal] = useState(false);
+  const [isSimplifying, setIsSimplifying] = useState(false);
+  
+  // Temporal range input states
+  const [temporalStartInput, setTemporalStartInput] = useState('');
+  const [temporalEndInput, setTemporalEndInput] = useState('');
+  
+  // Genomic range input states  
+  const [genomicStartInput, setGenomicStartInput] = useState('');
+  const [genomicEndInput, setGenomicEndInput] = useState('');
+  
+  // Calculate min/max values for ranges based on current data
+  const minTemporalTime = data ? Math.min(...Object.values(data).filter(v => typeof v === 'number' && v >= 0)) : 0;
+  const maxTemporalTime = data ? Math.max(...Object.values(data).filter(v => typeof v === 'number' && v >= 0)) : 100;
+  const maxGenomicLength = data?.sequence_length || 1000000;
+  const maxTreeIndex = (data?.num_trees || 1) - 1;
+  const [searchParams] = useSearchParams();
+
+  // Effect to initialize ranges from URL parameters
+  useEffect(() => {
+    const temporalStart = searchParams.get('temporal_start');
+    const temporalEnd = searchParams.get('temporal_end');
+    const genomicStart = searchParams.get('genomic_start');
+    const genomicEnd = searchParams.get('genomic_end');
+    const treeStartIdx = searchParams.get('tree_start_idx');
+    const treeEndIdx = searchParams.get('tree_end_idx');
+
+    if (temporalStart && temporalEnd) {
+      const start = parseFloat(temporalStart);
+      const end = parseFloat(temporalEnd);
+      if (!isNaN(start) && !isNaN(end)) {
+        setTemporalRange([start, end]);
+      }
+    }
+
+    if (genomicStart && genomicEnd) {
+      const start = parseInt(genomicStart);
+      const end = parseInt(genomicEnd);
+      if (!isNaN(start) && !isNaN(end)) {
+        setGenomicMode('base_pairs');
+        setGenomicRange([start, end]);
+      }
+    } else if (treeStartIdx && treeEndIdx) {
+      const start = parseInt(treeStartIdx);
+      const end = parseInt(treeEndIdx);
+      if (!isNaN(start) && !isNaN(end)) {
+        setGenomicMode('tree_indices');
+        setGenomicRange([start, end]);
+      }
+    }
+  }, [searchParams, setTemporalRange, setGenomicRange, setGenomicMode]);
+
+  // Effect to update temporal input fields when range changes
+  useEffect(() => {
+    if (temporalRange) {
+      setTemporalStartInput(temporalRange[0].toString());
+      setTemporalEndInput(temporalRange[1].toString());
+    }
+  }, [temporalRange]);
+
+  // Effect to update genomic input fields when range changes
+  useEffect(() => {
+    if (genomicRange) {
+      setGenomicStartInput(genomicRange[0].toString());
+      setGenomicEndInput(genomicRange[1].toString());
+    }
+  }, [genomicRange]);
 
   // Modal states
   const [alertModal, setAlertModal] = useState<{
@@ -584,6 +1163,31 @@ export default function ResultPage() {
   useEffect(() => {
     setInputValue(maxSamples.toString());
   }, [maxSamples]);
+
+  // Calculate actual range values from the tree sequence data
+  const getTemporalRange = () => {
+    if (data?.temporal_range) {
+      return {
+        min: data.temporal_range.min_time,
+        max: data.temporal_range.max_time
+      };
+    }
+    return { min: 0, max: 100 }; // Default fallback
+  };
+
+  const getGenomicRange = () => {
+    return {
+      min: 0,
+      max: data?.sequence_length || 1000000
+    };
+  };
+
+  const getTreeIndexRange = () => {
+    return {
+      min: 0,
+      max: Math.max(0, (data?.num_trees || 1) - 1)
+    };
+  };
 
   // Determine button states based on backend data
   const inferTimesEnabled = !data?.has_temporal;
@@ -1050,6 +1654,82 @@ export default function ResultPage() {
     navigate(`/spatial-diff/${encodeURIComponent(data.filename)}?second=${encodeURIComponent(treeSequence.filename)}`);
   };
 
+  // Add advanced subsetting handler
+  const handleAdvancedSubsetting = async (params: Parameters<typeof api.simplifyTreeSequence>[0]) => {
+    if (!data?.filename || isSimplifying) return;
+
+    setIsSimplifying(true);
+    setShowAdvancedSubsettingModal(false);
+
+    try {
+      log.user.action('advanced-subsetting-start', { 
+        filename: data.filename,
+        numSamples: params.samples?.length || 'all',
+        options: params
+      }, 'ResultPage');
+
+      const result = await api.simplifyTreeSequence({
+        ...params,
+        filename: data.filename
+      });
+
+      log.info('Advanced subsetting completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+
+      // Update the tree sequence context with the new simplified tree sequence
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data, // Preserve existing data properties like size, content_type, status
+        filename: resultData.new_filename,
+        num_samples: resultData.num_samples,
+        num_nodes: resultData.num_nodes,
+        num_edges: resultData.num_edges,
+        num_trees: resultData.num_trees,
+        num_mutations: resultData.num_mutations,
+        has_temporal: resultData.has_temporal,
+        has_sample_spatial: resultData.has_sample_spatial,
+        has_all_spatial: resultData.has_all_spatial,
+        spatial_status: resultData.spatial_status
+      };
+
+      setTreeSequence(updatedData);
+
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `Tree sequence simplified successfully!\nReduced from ${resultData.original_samples} to ${resultData.samples_simplified} samples.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+
+    } catch (error) {
+      log.error('Advanced subsetting failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'object' && error !== null) {
+        errorMessage = (error as any).message || (error as any).detail || String(error);
+      } else {
+        errorMessage = String(error);
+      }
+      
+      setAlertModal({
+        isOpen: true,
+        title: 'Error',
+        message: `Advanced subsetting failed: ${errorMessage}`,
+        type: 'error'
+      });
+    } finally {
+      setIsSimplifying(false);
+    }
+  };
+
   if (!data) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
@@ -1064,7 +1744,7 @@ export default function ResultPage() {
       <ParticleBackground />
       <div className="bg-sp-very-dark-blue text-sp-white min-h-screen flex flex-col">
         <Navbar />
-        <div className="flex-grow px-4 pt-24 pb-20">
+        <div className="flex-grow px-4 pt-24 pb-32">
           {/* Header with logo and back button */}
           <div className="max-w-7xl mx-auto mb-8">
             <div className="text-center mb-8">
@@ -1166,105 +1846,310 @@ export default function ResultPage() {
                   </div>
                 </div>
                 
-                {/* Analysis Tools */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {/* Tree Sequence Modification */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                      <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-semibold text-sp-white">Tree Sequence Modification</h3>
+                    <p className="text-sm text-sp-white/60 ml-auto">Creates new tree sequence files</p>
+                  </div>
+
+                  {/* Analysis Tools */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <button
+                      className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!hasMutations && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
+                      disabled={!hasMutations || isInferringTimes}
+                      onClick={() => setShowMutationRateModal(true)}
+                    >
+                      {isInferringTimes && (
+                        <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+                      )}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>
+                        {isInferringTimes ? 'Inferring...' : 'Infer ages (tsdate)'}
+                      </span>
+                    </button>
+                    <LocationInferenceDropdown
+                      selectedMethod={selectedInferenceMethod}
+                      onMethodSelect={(method) => {
+                        setSelectedInferenceMethod(method.id);
+                        handleLocationInference(method);
+                      }}
+                      disabled={!fastLocationInferenceEnabled}
+                      isInferring={isInferring}
+                      data={data}
+                    />
+                  </div>
+
+                  {/* Simplify Button */}
                   <button
-                    className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!hasMutations && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                    disabled={!hasMutations || isInferringTimes}
-                    onClick={() => setShowMutationRateModal(true)}
+                    onClick={() => setShowAdvancedSubsettingModal(true)}
+                    disabled={isSimplifying}
+                    className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2 w-full justify-center ${
+                      isSimplifying && 'opacity-50 cursor-not-allowed hover:transform-none'
+                    }`}
                   >
-                    {isInferringTimes && (
+                    {isSimplifying && (
                       <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
                     )}
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    <span>
-                      {isInferringTimes ? 'Inferring...' : 'Infer ages (tsdate)'}
-                    </span>
+                    {isSimplifying ? 'Processing...' : 'Simplify Tree Sequence'}
                   </button>
-                  <LocationInferenceDropdown
-                    selectedMethod={selectedInferenceMethod}
-                    onMethodSelect={(method) => {
-                      setSelectedInferenceMethod(method.id);
-                      handleLocationInference(method);
-                    }}
-                    disabled={!fastLocationInferenceEnabled}
-                    isInferring={isInferring}
-                    data={data}
-                  />
                 </div>
 
-                {/* Sample count slider */}
-                <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                  <div className="flex items-center gap-3 mb-3">
+                {/* Visualization Limits Section */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
                     <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
                       <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                       </svg>
                     </div>
-                    <h4 className="font-medium text-sp-white text-sm">Visualization Sample Count</h4>
+                    <h3 className="text-lg font-semibold text-sp-white">Visualization Limits</h3>
+                    <p className="text-sm text-sp-white/60 ml-auto">Controls what is displayed (does not modify tree sequence)</p>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <input
-                      type="range"
-                      id="sample-slider"
-                      min="2"
-                      max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                      value={Math.max(maxSamples, 2)}
-                      onChange={(e) => setMaxSamples(parseInt(e.target.value))}
-                      className="flex-1 h-2 bg-sp-dark-blue rounded-lg appearance-none cursor-pointer accent-sp-pale-green"
-                    />
-                    <div className="flex items-center gap-2 min-w-[8rem]">
-                      <input
-                        type="number"
-                        value={inputValue}
-                        onChange={(e) => {
-                          const value = e.target.value;
-                          setInputValue(value);
-                          if (value !== '') {
-                            const numValue = parseInt(value);
-                            if (!isNaN(numValue)) {
-                              setMaxSamples(numValue);
-                            }
-                          }
-                        }}
-                        onBlur={(e) => {
-                          const value = parseInt(e.target.value);
-                          let finalValue = 2; // default minimum
-                          if (!isNaN(value)) {
-                            finalValue = Math.max(2, Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
-                          }
-                          setMaxSamples(finalValue);
-                          setInputValue(finalValue.toString());
-                        }}
-                        min="2"
-                        max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                        className="w-20 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
-                      />
-                      <span className="text-sm font-mono text-sp-white/70">
-                        / {totalSamples || '?'}
+
+                  {/* Sample count slider */}
+                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                        <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                        </svg>
+                      </div>
+                      <h4 className="font-medium text-sp-white text-sm">Sample Subsetting</h4>
+                      <span className="text-xs text-sp-white/60 ml-auto">
+                        Range: 2 - {totalSamples || '?'} samples
                       </span>
                     </div>
+                    <div className="flex items-center gap-4">
+                      <input
+                        type="range"
+                        id="sample-slider"
+                        min="2"
+                        max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
+                        value={Math.max(maxSamples, 2)}
+                        onChange={(e) => setMaxSamples(parseInt(e.target.value))}
+                        className="flex-1 h-2 bg-sp-dark-blue rounded-lg appearance-none cursor-pointer accent-sp-pale-green"
+                      />
+                      <div className="flex items-center gap-2 min-w-[8rem]">
+                        <input
+                          type="number"
+                          value={inputValue}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setInputValue(value);
+                            if (value !== '') {
+                              const numValue = parseInt(value);
+                              if (!isNaN(numValue)) {
+                                setMaxSamples(numValue);
+                              }
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = parseInt(e.target.value);
+                            let finalValue = 2; // default minimum
+                            if (!isNaN(value)) {
+                              finalValue = Math.max(2, Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
+                            }
+                            setMaxSamples(finalValue);
+                            setInputValue(finalValue.toString());
+                          }}
+                          min="2"
+                          max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
+                          className="w-20 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                        />
+                        <span className="text-sm font-mono text-sp-white/70">
+                          / {totalSamples || '?'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-2">
-                    <p className="text-xs text-sp-white/60">
-                      Adjust before visualizing to control the number of samples shown (minimum: 2)
-                    </p>
-                    {totalSamples && totalSamples > SAMPLE_LIMITS.WARNING_THRESHOLD && (
-                      <p className="text-xs text-sp-white/60 mt-1">
-                        Note: Large sample numbers may affect visualization performance
-                      </p>
-                    )}
+
+                  {/* Range Filtering - Combined Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Temporal Range Filtering */}
+                    <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                          <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <h4 className="font-medium text-sp-white text-sm">Temporal Range</h4>
+                        <span className="text-xs text-sp-white/60 ml-auto">
+                          {(() => {
+                            const tempRange = getTemporalRange();
+                            return data?.has_temporal ? 
+                              `Range: ${tempRange.min.toFixed(2)} - ${tempRange.max.toFixed(2)} time units` :
+                              'No temporal data available';
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="number"
+                          value={temporalStartInput}
+                          onChange={(e) => {
+                            setTemporalStartInput(e.target.value);
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value)) {
+                              const tempRange = getTemporalRange();
+                              setTemporalRange([value, temporalRange?.[1] ?? tempRange.max]);
+                            }
+                          }}
+                          placeholder={`Min: ${getTemporalRange().min.toFixed(2)}`}
+                          disabled={!data?.has_temporal}
+                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
+                        />
+                        <span className="text-sp-white/70">to</span>
+                        <input
+                          type="number"
+                          value={temporalEndInput}
+                          onChange={(e) => {
+                            setTemporalEndInput(e.target.value);
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value)) {
+                              const tempRange = getTemporalRange();
+                              setTemporalRange([temporalRange?.[0] ?? tempRange.min, value]);
+                            }
+                          }}
+                          placeholder={`Max: ${getTemporalRange().max.toFixed(2)}`}
+                          disabled={!data?.has_temporal}
+                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
+                        />
+                        <button
+                          onClick={() => {
+                            setTemporalRange(null);
+                            setTemporalStartInput('');
+                            setTemporalEndInput('');
+                          }}
+                          disabled={!data?.has_temporal}
+                          className="text-sp-pale-green hover:text-sp-very-pale-green disabled:opacity-50 disabled:hover:text-sp-pale-green"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Genomic Range Filtering */}
+                    <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
+                          <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                        </div>
+                        <h4 className="font-medium text-sp-white text-sm">Genomic Range</h4>
+                        <select
+                          value={genomicMode}
+                          onChange={(e) => {
+                            setGenomicMode(e.target.value as 'base_pairs' | 'tree_indices');
+                            setGenomicRange(null);
+                            setGenomicStartInput('');
+                            setGenomicEndInput('');
+                          }}
+                          className="bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-xs text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green ml-auto"
+                        >
+                          <option value="base_pairs">Base Pairs</option>
+                          <option value="tree_indices">Tree Indices</option>
+                        </select>
+                      </div>
+                      <div className="mb-2">
+                        <span className="text-xs text-sp-white/60">
+                          {(() => {
+                            if (genomicMode === 'base_pairs') {
+                              const genomicRange = getGenomicRange();
+                              return `Range: ${genomicRange.min.toLocaleString()} - ${genomicRange.max.toLocaleString()} bp`;
+                            } else {
+                              const treeRange = getTreeIndexRange();
+                              return `Range: ${treeRange.min} - ${treeRange.max} trees`;
+                            }
+                          })()}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          value={genomicStartInput}
+                          onChange={(e) => {
+                            setGenomicStartInput(e.target.value);
+                            const value = parseInt(e.target.value);
+                            if (!isNaN(value)) {
+                              const maxValue = genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max;
+                              setGenomicRange([value, genomicRange?.[1] ?? maxValue]);
+                            }
+                          }}
+                          min={0}
+                          max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
+                          placeholder={genomicMode === 'base_pairs' ? `Min: ${getGenomicRange().min}` : `Min: ${getTreeIndexRange().min}`}
+                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                        />
+                        <span className="text-sp-white/70 text-xs">to</span>
+                        <input
+                          type="number"
+                          value={genomicEndInput}
+                          onChange={(e) => {
+                            setGenomicEndInput(e.target.value);
+                            const value = parseInt(e.target.value);
+                            if (!isNaN(value)) {
+                              setGenomicRange([genomicRange?.[0] ?? 0, value]);
+                            }
+                          }}
+                          min={0}
+                          max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
+                          placeholder={genomicMode === 'base_pairs' ? `Max: ${getGenomicRange().max.toLocaleString()}` : `Max: ${getTreeIndexRange().max}`}
+                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                        />
+                        <button
+                          onClick={() => {
+                            setGenomicRange(null);
+                            setGenomicStartInput('');
+                            setGenomicEndInput('');
+                          }}
+                          className="text-sp-pale-green hover:text-sp-very-pale-green text-xs"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
                 {/* Visualization Options */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <button
                     className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
                     disabled={!visualizeArgEnabled}
-                    onClick={() => navigate(`/graph/${encodeURIComponent(data.filename)}`)}
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (temporalRange) {
+                        params.append('temporal_start', temporalRange[0].toString());
+                        params.append('temporal_end', temporalRange[1].toString());
+                      }
+                      if (genomicRange) {
+                        if (genomicMode === 'base_pairs') {
+                          params.append('genomic_start', genomicRange[0].toString());
+                          params.append('genomic_end', genomicRange[1].toString());
+                        } else {
+                          params.append('tree_start_idx', genomicRange[0].toString());
+                          params.append('tree_end_idx', genomicRange[1].toString());
+                        }
+                      }
+                      const queryString = params.toString();
+                      navigate(`/graph/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);
+                    }}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -1277,7 +2162,24 @@ export default function ResultPage() {
                   <button
                     className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeSpatialArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
                     disabled={!visualizeSpatialArgEnabled}
-                    onClick={() => navigate(`/spatial/${encodeURIComponent(data.filename)}`)}
+                    onClick={() => {
+                      const params = new URLSearchParams();
+                      if (temporalRange) {
+                        params.append('temporal_start', temporalRange[0].toString());
+                        params.append('temporal_end', temporalRange[1].toString());
+                      }
+                      if (genomicRange) {
+                        if (genomicMode === 'base_pairs') {
+                          params.append('genomic_start', genomicRange[0].toString());
+                          params.append('genomic_end', genomicRange[1].toString());
+                        } else {
+                          params.append('tree_start_idx', genomicRange[0].toString());
+                          params.append('tree_end_idx', genomicRange[1].toString());
+                        }
+                      }
+                      const queryString = params.toString();
+                      navigate(`/spatial/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);
+                    }}
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1300,19 +2202,6 @@ export default function ResultPage() {
                       <span className="text-sm opacity-80 block">Compare locations</span>
                     </div>
                   </button>
-                  <button
-                    className="bg-sp-dark-blue text-sp-white/50 font-bold py-5 px-6 rounded-xl flex flex-col items-center gap-2 opacity-40 cursor-not-allowed"
-                    disabled={true}
-                    title="Pretty ARG visualization coming soon"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
-                    </svg>
-                    <div className="text-center">
-                      <span className="text-base font-bold">Pretty ARG</span>
-                      <span className="text-sm opacity-60 block">Coming soon</span>
-                    </div>
-                  </button>
                 </div>
 
               </div>
@@ -1324,6 +2213,14 @@ export default function ResultPage() {
             isOpen={showMutationRateModal}
             onClose={() => setShowMutationRateModal(false)}
             onConfirm={handleTsdateInference}
+          />
+
+          {/* Advanced Subsetting Modal */}
+          <AdvancedSubsettingModal
+            isOpen={showAdvancedSubsettingModal}
+            onClose={() => setShowAdvancedSubsettingModal(false)}
+            onConfirm={handleAdvancedSubsetting}
+            totalSamples={totalSamples || 0}
           />
 
 
