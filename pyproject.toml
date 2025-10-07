@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "argscape"
-version = "0.2.0"
+version = "0.3.0"
 description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -39,6 +39,10 @@ dependencies = [
 
 [project.scripts]
 argscape = "argscape.cli:main"
+argscape_infer = "argscape.spatial_cli:main"
+# argscape_vis is disabled in 0.3.0 pending stabilization
+# argscape_vis = "argscape.vis_cli:main"
+argscape_load = "argscape.load_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

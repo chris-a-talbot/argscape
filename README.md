@@ -4,7 +4,7 @@
 
 #
 
-**ARGscape** (v0.2.0) is a comprehensive web application for visualizing and analyzing tree sequences and Ancestral Recombination Graphs (ARGs). Built with React and FastAPI, it aims to provide both an intuitive web interface and powerful computational backend for population genetics research.
+**ARGscape** (v0.3.0) is a comprehensive web application for visualizing and analyzing tree sequences (representing Ancestral Recombination Graphs, or ARGs). Built with React and FastAPI, it aims to provide an intuitive web interface, powerful computational backend, and simple command-line interface for spatiotemporal population genetics research.
 
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com) (May be blocked on some networks - working on it!)
 
@@ -12,36 +12,29 @@
 
 ## Features
 
-### Core Functionality
-- **File Upload & Management**: Upload and visualize `.trees` and `.tsz` tree sequence files
-- **Tree Sequence Simulation**: Generate new tree sequences using `msprime` with customizable parameters
-- **Interactive Visualization**: 
-  - 2D ARG network visualization with force-directed layouts
-  - 3D spatial visualization for spatially-embedded tree sequences
-  - Multiple sample ordering algorithms
-- **Location Inference**: Generate spatial coordinates based on genealogical relationships
-- **Session Management**: Secure temporary file storage with automatic cleanup
-- **Data Export**: Download processed tree sequences and visualizations
+### Core
+- **File upload & management**: Upload and visualize `.trees` / `.tsz` tree sequences
+- **Tree sequence simulation**: Generate data with `msprime` directly in the app
+- **Interactive visualization**:
+  - 2D ARG (force‑directed)
+  - 3D spatial ARG (for sequences with spatial coordinates)
+  - Spatial diff (compare two spatial sequences)
+- **Spatial inference**: Estimate locations for internal nodes from genealogical signal
+- **Session storage**: Persistent per‑client storage with auto‑cleanup
+- **Export**: Download processed tree sequences and rendered images
 
-### Visualization Capabilities
-- **2D ARG Visualizations**: Interactive visualizations of genealogical relationships
-- **Sample Ordering**: Multiple algorithms for optimal sample arrangement
-- **3D Spatial ARG Visualizations**: Three-dimensional visualization of spatially-embedded samples
-- **Customizable Rendering**: Adjustable node sizes, edge styles, colors, and layouts
-- **Tree Filtering**: Visualize specific genomic regions or tree index ranges
-- **Temporal Filtering**: Highlight specific temporal spans
+### Visualization details
+- **2D ARG**: pan/zoom, node IDs, edge spans, optional sample ordering strategies
+- **3D spatial ARG**: geographic grid, temporal planes, adjustable node/edge styles
+- **Filtering**: by genomic position, by tree index, and over time (temporal planes)
 
-### Session Management
+### Session management
+Files are stored in a per‑client session (locally at `dev_storage/` in development) for up to 24h. You can download outputs any time and remove files manually.
 
-- **Temporary storage**: Files stored securely for up to 24 hours
-- **Session persistence**: Continue work across browser sessions
-- **Data export**: Download processed tree sequences and visualizations
-- **Cleanup**: Remove files manually or wait for automatic cleanup
-
-### Advanced Features
-- **Batch Processing**: Handle multiple files per session
-- **Custom color themes**: Personalize visualization appearance
-- **Differential Visualization**: Compare multiple tree sequences with spatial data
+### Advanced
+- **Multiple files per session**
+- **Light/dark theme and custom color accents**
+- **Spatial diff view (two spatial sequences)**
 
 ## Visualization Gallery
 
@@ -65,12 +58,12 @@ Explore different time periods using the temporal slider controls.
 
 ![Temporal Slider](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/temporal_slider.png)
 
-## Quick Start
+## Quick start
 
 ### Option 1: Use the Live Website
 Visit [argscape.com](https://argscape.com) to start visualizing tree sequences immediately - no installation required. Storage space and computational power is extremely limited. Please refer to Option 2 below for more intensive uses. 
 
-### Option 2: Local Installation (Recommended)
+### Option 2: Local installation (recommended)
 
 Install ARGscape locally for better performance and offline use:
 
@@ -107,7 +100,7 @@ Install ARGscape locally for better performance and offline use:
 6. **Open in browser**:
    ARGscape opens automatically at http://127.0.0.1:8000. Wait 2-3 minutes for startup, then refresh if needed.
 
-#### Command Line Options
+#### Command‑line options
 ```bash
 argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
 
@@ -124,7 +117,7 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
 - **Package conflicts?** Add `--force-reinstall` flag to conda command
 - **Web interface not loading?** Wait 2-3 minutes, then refresh browser
 
-### Option 3: Local Development
+### Option 3: Local development
 
 #### Prerequisites
 - **Node.js 20+** and **npm**
@@ -164,7 +157,7 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
    - Backend API: http://localhost:8000
    - API docs: http://localhost:8000/docs
 
-### Option 4: Docker Development
+### Option 4: Docker development
 
 ```bash
 # Clone and start the development environment
@@ -180,83 +173,108 @@ The Docker setup provides a complete development environment with hot-reloading 
 
 Note: The Docker setup mounts your local code directories, so changes to the code will be reflected immediately in the running containers.
 
-## API Reference
+## API reference
 
-Full API documentation available at `/docs` when running locally.
+Interactive API docs are served at `/docs` when running locally, and at the production `/docs` endpoint when hosted. The OpenAPI schema documents endpoints for upload, simulation, inference, visualization data, and session management.
+
+## Command‑line tools (v0.3.0)
+
+ARGscape 0.3.0 includes a set of CLI tools for running the backend and performing inference from the terminal.
+
+- `argscape` – start the web app (API + UI)
+  - Examples:
+    - `argscape --no-browser` (local server at http://127.0.0.1:8000)
+    - `argscape --host 0.0.0.0 --port 8000`
+    - `argscape --no-tsdate` (disable temporal inference to speed startup)
+
+- `argscape_infer` – run spatial/temporal inference
+  - Subcommands:
+    - `load` – load a `.trees` file into persistent session storage
+    - `run` – run an inference method and save the output `.trees`
+    - (no subcommand) – interactive mode to pick file/method/output
+  - Methods: `midpoint`, `fastgaia`, `gaia-quadratic`, `gaia-linear`, `sparg`, `tsdate`
+  - Examples:
+    - `argscape_infer load --file /path/data.trees --name demo`
+    - `argscape_infer run --name demo --method midpoint --output ./out`
+    - `argscape_infer run --input /path/data.trees --method tsdate --output ./out`
+
+- `argscape_load` – manage persistent session storage
+  - Subcommands:
+    - `load` – load a `.trees` file: `argscape_load load --file /path/data.trees --name demo`
+    - `list` – list stored names: `argscape_load list`
+    - `rm` – remove by name: `argscape_load rm --name demo`
+    - `clear` – remove all files from the CLI session: `argscape_load clear`
+    - `load-with-locations` – load `.trees` and apply CSV locations:
+      ```bash
+      argscape_load load-with-locations \
+        --file /path/data.trees \
+        --sample-csv /path/sample_locations.csv \
+        --node-csv /path/node_locations.csv \
+        --name demo \
+        --output ./out
+      ```
+      CSVs must include columns: `node_id,x,y[,z]`. Samples must cover all sample node IDs; node CSV must cover all internal node IDs.
+
+Notes
+- Session storage is keyed per client; the above commands use a stable CLI session so data is available to both the web UI and CLI.
+- In 0.3.0 the visualization snapshot command (`argscape_vis`) is temporarily disabled while it’s stabilized.
 
 ## Development
 
-### Project Structure
+### Project structure
 ```
 argscape/
-├── argscape/                     # Main Python package
-│   ├── cli.py                    # Command-line interface
-│   ├── frontend_dist/            # Compiled frontend assets
-│   └── backend/                  # Backend application
-│       ├── main.py               # Main application entry point
-│       ├── startup.py            # Application startup logic
-│       ├── constants.py          # Application constants
-│       ├── session_storage.py    # Session management
-│       ├── location_inference.py # Location inference logic
-│       ├── midpoint_inference.py # Midpoint inference logic
-│       ├── sparg_inference.py    # SPARG inference logic
-│       ├── temporal_inference.py # Temporal inference logic
-│       ├── spatial_generation.py # Spatial data generation
-│       ├── graph_utils.py        # Graph utility functions
-│       ├── dev_storage_override.py # Development storage override
-│       ├── requirements-web.txt  # Web dependencies
-│       ├── environment.yml       # Conda environment
-│       ├── env.example           # Environment variables template
-│       ├── Dockerfile            # Backend container definition
-│       ├── dev_storage/          # Development storage directory
-│       ├── geo_utils/            # Geographic utilities
-│       │   └── data/             # Geographic data files
-│       │       ├── eastern_hemisphere.geojson
-│       │       └── ne_110m_land/ # Natural Earth land data
-│       ├── sparg/                # SPARG algorithm implementation
-│       └── tskit_utils/          # Tree sequence utilities
-├── frontend/                    # Frontend application (TypeScript/React)
-│   ├── src/                     # Source code
-│   │   ├── App.tsx              # Main application component
-│   │   ├── main.tsx             # Application entry point
-│   │   ├── components/          # React components
-│   │   │   ├── Home/            # Home page components
-│   │   │   ├── ForceDirectedGraph/ # Network visualization
-│   │   │   ├── SpatialArg3DVisualization/ # 3D spatial visualization
-│   │   │   ├── SpatialArgDiffVisualization/ # Diff visualization
-│   │   │   ├── tutorials/       # Tutorial components
-│   │   │   └── ui/              # UI components
-│   │   ├── hooks/               # Custom React hooks
-│   │   ├── context/             # React context providers
-│   │   ├── lib/                 # Utility libraries
-│   │   ├── utils/               # Utility functions
-│   │   ├── config/              # Configuration files
-│   │   └── types/               # TypeScript type definitions
-│   ├── public/                  # Static assets
-│   ├── package.json             # Frontend dependencies
-│   ├── tsconfig.json            # TypeScript configuration
-│   ├── nginx.conf               # Nginx configuration
-│   ├── components.json          # shadcn/ui components config
-│   └── Dockerfile               # Frontend container definition
-├── docker-compose.yml          # Docker Compose configuration
-├── Dockerfile                  # Root Dockerfile
-├── pyproject.toml              # Python project configuration
-├── railway.toml                # Railway deployment config
-├── setup.cfg                   # Python setup configuration
-├── package.json                # Root package.json
+├── argscape/                         # Python package
+│   ├── __init__.py                   # Package version (__version__)
+│   ├── cli.py                        # argscape (server launcher)
+│   ├── spatial_cli.py                # argscape_infer (CLI inference)
+│   ├── load_cli.py                   # argscape_load (storage management)
+│   ├── vis_cli.py                    # (disabled in v0.3.0)
+│   ├── frontend_dist/                # Built frontend (served by FastAPI)
+│   └── backend/                      # Backend app
+│       ├── main.py                   # FastAPI app with API + static mount
+│       ├── constants.py              # DEFAULT_API_VERSION, tunables
+│       ├── session_storage.py        # Persistent session storage
+│       ├── location_inference.py     # FastGAIA/GAIA/midpoint wrappers
+│       ├── midpoint_inference.py     # Midpoint algorithm
+│       ├── sparg_inference.py        # SPARG algorithm integration
+│       ├── temporal_inference.py     # tsdate integration
+│       ├── spatial_generation.py     # Spatial data generation helpers
+│       ├── graph_utils.py            # Graph conversion utilities
+│       ├── dev_storage_override.py   # Dev storage path override
+│       ├── environment.yml           # Conda env (reference)
+│       ├── Dockerfile                # Backend container
+│       ├── geo_utils/                # Geographic tools & data
+│       └── tskit_utils/              # Tree sequence IO helpers
+├── frontend/                          # React (Vite) web app
+│   ├── src/
+│   │   ├── components/               # UI & visualization components
+│   │   ├── context/                  # React contexts
+│   │   ├── hooks/                    # Custom hooks
+│   │   ├── lib/                      # API client & helpers
+│   │   └── config/                   # App config
+│   ├── public/                       # Static assets
+│   └── package.json
+├── dev_storage/                       # Local persisted sessions (ignored in prod)
+├── pyproject.toml                     # Build config (version 0.3.0)
+├── package.json                       # Root npm config (version 0.3.0)
+├── docker-compose.yml                 # Dev containers
+├── Dockerfile                         # Root container (if used)
+├── railway.toml                       # Railway deployment
+└── README.md
 ```
 
-## File Formats
+## File formats
 
-### Supported Inputs
+### Supported inputs
 - **`.trees`**: Standard tskit tree sequence format
 - **`.tsz`**: Compressed tree sequence format
 
-### Generated Outputs
+### Generated outputs
 - Tree sequences with updated inferred locations or node ages
 - Visualization data
 
-## Performance Notes
+## Performance notes
 
 - **File Size**: Recommended < 100MB per upload
 - **Samples**: Optimal performance with < 1000 nodes
@@ -278,9 +296,10 @@ This project is licensed under the MIT License.
 
 ## Acknowledgments
 
-- **tskit development team** for tree sequence simulation and analysis tools
-- **Bradburd Lab** for funding and support
-- **James Kitchens** for testing and feedback
+- **tskit development team** for testing, feedback, and the `tskit` tree sequence simulation and analysis tools
+- **Michael Grundler** and the **Bradburd Lab** for funding, support, testing, feedback, and the `gaia` algorithms
+- **James Kitchens** and the **Coop Lab** for testing, feedback, and the `sparg` algorithm
+- **Philipp Messer** and the **Messer Lab** for continued support
 
 ## Support
 

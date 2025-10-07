@@ -1,0 +1,43 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Local data/output
+/dev_storage/
+
+# Testing (exclude local testing scripts/data)
+/testing/
+
+# Node / Vite
+node_modules/
+frontend/node_modules/
+frontend/.vite/
+frontend/dist/
+
+# Frontend build artifacts (keep built files but ignore sourcemaps)
+argscape/frontend_dist/**/*.map
+
+# Env files
+.env
+.env.*
+frontend/.env
+frontend/.env.*
+
+# Editors
+.vscode/
+.idea/
+./build/
+/build/*
+build/**/*
+/build/
+/test/
+/test/**/*
+test/

@@ -12,7 +12,20 @@ def open_browser(host: str, port: int):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Start the Argscape web application.")
+    parser = argparse.ArgumentParser(
+        description="Start the ARGscape web application.",
+        epilog=(
+            "Related commands:\n"
+            "  argscape_infer   Run spatial/temporal inference from CLI (load/list/run/interactive)\n"
+            "  argscape_load    Load .trees files into persistent session storage\n"
+            "  argscape_vis     Capture 2D/3D visualization snapshots (optional: playwright)\n\n"
+            "Examples:\n"
+            "  argscape_infer load --file sample.trees --name demo\n"
+            "  argscape_infer run --name demo --method midpoint --output ./out\n"
+            "  argscape_vis run --view 3d --filename demo --output ./out\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument(
         "--host", type=str, default="127.0.0.1",
         help="Host to run the server on (default: 127.0.0.1)"
@@ -48,3 +61,7 @@ def main():
         port=args.port,
         reload=args.reload
     )
+
+
+if __name__ == "__main__":
+    main()

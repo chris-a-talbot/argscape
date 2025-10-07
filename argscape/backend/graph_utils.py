@@ -327,6 +327,25 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
     # Detect edges with mutations
     edges_with_mutations = detect_edges_with_mutations(ts)
     
+    # Detect effective location dimensionality (SLiM may emit a 3rd dim as NaN)
+    effective_location_dims = 2
+    try:
+        finite_z_count = 0
+        total_with_loc = 0
+        for individual in ts.individuals():
+            loc = individual.location
+            if loc is not None and len(loc) >= 2 and math.isfinite(float(loc[0])) and math.isfinite(float(loc[1])):
+                total_with_loc += 1
+                if len(loc) >= 3:
+                    z_val = float(loc[2])
+                    if math.isfinite(z_val):
+                        finite_z_count += 1
+        if finite_z_count > 0:
+            effective_location_dims = 3
+    except Exception:
+        # If anything goes wrong, default to 2D
+        effective_location_dims = 2
+
     # Build node and edge data
     connected_node_ids = set()
     for edge in ts.edges():
@@ -336,28 +355,35 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
     for node in ts.nodes():
         if node.is_sample() or node.id in connected_node_ids:
             time = node.time
-            log_time = math.log(time + 1e-10) if time > 0 else 0
-            
+            # Guard against non-finite values to keep JSON compliant
+            safe_time = float(time) if math.isfinite(time) else 0.0
+            log_time = math.log(safe_time + 1e-10) if safe_time > 0 else 0.0
+
             node_data = {
                 'id': node.id,
-                'time': time,
+                'time': safe_time,
                 'log_time': log_time,
                 'is_sample': node.is_sample(),
                 'individual': node.individual,
                 'ts_flags': int(node.flags)  # Include tskit node flags for recombination detection
             }
-            
-            # Add spatial location if available
+
+            # Add spatial location if available and finite
             if node.individual != -1 and node.individual < ts.num_individuals:
                 individual = ts.individual(node.individual)
                 if individual.location is not None and len(individual.location) >= 2:
-                    node_data['location'] = {
-                        'x': float(individual.location[0]),
-                        'y': float(individual.location[1])
-                    }
-                    if len(individual.location) >= 3 and individual.location[2] != 0:
-                        node_data['location']['z'] = float(individual.location[2])
-            
+                    x_val = float(individual.location[0])
+                    y_val = float(individual.location[1])
+                    if math.isfinite(x_val) and math.isfinite(y_val):
+                        node_data['location'] = {
+                            'x': x_val,
+                            'y': y_val
+                        }
+                        if effective_location_dims == 3 and len(individual.location) >= 3:
+                            z_val = float(individual.location[2])
+                            if math.isfinite(z_val):
+                                node_data['location']['z'] = z_val
+
             nodes.append(node_data)
     
     edges = []
@@ -394,7 +420,8 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
         'original_nodes': ts.num_nodes,
         'auto_filtered': False,
         'tree_intervals': tree_intervals,
-        'sample_order': sample_order
+        'sample_order': sample_order,
+        'location_dimensions': effective_location_dims
     }
     
     # If we have an expected tree count (from tree index filtering), include it
@@ -412,7 +439,10 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
     coordinates_with_spatial = []
     for node in nodes:
         if 'location' in node and node['location'] is not None:
-            coordinates_with_spatial.append((node['location']['x'], node['location']['y']))
+            x = node['location'].get('x')
+            y = node['location'].get('y')
+            if isinstance(x, (int, float)) and isinstance(y, (int, float)) and math.isfinite(x) and math.isfinite(y):
+                coordinates_with_spatial.append((x, y))
     
     if coordinates_with_spatial:
         from argscape.backend.geo_utils.crs_detect import detect_coordinate_system

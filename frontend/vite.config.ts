@@ -27,6 +27,8 @@ export default defineConfig({
         // Ensure assets are properly copied
         assetsInlineLimit: 0,
         copyPublicDir: true,
+        // Output compiled frontend into the Python package so backend can serve it
+        outDir: '../argscape/frontend_dist',
     },
     publicDir: 'public'
 })
