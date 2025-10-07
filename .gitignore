@@ -38,3 +38,6 @@ frontend/.env.*
 /build/*
 build/**/*
 /build/
+/test/
+/test/**/*
+test/
