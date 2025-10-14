@@ -10,6 +10,12 @@
 
 ![ARGscape Homepage](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/home.png)
 
+## Citation
+
+**ARGscape** is now in pre-print! If you use it in your work, please cite:
+
+Talbot, C., & Bradburd, G. (2025). ARGscape: A modular, interactive tool for manipulation of spatiotemporal ancestral recombination graphs. ArXiv.org. https://arxiv.org/abs/2510.07255
+
 ## Features
 
 ### Core
