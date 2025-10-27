@@ -456,6 +456,12 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     showCrsWarning: false
   });
 
+  // Auto-rotation state
+  const [autoRotation, setAutoRotation] = useState({
+    enabled: false,
+    rate: 10 // degrees per second
+  });
+
   const loadGeographicData = useCallback(async () => {
     try {
       setGeoState(prev => ({ ...prev, isLoading: true }));
@@ -630,6 +636,39 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       isFilterSectionCollapsed: !filterState.isActive && !temporalState.isActive
     }));
   }, [filterState.isActive, temporalState.isActive]);
+
+  // Auto-rotation effect
+  useEffect(() => {
+    if (!autoRotation.enabled) return;
+
+    let animationFrameId: number;
+    let lastTime: number;
+
+    const rotate = (currentTime: number) => {
+      if (!lastTime) {
+        lastTime = currentTime;
+      }
+      
+      const deltaTime = (currentTime - lastTime) / 1000; // Convert to seconds
+      const rotationDelta = autoRotation.rate * deltaTime;
+      
+      setViewState(prev => ({
+        ...prev,
+        rotationOrbit: (prev.rotationOrbit + rotationDelta) % 360
+      }));
+      
+      lastTime = currentTime;
+      animationFrameId = requestAnimationFrame(rotate);
+    };
+
+    animationFrameId = requestAnimationFrame(rotate);
+
+    return () => {
+      if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+      }
+    };
+  }, [autoRotation.enabled, autoRotation.rate]);
 
   const getFilteredData = (): GraphData | null => {
     if (!data) return data;
@@ -1123,6 +1162,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             currentViewState={viewState}
             bounds={calculateBounds(filteredData)}
             onViewStateChange={handlePresetViewChange}
+            autoRotationEnabled={autoRotation.enabled}
+            autoRotationRate={autoRotation.rate}
+            onAutoRotationEnabledChange={(enabled) => setAutoRotation(prev => ({ ...prev, enabled }))}
+            onAutoRotationRateChange={(rate) => setAutoRotation(prev => ({ ...prev, rate }))}
           />
           
           <SpatialArg3DControlPanel

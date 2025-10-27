@@ -21,6 +21,10 @@ interface SpatialArg3DPresetViewPanelProps {
     maxZ: number;
   } | null;
   onViewStateChange: (viewState: Partial<ViewState>) => void;
+  autoRotationEnabled: boolean;
+  autoRotationRate: number;
+  onAutoRotationEnabledChange: (enabled: boolean) => void;
+  onAutoRotationRateChange: (rate: number) => void;
 }
 
 // Zoom level constants
@@ -33,7 +37,11 @@ const ZOOM_LEVELS = {
 export const SpatialArg3DPresetViewPanel: React.FC<SpatialArg3DPresetViewPanelProps> = ({
   currentViewState,
   bounds,
-  onViewStateChange
+  onViewStateChange,
+  autoRotationEnabled,
+  autoRotationRate,
+  onAutoRotationEnabledChange,
+  onAutoRotationRateChange
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -290,6 +298,81 @@ export const SpatialArg3DPresetViewPanel: React.FC<SpatialArg3DPresetViewPanelPr
                   <span>{option.label}</span>
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Auto-Rotation Control */}
+          <div className="space-y-2 pt-2 border-t" style={{ borderTopColor: colors.border }}>
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Auto-Rotation</h4>
+            
+            {/* Toggle Button */}
+            <button
+              onClick={() => onAutoRotationEnabledChange(!autoRotationEnabled)}
+              className={`w-full px-2 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 ${
+                autoRotationEnabled ? 'border-2' : 'border'
+              }`}
+              style={{
+                backgroundColor: autoRotationEnabled ? colors.accentPrimary : colors.containerBackground,
+                color: autoRotationEnabled ? colors.background : colors.text,
+                borderColor: autoRotationEnabled ? colors.accentPrimary : colors.border
+              }}
+              onMouseEnter={(e) => {
+                if (!autoRotationEnabled) {
+                  e.currentTarget.style.backgroundColor = `${colors.border}40`;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!autoRotationEnabled) {
+                  e.currentTarget.style.backgroundColor = colors.containerBackground;
+                }
+              }}
+            >
+              <svg 
+                className="w-3 h-3" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+                style={{
+                  animation: autoRotationEnabled ? 'spin 2s linear infinite' : 'none'
+                }}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {autoRotationEnabled ? 'Disable Auto-Rotation' : 'Enable Auto-Rotation'}
+            </button>
+
+            {/* Rotation Rate Slider */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold" style={{ color: colors.text }}>
+                  Rotation Speed
+                </label>
+                <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ 
+                  color: `${colors.text}CC`, 
+                  backgroundColor: `${colors.containerBackground}80` 
+                }}>
+                  {autoRotationRate}°/s
+                </span>
+              </div>
+              <input
+                type="range"
+                min="1"
+                max="60"
+                step="1"
+                value={autoRotationRate}
+                onChange={(e) => onAutoRotationRateChange(Number(e.target.value))}
+                disabled={!autoRotationEnabled}
+                className="w-full h-1 rounded-lg cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((autoRotationRate - 1) / 59) * 100}%, ${colors.border} ${((autoRotationRate - 1) / 59) * 100}%, ${colors.border} 100%)`,
+                  accentColor: colors.accentPrimary,
+                  opacity: autoRotationEnabled ? 1 : 0.5
+                }}
+              />
+              <div className="flex justify-between text-xs" style={{ color: `${colors.text}99` }}>
+                <span>Slow</span>
+                <span>Fast</span>
+              </div>
             </div>
           </div>
 

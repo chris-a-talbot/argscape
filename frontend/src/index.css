@@ -113,3 +113,13 @@
     box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.6);
   }
 }
+
+/* Auto-rotation spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
