@@ -23,24 +23,20 @@ Talbot, C., & Bradburd, G. (2025). ARGscape: A modular, interactive tool for man
 - **Tree sequence simulation**: Generate data with `msprime` directly in the app
 - **Interactive visualization**:
   - 2D ARG (force‑directed)
-  - 3D spatial ARG (for sequences with spatial coordinates)
-  - Spatial diff (compare two spatial sequences)
+  - 3D Spatial ARG (for sequences with spatial coordinates)
+  - Spatial Diff (compare two spatial sequences)
+  - Heatmap (via any spatial visualization, view ancestry heatmap rather than precise locations)
 - **Spatial inference**: Estimate locations for internal nodes from genealogical signal
 - **Session storage**: Persistent per‑client storage with auto‑cleanup
 - **Export**: Download processed tree sequences and rendered images
 
 ### Visualization details
 - **2D ARG**: pan/zoom, node IDs, edge spans, optional sample ordering strategies
-- **3D spatial ARG**: geographic grid, temporal planes, adjustable node/edge styles
+- **3D spatial ARG**: geographic grid, temporal planes, adjustable node/edge styles, heatmap, built-in animations
 - **Filtering**: by genomic position, by tree index, and over time (temporal planes)
 
 ### Session management
 Files are stored in a per‑client session (locally at `dev_storage/` in development) for up to 24h. You can download outputs any time and remove files manually.
-
-### Advanced
-- **Multiple files per session**
-- **Light/dark theme and custom color accents**
-- **Spatial diff view (two spatial sequences)**
 
 ## Visualization Gallery
 
@@ -63,6 +59,11 @@ Three-dimensional rendering of spatially-embedded tree sequences with geographic
 Explore different time periods using the temporal slider controls.
 
 ![Temporal Slider](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/temporal_slider.png)
+
+#### Ancestry Heatmap
+View a heatmap of ancestral locations across specific chunks of time.
+
+![Ancestry Heatmap](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/heatmap.png)
 
 ## Quick start
 
@@ -117,11 +118,6 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
 #   --no-browser      Don't automatically open the web browser
 #   --no-tsdate       Disable tsdate temporal inference (enabled by default)
 ```
-
-#### Troubleshooting
-- **Conda not found?** Check PATH or use Anaconda Prompt (Windows)
-- **Package conflicts?** Add `--force-reinstall` flag to conda command
-- **Web interface not loading?** Wait 2-3 minutes, then refresh browser
 
 ### Option 3: Local development
 
@@ -227,49 +223,6 @@ Notes
 
 ## Development
 
-### Project structure
-```
-argscape/
-├── argscape/                         # Python package
-│   ├── __init__.py                   # Package version (__version__)
-│   ├── cli.py                        # argscape (server launcher)
-│   ├── spatial_cli.py                # argscape_infer (CLI inference)
-│   ├── load_cli.py                   # argscape_load (storage management)
-│   ├── vis_cli.py                    # (disabled in v0.3.0)
-│   ├── frontend_dist/                # Built frontend (served by FastAPI)
-│   └── backend/                      # Backend app
-│       ├── main.py                   # FastAPI app with API + static mount
-│       ├── constants.py              # DEFAULT_API_VERSION, tunables
-│       ├── session_storage.py        # Persistent session storage
-│       ├── location_inference.py     # FastGAIA/GAIA/midpoint wrappers
-│       ├── midpoint_inference.py     # Midpoint algorithm
-│       ├── sparg_inference.py        # SPARG algorithm integration
-│       ├── temporal_inference.py     # tsdate integration
-│       ├── spatial_generation.py     # Spatial data generation helpers
-│       ├── graph_utils.py            # Graph conversion utilities
-│       ├── dev_storage_override.py   # Dev storage path override
-│       ├── environment.yml           # Conda environment specification
-│       ├── Dockerfile                # Backend container (for docker-compose)
-│       ├── geo_utils/                # Geographic tools & data
-│       └── tskit_utils/              # Tree sequence IO helpers
-├── frontend/                          # React (Vite) web app
-│   ├── src/
-│   │   ├── components/               # UI & visualization components
-│   │   ├── context/                  # React contexts
-│   │   ├── hooks/                    # Custom hooks
-│   │   ├── lib/                      # API client & helpers
-│   │   └── config/                   # App config
-│   ├── public/                       # Static assets
-│   ├── package.json                  # Frontend dependencies
-│   └── Dockerfile                    # Frontend container (for production)
-├── dev_storage/                       # Local persisted sessions (gitignored)
-├── pyproject.toml                     # Python package configuration
-├── docker-compose.yml                 # Development environment
-├── Dockerfile                         # Production container (Railway)
-├── railway.toml                       # Railway deployment config
-└── README.md                          # This file
-```
-
 ## File formats
 
 ### Supported inputs
@@ -297,8 +250,6 @@ argscape/
 ## License
 
 This project is licensed under the MIT License.
-
-## Citation
 
 ## Acknowledgments
 
