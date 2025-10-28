@@ -116,6 +116,7 @@ export interface EdgeLabelSettings {
 
 export interface EdgeMutationSettings {
     showMutationMarkers: boolean;
+    markerSize: number;
 }
 
 export type TemporalSpacingMode = 'equal' | 'log' | 'linear';

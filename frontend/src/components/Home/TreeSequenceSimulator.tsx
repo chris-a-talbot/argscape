@@ -303,7 +303,6 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
           </div>
           <div>
             <h3 className="text-lg font-semibold text-sp-white">Simulation Parameters</h3>
-            <p className="text-sp-white/60 text-xs">Configure the tree sequence simulation settings</p>
           </div>
         </div>
 

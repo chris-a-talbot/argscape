@@ -19,6 +19,7 @@ export interface EdgeLabelSettings {
 
 export interface EdgeMutationSettings {
     showMutationMarkers: boolean;
+    markerSize: number;
 }
 
 export interface LabelConnectingLine3D {

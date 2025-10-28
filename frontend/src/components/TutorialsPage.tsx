@@ -41,217 +41,98 @@ export default function TutorialsPage() {
   const modules: Module[] = [
     {
       id: 'module-1',
-      title: 'Genetic Foundations & Evolutionary Processes',
-      description: 'Start your journey by understanding the fundamental concepts of genetics and evolution that form the basis of ancestral recombination graphs.',
+      title: 'Genetics',
+      description: 'Foundation of genetic principles.',
       lessons: [
         {
           id: 'lesson-1-1',
-          title: "Life's Code: DNA, Genes, Alleles, and Variation",
-          description: 'Discover the basics of DNA, genes, and how genetic variation shapes diversity within populations.',
+          title: 'DNA and Inheritance',
+          description: 'Coming soon.',
           duration: '20 min',
           status: 'coming-soon'
         },
         {
           id: 'lesson-1-2',
-          title: 'Passing the Torch: Inheritance, Meiosis, and Generations',
-          description: 'Learn about Mendelian inheritance, meiosis, and how genetic information flows through generations.',
-          duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-1-3',
-          title: 'The Origins of Novelty & Diversity: Mutation and Recombination',
-          description: 'Explore how mutations create new alleles and recombination shuffles existing variation.',
+          title: 'Mutation and Recombination',
+          description: 'Coming soon.',
           duration: '25 min',
           status: 'coming-soon'
         },
         {
-          id: 'lesson-1-4',
-          title: 'Populations, Gene Pools, and Allele Frequencies',
-          description: 'Understand populations, shared gene pools, and how to describe variation using allele frequencies.',
-          duration: '20 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-1-5',
-          title: 'Forces Shaping Populations: Drift, Selection, and Gene Flow',
-          description: 'Learn about key evolutionary mechanisms: genetic drift, natural selection, and gene flow.',
-          duration: '30 min',
+          id: 'lesson-1-3',
+          title: 'Population Genetics',
+          description: 'Coming soon.',
+          duration: '25 min',
           status: 'coming-soon'
         }
       ]
     },
     {
       id: 'module-2',
-      title: 'Thinking Backwards – The Coalescent Framework',
-      description: 'Learn about coalescent theory and how it helps us understand ancestral relationships in populations.',
+      title: 'Coalescence',
+      description: 'Tracing ancestry backward in time.',
       lessons: [
         {
           id: 'lesson-2-1',
-          title: 'A Retrospective View: Introduction to Coalescent Theory',
-          description: 'Understand the concept of tracing ancestry backward in time and how lineages merge in common ancestors.',
+          title: 'Introduction to Coalescent Theory',
+          description: 'Coming soon.',
           duration: '25 min',
           status: 'coming-soon'
         },
         {
           id: 'lesson-2-2',
-          title: 'The Coalescent Process: Probability and Timing',
-          description: 'Learn about coalescence probabilities and timing in relation to population size.',
+          title: 'The Wright-Fisher Model',
+          description: 'Coming soon.',
           duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-2-3',
-          title: 'The Wright-Fisher Model and Effective Population Size',
-          description: 'Explore the Wright-Fisher model and understand the crucial concept of effective population size.',
-          duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-2-4',
-          title: 'Impact of Recombination on Coalescent Histories',
-          description: 'Discover how recombination affects the coalescent process and creates independent histories.',
-          duration: '25 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-2-5',
-          title: 'Genealogies Along the Chromosome: Marginal Trees and Tree Sequences',
-          description: 'Learn about marginal trees and how tree sequences efficiently store genealogical information.',
-          duration: '25 min',
           status: 'coming-soon'
         }
       ]
     },
     {
       id: 'module-3',
-      title: 'Simulating Evolutionary Histories',
-      description: 'Master the tools in the tskit ecosystem for simulating and analyzing evolutionary histories.',
+      title: 'Simulation',
+      description: 'Simulating evolutionary histories.',
       lessons: [
         {
           id: 'lesson-3-1',
-          title: 'Simulating Coalescent Histories with msprime',
-          description: 'Deep dive into msprime for generating tree sequences through coalescent simulation.',
-          duration: '35 min',
+          title: 'Coalescent Simulation with msprime',
+          description: 'Coming soon.',
+          duration: '30 min',
           status: 'coming-soon'
         },
         {
           id: 'lesson-3-2',
-          title: 'Simulating Forward with SLiM',
-          description: 'Learn about forward-time simulation with SLiM for modeling selection and complex ecology.',
+          title: 'Forward Simulation with SLiM',
+          description: 'Coming soon.',
           duration: '35 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-3-3',
-          title: 'Bridging Simulators: The Power of pyslim and Recapitation',
-          description: 'Understand how to combine SLiM and msprime simulations using pyslim.',
-          duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-3-4',
-          title: 'Adding Mutations to Simulated Genealogies',
-          description: 'Learn how mutations are added to tree sequences in different simulation frameworks.',
-          duration: '25 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-3-5',
-          title: 'Understanding Tree Sequence Data: Nodes, Edges, and Tables',
-          description: 'Explore the internal structure of tree sequences in tskit.',
-          duration: '30 min',
           status: 'coming-soon'
         }
       ]
     },
     {
       id: 'module-4',
-      title: 'The Ancestral Recombination Graph (ARG) and tskit Interaction',
-      description: 'Understand ARGs in depth and how they are represented and analyzed using tskit.',
+      title: 'ARGs',
+      description: 'Understanding ancestral recombination graphs.',
       lessons: [
         {
           id: 'lesson-4-1',
-          title: 'Defining the Ancestral Recombination Graph',
-          description: 'Learn what an ARG is and how it relates to marginal trees and recombination events.',
+          title: 'What is an ARG?',
+          description: 'Coming soon.',
           duration: '25 min',
           status: 'coming-soon'
         },
         {
           id: 'lesson-4-2',
-          title: "Visualizing ARGs: Challenges and ARGscape's Approaches",
-          description: 'Explore different approaches to visualizing complex ARG structures.',
+          title: 'Visualizing ARGs',
+          description: 'Coming soon.',
           duration: '30 min',
           status: 'coming-soon'
         },
         {
           id: 'lesson-4-3',
-          title: 'Extracting Information: Querying Tree Sequences with tskit',
-          description: 'Learn how to extract useful information from tree sequences using ARGscape.',
+          title: 'Working with Tree Sequences',
+          description: 'Coming soon.',
           duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-4-4',
-          title: 'Inferring ARGs from Real Data: tsinfer and Its Output',
-          description: 'Understand how ARGs are inferred from real sequence data using tsinfer.',
-          duration: '35 min',
-          status: 'coming-soon'
-        }
-      ]
-    },
-    {
-      id: 'module-5',
-      title: 'Temporal and Spatial Dimensions of Ancestry',
-      description: 'Add temporal and spatial context to ancestral relationships using advanced inference methods.',
-      lessons: [
-        {
-          id: 'lesson-5-1',
-          title: 'Dating the Past: Temporal Inference with tsdate',
-          description: 'Learn how to estimate node ages in tree sequences using tsdate.',
-          duration: '30 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-5-2',
-          title: 'Placing Ancestry in Space: Introduction to Spatial Population Genetics',
-          description: 'Understand the importance of geography in evolutionary history.',
-          duration: '25 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-5-3',
-          title: 'Methods for Inferring Ancestral Locations',
-          description: 'Explore different algorithms for inferring ancestral geographic locations.',
-          duration: '35 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-5-4',
-          title: 'Hands-on Spatial Inference and Visualization in ARGscape',
-          description: 'Practice using spatial inference and visualization tools in ARGscape.',
-          duration: '40 min',
-          status: 'coming-soon'
-        },
-        {
-          id: 'lesson-5-5',
-          title: 'Comparing Spatial Inferences and Exploring Discrete Spaces',
-          description: 'Learn to compare different spatial inference methods and work with discrete spaces.',
-          duration: '35 min',
-          status: 'coming-soon'
-        }
-      ]
-    },
-    {
-      id: 'module-6',
-      title: 'Extending Skills and the tskit Horizon',
-      description: 'Learn how to extend your analysis beyond ARGscape using the broader tskit ecosystem.',
-      lessons: [
-        {
-          id: 'lesson-6-1',
-          title: 'The tskit Ecosystem and Your Journey Forward',
-          description: 'Explore the tskit ecosystem and learn how to extend your analysis programmatically.',
-          duration: '40 min',
           status: 'coming-soon'
         }
       ]
@@ -288,8 +169,7 @@ export default function TutorialsPage() {
               <div className="text-center mb-12">
                 <h1 className="text-4xl font-bold mb-4">Learn ARGs</h1>
                 <p className="text-sp-white/70 text-lg max-w-2xl mx-auto">
-                  Master the concepts of ancestral recombination graphs through our carefully crafted tutorials, 
-                  starting with fundamental principles and progressing to advanced applications.
+                  Learn about ancestral recombination graphs through interactive tutorials.
                 </p>
                 <button
                   onClick={() => setShowClearProgressModal(true)}

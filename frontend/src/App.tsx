@@ -17,6 +17,7 @@ import { api } from './lib/api';
 import { log } from './lib/logger';
 import LessonPage from './components/LessonPage';
 import InstallPage from './components/InstallPage';
+import BackgroundAnimationPage from './components/BackgroundAnimationPage';
 
 // Loading screen component
 function LoadingScreen({ logs }: { logs: string[] }) {
@@ -269,6 +270,7 @@ function App() {
             <Route path="/simulate" element={<Home />} />
             <Route path="/load" element={<Home />} />
             <Route path="/install" element={<Layout><InstallPage /></Layout>} />
+            <Route path="/background-animation" element={<BackgroundAnimationPage />} />
             <Route path="/graph/:filename" element={<ArgVisualizationPage />} />
             <Route path="/spatial/:filename" element={<SpatialArg3DVisualizationPage />} />
             <Route path="/spatial-diff/:filename" element={<SpatialArgDiffVisualizationPage />} />

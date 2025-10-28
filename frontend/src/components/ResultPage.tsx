@@ -4,13 +4,14 @@ import { useTreeSequence } from '../context/TreeSequenceContext';
 import { api } from '../lib/api';
 import { log } from '../lib/logger';
 import { SAMPLE_LIMITS } from '../config/constants';
-import ClickableLogo from './ui/ClickableLogo';
 import AlertModal from './ui/AlertModal';
 import { DownloadDropdown } from './ui/DownloadDropdown';
 import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
 import Navbar from './ui/Navbar';
 import ParticleBackground from './ui/ParticleBackground';
 import Footer from './Footer';
+import { CollapsibleSection } from './ui/CollapsibleSection';
+import { RangeSlider } from './ui/range-slider';
 
 // Use the TreeSequenceData type from the context
 type TreeSequence = NonNullable<ReturnType<typeof useTreeSequence>['treeSequence']>;
@@ -1065,12 +1066,12 @@ export default function ResultPage() {
   const [isInferringLocationsMidpoint, setIsInferringLocationsMidpoint] = useState(false);
   const [isInferringLocationsSparg, setIsInferringLocationsSparg] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
-  const [inputValue, setInputValue] = useState(maxSamples.toString());
+  const [, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
   const [showMutationRateModal, setShowMutationRateModal] = useState(false);
   const [isInferringTimes, setIsInferringTimes] = useState(false);
   const [showSecondTreeSequenceSelector, setShowSecondTreeSequenceSelector] = useState(false);
-  const [selectedSecondTreeSequence, setSelectedSecondTreeSequence] = useState<TreeSequence | null>(null);
+  const [, setSelectedSecondTreeSequence] = useState<TreeSequence | null>(null);
   const [showAdvancedSubsettingModal, setShowAdvancedSubsettingModal] = useState(false);
   const [isSimplifying, setIsSimplifying] = useState(false);
   
@@ -1082,11 +1083,6 @@ export default function ResultPage() {
   const [genomicStartInput, setGenomicStartInput] = useState('');
   const [genomicEndInput, setGenomicEndInput] = useState('');
   
-  // Calculate min/max values for ranges based on current data
-  const minTemporalTime = data ? Math.min(...Object.values(data).filter(v => typeof v === 'number' && v >= 0)) : 0;
-  const maxTemporalTime = data ? Math.max(...Object.values(data).filter(v => typeof v === 'number' && v >= 0)) : 100;
-  const maxGenomicLength = data?.sequence_length || 1000000;
-  const maxTreeIndex = (data?.num_trees || 1) - 1;
   const [searchParams] = useSearchParams();
 
   // Effect to initialize ranges from URL parameters
@@ -1757,247 +1753,203 @@ export default function ResultPage() {
           <div className="max-w-7xl mx-auto">
             <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
               <div className="p-8 space-y-6">
-                {/* Header Section - Data Attributes and Buttons */}
-                <div className="flex justify-between items-center">
-                  {/* Data Attributes - Left Side */}
-                  <div className="flex flex-wrap gap-3">
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-                      data.has_temporal ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
-                    }`}>
-                      <span className={`inline-block ${data.has_temporal ? 'text-sp-white' : 'text-red-400'}`}>
-                        {data.has_temporal ? '✔️' : '✖️'}
-                      </span>
-                      Temporal
-                    </div>
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-                      data.has_sample_spatial ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
-                    }`}>
-                      <span className={`inline-block ${data.has_sample_spatial ? 'text-sp-white' : 'text-red-400'}`}>
-                        {data.has_sample_spatial ? '✔️' : '✖️'}
-                      </span>
-                      Sample Coords
-                    </div>
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-                      data.has_all_spatial ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
-                    }`}>
-                      <span className={`inline-block ${data.has_all_spatial ? 'text-sp-white' : 'text-red-400'}`}>
-                        {data.has_all_spatial ? '✔️' : '✖️'}
-                      </span>
-                      All Coords
-                    </div>
-                    <div className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium ${
-                      hasMutations ? 'bg-sp-dark-blue text-sp-white border border-sp-pale-green/20' : 'bg-transparent text-sp-white/70'
-                    }`}>
-                      <span className={`inline-block ${hasMutations ? 'text-sp-white' : 'text-red-400'}`}>
-                        {hasMutations ? '✔️' : '✖️'}
-                      </span>
-                      Mutations
-                    </div>
-                  </div>
-                  
-                  {/* Action Buttons - Right Side */}
-                  <div className="flex gap-2">
-                    <button 
-                      className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
-                      onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                      </svg>
-                      {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
-                    </button>
-                    <DownloadDropdown 
-                      filename={data.filename}
-                      onError={(error) => {
-                        setAlertModal({
-                          isOpen: true,
-                          title: 'Download Failed',
-                          message: `Failed to download tree sequence: ${error.message}`,
-                          type: 'error'
-                        });
-                      }}
-                    />
-                  </div>
-                </div>
-                
-
-
-                {/* Data Overview Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-sp-pale-green">{data.num_samples}</div>
-                    <div className="text-xs text-sp-white/70">Samples</div>
-                  </div>
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-sp-pale-green">{data.num_nodes}</div>
-                    <div className="text-xs text-sp-white/70">Nodes</div>
-                  </div>
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-sp-pale-green">{data.num_edges}</div>
-                    <div className="text-xs text-sp-white/70">Edges</div>
-                  </div>
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-sp-pale-green">{data.num_trees}</div>
-                    <div className="text-xs text-sp-white/70">Local Trees</div>
-                  </div>
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-3 text-center">
-                    <div className="text-lg font-bold text-sp-pale-green">{data.num_mutations ?? 0}</div>
-                    <div className="text-xs text-sp-white/70">Mutations</div>
-                  </div>
-                </div>
-                
-                {/* Tree Sequence Modification */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
-                      <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-sp-white">Tree Sequence Modification</h3>
-                    <p className="text-sm text-sp-white/60 ml-auto">Creates new tree sequence files</p>
-                  </div>
-
-                  {/* Analysis Tools */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <button
-                      className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 ${!hasMutations && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                      disabled={!hasMutations || isInferringTimes}
-                      onClick={() => setShowMutationRateModal(true)}
-                    >
-                      {isInferringTimes && (
-                        <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
-                      )}
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      <span>
-                        {isInferringTimes ? 'Inferring...' : 'Infer ages (tsdate)'}
-                      </span>
-                    </button>
-                    <LocationInferenceDropdown
-                      selectedMethod={selectedInferenceMethod}
-                      onMethodSelect={(method) => {
-                        setSelectedInferenceMethod(method.id);
-                        handleLocationInference(method);
-                      }}
-                      disabled={!fastLocationInferenceEnabled}
-                      isInferring={isInferring}
-                      data={data}
-                    />
-                  </div>
-
-                  {/* Simplify Button */}
-                  <button
-                    onClick={() => setShowAdvancedSubsettingModal(true)}
-                    disabled={isSimplifying}
-                    className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2 w-full justify-center ${
-                      isSimplifying && 'opacity-50 cursor-not-allowed hover:transform-none'
-                    }`}
+                {/* Quick Actions Bar */}
+                <div className="flex justify-between items-center gap-3 flex-wrap">
+                  <button 
+                    className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                    onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
                   >
-                    {isSimplifying && (
-                      <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
-                    )}
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                    </svg>
+                    {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
+                  </button>
+                  <DownloadDropdown 
+                    filename={data.filename}
+                    onError={(error) => {
+                      setAlertModal({
+                        isOpen: true,
+                        title: 'Download Failed',
+                        message: `Failed to download tree sequence: ${error.message}`,
+                        type: 'error'
+                      });
+                    }}
+                  />
+                </div>
+
+                {/* Data Overview - Always Visible, Compact */}
+                <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-4">
+                  <div className="flex flex-wrap items-center gap-3 justify-between">
+                    {/* Statistics - Compact inline */}
+                    <div className="flex flex-wrap gap-3 text-sm">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sp-white/60">Samples:</span>
+                        <span className="font-mono font-bold text-sp-pale-green">{data.num_samples.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sp-white/60">Nodes:</span>
+                        <span className="font-mono font-bold text-sp-pale-green">{data.num_nodes.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sp-white/60">Edges:</span>
+                        <span className="font-mono font-bold text-sp-pale-green">{data.num_edges.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sp-white/60">Trees:</span>
+                        <span className="font-mono font-bold text-sp-pale-green">{data.num_trees.toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sp-white/60">Mutations:</span>
+                        <span className="font-mono font-bold text-sp-pale-green">{(data.num_mutations ?? 0).toLocaleString()}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Data Attributes - Compact badges */}
+                    <div className="flex flex-wrap gap-2">
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
+                        data.has_temporal ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
+                      }`} title={data.has_temporal ? "Node times available" : "No temporal data"}>
+                        <span className="text-[10px]">{data.has_temporal ? '✔️' : '✖️'}</span>
+                        Temporal
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
+                        data.has_sample_spatial ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
+                      }`} title={data.has_sample_spatial ? "Sample coordinates available" : "No sample coordinates"}>
+                        <span className="text-[10px]">{data.has_sample_spatial ? '✔️' : '✖️'}</span>
+                        Samples
+                      </div>
+                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
+                        data.has_all_spatial ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
+                      }`} title={data.has_all_spatial ? "All node coordinates available" : "Not all nodes have coordinates"}>
+                        <span className="text-[10px]">{data.has_all_spatial ? '✔️' : '✖️'}</span>
+                        All
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Tree Sequence Modification Section */}
+                <CollapsibleSection
+                  title="Tree Sequence Modification"
+                  icon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
-                    {isSimplifying ? 'Processing...' : 'Simplify Tree Sequence'}
-                  </button>
-                </div>
-
-                {/* Visualization Limits Section */}
-                <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
-                      <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  }
+                  subtitle="Simplify tree sequences or infer spatiotemporal info"
+                  defaultOpen={false}
+                >
+                  <div className="space-y-3">
+                    {/* Simplify Button - At Top */}
+                    <button
+                      onClick={() => setShowAdvancedSubsettingModal(true)}
+                      disabled={isSimplifying}
+                      className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 w-full justify-center ${
+                        isSimplifying ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
+                      }`}
+                      title="Simplify the tree sequence to retain only specific samples or nodes"
+                    >
+                      {isSimplifying && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-sp-pale-green border-t-transparent"></div>
+                      )}
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
-                    </div>
-                    <h3 className="text-lg font-semibold text-sp-white">Visualization Limits</h3>
-                    <p className="text-sm text-sp-white/60 ml-auto">Controls what is displayed (does not modify tree sequence)</p>
-                  </div>
+                      {isSimplifying ? 'Processing...' : 'Simplify Tree Sequence'}
+                    </button>
 
-                  {/* Sample count slider */}
-                  <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
-                        <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                    {/* Inference Tools */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <button
+                        className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 ${
+                          !hasMutations ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
+                        }`}
+                        disabled={!hasMutations || isInferringTimes}
+                        onClick={() => setShowMutationRateModal(true)}
+                        title={!hasMutations ? "Requires mutations" : "Infer node ages using tsdate"}
+                      >
+                        {isInferringTimes && (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-sp-pale-green border-t-transparent"></div>
+                        )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                      </div>
-                      <h4 className="font-medium text-sp-white text-sm">Sample Subsetting</h4>
-                      <span className="text-xs text-sp-white/60 ml-auto">
-                        Range: 2 - {totalSamples || '?'} samples
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <input
-                        type="range"
-                        id="sample-slider"
-                        min="2"
-                        max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                        value={Math.max(maxSamples, 2)}
-                        onChange={(e) => setMaxSamples(parseInt(e.target.value))}
-                        className="flex-1 h-2 bg-sp-dark-blue rounded-lg appearance-none cursor-pointer accent-sp-pale-green"
+                        {isInferringTimes ? 'Inferring...' : 'Infer Ages (tsdate)'}
+                      </button>
+                      <LocationInferenceDropdown
+                        selectedMethod={selectedInferenceMethod}
+                        onMethodSelect={(method) => {
+                          setSelectedInferenceMethod(method.id);
+                          handleLocationInference(method);
+                        }}
+                        disabled={!fastLocationInferenceEnabled}
+                        isInferring={isInferring}
+                        data={data}
                       />
-                      <div className="flex items-center gap-2 min-w-[8rem]">
-                        <input
-                          type="number"
-                          value={inputValue}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setInputValue(value);
-                            if (value !== '') {
-                              const numValue = parseInt(value);
-                              if (!isNaN(numValue)) {
-                                setMaxSamples(numValue);
-                              }
-                            }
-                          }}
-                          onBlur={(e) => {
-                            const value = parseInt(e.target.value);
-                            let finalValue = 2; // default minimum
-                            if (!isNaN(value)) {
-                              finalValue = Math.max(2, Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
-                            }
-                            setMaxSamples(finalValue);
-                            setInputValue(finalValue.toString());
-                          }}
-                          min="2"
-                          max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                          className="w-20 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
-                        />
-                        <span className="text-sm font-mono text-sp-white/70">
-                          / {totalSamples || '?'}
-                        </span>
-                      </div>
                     </div>
+                  </div>
+                </CollapsibleSection>
+
+                {/* Visualization Section - Combined Settings and Launch */}
+                <CollapsibleSection
+                  title="Visualization"
+                  icon={
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
+                    </svg>
+                  }
+                  subtitle="Configure display settings and launch visualizations"
+                  defaultOpen={true}
+                >
+
+                  {/* Sample Subsetting */}
+                  <div className="mb-6">
+                    <h4 className="font-medium text-sp-white text-sm mb-3 flex items-center gap-2" title="Choose how many samples to display in the visualization">
+                      <svg className="w-4 h-4 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                      </svg>
+                      Sample Subsetting
+                      <span className="text-xs text-sp-white/60 font-normal ml-auto">
+                        Total: {totalSamples?.toLocaleString() || '?'} samples
+                      </span>
+                    </h4>
+                    <RangeSlider
+                      min={2}
+                      max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
+                      value={[2, Math.max(maxSamples, 2)]}
+                      onChange={([_, max]) => {
+                        setMaxSamples(max);
+                        setInputValue(max.toString());
+                      }}
+                      formatValue={(v) => v.toLocaleString()}
+                      step={1}
+                    />
                   </div>
 
                   {/* Range Filtering - Combined Row */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Temporal Range Filtering */}
                     <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-3 mb-2">
                         <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
                           <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                        <h4 className="font-medium text-sp-white text-sm">Temporal Range</h4>
-                        <span className="text-xs text-sp-white/60 ml-auto">
+                        <h4 className="font-medium text-sp-white text-sm" title="Filter nodes and edges by time">Temporal Range</h4>
+                      </div>
+                      <div className="mb-3">
+                        <span className="text-xs text-sp-white/60">
                           {(() => {
                             const tempRange = getTemporalRange();
                             return data?.has_temporal ? 
-                              `Range: ${tempRange.min.toFixed(2)} - ${tempRange.max.toFixed(2)} time units` :
+                              `Available: ${tempRange.min.toFixed(2)} - ${tempRange.max.toFixed(2)} time units` :
                               'No temporal data available';
                           })()}
                         </span>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-2">
                         <input
                           type="number"
                           value={temporalStartInput}
@@ -2012,8 +1964,9 @@ export default function ResultPage() {
                           placeholder={`Min: ${getTemporalRange().min.toFixed(2)}`}
                           disabled={!data?.has_temporal}
                           className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
+                          title="Minimum time value"
                         />
-                        <span className="text-sp-white/70">to</span>
+                        <span className="text-sp-white/70 text-sm">to</span>
                         <input
                           type="number"
                           value={temporalEndInput}
@@ -2028,6 +1981,7 @@ export default function ResultPage() {
                           placeholder={`Max: ${getTemporalRange().max.toFixed(2)}`}
                           disabled={!data?.has_temporal}
                           className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
+                          title="Maximum time value"
                         />
                         <button
                           onClick={() => {
@@ -2036,7 +1990,8 @@ export default function ResultPage() {
                             setTemporalEndInput('');
                           }}
                           disabled={!data?.has_temporal}
-                          className="text-sp-pale-green hover:text-sp-very-pale-green disabled:opacity-50 disabled:hover:text-sp-pale-green"
+                          className="text-sp-pale-green hover:text-sp-very-pale-green disabled:opacity-50 disabled:hover:text-sp-pale-green text-sm px-2"
+                          title="Reset to full range"
                         >
                           Clear
                         </button>
@@ -2045,13 +2000,13 @@ export default function ResultPage() {
 
                     {/* Genomic Range Filtering */}
                     <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-3">
+                      <div className="flex items-center gap-3 mb-2">
                         <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
                           <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                           </svg>
                         </div>
-                        <h4 className="font-medium text-sp-white text-sm">Genomic Range</h4>
+                        <h4 className="font-medium text-sp-white text-sm" title="Filter by genomic position or tree index">Genomic Range</h4>
                         <select
                           value={genomicMode}
                           onChange={(e) => {
@@ -2061,20 +2016,21 @@ export default function ResultPage() {
                             setGenomicEndInput('');
                           }}
                           className="bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-xs text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green ml-auto"
+                          title="Choose between base pair positions or tree indices"
                         >
                           <option value="base_pairs">Base Pairs</option>
                           <option value="tree_indices">Tree Indices</option>
                         </select>
                       </div>
-                      <div className="mb-2">
+                      <div className="mb-3">
                         <span className="text-xs text-sp-white/60">
                           {(() => {
                             if (genomicMode === 'base_pairs') {
                               const genomicRange = getGenomicRange();
-                              return `Range: ${genomicRange.min.toLocaleString()} - ${genomicRange.max.toLocaleString()} bp`;
+                              return `Available: ${genomicRange.min.toLocaleString()} - ${genomicRange.max.toLocaleString()} bp`;
                             } else {
                               const treeRange = getTreeIndexRange();
-                              return `Range: ${treeRange.min} - ${treeRange.max} trees`;
+                              return `Available: ${treeRange.min} - ${treeRange.max} trees`;
                             }
                           })()}
                         </span>
@@ -2095,8 +2051,9 @@ export default function ResultPage() {
                           max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
                           placeholder={genomicMode === 'base_pairs' ? `Min: ${getGenomicRange().min}` : `Min: ${getTreeIndexRange().min}`}
                           className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                          title={genomicMode === 'base_pairs' ? "Minimum base pair position" : "Starting tree index"}
                         />
-                        <span className="text-sp-white/70 text-xs">to</span>
+                        <span className="text-sp-white/70 text-sm">to</span>
                         <input
                           type="number"
                           value={genomicEndInput}
@@ -2111,6 +2068,7 @@ export default function ResultPage() {
                           max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
                           placeholder={genomicMode === 'base_pairs' ? `Max: ${getGenomicRange().max.toLocaleString()}` : `Max: ${getTreeIndexRange().max}`}
                           className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                          title={genomicMode === 'base_pairs' ? "Maximum base pair position" : "Ending tree index"}
                         />
                         <button
                           onClick={() => {
@@ -2118,17 +2076,21 @@ export default function ResultPage() {
                             setGenomicStartInput('');
                             setGenomicEndInput('');
                           }}
-                          className="text-sp-pale-green hover:text-sp-very-pale-green text-xs"
+                          className="text-sp-pale-green hover:text-sp-very-pale-green text-sm px-2"
+                          title="Reset to full range"
                         >
                           Clear
                         </button>
                       </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Visualization Options */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Divider */}
+                  <div className="border-t border-sp-pale-green/20 my-4"></div>
+
+                  {/* Launch Buttons */}
+                  <h4 className="font-medium text-sp-white text-sm mb-3">Launch Visualization</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
                     disabled={!visualizeArgEnabled}
@@ -2202,7 +2164,8 @@ export default function ResultPage() {
                       <span className="text-sm opacity-80 block">Compare locations</span>
                     </div>
                   </button>
-                </div>
+                  </div>
+                </CollapsibleSection>
 
               </div>
             </div>

@@ -62,16 +62,16 @@ export const SampleOrderControl: React.FC<SampleOrderControlProps> = ({
 
   return (
     <div className={`space-y-2 ${className}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+      <div className="flex items-start gap-2">
+        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
           Basic:
         </span>
-        <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+        <div className="flex flex-wrap gap-1 flex-1">
           {basicOrderOptions.map((option) => (
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className="px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap"
+              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
               style={{
                 backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
                 color: value === option.value ? colors.background : colors.text
@@ -84,16 +84,16 @@ export const SampleOrderControl: React.FC<SampleOrderControlProps> = ({
         </div>
       </div>
       
-      <div className="flex items-center gap-2">
-        <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+      <div className="flex items-start gap-2">
+        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
           Custom:
         </span>
-        <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+        <div className="flex flex-wrap gap-1 flex-1">
           {customOrderOptions.map((option) => (
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className="px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap"
+              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
               style={{
                 backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
                 color: value === option.value ? colors.background : colors.text
@@ -106,16 +106,16 @@ export const SampleOrderControl: React.FC<SampleOrderControlProps> = ({
         </div>
       </div>
       
-      <div className="flex items-center gap-2">
-        <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+      <div className="flex items-start gap-2">
+        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
           Static:
         </span>
-        <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+        <div className="flex flex-wrap gap-1 flex-1">
           {staticOrderOptions.map((option) => (
             <button
               key={option.value}
               onClick={() => onChange(option.value)}
-              className="px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap"
+              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
               style={{
                 backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
                 color: value === option.value ? colors.background : colors.text

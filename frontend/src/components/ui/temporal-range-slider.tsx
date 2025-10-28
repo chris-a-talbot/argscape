@@ -10,6 +10,7 @@ interface TemporalRangeSliderProps {
   formatValue?: (value: number) => string;
   className?: string;
   height?: number;
+  label?: string;
 }
 
 export const TemporalRangeSlider: React.FC<TemporalRangeSliderProps> = ({
@@ -20,7 +21,8 @@ export const TemporalRangeSlider: React.FC<TemporalRangeSliderProps> = ({
   onChange,
   formatValue = (v) => v.toFixed(3),
   className = "",
-  height = 400
+  height = 400,
+  label = "Temporal Filter"
 }) => {
   const { colors } = useColorTheme();
   const [isDragging, setIsDragging] = useState<'top' | 'bottom' | 'range' | null>(null);
@@ -105,8 +107,31 @@ export const TemporalRangeSlider: React.FC<TemporalRangeSliderProps> = ({
     const newValue = getValueFromPosition(e.clientY);
     const [currentMin, currentMax] = value;
 
-    if (isDragging === 'top') {
-      // Top handle controls the maximum value - allow it to pass the bottom handle
+    // If Shift is pressed, maintain range size and move the window
+    if (isShiftPressed && (isDragging === 'top' || isDragging === 'bottom')) {
+      const rangeSize = currentMax - currentMin;
+      const deltaY = e.clientY - dragStart.y;
+      const rect = sliderRef.current.getBoundingClientRect();
+      // Inverted delta because we're working with a vertical slider
+      const deltaValue = -(deltaY / rect.height) * (max - min);
+      const [startMin, startMax] = dragStart.startValue;
+      
+      let newMin = startMin + deltaValue;
+      let newMax = startMax + deltaValue;
+      
+      // Constrain to bounds
+      if (newMin < min) {
+        newMin = min;
+        newMax = min + rangeSize;
+      }
+      if (newMax > max) {
+        newMax = max;
+        newMin = max - rangeSize;
+      }
+      
+      onChange([Math.round(newMin / step) * step, Math.round(newMax / step) * step]);
+    } else if (isDragging === 'top') {
+      // Normal mode: expand/contract by moving top handle (max value)
       const newMax = Math.max(min, Math.min(max, newValue));
       // If handles would cross, swap them
       if (newMax < currentMin) {
@@ -115,7 +140,7 @@ export const TemporalRangeSlider: React.FC<TemporalRangeSliderProps> = ({
         onChange([currentMin, newMax]);
       }
     } else if (isDragging === 'bottom') {
-      // Bottom handle controls the minimum value - allow it to pass the top handle
+      // Normal mode: expand/contract by moving bottom handle (min value)
       const newMin = Math.max(min, Math.min(max, newValue));
       // If handles would cross, swap them
       if (newMin > currentMax) {
@@ -191,113 +216,125 @@ export const TemporalRangeSlider: React.FC<TemporalRangeSliderProps> = ({
   const bottomPosition = getPositionFromValue(value[0]); // Min value position
 
   return (
-    <div className={`flex items-center gap-3 ${className}`} style={{ height, userSelect: 'none' }}>
-      {/* Value labels */}
-      <div className="flex flex-col justify-between text-xs" style={{ color: colors.text, height }}>
-        <span>{formatValue(max)}</span>
-        <span>{formatValue(value[1])}</span>
-        <span className="flex-1"></span>
-        <span>{formatValue(value[0])}</span>
-        <span>{formatValue(min)}</span>
+    <div className={`flex flex-col items-center gap-3 ${className}`} style={{ height, userSelect: 'none' }}>
+      {/* Label */}
+      <div className="text-xs font-medium text-center px-2" style={{ color: colors.text }}>
+        {label}
       </div>
       
-      {/* Vertical slider track */}
-      <div className="flex flex-col items-center">
-        <div 
-          ref={sliderRef}
-          className="relative w-4 rounded-full cursor-pointer"
-          style={{ 
-            height: height - 40,
-            backgroundColor: colors.containerBackground 
-          }}
-          onMouseDown={(e) => {
-            const newValue = getValueFromPosition(e.clientY);
-            const [minVal, maxVal] = value;
-            const minDistance = Math.abs(newValue - minVal);
-            const maxDistance = Math.abs(newValue - maxVal);
-            
-            // If shift is pressed or handles are very close (overlapping), prefer range dragging
-            if (isShiftPressed || Math.abs(maxVal - minVal) < step * 2) {
-              handleMouseDown(e, 'range');
-            } else if (minDistance < maxDistance) {
-              handleMouseDown(e, 'bottom');
-            } else {
-              handleMouseDown(e, 'top');
-            }
-          }}
-        >
-          {/* Selected range */}
-          <div 
-            className={`absolute w-full rounded-full transition-opacity ${
-              isShiftPressed ? 'cursor-grabbing' : 'cursor-grab'
-            } active:cursor-grabbing`}
-            style={{
-              top: `${topPosition}%`,
-              height: `${bottomPosition - topPosition}%`,
-              backgroundColor: isShiftPressed ? colors.text : colors.textSecondary,
-              opacity: isShiftPressed ? 0.8 : 1,
-              userSelect: 'none'
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleMouseDown(e, 'range');
-            }}
-          />
-          
-          {/* Top handle (max value) */}
-          <div 
-            className="absolute w-6 h-6 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing shadow-md"
-            style={{ 
-              top: `${topPosition}%`, 
-              left: '50%',
-              backgroundColor: colors.background,
-              borderColor: colors.textSecondary,
-              userSelect: 'none'
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleMouseDown(e, 'top');
-            }}
-          />
-          
-          {/* Bottom handle (min value) */}
-          <div 
-            className="absolute w-6 h-6 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing shadow-md"
-            style={{ 
-              top: `${bottomPosition}%`, 
-              left: '50%',
-              backgroundColor: colors.background,
-              borderColor: colors.textSecondary,
-              userSelect: 'none'
-            }}
-            onMouseDown={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              handleMouseDown(e, 'bottom');
-            }}
-          />
+      <div className="flex items-center gap-3 flex-1">
+        {/* Value labels */}
+        <div className="flex flex-col justify-between text-xs font-mono" style={{ color: colors.accentPrimary, height: height - 60 }}>
+          <span>{formatValue(max)}</span>
+          <div className="flex-1 flex flex-col justify-center gap-2">
+            <span className="font-bold">{formatValue(value[1])}</span>
+            <span className="font-bold">{formatValue(value[0])}</span>
+          </div>
+          <span>{formatValue(min)}</span>
         </div>
         
-        {/* Instructions */}
-        <div className="mt-2 text-xs text-center" style={{ color: colors.text }}>
-          <div>Temporal</div>
-          <div>Filter</div>
-          {/* Reserve space for the Fixed Size indicator */}
-          <div className="mt-1 h-4 flex items-center justify-center">
-            {isShiftPressed ? (
-              <div className="px-1 py-0.5 rounded text-xs opacity-80" style={{ 
-                backgroundColor: colors.textSecondary, 
-                color: colors.background,
-                fontSize: '10px'
-              }}>
-                Fixed
-              </div>
-            ) : null}
+        {/* Vertical slider track */}
+        <div className="flex flex-col items-center">
+          <div 
+            ref={sliderRef}
+            className="relative w-5 rounded-lg cursor-pointer"
+            style={{ 
+              height: height - 60,
+              backgroundColor: colors.border
+            }}
+            onMouseDown={(e) => {
+              const newValue = getValueFromPosition(e.clientY);
+              const [minVal, maxVal] = value;
+              const minDistance = Math.abs(newValue - minVal);
+              const maxDistance = Math.abs(newValue - maxVal);
+              
+              // If shift is pressed or handles are very close (overlapping), prefer range dragging
+              if (isShiftPressed || Math.abs(maxVal - minVal) < step * 2) {
+                handleMouseDown(e, 'range');
+              } else if (minDistance < maxDistance) {
+                handleMouseDown(e, 'bottom');
+              } else {
+                handleMouseDown(e, 'top');
+              }
+            }}
+          >
+            {/* Selected range */}
+            <div 
+              className={`absolute w-full rounded-lg transition-all ${
+                isShiftPressed ? 'cursor-grabbing' : 'cursor-grab'
+              } active:cursor-grabbing`}
+              style={{
+                top: `${topPosition}%`,
+                height: `${bottomPosition - topPosition}%`,
+                backgroundColor: isShiftPressed ? colors.accentPrimary : colors.textSecondary,
+                opacity: isShiftPressed ? 0.9 : 0.7,
+                userSelect: 'none'
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleMouseDown(e, 'range');
+              }}
+            />
+            
+            {/* Top handle (max value) */}
+            <div 
+              className={`absolute w-6 h-6 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+                isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
+              }`}
+              style={{ 
+                top: `${topPosition}%`, 
+                left: '50%',
+                backgroundColor: colors.background,
+                borderColor: colors.accentPrimary,
+                boxShadow: `0 2px 4px ${colors.background}40`,
+                userSelect: 'none',
+                zIndex: isDragging === 'top' ? 10 : 5
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleMouseDown(e, 'top');
+              }}
+            />
+            
+            {/* Bottom handle (min value) */}
+            <div 
+              className={`absolute w-6 h-6 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+                isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
+              }`}
+              style={{ 
+                top: `${bottomPosition}%`, 
+                left: '50%',
+                backgroundColor: colors.background,
+                borderColor: colors.accentPrimary,
+                boxShadow: `0 2px 4px ${colors.background}40`,
+                userSelect: 'none',
+                zIndex: isDragging === 'bottom' ? 10 : 5
+              }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleMouseDown(e, 'bottom');
+              }}
+            />
           </div>
         </div>
       </div>
+      
+      {/* Shift indicator */}
+      <div className="h-6 flex items-center justify-center">
+        {isShiftPressed && (
+          <div className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1" style={{ 
+            backgroundColor: colors.accentPrimary, 
+            color: colors.background,
+            fontSize: '10px'
+          }}>
+            <span>⇅</span>
+            <span>Move</span>
+          </div>
+        )}
+      </div>
     </div>
   );
-}; 
+};

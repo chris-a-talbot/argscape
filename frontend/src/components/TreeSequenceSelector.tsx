@@ -382,7 +382,6 @@ export default function TreeSequenceSelector({ onSelect, className = '' }: TreeS
           </div>
           <div className="flex-1">
             <h3 className="text-lg font-semibold text-sp-white">Select Existing Tree Sequence</h3>
-            <p className="text-sp-white/60 text-xs">Choose from previously uploaded sequences</p>
           </div>
           {selectedFilenames.size > 0 && (
             <div className="flex items-center gap-2">

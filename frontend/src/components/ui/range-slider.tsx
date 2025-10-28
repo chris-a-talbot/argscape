@@ -9,6 +9,7 @@ interface RangeSliderProps {
   onChange: (value: [number, number]) => void;
   formatValue?: (value: number) => string;
   className?: string;
+  label?: string;
 }
 
 export const RangeSlider: React.FC<RangeSliderProps> = ({
@@ -18,7 +19,8 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   value,
   onChange,
   formatValue = (v) => v.toString(),
-  className = ""
+  className = "",
+  label
 }) => {
   const { colors } = useColorTheme();
   const [isDragging, setIsDragging] = useState<'left' | 'right' | 'range' | null>(null);
@@ -101,10 +103,34 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
     const newValue = getValueFromPosition(e.clientX);
     const [currentLeft, currentRight] = value;
 
-    if (isDragging === 'left') {
+    // If Shift is pressed, maintain range size and move the window
+    if (isShiftPressed && (isDragging === 'left' || isDragging === 'right')) {
+      const rangeSize = currentRight - currentLeft;
+      const deltaX = e.clientX - dragStart.x;
+      const rect = sliderRef.current.getBoundingClientRect();
+      const deltaValue = (deltaX / rect.width) * (max - min);
+      const [startLeft, startRight] = dragStart.startValue;
+      
+      let newLeft = startLeft + deltaValue;
+      let newRight = startRight + deltaValue;
+      
+      // Constrain to bounds
+      if (newLeft < min) {
+        newLeft = min;
+        newRight = min + rangeSize;
+      }
+      if (newRight > max) {
+        newRight = max;
+        newLeft = max - rangeSize;
+      }
+      
+      onChange([Math.round(newLeft / step) * step, Math.round(newRight / step) * step]);
+    } else if (isDragging === 'left') {
+      // Normal mode: expand/contract by moving left handle
       const newLeft = Math.min(newValue, currentRight - step);
       onChange([Math.max(min, newLeft), currentRight]);
     } else if (isDragging === 'right') {
+      // Normal mode: expand/contract by moving right handle
       const newRight = Math.max(newValue, currentLeft + step);
       onChange([currentLeft, Math.min(max, newRight)]);
     } else if (isDragging === 'range') {
@@ -175,8 +201,15 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
 
   return (
     <div className={`relative w-full ${className}`} style={{ userSelect: 'none' }}>
+      {/* Label */}
+      {label && (
+        <div className="mb-2 text-xs font-medium" style={{ color: colors.text }}>
+          {label}
+        </div>
+      )}
+      
       {/* Value display */}
-      <div className="flex justify-between mb-2 text-sm" style={{ color: colors.text }}>
+      <div className="flex justify-between mb-2 text-sm font-mono" style={{ color: colors.accentPrimary }}>
         <span>{formatValue(value[0])}</span>
         <span>{formatValue(value[1])}</span>
       </div>
@@ -184,8 +217,8 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       {/* Slider track */}
       <div 
         ref={sliderRef}
-        className="relative h-2 rounded-full cursor-pointer"
-        style={{ backgroundColor: colors.containerBackground }}
+        className="relative h-3 rounded-lg cursor-pointer"
+        style={{ backgroundColor: colors.border }}
         onMouseDown={(e) => {
           const newValue = getValueFromPosition(e.clientX);
           const [left, right] = value;
@@ -204,14 +237,14 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       >
         {/* Selected range */}
         <div 
-          className={`absolute h-full rounded-full transition-opacity ${
+          className={`absolute h-full rounded-lg transition-all ${
             isShiftPressed ? 'cursor-grabbing' : 'cursor-grab'
           } active:cursor-grabbing`}
           style={{
             left: `${leftPosition}%`,
             width: `${rightPosition - leftPosition}%`,
-            backgroundColor: isShiftPressed ? colors.text : colors.textSecondary,
-            opacity: isShiftPressed ? 0.8 : 1,
+            backgroundColor: isShiftPressed ? colors.accentPrimary : colors.textSecondary,
+            opacity: isShiftPressed ? 0.9 : 0.7,
             userSelect: 'none'
           }}
           onMouseDown={(e) => {
@@ -223,12 +256,15 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
         
         {/* Left handle */}
         <div 
-          className="absolute w-4 h-4 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing shadow-md"
+          className={`absolute w-5 h-5 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+            isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
+          }`}
           style={{ 
             left: `${leftPosition}%`, 
             top: '50%',
             backgroundColor: colors.background,
-            borderColor: colors.textSecondary,
+            borderColor: isShiftPressed ? colors.accentPrimary : colors.accentPrimary,
+            boxShadow: `0 2px 4px ${colors.background}40`,
             userSelect: 'none'
           }}
           onMouseDown={(e) => {
@@ -240,12 +276,15 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
         
         {/* Right handle */}
         <div 
-          className="absolute w-4 h-4 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing shadow-md"
+          className={`absolute w-5 h-5 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+            isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
+          }`}
           style={{ 
             left: `${rightPosition}%`, 
             top: '50%',
             backgroundColor: colors.background,
-            borderColor: colors.textSecondary,
+            borderColor: isShiftPressed ? colors.accentPrimary : colors.accentPrimary,
+            boxShadow: `0 2px 4px ${colors.background}40`,
             userSelect: 'none'
           }}
           onMouseDown={(e) => {
@@ -257,16 +296,17 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       </div>
       
       {/* Min/Max labels and shift indicator */}
-      <div className="flex justify-between items-center mt-1 text-xs" style={{ color: colors.text }}>
+      <div className="flex justify-between items-center mt-2 text-xs" style={{ color: colors.textSecondary }}>
         <span>{formatValue(min)}</span>
-        <div className="flex items-center justify-center">
+        <div className="flex items-center justify-center min-h-[18px]">
           {isShiftPressed && (
-            <div className="px-2 py-0.5 rounded text-xs opacity-80" style={{ 
-              backgroundColor: colors.textSecondary, 
+            <div className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1" style={{ 
+              backgroundColor: colors.accentPrimary, 
               color: colors.background,
               fontSize: '10px'
             }}>
-              Fixed Size
+              <span>⇄</span>
+              <span>Move Range</span>
             </div>
           )}
         </div>

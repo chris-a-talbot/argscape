@@ -1981,7 +1981,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .data(edgesWithMutations)
                 .join("text")
                 .text("×") // Use multiplication sign for a clean "x" appearance
-                .attr("font-size", "14px") // Slightly larger for visibility
+                .attr("font-size", `${edgeMutationSettings.markerSize || 14}px`)
                 .attr("fill", "#dc2626") // Red color for mutation markers
                 .attr("stroke", colors.background) // Background stroke for visibility
                 .attr("stroke-width", "2px") // Thicker stroke for better contrast

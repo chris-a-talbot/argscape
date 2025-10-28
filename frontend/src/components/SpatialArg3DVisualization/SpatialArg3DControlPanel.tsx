@@ -788,6 +788,30 @@ export const SpatialArg3DControlPanel: React.FC<SpatialArg3DControlPanelProps> =
                     }}
                   />
                 </label>
+
+                {edgeMutationSettings.showMutationMarkers && (
+                  <div className="space-y-1">
+                    <label className="flex items-center justify-between text-xs">
+                      <span style={{ color: colors.textSecondary }}>Marker Size</span>
+                      <span style={{ color: colors.text }}>{edgeMutationSettings.markerSize}</span>
+                    </label>
+                    <input
+                      type="range"
+                      min="8"
+                      max="30"
+                      step="1"
+                      value={edgeMutationSettings.markerSize}
+                      onChange={(e) => onEdgeMutationSettingsChange({
+                        ...edgeMutationSettings,
+                        markerSize: Number(e.target.value)
+                      })}
+                      className="w-full h-1 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((edgeMutationSettings.markerSize - 8) / (30 - 8)) * 100}%, ${colors.sliderTrack} ${((edgeMutationSettings.markerSize - 8) / (30 - 8)) * 100}%, ${colors.sliderTrack} 100%)`
+                      }}
+                    />
+                  </div>
+                )}
               </div>
             </div>
           </div>

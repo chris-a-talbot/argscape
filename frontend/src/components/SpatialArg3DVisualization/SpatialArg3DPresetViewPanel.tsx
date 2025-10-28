@@ -25,6 +25,14 @@ interface SpatialArg3DPresetViewPanelProps {
   autoRotationRate: number;
   onAutoRotationEnabledChange: (enabled: boolean) => void;
   onAutoRotationRateChange: (rate: number) => void;
+  layerRevealEnabled: boolean;
+  layerRevealPlaying: boolean;
+  layerRevealRate: number;
+  onLayerRevealStart: () => void;
+  onLayerRevealPause: () => void;
+  onLayerRevealResume: () => void;
+  onLayerRevealCancel: () => void;
+  onLayerRevealRateChange: (rate: number) => void;
 }
 
 // Zoom level constants
@@ -41,7 +49,15 @@ export const SpatialArg3DPresetViewPanel: React.FC<SpatialArg3DPresetViewPanelPr
   autoRotationEnabled,
   autoRotationRate,
   onAutoRotationEnabledChange,
-  onAutoRotationRateChange
+  onAutoRotationRateChange,
+  layerRevealEnabled,
+  layerRevealPlaying,
+  layerRevealRate,
+  onLayerRevealStart,
+  onLayerRevealPause,
+  onLayerRevealResume,
+  onLayerRevealCancel,
+  onLayerRevealRateChange
 }) => {
   const { colors } = useColorTheme();
   const [isExpanded, setIsExpanded] = useState(true);
@@ -373,6 +389,120 @@ export const SpatialArg3DPresetViewPanel: React.FC<SpatialArg3DPresetViewPanelPr
                 <span>Slow</span>
                 <span>Fast</span>
               </div>
+            </div>
+          </div>
+
+          {/* Layer-by-Layer Reveal Control */}
+          <div className="space-y-2 pt-2 border-t" style={{ borderTopColor: colors.border }}>
+            <h4 className="text-sm font-bold" style={{ color: colors.text }}>Layer Reveal</h4>
+            
+            {/* Reveal Rate Slider - Always visible */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold" style={{ color: colors.text }}>
+                  Reveal Speed
+                </label>
+                <span className="text-xs font-mono px-2 py-0.5 rounded" style={{ 
+                  color: `${colors.text}CC`, 
+                  backgroundColor: `${colors.containerBackground}80` 
+                }}>
+                  {layerRevealRate.toFixed(1)} layers/s
+                </span>
+              </div>
+              <input
+                type="range"
+                min="0.1"
+                max="10"
+                step="0.1"
+                value={layerRevealRate}
+                onChange={(e) => onLayerRevealRateChange(Number(e.target.value))}
+                disabled={layerRevealPlaying}
+                className="w-full h-1 rounded-lg cursor-pointer"
+                style={{
+                  background: `linear-gradient(to right, ${colors.accentPrimary} 0%, ${colors.accentPrimary} ${((layerRevealRate - 0.1) / 9.9) * 100}%, ${colors.border} ${((layerRevealRate - 0.1) / 9.9) * 100}%, ${colors.border} 100%)`,
+                  accentColor: colors.accentPrimary,
+                  opacity: layerRevealPlaying ? 1 : 1
+                }}
+              />
+              <div className="flex justify-between text-xs" style={{ color: `${colors.text}99` }}>
+                <span>Slow</span>
+                <span>Fast</span>
+              </div>
+            </div>
+
+            {/* Control Buttons */}
+            <div className="grid grid-cols-3 gap-1">
+              {!layerRevealEnabled ? (
+                <button
+                  onClick={onLayerRevealStart}
+                  className="col-span-3 px-2 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
+                  style={{
+                    backgroundColor: colors.accentPrimary,
+                    color: colors.background
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Start Reveal
+                </button>
+              ) : (
+                <>
+                  {layerRevealPlaying ? (
+                    <button
+                      onClick={onLayerRevealPause}
+                      className="px-2 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
+                      style={{
+                        backgroundColor: colors.accentPrimary,
+                        color: colors.background
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Pause
+                    </button>
+                  ) : (
+                    <button
+                      onClick={onLayerRevealResume}
+                      className="px-2 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1"
+                      style={{
+                        backgroundColor: colors.accentPrimary,
+                        color: colors.background
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                      onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Resume
+                    </button>
+                  )}
+                  <button
+                    onClick={onLayerRevealCancel}
+                    className="px-2 py-1.5 text-xs font-medium rounded transition-colors flex items-center justify-center gap-1 col-span-2"
+                    style={{
+                      backgroundColor: colors.containerBackground,
+                      color: colors.text,
+                      border: `1px solid ${colors.border}`
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${colors.border}40`}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.containerBackground}
+                  >
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                  </button>
+                </>
+              )}
             </div>
           </div>
 

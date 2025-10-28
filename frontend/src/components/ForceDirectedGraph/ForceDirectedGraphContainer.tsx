@@ -1,12 +1,12 @@
 import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } from 'react';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
-import { ForceDirectedGraphInfoPanel } from './ForceDirectedGraphInfoPanel';
-import { ForceDirectedGraphControlPanel } from './ForceDirectedGraphControlPanel';
+import { LayoutSpacingSection, NodesSection, EdgesSection, InformationSection } from './ForceDirectedGraphSidebarSections';
 import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../ui/range-slider';
 import { TreeRangeSlider } from '../ui/tree-range-slider';
-import { SampleOrderControl, SampleOrderType } from '../ui/sample-order-control';
+import { SampleOrderType } from '../ui/sample-order-control';
 import { ArgStatsData } from '../ui/arg-stats-display';
+import { VisualizationSidebar } from '../ui/VisualizationSidebar';
 import { api } from '../../lib/api';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
@@ -96,7 +96,8 @@ const DEFAULT_VISUAL_SETTINGS = {
         labelFontSize: 14
     },
     edgeMutationSettings: {
-        showMutationMarkers: true
+        showMutationMarkers: true,
+        markerSize: 14
     },
     edgeThickness: 2.5,
     edgeOpacity: 95,
@@ -574,7 +575,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             className="w-full h-full flex flex-col overflow-hidden"
             style={{ backgroundColor: colors.background }}
         >
-            {/* Header - Three Row Layout */}
+            {/* Header */}
             <div 
                 className="flex-shrink-0 border-b"
                 style={{ 
@@ -635,7 +636,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         </div>
                         
                         <div className="flex items-center gap-6">
-                            {/* Show/hide controls button when filters are active */}
+                            {/* Show/hide slider controls button when filters are active */}
                             {isFilterActive && (
                                 <button
                                     onClick={() => setIsFilterSectionCollapsed(!isFilterSectionCollapsed)}
@@ -652,7 +653,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     }}
                                 >
                                     <span>
-                                        {isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
+                                        {isFilterSectionCollapsed ? 'Show Sliders' : 'Hide Sliders'}
                                     </span>
                                     <svg 
                                         className={`w-4 h-4 transition-transform ${isFilterSectionCollapsed ? 'rotate-180' : ''}`}
@@ -824,8 +825,10 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 </div>
             )}
 
-            <div className="flex-1 overflow-hidden">
-                <div className="w-full h-full relative">
+            {/* Main Content Area with Sidebar */}
+            <div className="flex-1 overflow-hidden flex flex-row">
+                {/* Graph Visualization */}
+                <div className="flex-1 overflow-hidden relative">
                     <ForceDirectedGraph 
                         ref={ref}
                         data={getFilteredData()}
@@ -844,44 +847,103 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         temporalSpacing={visualTemporalSpacing}
                         sampleSpacing={visualSampleSpacing}
                     />
-                    
-                    <ForceDirectedGraphControlPanel
-                        sampleOrder={sampleOrder}
-                        onSampleOrderChange={setSampleOrder}
-                        nodeSizes={nodeSizes}
-                        onNodeSizeChange={(sizes) => setNodeSizes(sizes)}
-                        nodeIdSettings={nodeIdSettings}
-                        onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
-                        edgeLabelSettings={edgeLabelSettings}
-                        onEdgeLabelSettingsChange={(settings) => setEdgeLabelSettings(settings)}
-                        edgeMutationSettings={edgeMutationSettings}
-                        onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
-                        edgeThickness={edgeThickness}
-                        onEdgeThicknessChange={(thickness) => setEdgeThickness(thickness)}
-                        edgeOpacity={edgeOpacity}
-                        onEdgeOpacityChange={(opacity) => setEdgeOpacity(opacity)}
-                        temporalSpacingMode={visualTemporalSpacingMode}
-                        onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
-                        temporalSpacing={visualTemporalSpacing}
-                        onTemporalSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, temporalSpacing: spacing }))}
-                        sampleSpacing={visualSampleSpacing}
-                        onSampleSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, sampleSpacing: spacing }))}
-                        isLoading={isUpdatingOrder}
-                    />
-                    
-                    <ForceDirectedGraphInfoPanel
-                        originalNodeCount={calculateArgStats()?.originalNodes}
-                        originalEdgeCount={calculateArgStats()?.originalEdges}
-                        subargNodeCount={calculateArgStats()?.subArgNodes}
-                        subargEdgeCount={calculateArgStats()?.subArgEdges}
-                        displayedNodeCount={calculateArgStats()?.displayedNodes}
-                        displayedEdgeCount={calculateArgStats()?.displayedEdges}
-                        genomicRange={isFilterActive ? genomicRange : undefined}
-                        sequenceLength={sequenceLength}
-                        isFiltered={isFilterActive}
-                        isFilterSectionCollapsed={isFilterSectionCollapsed}
-                    />
                 </div>
+                    
+                {/* Unified Sidebar */}
+                <VisualizationSidebar
+                    position="right"
+                    defaultWidth={350}
+                    minWidth={280}
+                    maxWidth={600}
+                    defaultCollapsed={false}
+                    sections={[
+                        {
+                            id: 'layout',
+                            title: 'Layout & Spacing',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
+                                </svg>
+                            ),
+                            content: (
+                                <LayoutSpacingSection
+                                    sampleOrder={sampleOrder}
+                                    onSampleOrderChange={setSampleOrder}
+                                    temporalSpacingMode={visualTemporalSpacingMode}
+                                    onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
+                                    temporalSpacing={visualTemporalSpacing}
+                                    onTemporalSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, temporalSpacing: spacing }))}
+                                    sampleSpacing={visualSampleSpacing}
+                                    onSampleSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, sampleSpacing: spacing }))}
+                                />
+                            ),
+                            defaultOpen: true
+                        },
+                        {
+                            id: 'nodes',
+                            title: 'Nodes',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                                </svg>
+                            ),
+                            content: (
+                                <NodesSection
+                                    nodeSizes={nodeSizes}
+                                    onNodeSizeChange={(sizes) => setNodeSizes(sizes)}
+                                    nodeIdSettings={nodeIdSettings}
+                                    onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
+                                />
+                            ),
+                            defaultOpen: true
+                        },
+                        {
+                            id: 'edges',
+                            title: 'Edges',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                                </svg>
+                            ),
+                            content: (
+                                <EdgesSection
+                                    edgeThickness={edgeThickness}
+                                    onEdgeThicknessChange={(thickness) => setEdgeThickness(thickness)}
+                                    edgeOpacity={edgeOpacity}
+                                    onEdgeOpacityChange={(opacity) => setEdgeOpacity(opacity)}
+                                    edgeLabelSettings={edgeLabelSettings}
+                                    onEdgeLabelSettingsChange={(settings) => setEdgeLabelSettings(settings)}
+                                    edgeMutationSettings={edgeMutationSettings}
+                                    onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
+                                />
+                            ),
+                            defaultOpen: true
+                        },
+                        {
+                            id: 'information',
+                            title: 'Information',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                            ),
+                            content: (
+                                <InformationSection
+                                    originalNodeCount={calculateArgStats()?.originalNodes}
+                                    originalEdgeCount={calculateArgStats()?.originalEdges}
+                                    subargNodeCount={calculateArgStats()?.subArgNodes}
+                                    subargEdgeCount={calculateArgStats()?.subArgEdges}
+                                    displayedNodeCount={calculateArgStats()?.displayedNodes}
+                                    displayedEdgeCount={calculateArgStats()?.displayedEdges}
+                                    genomicRange={isFilterActive ? genomicRange : undefined}
+                                    sequenceLength={sequenceLength}
+                                    isFiltered={isFilterActive}
+                                />
+                            ),
+                            defaultOpen: false
+                        }
+                    ]}
+                />
             </div>
         </div>
     );

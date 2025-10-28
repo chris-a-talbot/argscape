@@ -1153,7 +1153,7 @@ const createMutationMarkers = (
         position: [midX, midY, midZ],
         text: "×", // Use multiplication sign for clean "x" appearance
         color: [220, 38, 38, 255], // Red color (#dc2626)
-        size: 14, // Slightly larger for better visibility in 3D
+        size: edgeMutationSettings.markerSize || 14,
         sourceId: sourceId,
         targetId: targetId
       });
@@ -1747,7 +1747,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       getPosition: (d: MutationMarker3D) => d.position,
       getText: (d: MutationMarker3D) => d.text,
       getColor: (d: MutationMarker3D) => d.color,
-      getSize: (d: MutationMarker3D) => d.size * 1.8, // Make larger for visibility in 3D
+      getSize: (d: MutationMarker3D) => d.size * 0.9, // Adjusted for more compact appearance
       getTextAnchor: 'middle' as const,
       getAlignmentBaseline: 'center' as const,
       fontFamily: 'monospace, Arial, sans-serif', // Monospace for better symbol rendering
@@ -1755,7 +1755,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       billboard: true, // Face camera for better readability in 3D
       background: true, // Add background for better contrast
       backgroundColor: [255, 255, 255, 220], // More opaque white background for better contrast
-      backgroundPadding: [4, 3, 4, 3], // More padding around the text for better visibility
+      backgroundPadding: [2, 1.5, 2, 1.5], // Halved for more compact appearance
       updateTriggers: {
         getPosition: [edgeMutationSettings, mutationMarkers],
         getText: [edgeMutationSettings],

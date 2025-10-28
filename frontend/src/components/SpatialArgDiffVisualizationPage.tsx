@@ -6,7 +6,7 @@ import { export3DVisualizationAsImage, exportCanvasAsImage } from '../lib/imageE
 import { ColorThemeDropdown } from './ui/ColorThemeDropdown';
 import ClickableLogo from './ui/ClickableLogo';
 import { TreeSequenceSelectorModal } from './ui/TreeSequenceSelectorModal';
-import { DownloadDropdown } from './ui/DownloadDropdown';
+import { ComprehensiveDownloadDropdown } from './ui/ComprehensiveDownloadDropdown';
 import SpatialArgDiffVisualizationContainer from './SpatialArgDiffVisualization/SpatialArgDiffVisualizationContainer';
 import { log } from '../lib/logger';
 
@@ -17,6 +17,7 @@ export default function SpatialArgDiffVisualizationPage() {
     const containerRef = useRef<HTMLDivElement>(null);
     const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
     const [selectedTreeSequenceToChange, setSelectedTreeSequenceToChange] = useState<'first' | 'second' | null>(null);
+    const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(true);
     const decodedFilename = decodeURIComponent(filename || '');
     const [searchParams] = useSearchParams();
     const secondFilename = searchParams.get('second') || '';
@@ -103,134 +104,301 @@ export default function SpatialArgDiffVisualizationPage() {
         >
             {/* Header */}
             <header 
-                className="border-b p-4 shadow-md flex-shrink-0"
+                className="border-b shadow-md flex-shrink-0"
                 style={{ 
                     backgroundColor: colors.background, 
                     borderBottomColor: colors.border 
                 }}
             >
                 <div className="max-w-7xl mx-auto">
-                    {/* Logo and Back Button Row */}
-                    <div className="relative flex items-center justify-center mb-4">
-                        <button 
-                            className="absolute left-0 inline-flex items-center gap-2 transition-colors duration-200"
-                            style={{ color: colors.accentPrimary }}
-                            onMouseEnter={(e) => {
-                                e.currentTarget.style.opacity = '0.8';
-                            }}
-                            onMouseLeave={(e) => {
-                                e.currentTarget.style.opacity = '1';
-                            }}
-                            onClick={() => navigate('/result')}
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                            </svg>
-                            Back to Results
-                        </button>
-                        
-                        <ClickableLogo size="medium" />
-                    </div>
-                    
-                    {/* Title and Actions Row */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4 min-w-0 flex-1">
-                            <span 
-                                className="text-lg flex-shrink-0"
-                                style={{ color: `${colors.text}B3` }}
-                            >
-                                Spatial ARG Diff
-                            </span>
-                            <div className="flex flex-col gap-2">
-                                <div className="flex items-center gap-2">
+                    {isHeaderCollapsed ? (
+                        /* Collapsed Header */
+                        <div className="px-4 py-2 flex items-center justify-between gap-4">
+                            <div className="flex items-center gap-3 min-w-0 flex-1">
+                                <button 
+                                    className="inline-flex items-center gap-2 transition-colors duration-200 flex-shrink-0"
+                                    style={{ color: colors.accentPrimary }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '0.8';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                    }}
+                                    onClick={() => navigate('/result')}
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                    Back
+                                </button>
+                                
+                                <button
+                                    onClick={() => {
+                                        setSelectedTreeSequenceToChange('first');
+                                        setShowTreeSequenceSelector(true);
+                                    }}
+                                    className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors flex-shrink-0 border"
+                                    style={{
+                                        backgroundColor: colors.containerBackground,
+                                        color: colors.text,
+                                        borderColor: `${colors.accentPrimary}33`
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                        e.currentTarget.style.color = colors.background;
+                                        e.currentTarget.style.borderColor = colors.accentPrimary;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                        e.currentTarget.style.color = colors.text;
+                                        e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                    }}
+                                    title="Change first tree sequence"
+                                >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                    <span>Change</span>
+                                </button>
+                                
+                                <div className="flex items-center gap-2 min-w-0 overflow-hidden">
                                     <div 
-                                        className="text-base font-mono break-all min-w-0"
+                                        className="text-sm font-mono truncate"
                                         style={{ color: colors.accentPrimary }}
+                                        title={decodedFilename}
                                     >
                                         {decodedFilename}
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setSelectedTreeSequenceToChange('first');
-                                            setShowTreeSequenceSelector(true);
-                                        }}
-                                        className="font-medium px-3 py-1 rounded text-sm transition-colors border"
-                                        style={{
-                                            backgroundColor: colors.containerBackground,
-                                            color: colors.text,
-                                            borderColor: `${colors.accentPrimary}33`
-                                        }}
-                                        onMouseEnter={(e) => {
-                                            e.currentTarget.style.borderColor = `${colors.accentPrimary}66`;
-                                            e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
-                                        }}
-                                        onMouseLeave={(e) => {
-                                            e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
-                                            e.currentTarget.style.backgroundColor = colors.containerBackground;
-                                        }}
-                                    >
-                                        Change
-                                    </button>
-                                    <DownloadDropdown filename={decodedFilename} />
+                                    {secondFilename && (
+                                        <>
+                                            <span style={{ color: `${colors.text}66` }}>vs</span>
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedTreeSequenceToChange('second');
+                                                    setShowTreeSequenceSelector(true);
+                                                }}
+                                                className="flex items-center gap-1.5 px-2 py-1 rounded text-xs transition-colors flex-shrink-0 border"
+                                                style={{
+                                                    backgroundColor: colors.containerBackground,
+                                                    color: colors.text,
+                                                    borderColor: `${colors.accentPrimary}33`
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                                    e.currentTarget.style.color = colors.background;
+                                                    e.currentTarget.style.borderColor = colors.accentPrimary;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                                    e.currentTarget.style.color = colors.text;
+                                                    e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                                }}
+                                                title="Change second tree sequence"
+                                            >
+                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                                </svg>
+                                                <span>Change</span>
+                                            </button>
+                                            <div 
+                                                className="text-sm font-mono truncate"
+                                                style={{ color: colors.accentPrimary }}
+                                                title={secondFilename}
+                                            >
+                                                {secondFilename}
+                                            </div>
+                                        </>
+                                    )}
                                 </div>
-                                {secondFilename && (
-                                    <div className="flex items-center gap-2">
-                                        <div 
-                                            className="text-base font-mono break-all min-w-0"
-                                            style={{ color: colors.accentPrimary }}
-                                        >
-                                            {secondFilename}
-                                        </div>
-                                        <button
-                                            onClick={() => {
-                                                setSelectedTreeSequenceToChange('second');
-                                                setShowTreeSequenceSelector(true);
-                                            }}
-                                            className="font-medium px-3 py-1 rounded text-sm transition-colors border"
-                                            style={{
-                                                backgroundColor: colors.containerBackground,
-                                                color: colors.text,
-                                                borderColor: `${colors.accentPrimary}33`
-                                            }}
-                                            onMouseEnter={(e) => {
-                                                e.currentTarget.style.borderColor = `${colors.accentPrimary}66`;
-                                                e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
-                                            }}
-                                            onMouseLeave={(e) => {
-                                                e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
-                                                e.currentTarget.style.backgroundColor = colors.containerBackground;
-                                            }}
-                                        >
-                                            Change
-                                        </button>
-                                        <DownloadDropdown filename={secondFilename} />
-                                    </div>
-                                )}
+                            </div>
+                            
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                                <ColorThemeDropdown />
+                                <ComprehensiveDownloadDropdown 
+                                    onDownloadImage={handleDownloadImage}
+                                    treeSequences={[
+                                        { 
+                                            filename: decodedFilename, 
+                                            label: 'Tree Sequence #1',
+                                            tooltipLabel: decodedFilename
+                                        },
+                                        { 
+                                            filename: secondFilename, 
+                                            label: 'Tree Sequence #2',
+                                            tooltipLabel: secondFilename
+                                        }
+                                    ]}
+                                    showTooltips={true}
+                                />
+                                <button 
+                                    onClick={() => setIsHeaderCollapsed(false)}
+                                    className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors"
+                                    style={{
+                                        backgroundColor: colors.accentPrimary,
+                                        color: colors.background
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '0.8';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                    }}
+                                    title="Expand header to access all options"
+                                >
+                                    <span>Expand</span>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                </button>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                            <ColorThemeDropdown />
-                            <button 
-                                className="font-medium px-4 py-2 rounded-lg text-sm transition-colors whitespace-nowrap"
-                                style={{
-                                    backgroundColor: colors.containerBackground,
-                                    color: colors.text
-                                }}
-                                onMouseEnter={(e) => {
-                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
-                                    e.currentTarget.style.color = colors.background;
-                                }}
-                                onMouseLeave={(e) => {
-                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
-                                    e.currentTarget.style.color = colors.text;
-                                }}
-                                onClick={handleDownloadImage}
-                                title="Download spatial diff visualization as PNG"
-                            >
-                                Download Image
-                            </button>
+                    ) : (
+                        /* Expanded Header */
+                        <div className="p-4">
+                            {/* Logo and Back Button Row */}
+                            <div className="relative flex items-center justify-center mb-4">
+                                <button 
+                                    className="absolute left-0 inline-flex items-center gap-2 transition-colors duration-200"
+                                    style={{ color: colors.accentPrimary }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.opacity = '0.8';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.opacity = '1';
+                                    }}
+                                    onClick={() => navigate('/result')}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                    Back to Results
+                                </button>
+                                
+                                <ClickableLogo size="medium" />
+                                
+                                <button 
+                                    onClick={() => setIsHeaderCollapsed(true)}
+                                    className="absolute right-0 px-3 py-1 rounded text-sm transition-colors"
+                                    style={{
+                                        backgroundColor: colors.containerBackground,
+                                        color: colors.text
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                        e.currentTarget.style.color = colors.background;
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                        e.currentTarget.style.color = colors.text;
+                                    }}
+                                    title="Collapse header"
+                                >
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                                    </svg>
+                                </button>
+                            </div>
+                            
+                            {/* Title and Actions Row */}
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4 min-w-0 flex-1">
+                                    <div className="flex flex-col gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <button
+                                                onClick={() => {
+                                                    setSelectedTreeSequenceToChange('first');
+                                                    setShowTreeSequenceSelector(true);
+                                                }}
+                                                className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors border flex-shrink-0"
+                                                style={{
+                                                    backgroundColor: colors.containerBackground,
+                                                    color: colors.text,
+                                                    borderColor: `${colors.accentPrimary}33`
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                                    e.currentTarget.style.color = colors.background;
+                                                    e.currentTarget.style.borderColor = colors.accentPrimary;
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                                    e.currentTarget.style.color = colors.text;
+                                                    e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                                }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                                </svg>
+                                                <span>Change</span>
+                                            </button>
+                                            <div 
+                                                className="text-base font-mono break-all min-w-0"
+                                                style={{ color: colors.accentPrimary }}
+                                            >
+                                                {decodedFilename}
+                                            </div>
+                                        </div>
+                                        {secondFilename && (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTreeSequenceToChange('second');
+                                                        setShowTreeSequenceSelector(true);
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition-colors border flex-shrink-0"
+                                                    style={{
+                                                        backgroundColor: colors.containerBackground,
+                                                        color: colors.text,
+                                                        borderColor: `${colors.accentPrimary}33`
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                                        e.currentTarget.style.color = colors.background;
+                                                        e.currentTarget.style.borderColor = colors.accentPrimary;
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.backgroundColor = colors.containerBackground;
+                                                        e.currentTarget.style.color = colors.text;
+                                                        e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
+                                                    }}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                                    </svg>
+                                                    <span>Change</span>
+                                                </button>
+                                                <div 
+                                                    className="text-base font-mono break-all min-w-0"
+                                                    style={{ color: colors.accentPrimary }}
+                                                >
+                                                    {secondFilename}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                    <ColorThemeDropdown />
+                                    <ComprehensiveDownloadDropdown 
+                                        onDownloadImage={handleDownloadImage}
+                                        treeSequences={[
+                                            { 
+                                                filename: decodedFilename, 
+                                                label: 'Tree Sequence #1',
+                                                tooltipLabel: decodedFilename
+                                            },
+                                            { 
+                                                filename: secondFilename, 
+                                                label: 'Tree Sequence #2',
+                                                tooltipLabel: secondFilename
+                                            }
+                                        ]}
+                                        showTooltips={true}
+                                    />
+                                </div>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </header>
 
