@@ -56,7 +56,7 @@ def main():
         os.environ["DISABLE_TSDATE"] = "1"
 
     uvicorn.run(
-        "argscape.backend.main:app",
+        "argscape.api.main:app",
         host=args.host,
         port=args.port,
         reload=args.reload

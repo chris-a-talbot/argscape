@@ -248,8 +248,8 @@ argscape/
 │       ├── spatial_generation.py     # Spatial data generation helpers
 │       ├── graph_utils.py            # Graph conversion utilities
 │       ├── dev_storage_override.py   # Dev storage path override
-│       ├── environment.yml           # Conda env (reference)
-│       ├── Dockerfile                # Backend container
+│       ├── environment.yml           # Conda environment specification
+│       ├── Dockerfile                # Backend container (for docker-compose)
 │       ├── geo_utils/                # Geographic tools & data
 │       └── tskit_utils/              # Tree sequence IO helpers
 ├── frontend/                          # React (Vite) web app
@@ -260,14 +260,14 @@ argscape/
 │   │   ├── lib/                      # API client & helpers
 │   │   └── config/                   # App config
 │   ├── public/                       # Static assets
-│   └── package.json
-├── dev_storage/                       # Local persisted sessions (ignored in prod)
-├── pyproject.toml                     # Build config (version 0.3.0)
-├── package.json                       # Root npm config (version 0.3.0)
-├── docker-compose.yml                 # Dev containers
-├── Dockerfile                         # Root container (if used)
-├── railway.toml                       # Railway deployment
-└── README.md
+│   ├── package.json                  # Frontend dependencies
+│   └── Dockerfile                    # Frontend container (for production)
+├── dev_storage/                       # Local persisted sessions (gitignored)
+├── pyproject.toml                     # Python package configuration
+├── docker-compose.yml                 # Development environment
+├── Dockerfile                         # Production container (Railway)
+├── railway.toml                       # Railway deployment config
+└── README.md                          # This file
 ```
 
 ## File formats

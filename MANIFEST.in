@@ -1,8 +1,12 @@
+# Include built frontend distribution
 recursive-include argscape/frontend_dist *
+
+# Include geographic data files
 recursive-include argscape/backend/geo_utils/data *
+
+# Include project metadata
 include LICENSE
 include README.md
+
+# Include conda environment specification
 include argscape/backend/environment.yml
-include argscape/frontend_dist/environment.yml
-include argscape/backend/geo_utils/data/eastern_hemisphere.geojson
-recursive-include argscape/backend/geo_utils/data/ne_110m_land *

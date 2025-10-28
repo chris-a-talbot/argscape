@@ -27,7 +27,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 
   return (
     <div 
-      className={`rounded-xl border transition-all ${className}`}
+      className={`rounded-xl border transition-all overflow-visible ${className}`}
       style={{ 
         backgroundColor: colors.background,
         borderColor: colors.border
@@ -36,7 +36,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
       {/* Header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-4 transition-colors hover:bg-opacity-80 ${headerClassName}`}
+        className={`w-full flex items-center justify-between p-4 transition-all hover:bg-opacity-80 rounded-t-xl ${headerClassName} ${!isOpen ? 'rounded-b-xl' : ''}`}
         style={{ 
           backgroundColor: isOpen ? colors.containerBackground : 'transparent'
         }}
@@ -80,7 +80,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
       {/* Content */}
       {isOpen && (
         <div 
-          className={`p-4 border-t ${contentClassName}`}
+          className={`p-4 border-t rounded-b-xl ${contentClassName}`}
           style={{ borderColor: colors.border }}
         >
           {children}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import Navbar from '../ui/Navbar';
+import Navbar from '../layout/Navbar';
 import ParticleBackground from '../ui/ParticleBackground';
 import LessonSlide from './LessonSlide';
 import LessonCompletionModal from './LessonCompletionModal';

@@ -143,7 +143,7 @@ export const VisualizationSidebar: React.FC<VisualizationSidebarProps> = ({
   return (
     <div
       ref={sidebarRef}
-      className="flex h-full flex-row"
+      className="flex h-full flex-row min-h-0 min-w-0"
       style={{
         width: isCollapsed ? '48px' : `${width}px`,
         transition: isCollapsed ? 'width 0.3s ease-in-out' : 'none',
@@ -191,7 +191,7 @@ export const VisualizationSidebar: React.FC<VisualizationSidebarProps> = ({
 
       {/* Sidebar Content */}
       <div
-        className="flex-1 h-full flex flex-col shadow-lg"
+        className="flex-1 h-full flex flex-col shadow-lg min-h-0 min-w-0"
         style={{
           backgroundColor: colors.background,
           borderLeft: position === 'right' ? `1px solid ${colors.border}` : 'none',
@@ -456,6 +456,7 @@ interface SidebarButtonGroupProps {
   value: string;
   onChange: (value: string) => void;
   tooltip?: string;
+  disabled?: boolean;
 }
 
 export const SidebarButtonGroup: React.FC<SidebarButtonGroupProps> = ({
@@ -464,6 +465,7 @@ export const SidebarButtonGroup: React.FC<SidebarButtonGroupProps> = ({
   value,
   onChange,
   tooltip,
+  disabled = false,
 }) => {
   const { colors } = useColorTheme();
 
@@ -471,17 +473,18 @@ export const SidebarButtonGroup: React.FC<SidebarButtonGroupProps> = ({
     <div className="space-y-1.5">
       {label && (
         <div className="flex items-center gap-1.5">
-          <label className="text-xs font-medium" style={{ color: colors.text, opacity: 0.9 }}>
+          <label className="text-xs font-medium" style={{ color: colors.text, opacity: disabled ? 0.5 : 0.9 }}>
             {label}
           </label>
           {tooltip && <Tooltip content={tooltip} />}
         </div>
       )}
-      <div className="flex rounded-md overflow-hidden border" style={{ borderColor: colors.border + '40' }}>
+      <div className="flex rounded-md overflow-hidden border" style={{ borderColor: colors.border + '40', opacity: disabled ? 0.5 : 1 }}>
         {options.map((option, index) => (
           <button
             key={option.value}
-            onClick={() => onChange(option.value)}
+            onClick={() => !disabled && onChange(option.value)}
+            disabled={disabled}
             className="flex-1 px-2.5 py-1.5 text-xs font-medium transition-all"
             style={{
               backgroundColor: value === option.value ? colors.accentPrimary : 'transparent',

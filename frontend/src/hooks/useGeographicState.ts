@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { GeographicShape } from '../components/ForceDirectedGraph/ForceDirectedGraph.types';
+import { GeographicShape } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 import { api } from '../lib/api';
+import { createUnitGridShape } from '../components/visualizations/SpatialArgUtils/GeographicUtils';
 
 export type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 
-interface CrsDetection {
+export interface CrsDetection {
   likely_crs: string;
   confidence: number;
   land_percentage: number;
@@ -24,9 +25,20 @@ interface UseGeographicStateReturn extends GeographicState {
   setMode: (mode: GeographicMode) => void;
   setCustomShapeFile: (file: File | null) => void;
   dismissCrsWarning: () => void;
-  updateFromCrsDetection: (crsDetection?: CrsDetection, suggestedMode?: GeographicMode) => void;
+  updateFromCrsDetection: (
+    firstCrsDetection?: CrsDetection,
+    secondCrsDetection?: CrsDetection,
+    suggestedMode?: GeographicMode
+  ) => void;
 }
 
+/**
+ * Unified hook for geographic state management.
+ * Works for both single and dual CRS detection scenarios (diff mode).
+ * 
+ * For single CRS detection: pass only firstCrsDetection and suggestedMode
+ * For dual CRS detection: pass both firstCrsDetection and secondCrsDetection with suggestedMode
+ */
 export const useGeographicState = (): UseGeographicStateReturn => {
   const [state, setState] = useState<GeographicState>({
     mode: 'unit_grid',
@@ -75,7 +87,6 @@ export const useGeographicState = (): UseGeographicStateReturn => {
           console.log('Custom shapefile uploaded:', response.data);
         } else if (state.mode === 'unit_grid') {
           // Create unit grid shape locally
-          const { createUnitGridShape } = await import('../components/SpatialArg3DVisualization/GeographicUtils');
           const gridShape = createUnitGridShape(10);
           setState(prev => ({ ...prev, currentShape: gridShape, isLoading: false }));
         } else {
@@ -91,7 +102,6 @@ export const useGeographicState = (): UseGeographicStateReturn => {
             console.warn(`Failed to load ${state.mode} from API, creating fallback`);
             
             // Fallback: create default shape
-            const { createUnitGridShape } = await import('../components/SpatialArg3DVisualization/GeographicUtils');
             const gridShape = createUnitGridShape(10);
             setState(prev => ({ ...prev, currentShape: gridShape, isLoading: false }));
           }
@@ -122,21 +132,49 @@ export const useGeographicState = (): UseGeographicStateReturn => {
     setState(prev => ({ ...prev, showCrsWarning: false }));
   };
 
-  const updateFromCrsDetection = (crsDetection?: CrsDetection, suggestedMode?: GeographicMode) => {
-    if (!crsDetection || !suggestedMode || state.isManuallySet) {
+  const updateFromCrsDetection = (
+    firstCrsDetection?: CrsDetection,
+    secondCrsDetection?: CrsDetection,
+    suggestedMode?: GeographicMode
+  ) => {
+    if (state.isManuallySet || !suggestedMode) {
       return;
     }
 
-    // Check if current mode is appropriate for detected CRS
-    if (suggestedMode !== state.mode && crsDetection.confidence > 0.7) {
-      setState(prev => ({ 
-        ...prev, 
-        showCrsWarning: true,
-        mode: suggestedMode 
-      }));
-      console.log(`Setting geographic mode to: ${suggestedMode} based on CRS detection`);
-    } else {
-      setState(prev => ({ ...prev, showCrsWarning: false }));
+    // Single CRS detection scenario (secondCrsDetection not provided)
+    if (firstCrsDetection && !secondCrsDetection) {
+      // Check if current mode is appropriate for detected CRS
+      if (suggestedMode !== state.mode && firstCrsDetection.confidence > 0.7) {
+        setState(prev => ({ 
+          ...prev, 
+          showCrsWarning: true,
+          mode: suggestedMode 
+        }));
+        console.log(`Setting geographic mode to: ${suggestedMode} based on CRS detection`);
+      } else {
+        setState(prev => ({ ...prev, showCrsWarning: false }));
+      }
+      return;
+    }
+
+    // Dual CRS detection scenario (both first and second provided)
+    if (firstCrsDetection && secondCrsDetection) {
+      // Check if both CRS detections match and have high confidence
+      const firstConfident = firstCrsDetection.confidence > 0.7;
+      const secondConfident = secondCrsDetection.confidence > 0.7;
+      const crsMatch = firstCrsDetection.likely_crs === secondCrsDetection.likely_crs;
+
+      if (firstConfident && secondConfident && crsMatch && suggestedMode !== state.mode) {
+        setState(prev => ({ 
+          ...prev, 
+          showCrsWarning: true,
+          mode: suggestedMode 
+        }));
+        console.log(`Setting geographic mode to: ${suggestedMode} based on matching CRS detections`);
+      } else {
+        setState(prev => ({ ...prev, showCrsWarning: false }));
+      }
+      return;
     }
   };
 
@@ -147,4 +185,4 @@ export const useGeographicState = (): UseGeographicStateReturn => {
     dismissCrsWarning,
     updateFromCrsDetection,
   };
-}; 
+};

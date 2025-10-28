@@ -1,23 +1,23 @@
-import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
-import ResultPage from './components/ResultPage';
-import ArgVisualizationPage from './components/ArgVisualizationPage';
-import Footer from './components/Footer';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import ResultPage from './components/pages/ResultPage';
+import ArgVisualizationPage from './components/pages/ArgVisualizationPage';
+import Footer from './components/layout/Footer';
 import { useState, useEffect } from 'react';
 import { TreeSequenceProvider } from './context/TreeSequenceContext';
 import { ColorThemeProvider } from './context/ColorThemeContext';
-import SpatialArg3DVisualizationPage from './components/SpatialArg3DVisualizationPage';
-import SpatialArgDiffVisualizationPage from './components/SpatialArgDiffVisualizationPage';
-import IntroAnimation from './components/IntroAnimation';
-import LandingPage from './components/LandingPage';
-import IntermediatePage from './components/IntermediatePage';
-import TutorialsPage from './components/TutorialsPage';
-import DocsPage from './components/DocsPage';
+import SpatialArg3DVisualizationPage from './components/pages/SpatialArg3DVisualizationPage';
+import SpatialArgDiffVisualizationPage from './components/pages/SpatialArgDiffVisualizationPage';
+import IntroAnimation from './components/layout/IntroAnimation';
+import LandingPage from './components/pages/LandingPage';
+import IntermediatePage from './components/pages/IntermediatePage';
+import TutorialsPage from './components/pages/TutorialsPage';
+import DocsPage from './components/pages/DocsPage';
 import { isFirstVisit, markVisited } from './utils/session';
 import { api } from './lib/api';
 import { log } from './lib/logger';
-import LessonPage from './components/LessonPage';
-import InstallPage from './components/InstallPage';
-import BackgroundAnimationPage from './components/BackgroundAnimationPage';
+import LessonPage from './components/pages/LessonPage';
+import InstallPage from './components/pages/InstallPage';
+import BackgroundAnimationPage from './components/pages/BackgroundAnimationPage';
 
 // Loading screen component
 function LoadingScreen({ logs }: { logs: string[] }) {
@@ -55,7 +55,6 @@ function Home() {
   const [showIntro, setShowIntro] = useState(false);
   const [availableTreeSequences, setAvailableTreeSequences] = useState<string[]>([]);
   const [hasCheckedSequences, setHasCheckedSequences] = useState(false);
-  const [transitionStarted, setTransitionStarted] = useState(false);
 
   // Fetch available tree sequences to determine animation behavior
   useEffect(() => {
@@ -149,14 +148,12 @@ function Home() {
   }, [location.pathname, location.state, hasCheckedSequences, availableTreeSequences.length]);
 
   const handleIntroComplete = () => {
-    setTransitionStarted(true);
     setAppState('transitioning');
     
     // After transition completes, show landing page
     setTimeout(() => {
       setAppState('landing');
       setShowIntro(false);
-      setTransitionStarted(false);
     }, 2000); // 2 second transition duration
   };
 

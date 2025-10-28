@@ -9,35 +9,28 @@ __pycache__/
 venv/
 .pytest_cache/
 .mypy_cache/
+/build/
+/argscape.egg-info/
 
 # Local data/output
 /dev_storage/
 
 # Testing (exclude local testing scripts/data)
 /testing/
+/test/
 
 # Node / Vite
 node_modules/
-frontend/node_modules/
 frontend/.vite/
 frontend/dist/
 
 # Frontend build artifacts (keep built files but ignore sourcemaps)
 argscape/frontend_dist/**/*.map
 
-# Env files
+# Environment files
 .env
 .env.*
-frontend/.env
-frontend/.env.*
 
-# Editors
+# Editors and IDEs
 .vscode/
 .idea/
-./build/
-/build/*
-build/**/*
-/build/
-/test/
-/test/**/*
-test/

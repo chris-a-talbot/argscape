@@ -45,7 +45,7 @@ export function TreeSequenceProvider({ children }: { children: ReactNode }) {
   const [maxSamples, setMaxSamples] = useState<number>(SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES);
   const [temporalRange, setTemporalRange] = useState<[number, number] | null>(null);
   const [genomicRange, setGenomicRange] = useState<[number, number] | null>(null);
-  const [genomicMode, setGenomicMode] = useState<'base_pairs' | 'tree_indices'>('base_pairs');
+  const [genomicMode, setGenomicMode] = useState<'base_pairs' | 'tree_indices'>('tree_indices');
 
   // Custom setTreeSequence that also updates maxSamples appropriately
   const setTreeSequenceWithSamples = (data: TreeSequenceData | null) => {

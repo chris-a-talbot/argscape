@@ -19,7 +19,7 @@ interface MousePosition {
 export default function ParticleBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const mouseRef = useRef<MousePosition>({ x: 0, y: 0, active: false });
 
   useEffect(() => {

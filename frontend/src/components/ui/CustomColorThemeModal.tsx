@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, VisualizationType, getPrimaryColors, getOtherColors } from '../../context/ColorThemeContext';
+import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, getPrimaryColors, getOtherColors } from '../../context/ColorThemeContext';
 
 interface ColorScheme {
   background: string;

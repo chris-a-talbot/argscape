@@ -12,12 +12,6 @@ interface ApiResponse<T = unknown> {
   status: number;
 }
 
-interface ApiError {
-  message: string;
-  status?: number;
-  details?: string;
-}
-
 interface TsdateInferenceRequest {
   filename: string;
   mutation_rate: number;
@@ -178,11 +172,6 @@ class ApiService {
       log.api.error(endpoint, new Error(errorMsg), 'POST');
       throw error;
     }
-  }
-
-  // Session management - simplified with IP-based sessions
-  async getCurrentSession() {
-    return this.request(API_CONFIG.ENDPOINTS.GET_SESSION);
   }
 
   // Tree sequence operations - now using simplified endpoints
@@ -366,42 +355,12 @@ class ApiService {
   }
 
   // Geographic data operations
-  async getAvailableCRS() {
-    return this.request('/geographic/crs');
-  }
-
-  async getAvailableShapes() {
-    return this.request('/geographic/shapes');
-  }
-
   async uploadShapefile(file: File) {
     return this.uploadFile('/geographic/upload-shapefile', file);
   }
 
   async getShapeData(shapeName: string) {
     return this.request(`/geographic/shape/${encodeURIComponent(shapeName)}`);
-  }
-
-  async transformCoordinates(params: {
-    filename: string;
-    source_crs: string;
-    target_crs: string;
-  }) {
-    return this.request('/geographic/transform-coordinates', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
-  }
-
-  async validateSpatialData(params: {
-    filename: string;
-    shape_name?: string;
-    shape_data?: any;
-  }) {
-    return this.request('/geographic/validate-spatial', {
-      method: 'POST',
-      body: JSON.stringify(params),
-    });
   }
 
   async inferTimesTsdate(params: TsdateInferenceRequest) {
@@ -471,9 +430,6 @@ export const apiService = new ApiService();
 
 // Export convenience functions
 export const api = {
-  // Session management
-  getCurrentSession: () => apiService.getCurrentSession(),
-  
   // Tree sequence operations
   uploadTreeSequence: (file: File) => apiService.uploadTreeSequence(file),
   getUploadedFiles: () => apiService.getUploadedFiles(),
@@ -509,14 +465,8 @@ export const api = {
     apiService.updateTreeSequenceLocations(params),
 
   // Geographic operations
-  getAvailableCRS: () => apiService.getAvailableCRS(),
-  getAvailableShapes: () => apiService.getAvailableShapes(),
   uploadShapefile: (file: File) => apiService.uploadShapefile(file),
   getShapeData: (shapeName: string) => apiService.getShapeData(shapeName),
-  transformCoordinates: (params: Parameters<typeof apiService.transformCoordinates>[0]) =>
-    apiService.transformCoordinates(params),
-  validateSpatialData: (params: Parameters<typeof apiService.validateSpatialData>[0]) =>
-    apiService.validateSpatialData(params),
 
   // Temporal inference
   inferTimesTsdate: (params: TsdateInferenceRequest) =>

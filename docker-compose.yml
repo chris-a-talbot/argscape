@@ -1,5 +1,14 @@
 # Docker Compose configuration for ARGscape development environment
 # Provides hot-reload development setup for both frontend and backend
+# 
+# Usage:
+#   docker compose up --build      # Start both services with build
+#   docker compose down            # Stop all services
+#
+# Access points:
+#   Frontend: http://localhost:5173
+#   Backend:  http://localhost:8000
+#   API Docs: http://localhost:8000/docs
 
 version: '3.8'
 
@@ -9,7 +18,7 @@ networks:
     driver: bridge
 
 services:
-  # Frontend React application
+  # Frontend React application (Vite dev server with hot-reload)
   frontend:
     build:
       context: ./frontend
@@ -19,7 +28,7 @@ services:
       - "5173:5173"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - /app/node_modules  # Anonymous volume to prevent node_modules overwrite
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://localhost:8000
@@ -27,16 +36,17 @@ services:
       - backend
     restart: unless-stopped
 
-  # Backend FastAPI application  
+  # Backend FastAPI application (uvicorn with hot-reload)
   backend:
     build:
       context: .
-      dockerfile: ./argscape/backend/Dockerfile
+      dockerfile: ./argscape/api/Dockerfile
       target: development
     ports:
       - "8000:8000"
     volumes:
       - .:/app
+      - /app/argscape/__pycache__  # Prevent cache pollution
     environment:
       - ENV=development
       - PYTHONPATH=/app

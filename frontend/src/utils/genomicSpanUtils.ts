@@ -1,4 +1,4 @@
-import { GraphEdge, GraphNode } from '../components/ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphEdge, GraphNode } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 
 export interface GenomicSpan {
     left: number;

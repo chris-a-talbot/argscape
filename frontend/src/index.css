@@ -62,6 +62,14 @@
   * {
     @apply border-border;
   }
+  html, body {
+    height: 100%;
+    min-height: 0;
+  }
+  #root {
+    height: 100%;
+    min-height: 0;
+  }
   body {
     @apply bg-background text-foreground;
   }

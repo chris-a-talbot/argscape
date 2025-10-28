@@ -31,7 +31,7 @@ def cmd_load(args: argparse.Namespace) -> int:
         print(f"Error: tskit not available: {_TSKIT_IMPORT_ERROR}", file=sys.stderr)
         return 1
     try:
-        from argscape.backend.session_storage import session_storage  # type: ignore
+        from argscape.api.services import session_storage  # type: ignore
     except Exception as e:  # pragma: no cover
         print(f"Error: session storage unavailable: {e}", file=sys.stderr)
         return 1
@@ -56,7 +56,7 @@ def cmd_load(args: argparse.Namespace) -> int:
 
 def cmd_list(_: argparse.Namespace) -> int:
     try:
-        from argscape.backend.session_storage import session_storage  # type: ignore
+        from argscape.api.services import session_storage  # type: ignore
     except Exception:
         # Treat missing storage as empty list rather than an error
         print("No tree sequences loaded. Use 'argscape_load --file <path> --name <name>' to add one.")
@@ -92,7 +92,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def cmd_rm(args: argparse.Namespace) -> int:
         try:
-            from argscape.backend.session_storage import session_storage  # type: ignore
+            from argscape.api.services import session_storage  # type: ignore
         except Exception as e:
             print(f"Error: session storage unavailable: {e}", file=sys.stderr)
             return 1
@@ -119,7 +119,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     def cmd_clear(_: argparse.Namespace) -> int:
         try:
-            from argscape.backend.session_storage import session_storage  # type: ignore
+            from argscape.api.services import session_storage  # type: ignore
         except Exception as e:
             print(f"Error: session storage unavailable: {e}", file=sys.stderr)
             return 1
@@ -176,8 +176,8 @@ def build_parser() -> argparse.ArgumentParser:
             print(f"Error: tskit not available: {_TSKIT_IMPORT_ERROR}", file=sys.stderr)
             return 1
         try:
-            from argscape.backend.session_storage import session_storage  # type: ignore
-            from argscape.backend.geo_utils.tree_sequence import apply_custom_locations_to_tree_sequence  # type: ignore
+            from argscape.api.services import session_storage  # type: ignore
+            from argscape.api.geo_utils.tree_sequence import apply_custom_locations_to_tree_sequence  # type: ignore
         except Exception as e:
             print(f"Error: required backend modules unavailable: {e}", file=sys.stderr)
             return 1

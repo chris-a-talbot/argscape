@@ -32,7 +32,7 @@ else:
 
 # Session storage for loaded files
 try:
-    from argscape.backend.session_storage import session_storage  # type: ignore
+    from argscape.api.services import session_storage  # type: ignore
 except Exception as e:  # pragma: no cover
     session_storage = None  # type: ignore
     _SESSION_IMPORT_ERROR = e
@@ -41,7 +41,7 @@ else:
 
 # Spatial inference implementations and availability flags
 try:
-    from argscape.backend.location_inference import (
+    from argscape.api.inference import (
         run_fastgaia_inference,
         run_gaia_quadratic_inference,
         run_gaia_linear_inference,
@@ -60,7 +60,7 @@ except Exception:  # pragma: no cover
     MIDPOINT_AVAILABLE = False  # type: ignore
 
 try:
-    from argscape.backend.sparg_inference import (
+    from argscape.api.inference import (
         run_sparg_inference,
         SPARG_AVAILABLE,
     )
@@ -69,7 +69,7 @@ except Exception:  # pragma: no cover
     SPARG_AVAILABLE = False  # type: ignore
 
 try:
-    from argscape.backend.geo_utils.tree_sequence import (
+    from argscape.api.geo_utils.tree_sequence import (
         check_spatial_completeness,
     )
 except Exception:  # pragma: no cover
@@ -78,7 +78,7 @@ except Exception:  # pragma: no cover
 
 # Temporal inference (tsdate)
 try:
-    from argscape.backend.temporal_inference import (
+    from argscape.api.inference import (
         run_tsdate_inference,
         TSDATE_AVAILABLE,
     )

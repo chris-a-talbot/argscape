@@ -1,4 +1,4 @@
-import { GraphNode, GraphEdge } from '../components/ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphNode, GraphEdge } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 
 /**
  * Diagnostic function to analyze node relationships and potential combining issues
@@ -519,7 +519,4 @@ function createPreservedEdges(edges: GraphEdge[], nodeMap: Map<number, number>):
   });
   
   return newEdges;
-}
-
-// Keep the original function as an alias for backward compatibility
-export const combineIdenticalNodes = combineGenealogyIdenticalNodes; 
+} 

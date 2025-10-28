@@ -93,7 +93,7 @@ def _ensure_backend_running(host: str, port: int, timeout_s: int = 30) -> Option
 
 def _list_loaded() -> Tuple[str, Tuple[str, ...]]:
     try:
-        from argscape.backend.session_storage import session_storage  # type: ignore
+        from argscape.api.services import session_storage  # type: ignore
     except Exception as e:  # pragma: no cover
         raise RuntimeError(f"Session storage unavailable: {e}")
     session_id = session_storage.get_or_create_session(CLI_SESSION_IP)
@@ -137,7 +137,7 @@ def _ensure_loaded_in_session(name_or_path: str) -> str:
         if tskit is None:
             return name_or_path
         try:
-            from argscape.backend.session_storage import session_storage  # type: ignore
+            from argscape.api.services import session_storage  # type: ignore
         except Exception:
             return name_or_path
         try:

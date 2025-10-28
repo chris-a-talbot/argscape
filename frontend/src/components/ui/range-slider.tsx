@@ -28,6 +28,12 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   const [isShiftPressed, setIsShiftPressed] = useState(false);
   const [fixedRangeSize, setFixedRangeSize] = useState<number | null>(null);
   const sliderRef = useRef<HTMLDivElement>(null);
+  const [editingLeft, setEditingLeft] = useState(false);
+  const [editingRight, setEditingRight] = useState(false);
+  const [leftInputValue, setLeftInputValue] = useState('');
+  const [rightInputValue, setRightInputValue] = useState('');
+  const leftInputRef = useRef<HTMLInputElement>(null);
+  const rightInputRef = useRef<HTMLInputElement>(null);
 
   // Track shift key state
   useEffect(() => {
@@ -127,11 +133,11 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       onChange([Math.round(newLeft / step) * step, Math.round(newRight / step) * step]);
     } else if (isDragging === 'left') {
       // Normal mode: expand/contract by moving left handle
-      const newLeft = Math.min(newValue, currentRight - step);
+      const newLeft = Math.min(newValue, currentRight);
       onChange([Math.max(min, newLeft), currentRight]);
     } else if (isDragging === 'right') {
       // Normal mode: expand/contract by moving right handle
-      const newRight = Math.max(newValue, currentLeft + step);
+      const newRight = Math.max(newValue, currentLeft);
       onChange([currentLeft, Math.min(max, newRight)]);
     } else if (isDragging === 'range') {
       const deltaX = e.clientX - dragStart.x;
@@ -199,6 +205,75 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   const leftPosition = getPositionFromValue(value[0]);
   const rightPosition = getPositionFromValue(value[1]);
 
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingLeft && leftInputRef.current) {
+      leftInputRef.current.focus();
+      leftInputRef.current.select();
+    }
+  }, [editingLeft]);
+
+  useEffect(() => {
+    if (editingRight && rightInputRef.current) {
+      rightInputRef.current.focus();
+      rightInputRef.current.select();
+    }
+  }, [editingRight]);
+
+  const handleLeftClick = () => {
+    setEditingLeft(true);
+    setLeftInputValue(value[0].toString());
+  };
+
+  const handleRightClick = () => {
+    setEditingRight(true);
+    setRightInputValue(value[1].toString());
+  };
+
+  const handleLeftInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLeftInputValue(e.target.value);
+  };
+
+  const handleRightInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRightInputValue(e.target.value);
+  };
+
+  const handleLeftInputBlur = () => {
+    const parsed = parseInt(leftInputValue);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(min, Math.min(parsed, value[1]));
+      const stepped = Math.round(clamped / step) * step;
+      onChange([stepped, value[1]]);
+    }
+    setEditingLeft(false);
+  };
+
+  const handleRightInputBlur = () => {
+    const parsed = parseInt(rightInputValue);
+    if (!isNaN(parsed)) {
+      const clamped = Math.max(value[0], Math.min(parsed, max));
+      const stepped = Math.round(clamped / step) * step;
+      onChange([value[0], stepped]);
+    }
+    setEditingRight(false);
+  };
+
+  const handleLeftInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleLeftInputBlur();
+    } else if (e.key === 'Escape') {
+      setEditingLeft(false);
+    }
+  };
+
+  const handleRightInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleRightInputBlur();
+    } else if (e.key === 'Escape') {
+      setEditingRight(false);
+    }
+  };
+
   return (
     <div className={`relative w-full ${className}`} style={{ userSelect: 'none' }}>
       {/* Label */}
@@ -210,8 +285,63 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
       
       {/* Value display */}
       <div className="flex justify-between mb-2 text-sm font-mono" style={{ color: colors.accentPrimary }}>
-        <span>{formatValue(value[0])}</span>
-        <span>{formatValue(value[1])}</span>
+        {editingLeft ? (
+          <input
+            ref={leftInputRef}
+            type="number"
+            value={leftInputValue}
+            onChange={handleLeftInputChange}
+            onBlur={handleLeftInputBlur}
+            onKeyDown={handleLeftInputKeyDown}
+            className="w-20 px-2 py-1 rounded border focus:outline-none focus:ring-2"
+            style={{
+              backgroundColor: colors.background,
+              borderColor: colors.accentPrimary,
+              color: colors.accentPrimary,
+              fontFamily: 'monospace'
+            }}
+            min={min}
+            max={value[1]}
+            step={step}
+          />
+        ) : (
+          <span 
+            onClick={handleLeftClick}
+            className="cursor-pointer px-2 py-1 rounded hover:bg-opacity-10 hover:bg-white transition-colors"
+            title="Click to edit"
+          >
+            {formatValue(value[0])}
+          </span>
+        )}
+        {editingRight ? (
+          <input
+            ref={rightInputRef}
+            type="number"
+            value={rightInputValue}
+            onChange={handleRightInputChange}
+            onBlur={handleRightInputBlur}
+            onKeyDown={handleRightInputKeyDown}
+            className="w-20 px-2 py-1 rounded border focus:outline-none focus:ring-2"
+            style={{
+              backgroundColor: colors.background,
+              borderColor: colors.accentPrimary,
+              color: colors.accentPrimary,
+              fontFamily: 'monospace',
+              textAlign: 'right'
+            }}
+            min={value[0]}
+            max={max}
+            step={step}
+          />
+        ) : (
+          <span 
+            onClick={handleRightClick}
+            className="cursor-pointer px-2 py-1 rounded hover:bg-opacity-10 hover:bg-white transition-colors"
+            title="Click to edit"
+          >
+            {formatValue(value[1])}
+          </span>
+        )}
       </div>
       
       {/* Slider track */}

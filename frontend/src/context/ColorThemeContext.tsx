@@ -251,40 +251,6 @@ export const useColorTheme = () => {
   return context;
 };
 
-// Utility function to get node color based on type and theme
-export const getNodeColor = (
-  node: any, 
-  nodes: any[], 
-  edges: any[], 
-  colors: ColorScheme,
-  isSelected: boolean = false
-): [number, number, number, number] => {
-  if (isSelected) return colors.nodeSelected;
-  
-  // Check if it's a root node (no incoming edges)
-  const isRoot = !edges.some(edge => edge.target === node.id);
-  if (isRoot) return colors.nodeRoot;
-  
-  if (node.is_sample) return colors.nodeSample;
-  if (node.is_combined) return colors.nodeCombined;
-  
-  return colors.nodeDefault;
-};
-
-// Utility function to get edge color based on theme
-export const getEdgeColor = (
-  edge: any,
-  colors: ColorScheme,
-  isHighlighted: boolean = false
-): [number, number, number, number] => {
-  return isHighlighted ? colors.edgeHighlight : colors.edgeDefault;
-};
-
-// Utility function to convert RGBA array to CSS string
-export const rgbaArrayToString = (rgba: [number, number, number, number]): string => {
-  return `rgba(${rgba[0]}, ${rgba[1]}, ${rgba[2]}, ${rgba[3] / 255})`;
-};
-
 // Utility function to convert CSS color string to RGBA array
 export const colorStringToRgbaArray = (color: string): [number, number, number, number] => {
   // Handle hex colors

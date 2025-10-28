@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
+import './TreeSequenceSimulator.css';
 
 export type SimulationParams = {
   num_samples: number;
@@ -28,9 +29,28 @@ export const DEFAULT_PARAMS: SimulationParams = {
   recombination_rate: 1e-8  // Per base pair per generation
 };
 
+// Validation constants for parameter ranges
+export const PARAM_RANGES = {
+  num_samples: { min: 1, max: 500, name: 'Sample individuals' },
+  ploidy: { min: 1, max: 10, name: 'Ploidy' },
+  max_time: { min: 1, max: 1000, name: 'Max generations' },
+  sequence_length: { min: 1, max: 1_000_000_000, name: 'Sequence length' },
+  population_size: { min: 1, max: 1_000_000, name: 'Effective population size' },
+  mutation_rate: { min: 0, max: 1, name: 'Mutation rate' },
+  recombination_rate: { min: 0, max: 1, name: 'Recombination rate' },
+} as const;
+
 type TreeSequenceSimulatorProps = {
   onSimulationComplete?: (result: any) => void;
   setLoading: (isLoading: boolean) => void;
+};
+
+type ValidationError = {
+  param: string;
+  value: number;
+  min: number;
+  max: number;
+  name: string;
 };
 
 type SimulationResult = {
@@ -142,6 +162,73 @@ const parseSequenceLength = (input: string): number => {
   return Math.round(parseFloat(value));
 };
 
+// Validation function
+const validateParams = (params: SimulationParams): ValidationError[] => {
+  const errors: ValidationError[] = [];
+  
+  // Check each parameter that has a range
+  const paramsToValidate: Array<keyof typeof PARAM_RANGES> = [
+    'num_samples', 'ploidy', 'max_time', 'sequence_length'
+  ];
+  
+  for (const param of paramsToValidate) {
+    const value = params[param];
+    const range = PARAM_RANGES[param];
+    
+    if (value !== undefined && (value < range.min || value > range.max)) {
+      errors.push({
+        param,
+        value,
+        min: range.min,
+        max: range.max,
+        name: range.name
+      });
+    }
+  }
+  
+  // Check optional parameters if they exist
+  if (params.population_size !== undefined) {
+    const range = PARAM_RANGES.population_size;
+    if (params.population_size < range.min || params.population_size > range.max) {
+      errors.push({
+        param: 'population_size',
+        value: params.population_size,
+        min: range.min,
+        max: range.max,
+        name: range.name
+      });
+    }
+  }
+  
+  if (params.mutation_rate !== undefined) {
+    const range = PARAM_RANGES.mutation_rate;
+    if (params.mutation_rate < range.min || params.mutation_rate > range.max) {
+      errors.push({
+        param: 'mutation_rate',
+        value: params.mutation_rate,
+        min: range.min,
+        max: range.max,
+        name: range.name
+      });
+    }
+  }
+  
+  if (params.recombination_rate !== undefined) {
+    const range = PARAM_RANGES.recombination_rate;
+    if (params.recombination_rate < range.min || params.recombination_rate > range.max) {
+      errors.push({
+        param: 'recombination_rate',
+        value: params.recombination_rate,
+        min: range.min,
+        max: range.max,
+        name: range.name
+      });
+    }
+  }
+  
+  return errors;
+};
+
 export default function TreeSequenceSimulator({ onSimulationComplete, setLoading }: TreeSequenceSimulatorProps) {
   const [params, setParams] = useState<SimulationParams>({
     ...DEFAULT_PARAMS,
@@ -150,6 +237,8 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   const [useCustomSeed, setUseCustomSeed] = useState(false);
   const [useAutoFilename, setUseAutoFilename] = useState(true);
   const [showFilenameExplanation, setShowFilenameExplanation] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [showValidationModal, setShowValidationModal] = useState(false);
   
   // Separate display state for inputs to allow temporary empty values
   const [inputValues, setInputValues] = useState({
@@ -172,16 +261,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   };
   
   const handleNumberInput = (key: keyof SimulationParams, value: string, min: number, max: number, defaultValue: number) => {
-    updateInputValue(key as keyof typeof inputValues, value);
-    
+    // Allow empty string temporarily
     if (value === '') {
-      // Allow empty string temporarily
+      updateInputValue(key as keyof typeof inputValues, value);
       return;
     }
     
     const numValue = parseInt(value);
     if (!isNaN(numValue)) {
-      updateParam(key, numValue);
+      // Clamp value to min/max range
+      const clampedValue = Math.max(min, Math.min(max, numValue));
+      updateParam(key, clampedValue);
+      updateInputValue(key as keyof typeof inputValues, clampedValue.toString());
     }
   };
   
@@ -190,6 +281,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     let finalValue = defaultValue;
     
     if (!isNaN(numValue)) {
+      // Clamp to min/max range
       finalValue = Math.max(min, Math.min(max, numValue));
     }
     
@@ -244,6 +336,15 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   };
 
   const handleSimulate = async () => {
+    // Validate parameters before simulating
+    const errors = validateParams(params);
+    
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      setShowValidationModal(true);
+      return;
+    }
+    
     setLoading(true);
     
     try {
@@ -301,8 +402,27 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
           </div>
-          <div>
+          <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold text-sp-white">Simulation Parameters</h3>
+            <div className="relative group">
+              <div className="w-5 h-5 bg-sp-pale-green/20 rounded-full flex items-center justify-center cursor-help">
+                <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div className="hidden group-hover:block absolute left-0 top-full mt-2 w-80 p-3 bg-sp-very-dark-blue border border-sp-pale-green/30 rounded-lg shadow-xl z-50 text-xs text-sp-white/90">
+                <div className="font-semibold text-sp-pale-green mb-2">Valid Parameter Ranges:</div>
+                <div className="space-y-1">
+                  <div><span className="text-sp-white/70">Sample individuals:</span> <span className="font-mono text-sp-pale-green">1-500</span></div>
+                  <div><span className="text-sp-white/70">Ploidy:</span> <span className="font-mono text-sp-pale-green">1-10</span></div>
+                  <div><span className="text-sp-white/70">Max generations:</span> <span className="font-mono text-sp-pale-green">1-1000</span></div>
+                  <div><span className="text-sp-white/70">Sequence length:</span> <span className="font-mono text-sp-pale-green">1bp-1Gb</span></div>
+                  <div><span className="text-sp-white/70">Effective pop. size:</span> <span className="font-mono text-sp-pale-green">1-1,000,000</span></div>
+                  <div><span className="text-sp-white/70">Mutation rate:</span> <span className="font-mono text-sp-pale-green">0-1</span></div>
+                  <div><span className="text-sp-white/70">Recombination rate:</span> <span className="font-mono text-sp-pale-green">0-1</span></div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -314,15 +434,14 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             </label>
             <input
               type="number"
-              min="2"
+              min="1"
               max="500"
               value={inputValues.num_samples}
-              onChange={(e) => handleNumberInput('num_samples', e.target.value, 2, 500, 2)}
-              onBlur={(e) => handleNumberBlur('num_samples', e.target.value, 2, 500, 2)}
+              onChange={(e) => handleNumberInput('num_samples', e.target.value, 1, 500, 1)}
+              onBlur={(e) => handleNumberBlur('num_samples', e.target.value, 1, 500, 1)}
               onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
-            <span className="text-xs text-sp-white/60 mt-0.5">Range: 2-500</span>
           </div>
 
           {/* Ploidy */}
@@ -340,13 +459,12 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
-            <span className="text-xs text-sp-white/60 mt-0.5">1-10 (2=diploid)</span>
           </div>
 
           {/* Sequence Length */}
           <div className="flex flex-col">
             <label className="text-sm font-medium text-sp-white mb-1">
-              Sequence Length (e.g., 1Mb, 100kb, 1000bp)
+              Sequence Length (e.g. 1bp, 1kb, 1Mb)
             </label>
             <input
               type="text"
@@ -355,9 +473,6 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               onBlur={(e) => handleSequenceLengthBlur(e.target.value)}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
-            <span className="text-xs text-sp-white/60 mt-0.5">
-              {formatSequenceLength(params.sequence_length)}
-            </span>
           </div>
 
           {/* Maximum time */}
@@ -375,7 +490,6 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
             />
-            <span className="text-xs text-sp-white/60 mt-0.5">1-1000</span>
           </div>
 
           {/* Model */}
@@ -421,9 +535,6 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               <option value="unit_grid">Unit Grid (0-1)</option>
               <option value="EPSG:3857">Web Mercator</option>
             </select>
-            <span className="text-xs text-sp-white/60 mt-0.5">
-              Spatial coordinate system
-            </span>
           </div>
         </div>
       </div>
@@ -577,20 +688,20 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             {/* Population Size */}
             <div className="space-y-2">
               <label htmlFor="population-size" className="block text-sm font-medium text-sp-white/80">
-                Population Size (optional)
+                Effective Population Size (Nₑ)
               </label>
               <input
                 type="number"
                 id="population-size"
+                min="1"
+                max="1000000"
                 value={inputValues.population_size}
                 onChange={(e) => handleNumberInput('population_size', e.target.value, 1, 1000000, 1000)}
                 onBlur={(e) => handleNumberBlur('population_size', e.target.value, 1, 1000000, 1000)}
+                onKeyDown={handleKeyDown}
                 className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
                 placeholder="1000"
               />
-              <p className="text-xs text-sp-white/60">
-                Default: 1000 (effective population size)
-              </p>
             </div>
 
             {/* Mutation Rate */}
@@ -605,13 +716,13 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                 onChange={(e) => {
                   setInputValues(prev => ({ ...prev, mutation_rate: e.target.value }));
                   const rate = parseFloat(e.target.value);
-                  if (!isNaN(rate) && rate > 0) {
+                  if (!isNaN(rate) && rate >= 0 && rate <= 1) {
                     setParams(prev => ({ ...prev, mutation_rate: rate }));
                   }
                 }}
                 onBlur={(e) => {
                   const rate = parseFloat(e.target.value);
-                  if (isNaN(rate) || rate <= 0) {
+                  if (isNaN(rate) || rate < 0 || rate > 1) {
                     setInputValues(prev => ({ ...prev, mutation_rate: formatScientificNotation(DEFAULT_PARAMS.mutation_rate!) }));
                     setParams(prev => ({ ...prev, mutation_rate: DEFAULT_PARAMS.mutation_rate }));
                   } else {
@@ -619,12 +730,10 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                     setParams(prev => ({ ...prev, mutation_rate: rate }));
                   }
                 }}
+                onKeyDown={handleKeyDown}
                 className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
                 placeholder="1e-8"
               />
-              <p className="text-xs text-sp-white/60">
-                Default: 1e-8 (0.00000001)
-              </p>
             </div>
 
             {/* Recombination Rate */}
@@ -639,13 +748,13 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                 onChange={(e) => {
                   setInputValues(prev => ({ ...prev, recombination_rate: e.target.value }));
                   const rate = parseFloat(e.target.value);
-                  if (!isNaN(rate) && rate > 0) {
+                  if (!isNaN(rate) && rate >= 0 && rate <= 1) {
                     setParams(prev => ({ ...prev, recombination_rate: rate }));
                   }
                 }}
                 onBlur={(e) => {
                   const rate = parseFloat(e.target.value);
-                  if (isNaN(rate) || rate <= 0) {
+                  if (isNaN(rate) || rate < 0 || rate > 1) {
                     setInputValues(prev => ({ ...prev, recombination_rate: formatScientificNotation(DEFAULT_PARAMS.recombination_rate!) }));
                     setParams(prev => ({ ...prev, recombination_rate: DEFAULT_PARAMS.recombination_rate }));
                   } else {
@@ -653,12 +762,10 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                     setParams(prev => ({ ...prev, recombination_rate: rate }));
                   }
                 }}
+                onKeyDown={handleKeyDown}
                 className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
                 placeholder="1e-8"
               />
-              <p className="text-xs text-sp-white/60">
-                Default: 1e-8 (0.00000001)
-              </p>
             </div>
           </div>
         </details>
@@ -712,6 +819,61 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             <button
               onClick={() => setShowFilenameExplanation(false)}
               className="w-full mt-4 bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white font-medium py-2.5 rounded-lg transition-colors duration-200"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Error Modal */}
+      {showValidationModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-sp-very-dark-blue border border-red-500/50 rounded-xl p-5 max-w-lg w-full shadow-2xl">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-red-500/20 rounded-lg flex items-center justify-center">
+                  <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-sp-white">Invalid Parameters</h3>
+              </div>
+              <button
+                onClick={() => setShowValidationModal(false)}
+                className="text-sp-white/60 hover:text-sp-white transition-colors text-2xl leading-none"
+              >
+                ×
+              </button>
+            </div>
+            
+            <div className="space-y-3 text-sm text-sp-white">
+              <p className="text-sp-white/80 mb-3">
+                The following parameters are outside their valid ranges:
+              </p>
+              
+              <div className="space-y-2">
+                {validationErrors.map((error, index) => (
+                  <div key={index} className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                    <div className="font-semibold text-red-400 mb-1">{error.name}</div>
+                    <div className="text-sp-white/80 text-xs">
+                      Current value: <span className="font-mono font-bold text-red-300">{error.value}</span>
+                    </div>
+                    <div className="text-sp-white/80 text-xs">
+                      Supported range: <span className="font-mono text-sp-pale-green">{error.min}</span> to <span className="font-mono text-sp-pale-green">{error.max}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <p className="text-sp-white/60 text-xs mt-3">
+                Please adjust the parameters to be within the supported ranges and try again.
+              </p>
+            </div>
+            
+            <button
+              onClick={() => setShowValidationModal(false)}
+              className="w-full mt-4 bg-red-500/20 hover:bg-red-500 hover:text-white text-red-400 font-medium py-2.5 rounded-lg transition-colors duration-200"
             >
               Close
             </button>

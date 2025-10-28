@@ -1,7 +1,7 @@
 import { GraphNode, GraphEdge } from '../components/ForceDirectedGraph/ForceDirectedGraph.types';
 
 // Helper function to get all descendants of a node
-export const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
+export const getDescendants = (node: GraphNode, _nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
   const descendants = new Set<number>();
   const visited = new Set<number>();
   const queue = [node.id];
@@ -27,7 +27,7 @@ export const getDescendants = (node: GraphNode, nodes: GraphNode[], edges: Graph
 };
 
 // Helper function to get all ancestors of a node
-export const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
+export const getAncestors = (node: GraphNode, _nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {
   const ancestors = new Set<number>();
   const visited = new Set<number>();
   const queue = [node.id];
@@ -53,7 +53,7 @@ export const getAncestors = (node: GraphNode, nodes: GraphNode[], edges: GraphEd
 };
 
 // Helper function to check if a node is a root node (has children but no parents)
-export const isRootNode = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): boolean => {
+export const isRootNode = (node: GraphNode, _nodes: GraphNode[], edges: GraphEdge[]): boolean => {
   // Check for incoming edges (parents)
   const hasParents = edges.some(e => {
     const targetId = typeof e.target === 'number' ? e.target : e.target.id;
@@ -68,20 +68,4 @@ export const isRootNode = (node: GraphNode, nodes: GraphNode[], edges: GraphEdge
 
   // A root node has children but no parents
   return !hasParents && hasChildren;
-};
-
-// Helper function to filter graph data based on node set
-export const filterGraphData = (
-  originalNodes: GraphNode[],
-  originalEdges: GraphEdge[],
-  nodeIds: Set<number>
-) => {
-  const filteredNodes = originalNodes.filter(node => nodeIds.has(node.id));
-  const filteredEdges = originalEdges.filter(edge => {
-    const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-    const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-    return nodeIds.has(sourceId) && nodeIds.has(targetId);
-  });
-
-  return { nodes: filteredNodes, edges: filteredEdges };
 }; 

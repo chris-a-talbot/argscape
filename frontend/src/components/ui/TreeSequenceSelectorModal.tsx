@@ -1,5 +1,5 @@
 import { useColorTheme } from '../../context/ColorThemeContext';
-import TreeSequenceSelector from '../TreeSequenceSelector';
+import TreeSequenceSelector from '../home/TreeSequenceSelector';
 
 interface TreeSequenceSelectorModalProps {
     isOpen: boolean;
@@ -13,7 +13,7 @@ export function TreeSequenceSelectorModal({ isOpen, onClose, onSelect }: TreeSeq
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-[100] overflow-y-auto">
+        <div className="fixed inset-0 z-[10000] overflow-y-auto">
             {/* Backdrop */}
             <div 
                 className="fixed inset-0 transition-opacity" 
@@ -24,7 +24,7 @@ export function TreeSequenceSelectorModal({ isOpen, onClose, onSelect }: TreeSeq
             {/* Modal panel */}
             <div className="flex items-start justify-center min-h-screen pt-8 pb-8 px-4">
                 <div 
-                    className="relative rounded-xl shadow-xl max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden border flex flex-col"
+                    className="relative rounded-xl shadow-xl max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden border flex flex-col z-[10001]"
                     style={{ 
                         backgroundColor: colors.background,
                         borderColor: colors.border

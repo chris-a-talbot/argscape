@@ -11,85 +11,32 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);
-
-  const updatePosition = () => {
-    if (!buttonRef.current || !tooltipRef.current || !isVisible) return;
-    
-    const buttonRect = buttonRef.current.getBoundingClientRect();
-    const tooltipRect = tooltipRef.current.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
-    
-    let top = buttonRect.top - tooltipRect.height - 8; // 8px gap above button
-    let left = buttonRect.left + (buttonRect.width / 2) - (tooltipRect.width / 2); // Center horizontally
-    
-    // Adjust horizontal position if tooltip would extend beyond viewport
-    if (left < 8) {
-      left = 8; // 8px margin from left edge
-    } else if (left + tooltipRect.width > viewportWidth - 8) {
-      left = viewportWidth - tooltipRect.width - 8; // 8px margin from right edge
-    }
-    
-    // Adjust vertical position if tooltip would extend beyond viewport
-    if (top < 8) {
-      // Position below button instead
-      top = buttonRect.bottom + 8;
-    }
-    
-    // If still doesn't fit below, position at the edge with margin
-    if (top + tooltipRect.height > viewportHeight - 8) {
-      top = viewportHeight - tooltipRect.height - 8;
-    }
-    
-    setPosition({ top, left });
-  };
 
   useEffect(() => {
-    if (isVisible) {
-      // Small delay to ensure tooltip is rendered before positioning
-      const timer = setTimeout(updatePosition, 10);
-      return () => clearTimeout(timer);
+    if (isVisible && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      // Position to the right of the button by default
+      setPosition({
+        top: rect.top + rect.height / 2,
+        left: rect.right + 8
+      });
     }
   }, [isVisible]);
-
-  useEffect(() => {
-    if (isVisible) {
-      const handleResize = () => updatePosition();
-      const handleScroll = () => updatePosition();
-      
-      window.addEventListener('resize', handleResize);
-      window.addEventListener('scroll', handleScroll, true);
-      
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        window.removeEventListener('scroll', handleScroll, true);
-      };
-    }
-  }, [isVisible]);
-
-  const handleShow = () => {
-    setIsVisible(true);
-  };
-
-  const handleHide = () => {
-    setIsVisible(false);
-  };
 
   return (
-    <>
+    <div className={`relative inline-flex items-center ${className}`}>
       <button
         ref={buttonRef}
-        className={`w-4 h-4 rounded-full border flex items-center justify-center transition-colors ${className}`}
+        className="w-4 h-4 rounded-full border flex items-center justify-center transition-colors"
         style={{
           backgroundColor: colors.background,
           borderColor: `${colors.accentPrimary}80`,
           color: `${colors.accentPrimary}CC`
         }}
-        onMouseEnter={handleShow}
-        onMouseLeave={handleHide}
-        onFocus={handleShow}
-        onBlur={handleHide}
+        onMouseEnter={() => setIsVisible(true)}
+        onMouseLeave={() => setIsVisible(false)}
+        onFocus={() => setIsVisible(true)}
+        onBlur={() => setIsVisible(false)}
         type="button"
         aria-label="More information"
       >
@@ -100,16 +47,16 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
       
       {isVisible && (
         <div
-          ref={tooltipRef}
-          className="fixed z-[9999] max-w-xs pointer-events-none"
+          className="fixed z-[9999] pointer-events-none -translate-y-1/2"
           style={{ 
-            top: `${position.top}px`,
-            left: `${position.left}px`,
-            minWidth: '200px'
+            minWidth: '250px', 
+            maxWidth: '350px',
+            top: position.top,
+            left: position.left
           }}
         >
           <div
-            className="px-3 py-2 text-xs rounded-lg shadow-lg border"
+            className="px-3 py-2 text-xs rounded-lg shadow-lg border whitespace-normal"
             style={{
               backgroundColor: colors.background,
               borderColor: colors.border,
@@ -119,8 +66,19 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
           >
             {content}
           </div>
+          {/* Arrow pointing left */}
+          <div 
+            className="absolute top-1/2 -translate-y-1/2 right-full mr-[-1px]"
+            style={{
+              width: 0,
+              height: 0,
+              borderTop: '6px solid transparent',
+              borderBottom: '6px solid transparent',
+              borderRight: `6px solid ${colors.border}`
+            }}
+          />
         </div>
       )}
-    </>
+    </div>
   );
 }; 

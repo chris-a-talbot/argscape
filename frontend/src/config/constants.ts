@@ -18,8 +18,6 @@ const getApiBaseUrl = () => {
 export const API_CONFIG = {
   BASE_URL: getApiBaseUrl(),
   ENDPOINTS: {
-    CREATE_SESSION: '/create-session',
-    GET_SESSION: '/session',
     UPLOAD: '/upload-tree-sequence',
     UPLOADED_FILES: '/uploaded-files/',
     TREE_SEQUENCE_METADATA: '/tree-sequence-metadata',
@@ -69,7 +67,7 @@ export const VISUALIZATION_DEFAULTS = {
 
 // Sample Management
 export const SAMPLE_LIMITS = {
-  DEFAULT_MAX_SAMPLES: 25,
+  DEFAULT_MAX_SAMPLES: 50,
   MIN_SAMPLES: 2,
   WARNING_THRESHOLD: 25,
 } as const;

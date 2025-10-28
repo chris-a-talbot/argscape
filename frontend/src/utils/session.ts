@@ -17,12 +17,3 @@ export const markVisited = (): void => {
     console.warn('Session storage not available');
   }
 };
-
-export const resetVisitStatus = (): void => {
-  try {
-    sessionStorage.removeItem(SESSION_KEY);
-  } catch (error) {
-    // Silently fail if sessionStorage is not available
-    console.warn('Session storage not available');
-  }
-}; 

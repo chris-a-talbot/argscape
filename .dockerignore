@@ -1,34 +1,44 @@
-# Development files
+# .dockerignore for root Dockerfile (Railway production deployment)
+# This file is used by the root Dockerfile for production builds
+# The frontend/Dockerfile uses its own context and doesn't need this file
+
+# Version control
 .git
 .gitignore
-.env
-.nyc_output
-coverage
+
+# Development and IDE files
 .vscode
+.idea
 .DS_Store
 *.log
-*.db
 
-# Python cache
-backend/__pycache__/
-*.pyc
-backend/.pytest_cache/
+# Environment files
+.env
+.env.*
 
-# Ignore heavy directories but keep source code
+# Python cache and build artifacts
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+*.egg-info
+build/
+dist/
+
+# Node.js
+**/node_modules
+
+# Development data
+dev_storage/
+test/
+testing/
+
+# Frontend build artifacts (development only - production uses pre-built frontend)
 frontend/node_modules/
 frontend/dist/
-.vs/
+frontend/.vite/
 
-# Keep needed files and directories
-!backend/
-!frontend/
-!Dockerfile
-!railway.toml
-
-**/__pycache__
-**/.pytest_cache
-**/*.pyc
-**/node_modules
-**/build
-**/dist
-**/.git
+# Coverage and test artifacts
+.nyc_output
+coverage
+.pytest_cache

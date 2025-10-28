@@ -51,12 +51,12 @@ include = ["argscape*"]
 [tool.setuptools.package-data]
 "argscape" = [
     "frontend_dist/**/*",
-    "backend/environment.yml",
-    "backend/geo_utils/data/**/*.geojson",
-    "backend/geo_utils/data/**/*.shp",
-    "backend/geo_utils/data/**/*.shx", 
-    "backend/geo_utils/data/**/*.dbf",
-    "backend/geo_utils/data/**/*.prj",
-    "backend/geo_utils/data/**/*.cpg",
-    "backend/geo_utils/data/**/*.xml",
+    "api/environment.yml",
+    "api/geo_utils/data/**/*.geojson",
+    "api/geo_utils/data/**/*.shp",
+    "api/geo_utils/data/**/*.shx", 
+    "api/geo_utils/data/**/*.dbf",
+    "api/geo_utils/data/**/*.prj",
+    "api/geo_utils/data/**/*.cpg",
+    "api/geo_utils/data/**/*.xml",
 ]
