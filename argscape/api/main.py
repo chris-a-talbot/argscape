@@ -114,6 +114,26 @@ async def remove_double_slash_middleware(request: Request, call_next):
         scope["path"] = scope["path"].replace("//", "/")
     return await call_next(request)
 
+# Cache control middleware for frontend assets
+@app.middleware("http")
+async def add_cache_control_headers(request: Request, call_next):
+    response = await call_next(request)
+    path = request.url.path
+    
+    # Don't cache index.html - force revalidation on every request
+    if path == "/" or path.endswith("index.html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    # Long-term cache for hashed assets (JS, CSS with content hashes in filename)
+    elif any(path.endswith(ext) for ext in [".js", ".css"]) and "-" in path:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    # Moderate cache for other assets
+    elif any(path.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf"]):
+        response.headers["Cache-Control"] = "public, max-age=86400"
+    
+    return response
+
 # Include API routers
 app.include_router(utils_router, prefix="/api", tags=["utils"])
 app.include_router(sessions_router, prefix="/api", tags=["sessions"])
@@ -132,10 +152,17 @@ else:
 # SPA fallback route
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    """Serve index.html for client-side routing."""
+    """Serve index.html for client-side routing with no-cache headers."""
     index_path = frontend_dist / "index.html"
     if index_path.exists():
-        return FileResponse(index_path)
+        return FileResponse(
+            index_path,
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0"
+            }
+        )
     return {"detail": "index.html not found"}, 404
 
 if __name__ == "__main__":

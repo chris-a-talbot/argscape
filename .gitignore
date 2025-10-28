@@ -27,6 +27,9 @@ frontend/dist/
 # Frontend build artifacts (keep built files but ignore sourcemaps)
 argscape/frontend_dist/**/*.map
 
+# Backend build artifacts
+dist/
+
 # Environment files
 .env
 .env.*
