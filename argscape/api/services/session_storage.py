@@ -12,6 +12,7 @@ import threading
 import shutil
 import pickle
 import json
+import base64
 from typing import Dict, List, Optional, Set
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
@@ -28,6 +29,17 @@ try:
 except ImportError:
     BackgroundScheduler = None
     ThreadPoolExecutor = None
+
+try:
+    from cryptography.fernet import Fernet
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+    PBKDF2 = PBKDF2HMAC  # Alias for compatibility
+except ImportError:
+    Fernet = None
+    hashes = None
+    PBKDF2 = None
+    PBKDF2HMAC = None
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +98,10 @@ class PersistentSessionStorage:
         
         self.storage_base_path.mkdir(parents=True, exist_ok=True)
         
+        # Check if encryption should be enabled (Railway deployment only)
+        # Set ENABLE_ENCRYPTION=true in Railway environment variables
+        self.encryption_enabled = os.getenv("ENABLE_ENCRYPTION", "false").lower() in ("true", "1", "yes")
+        
         self.sessions: Dict[str, UserSession] = {}
         self.max_session_age_hours = max_session_age_hours
         self.max_files_per_session = max_files_per_session
@@ -114,6 +130,64 @@ class PersistentSessionStorage:
         
         logger.info(f"PersistentSessionStorage initialized with {max_session_age_hours}h max age")
         logger.info(f"Storage path: {self.storage_base_path}")
+        logger.info(f"Encryption enabled: {self.encryption_enabled}")
+    
+    def _get_encryption_key(self, client_ip: str) -> bytes:
+        """
+        Derive an encryption key from the client IP.
+        This ensures only someone with the correct IP can decrypt the files.
+        """
+        if not Fernet or not PBKDF2 or not hashes:
+            raise RuntimeError("Cryptography library not available")
+        
+        # Use the same salt as session ID for consistency
+        salt = b"argscape_session_salt_2024"
+        
+        # Derive a key from the client IP using PBKDF2
+        kdf = PBKDF2(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=salt,
+            iterations=100000,  # Standard security, fast enough for our use case
+        )
+        key = base64.urlsafe_b64encode(kdf.derive(client_ip.encode()))
+        return key
+    
+    def _encrypt_data(self, data: bytes, client_ip: str) -> bytes:
+        """Encrypt data using IP-based key."""
+        # Only encrypt if explicitly enabled (Railway deployment)
+        if not self.encryption_enabled:
+            return data
+            
+        if not Fernet:
+            logger.warning("Cryptography not available, storing data unencrypted")
+            return data
+        
+        try:
+            key = self._get_encryption_key(client_ip)
+            f = Fernet(key)
+            return f.encrypt(data)
+        except Exception as e:
+            logger.error(f"Encryption failed: {e}")
+            raise
+    
+    def _decrypt_data(self, encrypted_data: bytes, client_ip: str) -> bytes:
+        """Decrypt data using IP-based key."""
+        # Only decrypt if encryption was enabled
+        if not self.encryption_enabled:
+            return encrypted_data
+            
+        if not Fernet:
+            logger.warning("Cryptography not available, assuming data is unencrypted")
+            return encrypted_data
+        
+        try:
+            key = self._get_encryption_key(client_ip)
+            f = Fernet(key)
+            return f.decrypt(encrypted_data)
+        except Exception as e:
+            logger.error(f"Decryption failed (wrong IP or corrupted data): {e}")
+            raise
     
     def _get_session_id_from_ip(self, client_ip: str) -> str:
         """Generate a consistent session ID from client IP."""
@@ -166,20 +240,46 @@ class PersistentSessionStorage:
             
             # Load tree sequences
             for filename in metadata["file_list"]:
-                ts_file = session_dir / f"{filename}.trees"
+                # Filename in metadata already includes .trees extension
+                if filename.endswith('.trees'):
+                    ts_file = session_dir / filename
+                else:
+                    ts_file = session_dir / f"{filename}.trees"
                 file_data_file = session_dir / f"{filename}.data"
                 
                 if ts_file.exists():
                     try:
-                        # Load tree sequence
-                        ts = tskit.load(str(ts_file))
-                        session.tree_sequences[filename] = ts
+                        # Load encrypted tree sequence
+                        with open(ts_file, 'rb') as f:
+                            encrypted_ts_data = f.read()
                         
-                        # Load original file data if available
+                        # Decrypt the tree sequence data
+                        decrypted_ts_data = self._decrypt_data(encrypted_ts_data, session.client_ip)
+                        
+                        # Write to temporary file and load
+                        temp_fd, temp_path = tempfile.mkstemp(suffix=".trees")
+                        os.close(temp_fd)
+                        
+                        try:
+                            with open(temp_path, 'wb') as f:
+                                f.write(decrypted_ts_data)
+                            
+                            ts = tskit.load(temp_path)
+                            session.tree_sequences[filename] = ts
+                        finally:
+                            try:
+                                os.unlink(temp_path)
+                            except Exception as cleanup_error:
+                                logger.warning(f"Failed to clean up temp file {temp_path}: {cleanup_error}")
+                        
+                        # Load original encrypted file data if available
                         if file_data_file.exists():
                             try:
                                 with open(file_data_file, 'rb') as f:
-                                    session.uploaded_files[filename] = f.read()
+                                    encrypted_file_data = f.read()
+                                # Decrypt and cache in memory
+                                file_data = self._decrypt_data(encrypted_file_data, session.client_ip)
+                                session.uploaded_files[filename] = file_data
                             except Exception as e:
                                 logger.warning(f"Failed to load file data for {filename}, will load on demand: {e}")
                         else:
@@ -290,14 +390,16 @@ class PersistentSessionStorage:
         with self._lock:
             session.uploaded_files[filename] = contents
             
-            # Save file data to disk
+            # Encrypt and save file data to disk
             session_dir = self._get_session_dir(session_id)
             file_data_path = session_dir / f"{filename}.data"
+            encrypted_data = self._encrypt_data(contents, session.client_ip)
             with open(file_data_path, 'wb') as f:
-                f.write(contents)
+                f.write(encrypted_data)
             
             self._save_session_metadata(session)
-            logger.info(f"Stored file {filename} in persistent session {session_id}")
+            enc_status = "encrypted" if self.encryption_enabled else "unencrypted"
+            logger.info(f"Stored {enc_status} file {filename} in persistent session {session_id}")
         
         return True
     
@@ -313,20 +415,41 @@ class PersistentSessionStorage:
             
             session.tree_sequences[filename] = ts
             
-            # Save tree sequence to disk
+            # Save tree sequence to disk with encryption
             session_dir = self._get_session_dir(session_id)
-            ts_file_path = session_dir / f"{filename}.trees"
-            ts.dump(str(ts_file_path))
+            # Ensure filename has .trees extension (handle cases where it already does)
+            if filename.endswith('.trees'):
+                base_filename = filename
+            else:
+                base_filename = f"{filename}.trees"
+            ts_file_path = session_dir / base_filename
             
-            # Verify mutations after dump
+            # Dump to a temporary file first, then encrypt
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".trees")
+            os.close(temp_fd)
+            
             try:
-                loaded_ts = tskit.load(str(ts_file_path))
-                logger.info(f"Verified stored tree sequence {filename}: {loaded_ts.num_mutations} mutations after dump")
-            except Exception as e:
-                logger.error(f"Failed to verify stored tree sequence {filename}: {e}")
+                ts.dump(temp_path)
+                
+                # Read the unencrypted data
+                with open(temp_path, 'rb') as f:
+                    ts_data = f.read()
+                
+                # Encrypt and write to final location
+                encrypted_data = self._encrypt_data(ts_data, session.client_ip)
+                with open(ts_file_path, 'wb') as f:
+                    f.write(encrypted_data)
+                
+                enc_status = "encrypted" if self.encryption_enabled else "unencrypted"
+                logger.info(f"Stored {enc_status} tree sequence {filename} in persistent session {session_id}")
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to clean up temp file {temp_path}: {cleanup_error}")
             
             self._save_session_metadata(session)
-            logger.info(f"Stored tree sequence {filename} in persistent session {session_id}")
         
         return True
     
@@ -342,17 +465,44 @@ class PersistentSessionStorage:
             logger.info(f"Retrieved tree sequence {filename} from memory: {ts.num_mutations} mutations")
             return ts
         
-        # If not in memory, try to load from disk
+        # If not in memory, try to load from disk (encrypted)
         session_dir = self._get_session_dir(session_id)
-        ts_file_path = session_dir / f"{filename}.trees"
+        # Ensure filename has .trees extension (handle cases where it already does)
+        if filename.endswith('.trees'):
+            ts_file_path = session_dir / filename
+        else:
+            ts_file_path = session_dir / f"{filename}.trees"
         
         if ts_file_path.exists():
             try:
-                ts = tskit.load(str(ts_file_path))
-                logger.info(f"Loaded tree sequence {filename} from disk: {ts.num_mutations} mutations")
-                # Cache in memory for future access
-                session.tree_sequences[filename] = ts
-                return ts
+                # Read encrypted data
+                with open(ts_file_path, 'rb') as f:
+                    encrypted_data = f.read()
+                
+                # Decrypt the data
+                decrypted_data = self._decrypt_data(encrypted_data, session.client_ip)
+                
+                # Write to temporary file and load
+                temp_fd, temp_path = tempfile.mkstemp(suffix=".trees")
+                os.close(temp_fd)
+                
+                try:
+                    with open(temp_path, 'wb') as f:
+                        f.write(decrypted_data)
+                    
+                    ts = tskit.load(temp_path)
+                    logger.info(f"Loaded encrypted tree sequence {filename} from disk: {ts.num_mutations} mutations")
+                    
+                    # Cache in memory for future access
+                    session.tree_sequences[filename] = ts
+                    return ts
+                finally:
+                    # Clean up temp file
+                    try:
+                        os.unlink(temp_path)
+                    except Exception as cleanup_error:
+                        logger.warning(f"Failed to clean up temp file {temp_path}: {cleanup_error}")
+                        
             except Exception as e:
                 logger.error(f"Failed to load tree sequence {filename} from disk: {e}")
         
@@ -379,7 +529,10 @@ class PersistentSessionStorage:
             # Delete files from disk
             session_dir = self._get_session_dir(session_id)
             try:
-                (session_dir / f"{filename}.trees").unlink(missing_ok=True)
+                if filename.endswith('.trees'):
+                    (session_dir / filename).unlink(missing_ok=True)
+                else:
+                    (session_dir / f"{filename}.trees").unlink(missing_ok=True)
                 (session_dir / f"{filename}.data").unlink(missing_ok=True)
             except Exception as e:
                 logger.warning(f"Failed to delete disk files for {filename}: {e}")
@@ -400,14 +553,16 @@ class PersistentSessionStorage:
         if file_data is not None:
             return file_data
         
-        # If not in memory, try to load from disk
+        # If not in memory, try to load from disk (encrypted)
         session_dir = self._get_session_dir(session_id)
         file_data_file = session_dir / f"{filename}.data"
         
         if file_data_file.exists():
             try:
                 with open(file_data_file, 'rb') as f:
-                    file_data = f.read()
+                    encrypted_data = f.read()
+                    # Decrypt the data
+                    file_data = self._decrypt_data(encrypted_data, session.client_ip)
                     # Cache in memory for future access
                     session.uploaded_files[filename] = file_data
                     return file_data
@@ -437,10 +592,11 @@ class PersistentSessionStorage:
                     # Cache the generated file data
                     session.uploaded_files[filename] = file_data
                     
-                    # Also save to disk for future use
+                    # Also save to disk for future use (encrypted)
                     try:
+                        encrypted_data = self._encrypt_data(file_data, session.client_ip)
                         with open(file_data_file, 'wb') as f:
-                            f.write(file_data)
+                            f.write(encrypted_data)
                     except Exception as e:
                         logger.warning(f"Failed to cache generated file data to disk for {filename}: {e}")
                     

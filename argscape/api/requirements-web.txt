@@ -16,6 +16,9 @@ python-dotenv==1.0.0
 # Cleanup and scheduling
 apscheduler==3.10.4
 
+# Encryption for secure file storage
+cryptography>=41.0.0
+
 # Dependencies for spatial inference
 tsdate
 fastgaia

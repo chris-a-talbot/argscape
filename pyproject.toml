@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "argscape"
-version = "0.4.1"
+version = "0.4.2"
 description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -23,6 +23,7 @@ dependencies = [
   "python-multipart==0.0.6",
   "python-dotenv==1.0.0",
   "apscheduler==3.10.4",
+  "cryptography>=41.0.0",
   "tsdate",
   "fastgaia",
   "geoancestry",
