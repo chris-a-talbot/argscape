@@ -838,7 +838,10 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         
         // If switching to dagre mode, trigger a reset to fix spacing and apply dagre positions immediately
         if (order === 'dagre') {
-            console.log('Switching to dagre mode - triggering spacing recalculation');
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Switching to dagre mode - triggering spacing recalculation');
+            }
             // Small delay to let the mode switch take effect first
             setTimeout(() => {
                 setResetTrigger(prev => prev + 1);

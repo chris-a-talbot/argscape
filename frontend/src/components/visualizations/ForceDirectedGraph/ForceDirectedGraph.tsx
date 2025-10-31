@@ -131,7 +131,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const edges = visualStateRef.current.edges as GraphEdge[];
         if (!sim || !nodes || !edges) return;
         
-        console.log('Applying force tuning:', tuning);
+        // Debug logging only in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Applying force tuning:', tuning);
+        }
 
         // Update built-in forces
         const linkForce = sim.force("link") as d3.ForceLink<GraphNode, GraphEdge> | null;
@@ -208,7 +211,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         if (resetTrigger === 0) return;
         // Skip reset if clustering is currently changing - let main rendering effect handle it
         if (isClusteringChanging.current) {
-            console.log('Reset trigger skipped - clustering is changing, main effect will handle positioning');
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Reset trigger skipped - clustering is changing, main effect will handle positioning');
+            }
             return;
         }
         const sim = visualStateRef.current.simulation as d3.Simulation<GraphNode, GraphEdge> | null;
@@ -218,11 +224,17 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         // For dagre mode, skip manual reset - dagre positions are handled in main rendering effect
         if (sampleOrder === 'dagre') {
-            console.log('Reset trigger skipped for dagre mode - positions handled in main rendering effect');
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Reset trigger skipped for dagre mode - positions handled in main rendering effect');
+            }
             return;
         }
         
-        console.log('Reset trigger fired - recalculating sample-level node spacing');
+        // Debug logging only in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Reset trigger fired - recalculating sample-level node spacing');
+        }
         
         // Recalculate horizontal spacing for sample-level nodes
         // This is needed when clustering settings change
@@ -256,7 +268,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 // Y position (fy) should already be set correctly
             });
             
-            console.log(`Repositioned ${sampleLevelNodes.length} sample-level nodes with spacing ${sampleSpacing}`);
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log(`Repositioned ${sampleLevelNodes.length} sample-level nodes with spacing ${sampleSpacing}`);
+            }
         }
         
         // Reset velocities and unpin only NON-SAMPLE nodes; samples keep fx and fy
@@ -361,8 +376,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     const combinedData = useMemo(() => {
         if (!stableData) return null;
         
-        // Debug: Analyze node combining patterns
-        analyzeNodeCombining(stableData.nodes, stableData.edges);
+        // Debug: Analyze node combining patterns (only in development)
+        if (process.env.NODE_ENV === 'development') {
+          analyzeNodeCombining(stableData.nodes, stableData.edges);
+        }
         
         const { nodes: combinedNodes, edges: combinedEdges } = combineGenealogyIdenticalNodes(stableData.nodes, stableData.edges);
         return { nodes: combinedNodes, edges: combinedEdges };
@@ -722,27 +739,39 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             currentTransform: visualStateRef.current.currentTransform // Preserve zoom state
         };
 
+        // Track timeout for cleanup
+        let autoZoomTimeout: NodeJS.Timeout | undefined;
+        
         // Only auto-zoom when there's a structural change, not for visual parameter adjustments
         if (shouldAutoZoomRef.current) {
-            console.log('Auto-zoom triggered:', {
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Auto-zoom triggered:', {
                 focalNode: focalNode ? `node ${focalNode.id}` : 'none',
                 action: focalNode ? 'focusing on specific node' : 'fitting entire graph to view',
                 nodeCount: combinedNodes.length,
                 edgeCount: combinedEdges.length
-            });
+              });
+            }
             
             // Reset flag immediately to prevent multiple calls
             shouldAutoZoomRef.current = false;
             
             // Use a small delay to ensure nodes are positioned before zoom
-            setTimeout(() => {
+            autoZoomTimeout = setTimeout(() => {
         if (focalNode) {
                     // Focus on specific node (subARG)
-                    console.log('Executing focus on node:', focalNode.id);
+                    // Debug logging only in development
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('Executing focus on node:', focalNode.id);
+                    }
                     focusOnNode(focalNode, combinedNodes, combinedEdges, false);
                 } else {
                     // Fit entire graph to view using the enhanced bounds calculation
-                    console.log('Executing fit to entire graph');
+                    // Debug logging only in development
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('Executing fit to entire graph');
+                    }
                     focusOnNode(null, combinedNodes, combinedEdges, true);
                 }
             }, 100);
@@ -1390,7 +1419,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .on("end", dragended) as any)
             .on("click", (event, d) => {
                 event.preventDefault();
-                console.log('D3 click event:', { button: event.button, which: event.which, type: event.type });
+                // Debug logging only in development
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('D3 click event:', { button: event.button, which: event.which, type: event.type });
+                }
                 // Only fire click if the node wasn't dragged
                 if (!(d as any).wasDragged) {
                 onNodeClick?.(d);
@@ -1400,7 +1432,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .on("contextmenu", (event, d) => {
                 event.preventDefault();
-                console.log('D3 contextmenu event:', { button: event.button, which: event.which, type: event.type });
+                // Debug logging only in development
+                if (process.env.NODE_ENV === 'development') {
+                  console.log('D3 contextmenu event:', { button: event.button, which: event.which, type: event.type });
+                }
                 onNodeRightClick?.(d);
             })
             .on("mouseover", (event, d) => {
@@ -1765,14 +1800,23 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         });
 
         // Add "end" event handler to calculate edge crossings after simulation settles
+        const edgeCrossingsTimeoutRef = { current: undefined as NodeJS.Timeout | undefined };
         simulation.on("end", () => {
+            // Clear any pending timeout
+            if (edgeCrossingsTimeoutRef.current) {
+                clearTimeout(edgeCrossingsTimeoutRef.current);
+            }
             // Add a slight delay to ensure all positions are final
-            setTimeout(() => {
+            edgeCrossingsTimeoutRef.current = setTimeout(() => {
                 if (onEdgeCrossingsChange && combinedNodes && combinedEdges) {
                     const crossings = calculateEdgeCrossings(combinedNodes, combinedEdges);
-                    console.log('Edge crossings calculated:', crossings);
+                    // Debug logging only in development
+                    if (process.env.NODE_ENV === 'development') {
+                      console.log('Edge crossings calculated:', crossings);
+                    }
                     onEdgeCrossingsChange(crossings);
                 }
+                edgeCrossingsTimeoutRef.current = undefined;
             }, 100); // 100ms delay to ensure everything is settled
         });
 
@@ -1790,6 +1834,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         return () => {
             if (simulation) simulation.stop();
             if (tooltip) tooltip.remove();
+            if (autoZoomTimeout) clearTimeout(autoZoomTimeout);
+            if (edgeCrossingsTimeoutRef.current) clearTimeout(edgeCrossingsTimeoutRef.current);
         };
     // Only restart simulation for structural changes, not visual settings
     // nodeSizes, edgeThickness, edgeOpacity, nodeIdSettings, edgeLabelSettings, edgeMutationSettings are purely visual
@@ -1997,13 +2043,22 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
     // Effect to update edge visual properties without restarting simulation
     useEffect(() => {
-        console.log('Edge opacity effect triggered:', { edgeThickness, edgeOpacity, hasTemporalRange: !!temporalRange });
+        // Debug logging only in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Edge opacity effect triggered:', { edgeThickness, edgeOpacity, hasTemporalRange: !!temporalRange });
+        }
         if (!ref || typeof ref === 'function' || !ref.current) {
-            console.log('Edge opacity effect: no ref');
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Edge opacity effect: no ref');
+            }
             return;
         }
         if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) {
-            console.log('Edge opacity effect: no nodes in visualStateRef');
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Edge opacity effect: no nodes in visualStateRef');
+            }
             return;
         }
 

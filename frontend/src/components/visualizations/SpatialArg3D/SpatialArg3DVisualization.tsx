@@ -1283,16 +1283,36 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   // Track mouse button for right-click detection (pointerup loses button info)
   const lastPointerButtonRef = useRef<number>(0);
   
+  // Memoize OrbitView to prevent recreation on every render
+  const orbitView = useMemo(() => new OrbitView({ id: 'orbit' }), []);
+  
   // Add global listener to track pointer button - use capture phase to catch it before deck.gl
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
       lastPointerButtonRef.current = e.button;
-      console.log('Pointer down captured:', { button: e.button, type: e.pointerType });
+      // Debug logging only in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Pointer down captured:', { button: e.button, type: e.pointerType });
+      }
     };
     
     // Use capture phase to ensure we catch the event before deck.gl
     window.addEventListener('pointerdown', handlePointerDown, { capture: true });
     return () => window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
+  }, []);
+
+  // Cleanup DeckGL instance on unmount to release WebGL resources
+  useEffect(() => {
+    return () => {
+      if (deckRef.current) {
+        try {
+          // Finalize the DeckGL instance to properly release WebGL contexts and resources
+          deckRef.current.finalize?.();
+        } catch (error) {
+          console.warn('Error finalizing DeckGL instance:', error);
+        }
+      }
+    };
   }, []);
   // Calculate dynamic zoom limits based on Z-axis height
   const calculateZoomLimits = useCallback((bounds: any) => {
@@ -1349,8 +1369,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       return { nodes3D: [], edges3D: [], bounds: null };
     }
 
-    // Debug: Analyze node combining patterns
-    analyzeNodeCombining(data!.nodes, data!.edges);
+    // Debug: Analyze node combining patterns (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      analyzeNodeCombining(data!.nodes, data!.edges);
+    }
     
     // Use the already-combined nodes and edges from the top level
     const combinedNodes = combinedNodesForTransform;
@@ -1383,16 +1405,29 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       edgeOpacity
     );
 
-    const bounds = {
-      minX: Math.min(...transformedNodes.map(n => n.position[0])),
-      maxX: Math.max(...transformedNodes.map(n => n.position[0])),
-      minY: Math.min(...transformedNodes.map(n => n.position[1])),
-      maxY: Math.max(...transformedNodes.map(n => n.position[1])),
-      minZ: Math.min(...transformedNodes.map(n => n.position[2])),
-      maxZ: Math.max(...transformedNodes.map(n => n.position[2]))
-    };
+    // Optimize bounds calculation using reduce instead of spread operator for better performance
+    const bounds = transformedNodes.reduce((acc, node) => {
+      const [x, y, z] = node.position;
+      if (acc.minX === null || x < acc.minX) acc.minX = x;
+      if (acc.maxX === null || x > acc.maxX) acc.maxX = x;
+      if (acc.minY === null || y < acc.minY) acc.minY = y;
+      if (acc.maxY === null || y > acc.maxY) acc.maxY = y;
+      if (acc.minZ === null || z < acc.minZ) acc.minZ = z;
+      if (acc.maxZ === null || z > acc.maxZ) acc.maxZ = z;
+      return acc;
+    }, { minX: null as number | null, maxX: null as number | null, minY: null as number | null, maxY: null as number | null, minZ: null as number | null, maxZ: null as number | null });
+    
+    // Convert to final bounds object or null if no nodes
+    const finalBounds = (bounds.minX !== null && bounds.maxX !== null && bounds.minY !== null && bounds.maxY !== null && bounds.minZ !== null && bounds.maxZ !== null) ? {
+      minX: bounds.minX,
+      maxX: bounds.maxX,
+      minY: bounds.minY,
+      maxY: bounds.maxY,
+      minZ: bounds.minZ,
+      maxZ: bounds.maxZ
+    } : null;
 
-    return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds };
+    return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds: finalBounds };
   }, [coordinateTransform, combinedNodesForTransform, combinedEdgesForTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors, edgeOpacity]);
 
   // Keep all nodes for calculations, but we'll control visibility in the layer
@@ -1404,7 +1439,9 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       const zoomLimits = calculateZoomLimits(bounds);
       const zHeight = bounds.maxZ - bounds.minZ;
       
-      console.log('World-Space 3D Navigation Calculation:', {
+      // Debug logging only in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('World-Space 3D Navigation Calculation:', {
         zHeight,
         temporalLayers: Math.round(zHeight / 12), // Approximate layer count
         minZ: bounds.minZ,
@@ -1416,7 +1453,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         scaleFactor: zHeight * VISUALIZATION_CONSTANTS.ZOOM_SCALE_FACTOR,
         zoomMultiplier: Math.max(1, zHeight * VISUALIZATION_CONSTANTS.ZOOM_SCALE_FACTOR),
         worldSpaceUnits: 'meters'
-      });
+        });
+      }
       
       setViewState(prev => ({
         ...prev,
@@ -1438,14 +1476,17 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const baseLines = convertShapeToLines(shapeToRender, spatialSpacing);
     const isTemporalPlanesActive = showTemporalPlanes && (temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid');
     
-    console.log('Temporal Filter State:', {
-      showTemporalPlanes,
-      temporalFilterMode,
-      isTemporalPlanesActive,
-      temporalRange,
-      temporalSpacing,
-      temporalSpacingMode
-    });
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Temporal Filter State:', {
+        showTemporalPlanes,
+        temporalFilterMode,
+        isTemporalPlanesActive,
+        temporalRange,
+        temporalSpacing,
+        temporalSpacingMode
+      });
+    }
 
     const baseGeographicOpacity = geographicShapeOpacity ?? 70;
     
@@ -1629,7 +1670,9 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       referenceTime = (timeWindowMin + timeWindowMax) / 2;
     }
 
-    console.log('Ancestry Heatmap Calculation:', {
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Ancestry Heatmap Calculation:', {
       mode: temporalFilterMode || 'ground',
       referenceTime,
       timeDepthPercent: heatmapSettings.timeDepth,
@@ -1642,7 +1685,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       resolution: heatmapSettings.resolution,
       opacity: heatmapSettings.opacity,
       nodeVisibility: heatmapSettings.nodeVisibility
-    });
+      });
+    }
 
     // Collect all nodes within the time window
     const nodesInTimeWindow = combinedNodesForTransform.filter(node => 
@@ -1667,7 +1711,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       return [];
     }
 
-    console.log('Ancestor locations found:', ancestorLocations.length);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Ancestor locations found:', ancestorLocations.length);
+    }
 
     // Generate heatmap grid
     const grid = generateHeatmapGrid(
@@ -1696,7 +1743,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       heatmapZ = -0.1;
     }
 
-    console.log('Heatmap z position:', heatmapZ);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Heatmap z position:', heatmapZ);
+    }
 
     // Convert grid to polygons for rendering
     const polygons = heatmapGridToPolygons(
@@ -1707,7 +1757,10 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       heatmapSettings.opacity
     );
 
-    console.log('Heatmap polygons generated:', polygons.length);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Heatmap polygons generated:', polygons.length);
+    }
 
     return polygons;
   }, [
@@ -1723,7 +1776,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     spatialSpacing
   ]);
 
-  const layers = [
+  // Memoize layers array to prevent unnecessary recreation and memory leaks
+  const layers = useMemo(() => [
     // Ancestry heatmap layer (rendered first, below everything else)
     new PolygonLayer({
       id: 'ancestry-heatmap',
@@ -1896,13 +1950,15 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
           // Use the button that was pressed during pointerdown (not pointerup which is always 0)
           const isRightClick = lastPointerButtonRef.current === 2;
           
-          // Debug logging
-          console.log('Node clicked:', {
-            lastPointerButton: lastPointerButtonRef.current,
-            eventButton: event.srcEvent?.button,
-            type: event.srcEvent?.type,
-            isRightClick
-          });
+          // Debug logging (only in development)
+          if (process.env.NODE_ENV === 'development') {
+            console.log('Node clicked:', {
+              lastPointerButton: lastPointerButtonRef.current,
+              eventButton: event.srcEvent?.button,
+              type: event.srcEvent?.type,
+              isRightClick
+            });
+          }
           
           if (isRightClick && onNodeRightClick) {
             event.srcEvent?.preventDefault?.();
@@ -2091,7 +2147,29 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         getSize: [edgeMutationSettings]
       }
     })
-  ];
+  ], [
+    ancestryHeatmap,
+    geographicLines,
+    labelConnectingLines,
+    edges3D,
+    nodes3D,
+    nodeLabels,
+    edgeLabels,
+    mutationMarkers,
+    heatmapSettings,
+    temporalRange,
+    temporalFilterMode,
+    nodeIdSettings,
+    colors,
+    nodeSizes,
+    edgeThickness,
+    edgeOpacity,
+    edgeLabelSettings,
+    edgeMutationSettings,
+    customLabelPositions,
+    isDragging,
+    data?.metadata.sequence_length
+  ]);
 
   if (!data || nodes3D.length === 0) {
     return (
@@ -2138,7 +2216,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         ref={deckRef}
         width={width}
         height={height}
-        views={new OrbitView({ id: 'orbit' })}
+        views={orbitView}
         viewState={viewState}
         onViewStateChange={({ viewState: newViewState }: any) => {
           // Clamp zoom to prevent precision issues and ensure smooth zooming using dynamic limits

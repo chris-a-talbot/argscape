@@ -5,11 +5,14 @@ import { GraphNode, GraphEdge } from '../components/visualizations/ForceDirected
  * Call this to understand what's happening in your data
  */
 export function analyzeNodeCombining(nodes: GraphNode[], edges: GraphEdge[]): void {
-  console.log('📊 Node Analysis:', {
-    total: nodes.length,
-    samples: nodes.filter(n => n.is_sample).length,
-    internal: nodes.filter(n => !n.is_sample).length
-  });
+  // Only log in development mode
+  if (process.env.NODE_ENV === 'development') {
+    console.log('📊 Node Analysis:', {
+      total: nodes.length,
+      samples: nodes.filter(n => n.is_sample).length,
+      internal: nodes.filter(n => !n.is_sample).length
+    });
+  }
 }
 
 /**
@@ -221,7 +224,10 @@ export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphE
   // Sort nodes by ID to ensure consistent processing order
   const sortedNodes = [...nodes].sort((a, b) => a.id - b.id);
   
-  console.log(`🔗 Starting genealogical combining (${nodes.length} nodes)...`);
+  // Debug logging only in development
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`🔗 Starting genealogical combining (${nodes.length} nodes)...`);
+  }
   
   // Find groups of nodes that should be combined genealogically
   for (let i = 0; i < sortedNodes.length; i++) {
@@ -250,10 +256,13 @@ export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphE
       const sortedIds = combinableNodes.map(n => n.id).sort((a, b) => a - b);
       const representativeNode = combinableNodes.find(n => n.id === sortedIds[0])!;
       
-      if (combiningReasons[0] === 'recombination_pair') {
-        console.log(`🧬 Combined recombination pair: ${sortedIds[0]}/${sortedIds[1]}`);
-      } else {
-        console.log(`🔗 Combined ${combiningReasons[0]}: ${sortedIds.join('/')}`);
+      // Debug logging only in development
+      if (process.env.NODE_ENV === 'development') {
+        if (combiningReasons[0] === 'recombination_pair') {
+          console.log(`🧬 Combined recombination pair: ${sortedIds[0]}/${sortedIds[1]}`);
+        } else {
+          console.log(`🔗 Combined ${combiningReasons[0]}: ${sortedIds.join('/')}`);
+        }
       }
       
       const combinedNode: GraphNode = {

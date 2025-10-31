@@ -858,6 +858,12 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
 }) => {
   const { colors } = useColorTheme();
 
+  // DeckGL ref for cleanup
+  const deckRef = useRef<any>(null);
+
+  // Memoize OrbitView to prevent recreation on every render
+  const orbitView = useMemo(() => new OrbitView(), []);
+
   // Track mouse button for right-click detection (pointerup loses button info)
   const lastPointerButtonRef = useRef<number>(0);
   
@@ -865,7 +871,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
       lastPointerButtonRef.current = e.button;
-      console.log('Pointer down captured:', { button: e.button, type: e.pointerType });
+      // Debug logging only in development
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Pointer down captured:', { button: e.button, type: e.pointerType });
+      }
     };
     
     // Use capture phase to ensure we catch the event before deck.gl
@@ -873,11 +882,32 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     return () => window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
   }, []);
 
+  // Cleanup DeckGL instance on unmount to release WebGL resources
+  useEffect(() => {
+    return () => {
+      if (deckRef.current) {
+        try {
+          // Finalize the DeckGL instance to properly release WebGL contexts and resources
+          deckRef.current.finalize?.();
+        } catch (error) {
+          console.warn('Error finalizing DeckGL instance:', error);
+        }
+      }
+    };
+  }, []);
+
   // Calculate minimum time for sample detection
   const minTime = useMemo(() => {
     if (!firstData || !secondData) return 0;
-    const allTimes = [...firstData.nodes.map(n => n.time), ...secondData.nodes.map(n => n.time)];
-    return Math.min(...allTimes);
+    // Optimize: use reduce instead of spread operator for better performance
+    let min = Infinity;
+    for (const node of firstData.nodes) {
+      if (node.time < min) min = node.time;
+    }
+    for (const node of secondData.nodes) {
+      if (node.time < min) min = node.time;
+    }
+    return min === Infinity ? 0 : min;
   }, [firstData, secondData]);
 
   // Transform nodes to 3D
@@ -1021,7 +1051,9 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       referenceTime = (timeWindowMin + timeWindowMax) / 2;
     }
 
-    console.log('Ancestry Heatmap Calculation (Diff):', {
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Ancestry Heatmap Calculation (Diff):', {
       mode: temporalFilterMode || 'ground',
       referenceTime,
       timeDepthPercent: heatmapSettings.timeDepth,
@@ -1034,7 +1066,8 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       resolution: heatmapSettings.resolution,
       opacity: heatmapSettings.opacity,
       nodeVisibility: heatmapSettings.nodeVisibility
-    });
+      });
+    }
 
     // Collect all nodes within the time window
     const nodesInTimeWindow = firstData.nodes.filter(node => 
@@ -1059,7 +1092,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       return [];
     }
 
-    console.log('Ancestor locations found:', ancestorLocations.length);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Ancestor locations found:', ancestorLocations.length);
+    }
 
     // Generate heatmap grid
     const grid = generateHeatmapGrid(
@@ -1088,7 +1124,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       heatmapZ = -0.1;
     }
 
-    console.log('Heatmap z position:', heatmapZ);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Heatmap z position:', heatmapZ);
+    }
 
     // Convert grid to polygons for rendering
     const polygons = heatmapGridToPolygons(
@@ -1099,7 +1138,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       heatmapSettings.opacity
     );
 
-    console.log('Heatmap polygons generated:', polygons.length);
+    // Debug logging only in development
+    if (process.env.NODE_ENV === 'development') {
+      console.log('Heatmap polygons generated:', polygons.length);
+    }
 
     return polygons;
   }, [
@@ -1387,13 +1429,15 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
             // Use the button that was pressed during pointerdown (not pointerup which is always 0)
             const isRightClick = lastPointerButtonRef.current === 2;
             
-            // Debug logging
-            console.log('Node clicked:', {
-              lastPointerButton: lastPointerButtonRef.current,
-              eventButton: event.srcEvent?.button,
-              type: event.srcEvent?.type,
-              isRightClick
-            });
+            // Debug logging only in development
+            if (process.env.NODE_ENV === 'development') {
+              console.log('Node clicked:', {
+                lastPointerButton: lastPointerButtonRef.current,
+                eventButton: event.srcEvent?.button,
+                type: event.srcEvent?.type,
+                isRightClick
+              });
+            }
             
             if (isRightClick && onNodeRightClick) {
               event.srcEvent?.preventDefault?.();
@@ -1529,8 +1573,9 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
 
   return (
     <DeckGL
+      ref={deckRef}
       layers={layers}
-      views={new OrbitView()}
+      views={orbitView}
       viewState={viewState}
       onViewStateChange={({ viewState: newViewState }: any) => {
         const clampedViewState = {
