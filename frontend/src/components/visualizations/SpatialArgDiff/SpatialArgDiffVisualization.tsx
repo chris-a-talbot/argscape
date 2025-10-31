@@ -1,20 +1,35 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
-import { ScatterplotLayer, LineLayer, TextLayer, PolygonLayer } from '@deck.gl/layers';
+import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
 import { GraphData, GraphNode, GraphEdge, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
-import { convertShapeToLines, createShapeLines, createUnitGridShape } from '../SpatialArgUtils/GeographicUtils';
+import { convertShapeToLines, createShapeLines } from '../SpatialArgUtils/GeographicUtils';
 import { isRootNode } from '../../../utils/graphTraversal';
-import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, AncestryHeatmapSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
+  EdgeMutationSettings, AncestryHeatmapSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
 import { groupEdgesByPairs, expandEdgeSpansForCombinedNodes } from '../../../utils/genomicSpanUtils';
 import {
   calculateAncestryDensity,
   generateHeatmapGrid,
   heatmapGridToPolygons
 } from '../SpatialArgUtils/AncestryHeatmap';
-
-export type DiffViewMode = 'diff' | 'first' | 'second';
+import { determineGeographicShape, shouldHideNodeByHeatmap, filterDataByHeatmap, filterNodeLabelsByHeatmap, calculateNodeBaseRadius, calculateZPosition } from '../SpatialArgUtils/SpatialArg.utils';
+import { createMutationMarkers as createMutationMarkersUtil, createHeatmapPolygonLayer } from '../SpatialArgUtils/LayerHelpers';
+import {
+  calculateCoordinateTransform,
+  transformNodesToThreeD,
+  transformEdgesToThreeD,
+  calculateNodeColor,
+  calculateNodeOutlineColor,
+  createTooltipContent,
+  createNodeLabels,
+  createEdgeLabels
+} from './SpatialArgDiff.utils';
+import { VISUALIZATION_CONSTANTS_DIFF } from '../SpatialArgUtils/SpatialArg.constants';
+import { GeographicMode, EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
+import { DiffViewMode, NodeDiff3D, EdgeDiff3D, DiffEdge, TransformResult, EdgeTransformResult, NodeLabel3D } from './SpatialArgDiff.types';
+import { LINE_WIDTHS } from './SpatialArgDiff.constants';
 
 interface SpatialArgDiffProps {
   firstData: GraphData;
@@ -64,739 +79,6 @@ interface SpatialArgDiffProps {
     orbitAxis: 'Y';
   }>;
 }
-
-interface NodeDiff3D extends GraphNode {
-  position: [number, number, number];  // Centroid position
-  firstPosition: [number, number, number];  // Original position in first tree sequence
-  secondPosition: [number, number, number];  // Position in second tree sequence
-  color: [number, number, number, number];
-  size: number;
-  distance: number;  // Euclidean distance between positions
-}
-
-interface EdgeDiff3D {
-  source: [number, number, number];
-  target: [number, number, number];
-  color: [number, number, number, number];
-  width: number;
-}
-
-interface DiffEdge {
-  source: [number, number, number];
-  target: [number, number, number];
-  color: [number, number, number, number];
-  width: number;
-}
-
-
-interface TransformResult {
-  nodes3D: NodeDiff3D[];
-  diffEdges: DiffEdge[];
-}
-
-interface EdgeTransformResult {
-  source: [number, number, number];
-  target: [number, number, number];
-  color: [number, number, number, number];
-}
-
-interface NodeLabel3D {
-  position: [number, number, number];
-  text: string;
-  color: [number, number, number, number];
-  size: number;
-  labelId: string;
-}
-
-interface EdgeLabel3D {
-  position: [number, number, number];
-  text: string;
-  color: [number, number, number, number];
-  size: number;
-  sourceId: number;
-  targetId: number;
-}
-
-interface MutationMarker3D {
-  position: [number, number, number];
-  text: string;
-  color: [number, number, number, number];
-  size: number;
-  sourceId: number;
-  targetId: number;
-}
-
-type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
-
-// Constants
-const VISUALIZATION_CONSTANTS = {
-  DEFAULT_ZOOM: 2.5,
-  AUTO_FIT_ZOOM: 1.8,
-  MIN_ZOOM: 0.01,
-  MAX_ZOOM: 50,
-  NODE_OPACITY: 0.85,
-  NODE_RADIUS_SCALE: 6,
-  MIN_NODE_RADIUS: 1,
-  EDGE_WIDTH: 2,
-  BASE_ELEVATION: 0.1,
-  SELECTED_NODE_SCALE: 1.5,
-  TEMPORAL_FADE_OPACITY: 0.3,
-  EDGE_FADE_OPACITY: 0.15,
-  EDGE_PARTIAL_FADE_OPACITY: 0.35,
-  REDUCED_OPACITY_MULTIPLIER: 0.2,
-  BUFFER_RADIUS: 0.1,  // Minimum distance to ensure visibility
-  UNIT_GRID_SIZE: 10,  // Added for geographic shape generation
-  JITTER_SCALE: 0.001,  // Added for node jittering
-  JITTER_RANGE: 0.02,   // Added for node jittering
-  JITTER_OFFSET: 0.01,  // Added for node jittering
-  GEOGRAPHIC_OPACITY_SCALE: 2.5,  // Added to match 3D visualizer
-  GEOGRAPHIC_REDUCED_OPACITY: 0.3, // Added to match 3D visualizer
-  TEMPORAL_OPACITY_SCALE: 0.3,    // Added to match 3D visualizer
-  GRID_EXTENSION: 2               // Added to match 3D visualizer
-} as const;
-
-const LINE_WIDTHS = {
-  NODE_OUTLINE_SELECTED: 2,
-  NODE_OUTLINE_ROOT: 1.5,
-  NODE_OUTLINE_SAMPLE: 0.8,
-  MIN_NODE_OUTLINE: 0.3,
-  MAX_NODE_OUTLINE: 4,
-  GEOGRAPHIC_ACTIVE: 2,
-  GEOGRAPHIC_NORMAL: 1,
-  TIME_SLICE_ACTIVE: 2,
-  TIME_SLICE_NORMAL: 1
-} as const;
-
-const calculateNodeSize = (
-  node: GraphNode, 
-  combinedNodes: GraphNode[], 
-  combinedEdges: GraphEdge[],
-  nodeSizes: { sample: number; root: number; other: number },
-  minTime: number
-): number => {
-  // Samples are nodes at the minimum time (present day)
-  if (node.time === minTime) return nodeSizes.sample;
-  if (isRootNode(node, combinedNodes, combinedEdges)) return nodeSizes.root;
-  return nodeSizes.other;
-};
-
-const calculateTemporalOpacity = (
-  nodeTime: number, 
-  temporalRange: [number, number] | null, 
-  temporalFilterMode: string | null,
-  baseOpacity: number
-): number => {
-  if (temporalFilterMode !== 'planes' || !temporalRange) return baseOpacity;
-  
-  const [minTime, maxTime] = temporalRange;
-  const isInRange = nodeTime >= minTime && nodeTime <= maxTime;
-  return isInRange ? baseOpacity : baseOpacity * VISUALIZATION_CONSTANTS.TEMPORAL_FADE_OPACITY;
-};
-
-const calculateEdgeOpacity = (
-  sourceNode: NodeDiff3D,
-  targetNode: NodeDiff3D,
-  temporalRange: [number, number] | null,
-  temporalFilterMode: string | null,
-  baseOpacity: number
-): number => {
-  if (temporalFilterMode !== 'planes' || !temporalRange) return baseOpacity;
-  
-  const [minTime, maxTime] = temporalRange;
-  const sourceInRange = sourceNode.time >= minTime && sourceNode.time <= maxTime;
-  const targetInRange = targetNode.time >= minTime && targetNode.time <= maxTime;
-  
-  if (!sourceInRange && !targetInRange) return baseOpacity * VISUALIZATION_CONSTANTS.EDGE_FADE_OPACITY;
-  if (!sourceInRange || !targetInRange) return baseOpacity * VISUALIZATION_CONSTANTS.EDGE_PARTIAL_FADE_OPACITY;
-  return baseOpacity;
-};
-
-const calculateCoordinateTransform = (
-  nodes: GraphNode[],
-  secondNodes: GraphNode[],
-  geographicMode: GeographicMode,
-  geographicShape: GeographicShape | null
-) => {
-  const spatialNodes = nodes.filter(node => 
-    node.location?.x !== undefined && node.location?.y !== undefined
-  );
-
-  if (spatialNodes.length === 0) return null;
-
-  // Calculate bounds for both datasets
-  const allXCoords = [...spatialNodes.map(node => node.location!.x), ...secondNodes.map(node => node.location!.x)];
-  const allYCoords = [...spatialNodes.map(node => node.location!.y), ...secondNodes.map(node => node.location!.y)];
-  
-  const minX = Math.min(...allXCoords);
-  const maxX = Math.max(...allXCoords);
-  const minY = Math.min(...allYCoords);
-  const maxY = Math.max(...allYCoords);
-  
-  let centerX: number, centerY: number, maxScale: number;
-  
-  const hasGeographicBounds = (geographicMode === 'eastern_hemisphere' || geographicMode === 'custom') && geographicShape?.bounds;
-  
-  if (hasGeographicBounds) {
-    const bounds = geographicShape!.bounds!;
-    const [shapeMinX, shapeMinY, shapeMaxX, shapeMaxY] = bounds;
-    centerX = (shapeMinX + shapeMaxX) / 2;
-    centerY = (shapeMinY + shapeMaxY) / 2;
-    maxScale = Math.max(shapeMaxX - shapeMinX, shapeMaxY - shapeMinY) || 1;
-  } else {
-    centerX = (minX + maxX) / 2;
-    centerY = (minY + maxY) / 2;
-    maxScale = Math.max(maxX - minX, maxY - minY) || 1;
-  }
-
-  return {
-    spatialNodes,
-    centerX,
-    centerY,
-    maxScale,
-    dataBounds: { minX, maxX, minY, maxY }
-  };
-};
-
-// Helper function to calculate z position based on temporal spacing mode
-function calculateZPosition(
-  time: number,
-  uniqueTimes: number[],
-  temporalSpacing: number,
-  temporalSpacingMode: 'equal' | 'log' | 'linear'
-): number {
-  if (uniqueTimes.length <= 1) return 0;
-
-  switch (temporalSpacingMode) {
-    case 'equal':
-      const timeIndex = uniqueTimes.indexOf(time);
-      return timeIndex * temporalSpacing;
-    
-    case 'log':
-      const minTime = Math.max(0.0001, uniqueTimes[0]); // Avoid log(0)
-      const maxTime = uniqueTimes[uniqueTimes.length - 1];
-      const logMin = Math.log(minTime);
-      const logMax = Math.log(maxTime);
-      const logTime = Math.log(Math.max(0.0001, time));
-      const normalizedLog = (logTime - logMin) / (logMax - logMin);
-      return normalizedLog * (uniqueTimes.length - 1) * temporalSpacing;
-    
-    case 'linear':
-      const minTimeLinear = uniqueTimes[0];
-      const maxTimeLinear = uniqueTimes[uniqueTimes.length - 1];
-      const normalizedTime = (time - minTimeLinear) / (maxTimeLinear - minTimeLinear);
-      return normalizedTime * (uniqueTimes.length - 1) * temporalSpacing;
-    
-    default:
-      return time * temporalSpacing;
-  }
-}
-
-// Add jittering function
-const createNodeJitter = (nodeId: number): number => {
-  return (nodeId * VISUALIZATION_CONSTANTS.JITTER_SCALE) % VISUALIZATION_CONSTANTS.JITTER_RANGE - VISUALIZATION_CONSTANTS.JITTER_OFFSET;
-};
-
-const transformNodesToThreeD = (
-  nodes: GraphNode[],
-  secondNodes: GraphNode[],
-  coordinateTransform: any,
-  temporalSpacing: number,
-  temporalSpacingMode: 'equal' | 'log' | 'linear',
-  spatialSpacing: number,
-  colors: any,
-  combinedNodes: GraphNode[],
-  combinedEdges: GraphEdge[],
-  diffEdgeWidth: number,
-  nodeSizes: { sample: number; root: number; other: number },
-  viewMode: DiffViewMode,
-  showErrorBars: boolean
-): { nodes: NodeDiff3D[], diffEdges: DiffEdge[] } => {
-  const { centerX, centerY, maxScale } = coordinateTransform;
-  const secondNodesMap = new Map(secondNodes.map(node => [node.id, node]));
-
-  // Get unique times for z-position calculation
-  const uniqueTimes = Array.from(new Set([...nodes.map(n => n.time), ...secondNodes.map(n => n.time)])).sort((a, b) => a - b);
-  const minTime = uniqueTimes[0];
-
-  const diffEdges: DiffEdge[] = [];
-  const transformedNodes = nodes.map(node => {
-    const secondNode = secondNodesMap.get(node.id);
-    if (!secondNode || !node.location || !secondNode.location) {
-      throw new Error(`Missing location data for node ${node.id}`);
-    }
-
-    // Calculate normalized positions for both datasets
-    const normalizedX = ((node.location.x - centerX) / maxScale) * spatialSpacing;
-    const normalizedY = ((node.location.y - centerY) / maxScale) * spatialSpacing;
-    const normalizedSecondX = ((secondNode.location.x - centerX) / maxScale) * spatialSpacing;
-    const normalizedSecondY = ((secondNode.location.y - centerY) / maxScale) * spatialSpacing;
-
-    // For sample nodes, use the same position (they shouldn't move between tree sequences)
-    const isSample = node.is_sample;
-    
-    // Determine display position based on view mode
-    let displayX: number, displayY: number;
-    if (isSample) {
-      // Samples always use first position (they shouldn't move)
-      displayX = normalizedX;
-      displayY = normalizedY;
-    } else if (viewMode === 'first') {
-      displayX = normalizedX;
-      displayY = normalizedY;
-    } else if (viewMode === 'second') {
-      displayX = normalizedSecondX;
-      displayY = normalizedSecondY;
-    } else { // 'diff' mode
-      displayX = (normalizedX + normalizedSecondX) / 2;
-      displayY = (normalizedY + normalizedSecondY) / 2;
-    }
-    
-    // Add jittering to z position
-    const jitter = createNodeJitter(node.id);
-    const finalZ = calculateZPosition(node.time, uniqueTimes, temporalSpacing, temporalSpacingMode) + VISUALIZATION_CONSTANTS.BASE_ELEVATION + jitter;
-
-    // Calculate Euclidean distance between positions (0 for samples)
-    const dx = normalizedSecondX - normalizedX;
-    const dy = normalizedSecondY - normalizedY;
-    const distance = isSample ? 0 : Math.sqrt(dx * dx + dy * dy);
-
-    // Calculate node size using the same logic as the original visualization
-    const size = calculateNodeSize(node, combinedNodes, combinedEdges, nodeSizes, minTime);
-
-    // Calculate color based on node type
-    // Sample nodes are those at minimum time (present day)
-    const isSampleTime = node.time === minTime;
-    let color: [number, number, number, number];
-    if (isSampleTime) {
-      color = colors.nodeSample;
-    } else if (node.is_combined) {
-      color = colors.nodeCombined;
-    } else if (isRootNode(node, combinedNodes, combinedEdges)) {
-      color = colors.nodeRoot;
-    } else {
-      color = colors.nodeDefault;
-    }
-
-    // Add error bars if enabled
-    if (showErrorBars && !isSampleTime) {
-      if (viewMode === 'diff') {
-        // In diff mode: error bars go from first position to centroid to second position
-        // Edge from first position to centroid
-        diffEdges.push({
-          source: [normalizedX, normalizedY, finalZ],
-          target: [displayX, displayY, finalZ],
-          color: [255, 0, 0, 180] as [number, number, number, number], // Semi-transparent red
-          width: diffEdgeWidth
-        });
-        // Edge from centroid to second position
-        diffEdges.push({
-          source: [displayX, displayY, finalZ],
-          target: [normalizedSecondX, normalizedSecondY, finalZ],
-          color: [255, 0, 0, 180] as [number, number, number, number], // Semi-transparent red
-          width: diffEdgeWidth
-        });
-      } else if (viewMode === 'first') {
-        // In first mode: error bar goes from first position to second position
-        diffEdges.push({
-          source: [displayX, displayY, finalZ],
-          target: [normalizedSecondX, normalizedSecondY, finalZ],
-          color: [255, 0, 0, 180] as [number, number, number, number],
-          width: diffEdgeWidth
-        });
-      } else if (viewMode === 'second') {
-        // In second mode: error bar goes from second position to first position
-        diffEdges.push({
-          source: [displayX, displayY, finalZ],
-          target: [normalizedX, normalizedY, finalZ],
-          color: [255, 0, 0, 180] as [number, number, number, number],
-          width: diffEdgeWidth
-        });
-      }
-    }
-
-    return {
-      ...node,
-      position: [displayX, displayY, finalZ] as [number, number, number],
-      firstPosition: [normalizedX, normalizedY, finalZ] as [number, number, number],
-      secondPosition: [normalizedSecondX, normalizedSecondY, finalZ] as [number, number, number],
-      color,
-      size,
-      distance
-    };
-  });
-
-  return { nodes: transformedNodes, diffEdges };
-};
-
-const transformEdgesToThreeD = (
-  edges: GraphEdge[],
-  nodeMap: Map<number, NodeDiff3D>,
-  temporalRange: [number, number] | null,
-  temporalFilterMode: string | null,
-  colors: any
-): EdgeTransformResult[] => {
-  return edges
-    .filter(edge => {
-      const sourceNode = nodeMap.get(typeof edge.source === 'object' ? edge.source.id : edge.source);
-      const targetNode = nodeMap.get(typeof edge.target === 'object' ? edge.target.id : edge.target);
-      return sourceNode && targetNode;
-    })
-    .map(edge => {
-      const sourceId = typeof edge.source === 'object' ? edge.source.id : edge.source;
-      const targetId = typeof edge.target === 'object' ? edge.target.id : edge.target;
-      const sourceNode = nodeMap.get(sourceId)!;
-      const targetNode = nodeMap.get(targetId)!;
-
-      const edgeOpacity = calculateEdgeOpacity(
-        sourceNode, 
-        targetNode, 
-        temporalRange, 
-        temporalFilterMode, 
-        colors.edgeDefault[3]
-      );
-
-      return {
-        source: sourceNode.position,  // Use centroid position
-        target: targetNode.position,  // Use centroid position
-        color: [colors.edgeDefault[0], colors.edgeDefault[1], colors.edgeDefault[2], edgeOpacity] as [number, number, number, number]
-      };
-    });
-};
-
-const calculateNodeColor = (
-  node: NodeDiff3D,
-  selectedNode: GraphNode | null,
-  temporalRange: [number, number] | null,
-  temporalFilterMode: string | null,
-  colors: any
-): [number, number, number, number] => {
-  const isSelected = selectedNode && node.id === selectedNode.id;
-  if (isSelected) return colors.nodeSelected;
-  
-  const opacity = calculateTemporalOpacity(node.time, temporalRange, temporalFilterMode, node.color[3]);
-  return [node.color[0], node.color[1], node.color[2], opacity];
-};
-
-const calculateNodeOutlineColor = (
-  node: NodeDiff3D,
-  selectedNode: GraphNode | null,
-  data: GraphData | null,
-  temporalRange: [number, number] | null,
-  temporalFilterMode: string | null,
-  colors: any,
-  minTime: number
-): [number, number, number, number] => {
-  const isSelected = selectedNode && node.id === selectedNode.id;
-  const isRoot = isRootNode(node, data?.nodes || [], data?.edges || []);
-  const isSampleTime = node.time === minTime;
-  
-  let opacityMultiplier = 1;
-  if (temporalFilterMode === 'planes' && temporalRange) {
-    const [minTimeFilter, maxTimeFilter] = temporalRange;
-    const isInTemporalRange = node.time >= minTimeFilter && node.time <= maxTimeFilter;
-    if (!isInTemporalRange) {
-      opacityMultiplier = VISUALIZATION_CONSTANTS.REDUCED_OPACITY_MULTIPLIER;
-    }
-  }
-  
-  if (isSelected) return colors.nodeSelected;
-  
-  if (isRoot) {
-    return [colors.nodeSelected[0], colors.nodeSelected[1], colors.nodeSelected[2], colors.nodeSelected[3] * opacityMultiplier] as [number, number, number, number];
-  }
-  
-  if (isSampleTime) {
-    const outlineColor = colors.background === '#ffffff' ? 0 : 255;
-    return [outlineColor, outlineColor, outlineColor, 255 * opacityMultiplier] as [number, number, number, number];
-  }
-  
-  return [colors.nodeSelected[0], colors.nodeSelected[1], colors.nodeSelected[2], 0] as [number, number, number, number];
-};
-
-const calculateNodeOutlineWidth = (
-  node: NodeDiff3D,
-  selectedNode: GraphNode | null,
-  data: GraphData | null,
-  nodeSizes: { sample: number; root: number; other: number },
-  minTime: number
-): number => {
-  const isSelected = selectedNode && node.id === selectedNode.id;
-  const isRoot = isRootNode(node, data?.nodes || [], data?.edges || []);
-  const isSampleTime = node.time === minTime;
-  const baseSize = isSelected ? node.size * VISUALIZATION_CONSTANTS.SELECTED_NODE_SCALE : node.size;
-  
-  const sizeFactor = baseSize / nodeSizes.other;
-  
-  if (isSelected) return Math.max(1, LINE_WIDTHS.NODE_OUTLINE_SELECTED * sizeFactor);
-  if (isRoot) return Math.max(0.8, LINE_WIDTHS.NODE_OUTLINE_ROOT * sizeFactor);
-  if (isSampleTime) return Math.max(0.5, LINE_WIDTHS.NODE_OUTLINE_SAMPLE * sizeFactor);
-  return 0;
-};
-
-const getContrastColor = (nodeColor: [number, number, number, number], _colors: any): [number, number, number, number] => {
-  // Calculate luminance
-  const luminance = (0.299 * nodeColor[0] + 0.587 * nodeColor[1] + 0.114 * nodeColor[2]) / 255;
-  // Return white for dark colors, dark for light colors
-  if (luminance > 0.5) {
-    return [0, 0, 0, 255];
-  } else {
-    return [255, 255, 255, 255];
-  }
-};
-
-const createNodeLabels = (
-  nodes3D: NodeDiff3D[],
-  nodeIdSettings: NodeIdSettings | undefined,
-  combinedNodes: GraphNode[],
-  combinedEdges: GraphEdge[],
-  nodeSizes: { sample: number; root: number; other: number },
-  colors: any,
-  minTime: number
-): NodeLabel3D[] => {
-  if (!nodeIdSettings) return [];
-  
-  const labels: NodeLabel3D[] = [];
-  
-  // Filter nodes for labeling based on settings
-  const sampleNodes = nodes3D.filter(node => 
-    node.time === minTime && nodeIdSettings.showSampleIds
-  );
-  
-  const rootNodes = nodes3D.filter(node => 
-    node.time !== minTime && isRootNode(node, combinedNodes, combinedEdges) && nodeIdSettings.showRootIds
-  );
-  
-  const internalNodes = nodes3D.filter(node => 
-    node.time !== minTime && !isRootNode(node, combinedNodes, combinedEdges) && nodeIdSettings.showInternalIds
-  );
-  
-  // Process sample nodes
-  sampleNodes.forEach(node => {
-    const baseNodeSize = nodeSizes.sample * 0.5;
-    const textSize = baseNodeSize * 1.0;
-    
-    // Use theme text color for samples
-    const textColor: [number, number, number, number] = [
-      parseInt(colors.text.slice(1, 3), 16),
-      parseInt(colors.text.slice(3, 5), 16), 
-      parseInt(colors.text.slice(5, 7), 16),
-      255
-    ];
-    
-    const labelText = node.label || node.id.toString();
-    
-    labels.push({
-      position: node.position,
-      text: labelText,
-      color: textColor,
-      size: textSize,
-      labelId: `sample-label-${node.id}`
-    });
-  });
-  
-  // Process root nodes
-  rootNodes.forEach(node => {
-    const baseNodeSize = nodeSizes.root * 0.5;
-    const textSize = baseNodeSize * 1.2;
-    
-    const nodeColor = calculateNodeColor(node, null, null, null, colors);
-    const textColor = getContrastColor(nodeColor, colors);
-    
-    const labelText = node.label || node.id.toString();
-    
-    labels.push({
-      position: node.position,
-      text: labelText,
-      color: textColor,
-      size: textSize,
-      labelId: `root-label-${node.id}`
-    });
-  });
-  
-  // Process internal nodes
-  internalNodes.forEach(node => {
-    const baseNodeSize = nodeSizes.other * 0.5;
-    const textSize = baseNodeSize * 1.2;
-    
-    const nodeColor = calculateNodeColor(node, null, null, null, colors);
-    const textColor = getContrastColor(nodeColor, colors);
-    
-    const labelText = node.label || node.id.toString();
-    
-    labels.push({
-      position: node.position,
-      text: labelText,
-      color: textColor,
-      size: textSize,
-      labelId: `internal-label-${node.id}`
-    });
-  });
-  
-  return labels;
-};
-
-const createEdgeLabels = (
-  nodes3D: NodeDiff3D[],
-  firstEdges: GraphEdge[],
-  firstNodes: GraphNode[],
-  edgeLabelSettings: EdgeLabelSettings | undefined,
-  colors: any,
-  sequenceLength: number | undefined
-): EdgeLabel3D[] => {
-  if (!edgeLabelSettings?.showEdgeLabels || !firstEdges.length || !sequenceLength) {
-    return [];
-  }
-
-  const labels: EdgeLabel3D[] = [];
-  const nodeMap = new Map<number, NodeDiff3D>();
-  nodes3D.forEach(node => nodeMap.set(node.id, node));
-
-  // Calculate edge groups for labels
-  const edgeGroups = groupEdgesByPairs(firstEdges, firstNodes, sequenceLength);
-  
-  // Handle combined nodes by expanding their genomic spans
-  const expandedEdgeGroups = expandEdgeSpansForCombinedNodes(
-    edgeGroups, 
-    firstNodes, 
-    firstEdges,
-    sequenceLength
-  );
-
-  expandedEdgeGroups.forEach(edgeGroup => {
-    const sourceNode = nodeMap.get(edgeGroup.sourceId);
-    const targetNode = nodeMap.get(edgeGroup.targetId);
-    
-    if (sourceNode && targetNode) {
-      // Calculate midpoint between the actual 3D node positions
-      const midX = (sourceNode.position[0] + targetNode.position[0]) / 2;
-      const midY = (sourceNode.position[1] + targetNode.position[1]) / 2;
-      const midZ = (sourceNode.position[2] + targetNode.position[2]) / 2;
-
-      // Add small offset to prevent z-fighting with edges and nodes
-      const offsetZ = midZ + Math.max(2, edgeLabelSettings.labelFontSize * 0.2);
-
-      // Parse the text color properly (same as sample ID labels)
-      const textColor: [number, number, number, number] = [
-        parseInt(colors.text.slice(1, 3), 16),
-        parseInt(colors.text.slice(3, 5), 16), 
-        parseInt(colors.text.slice(5, 7), 16),
-        255
-      ];
-
-      labels.push({
-        position: [midX, midY, offsetZ],
-        text: edgeGroup.formattedSpans,
-        color: textColor,
-        size: edgeLabelSettings.labelFontSize * 0.8,
-        sourceId: edgeGroup.sourceId,
-        targetId: edgeGroup.targetId
-      });
-    }
-  });
-
-  return labels;
-};
-
-const createMutationMarkers = (
-  nodes3D: NodeDiff3D[],
-  firstEdges: GraphEdge[],
-  edgeMutationSettings: EdgeMutationSettings | undefined,
-  _colors: any
-): MutationMarker3D[] => {
-  if (!edgeMutationSettings?.showMutationMarkers) {
-    return [];
-  }
-
-  const markers: MutationMarker3D[] = [];
-  const nodeMap = new Map<number, NodeDiff3D>();
-  nodes3D.forEach(node => nodeMap.set(node.id, node));
-  
-  // Filter edges that have mutations
-  const mutationEdges = firstEdges.filter(edge => edge.has_mutations);
-  
-  mutationEdges.forEach(graphEdge => {
-    const sourceId = typeof graphEdge.source === 'number' ? graphEdge.source : graphEdge.source.id;
-    const targetId = typeof graphEdge.target === 'number' ? graphEdge.target : graphEdge.target.id;
-    
-    const sourceNode = nodeMap.get(sourceId);
-    const targetNode = nodeMap.get(targetId);
-    
-    if (sourceNode && targetNode) {
-      // Calculate midpoint position for marker
-      const midX = (sourceNode.position[0] + targetNode.position[0]) / 2;
-      const midY = (sourceNode.position[1] + targetNode.position[1]) / 2;
-      const midZ = (sourceNode.position[2] + targetNode.position[2]) / 2;
-      
-      markers.push({
-        position: [midX, midY, midZ],
-        text: "×", // Use multiplication sign for clean "x" appearance
-        color: [220, 38, 38, 255], // Red color (#dc2626)
-        size: edgeMutationSettings.markerSize || 14,
-        sourceId: sourceId,
-        targetId: targetId
-      });
-    }
-  });
-
-  return markers;
-};
-
-const createTooltipContent = (
-  node: NodeDiff3D,
-  data: GraphData,
-  transform: { maxScale: number; centerX: number; centerY: number } | null,
-  spatialSpacing: number,
-  colors: any
-) => {
-  let nodeTypeInfo = '';
-  if (node.is_sample) {
-    nodeTypeInfo = 'Sample Node';
-  } else if (node.is_combined) {
-    nodeTypeInfo = `Combined Node (contains: ${node.combined_nodes?.join(', ')})`;
-  } else if (isRootNode(node, data?.nodes || [], data?.edges || [])) {
-    nodeTypeInfo = 'Root Node';
-  } else {
-    nodeTypeInfo = 'Internal Node';
-  }
-  
-  // Calculate actual coordinates in original space
-  const firstX = transform ? node.firstPosition[0] * (transform.maxScale / spatialSpacing) + transform.centerX : node.firstPosition[0];
-  const firstY = transform ? node.firstPosition[1] * (transform.maxScale / spatialSpacing) + transform.centerY : node.firstPosition[1];
-  const secondX = transform ? node.secondPosition[0] * (transform.maxScale / spatialSpacing) + transform.centerX : node.secondPosition[0];
-  const secondY = transform ? node.secondPosition[1] * (transform.maxScale / spatialSpacing) + transform.centerY : node.secondPosition[1];
-  
-  return {
-    html: `
-      <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
-        <strong>Node ${node.id}</strong><br/>
-        Time: ${node.time.toFixed(3)}<br/>
-        ${nodeTypeInfo}<br/>
-        ${node.is_sample ? 'Sample Node (Fixed Position)' : `
-        First Position: (${firstX.toFixed(3)}, ${firstY.toFixed(3)})<br/>
-        Second Position: (${secondX.toFixed(3)}, ${secondY.toFixed(3)})<br/>
-        Movement Distance: ${node.distance.toFixed(3)}`}
-      </div>
-    `,
-    style: {
-      backgroundColor: 'transparent',
-      color: colors.tooltipText
-    }
-  };
-};
-
-const determineGeographicShape = (
-  geographicShape: GeographicShape | null,
-  geographicMode: GeographicMode,
-  _spatialSpacing: number
-): GeographicShape | null => {
-  if (geographicShape) return geographicShape;
-  if (geographicMode === 'unit_grid') return createUnitGridShape(VISUALIZATION_CONSTANTS.UNIT_GRID_SIZE);
-  if (geographicMode === 'eastern_hemisphere') {
-    console.warn('Eastern hemisphere mode selected but no geographic shape provided');
-    return null;
-  }
-  return createUnitGridShape(VISUALIZATION_CONSTANTS.UNIT_GRID_SIZE);
-};
 
 const DEFAULT_VISUAL_SETTINGS = {
   temporalSpacing: 10,
@@ -871,10 +153,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   useEffect(() => {
     const handlePointerDown = (e: PointerEvent) => {
       lastPointerButtonRef.current = e.button;
-      // Debug logging only in development
-      if (process.env.NODE_ENV === 'development') {
-        console.log('Pointer down captured:', { button: e.button, type: e.pointerType });
-      }
     };
     
     // Use capture phase to ensure we catch the event before deck.gl
@@ -967,8 +245,10 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
 
   // Create mutation markers
   const mutationMarkers = useMemo(() => {
-    return createMutationMarkers(nodes3D, firstData.edges, edgeMutationSettings, colors);
-  }, [nodes3D, firstData.edges, edgeMutationSettings, colors]);
+    const nodeMap = new Map<number, NodeDiff3D>();
+    nodes3D.forEach(node => nodeMap.set(node.id, node));
+    return createMutationMarkersUtil(firstData.edges, nodeMap, edgeMutationSettings);
+  }, [nodes3D, firstData.edges, edgeMutationSettings]);
 
   // Calculate coordinate transform for heatmap
   const coordinateTransform = useMemo(() => {
@@ -1051,23 +331,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       referenceTime = (timeWindowMin + timeWindowMax) / 2;
     }
 
-    // Debug logging only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Ancestry Heatmap Calculation (Diff):', {
-      mode: temporalFilterMode || 'ground',
-      referenceTime,
-      timeDepthPercent: heatmapSettings.timeDepth,
-      timeRangeMinPercent: heatmapSettings.timeRangeMin,
-      timeRangeMaxPercent: heatmapSettings.timeRangeMax,
-      timeWindow: [timeWindowMin, timeWindowMax],
-      totalTimeRange,
-      minTimeInData,
-      maxTimeInData,
-      resolution: heatmapSettings.resolution,
-      opacity: heatmapSettings.opacity,
-      nodeVisibility: heatmapSettings.nodeVisibility
-      });
-    }
 
     // Collect all nodes within the time window
     const nodesInTimeWindow = firstData.nodes.filter(node => 
@@ -1090,11 +353,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     if (ancestorLocations.length === 0) {
       console.warn('No ancestor locations found for heatmap');
       return [];
-    }
-
-    // Debug logging only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Ancestor locations found:', ancestorLocations.length);
     }
 
     // Generate heatmap grid
@@ -1124,11 +382,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       heatmapZ = -0.1;
     }
 
-    // Debug logging only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Heatmap z position:', heatmapZ);
-    }
-
     // Convert grid to polygons for rendering
     const polygons = heatmapGridToPolygons(
       grid,
@@ -1137,11 +390,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       heatmapZ,
       heatmapSettings.opacity
     );
-
-    // Debug logging only in development
-    if (process.env.NODE_ENV === 'development') {
-      console.log('Heatmap polygons generated:', polygons.length);
-    }
 
     return polygons;
   }, [
@@ -1169,7 +417,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     const isTemporalPlanesActive = false; // Since diff visualizer doesn't have temporal planes
     const baseGeographicOpacity = geographicShapeOpacity ?? 70;
     const geographicOpacity = baseGeographicOpacity > 0 ? 
-      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_REDUCED_OPACITY, 8) : baseGeographicOpacity * VISUALIZATION_CONSTANTS.GEOGRAPHIC_OPACITY_SCALE) : 0;
+      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * VISUALIZATION_CONSTANTS_DIFF.GEOGRAPHIC_REDUCED_OPACITY, 8) : baseGeographicOpacity * VISUALIZATION_CONSTANTS_DIFF.GEOGRAPHIC_OPACITY_SCALE) : 0;
     const geographicLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.GEOGRAPHIC_ACTIVE : LINE_WIDTHS.GEOGRAPHIC_NORMAL;
     const geographicColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], geographicOpacity] as [number, number, number, number];
 
@@ -1236,7 +484,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
     
     const baseOpacity = temporalGridOpacity ?? 30;
-    const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * VISUALIZATION_CONSTANTS.TEMPORAL_OPACITY_SCALE, 8) : baseOpacity;
+    const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * VISUALIZATION_CONSTANTS_DIFF.TEMPORAL_OPACITY_SCALE, 8) : baseOpacity;
     const timeSliceLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.TIME_SLICE_ACTIVE : LINE_WIDTHS.TIME_SLICE_NORMAL;
     const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
 
@@ -1247,14 +495,14 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
         
         if (z !== 0) {
           lines.push({
-            source: [bounds.minX - VISUALIZATION_CONSTANTS.GRID_EXTENSION, 0, z],
-            target: [bounds.maxX + VISUALIZATION_CONSTANTS.GRID_EXTENSION, 0, z],
+            source: [bounds.minX - VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, 0, z],
+            target: [bounds.maxX + VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, 0, z],
             color: timeSliceColor,
             width: timeSliceLineWidth
           });
           lines.push({
-            source: [0, bounds.minY - VISUALIZATION_CONSTANTS.GRID_EXTENSION, z],
-            target: [0, bounds.maxY + VISUALIZATION_CONSTANTS.GRID_EXTENSION, z],
+            source: [0, bounds.minY - VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, z],
+            target: [0, bounds.maxY + VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, z],
             color: timeSliceColor,
             width: timeSliceLineWidth
           });
@@ -1270,25 +518,9 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     const layers = [];
 
     // Add ancestry heatmap layer (rendered first, below everything else)
-    if (ancestryHeatmap.length > 0) {
-      layers.push(
-        new PolygonLayer({
-          id: 'ancestry-heatmap',
-          data: ancestryHeatmap,
-          pickable: false,
-          stroked: false,
-          filled: true,
-          extruded: false,
-          getPolygon: (d: any) => d.polygon,
-          getFillColor: (d: any) => d.color,
-          getLineColor: [0, 0, 0, 0],
-          lineWidthMinPixels: 0,
-          updateTriggers: {
-            getPolygon: [heatmapSettings, temporalRange, temporalFilterMode],
-            getFillColor: [heatmapSettings]
-          }
-        })
-      );
+    const heatmapLayer = createHeatmapPolygonLayer(ancestryHeatmap, heatmapSettings, temporalRange, temporalFilterMode);
+    if (heatmapLayer) {
+      layers.push(heatmapLayer);
     }
 
     // Add geographic shape layer
@@ -1310,8 +542,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     layers.push(
       new LineLayer({
       id: 'edges',
-      data: (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'none') ||
-            (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'samples') ? [] : edges3D,
+      data: filterDataByHeatmap(edges3D, heatmapSettings),
       getSourcePosition: d => d.source,
       getTargetPosition: d => d.target,
       getColor: d => d.color,
@@ -1324,8 +555,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     layers.push(
       new LineLayer({
         id: 'diff-edges',
-        data: (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'none') ||
-              (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'samples') ? [] : diffEdges,
+        data: filterDataByHeatmap(diffEdges, heatmapSettings),
         getSourcePosition: d => d.source,
         getTargetPosition: d => d.target,
         getColor: d => d.color,
@@ -1340,7 +570,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
         id: 'nodes',
         data: nodes3D,
         pickable: true,
-        opacity: VISUALIZATION_CONSTANTS.NODE_OPACITY,
+        opacity: VISUALIZATION_CONSTANTS_DIFF.NODE_OPACITY,
         stroked: true,
         filled: true,
         radiusUnits: 'meters',
@@ -1352,71 +582,43 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
         getPosition: (d: NodeDiff3D) => d.position,
         getRadius: (d: NodeDiff3D) => {
           // Hide nodes based on heatmap visibility settings
-          const isSample = d.time === minTime;
-          if (heatmapSettings?.enabled) {
-            if (heatmapSettings.nodeVisibility === 'none') {
-              return 0;
-            } else if (heatmapSettings.nodeVisibility === 'samples' && !isSample) {
-              return 0;
-            }
+          if (shouldHideNodeByHeatmap(d, heatmapSettings)) {
+            return 0;
           }
           
           // Get node-type-specific size from control panel (matching 3D visualizer)
-          let baseRadius: number;
-          if (isSample) {
-            // Sample nodes (at minimum time)
-            baseRadius = nodeSizes.sample * 0.5;
-          } else if (d.is_combined) {
-            // Combined nodes use internal size
-            baseRadius = nodeSizes.other * 0.5;
-          } else if (isRootNode(d, firstData?.nodes || [], firstData?.edges || [])) {
-            // Root nodes
-            baseRadius = nodeSizes.root * 0.5;
-          } else {
-            // Internal nodes
-            baseRadius = nodeSizes.other * 0.5;
-          }
+          const isSample = d.time === minTime;
+          // Treat nodes at minTime as samples for size calculation
+          const nodeForSize = isSample ? { ...d, is_sample: true } : d;
+          const isRoot = isRootNode(d, firstData?.nodes || [], firstData?.edges || []);
+          const baseRadius = calculateNodeBaseRadius(nodeForSize, nodeSizes, isRoot);
           
           return baseRadius;
         },
         getFillColor: (d: NodeDiff3D) => {
           // Hide nodes based on heatmap visibility settings
-          const isSample = d.time === minTime;
-          if (heatmapSettings?.enabled) {
-            if (heatmapSettings.nodeVisibility === 'none') {
-              return [0, 0, 0, 0];
-            } else if (heatmapSettings.nodeVisibility === 'samples' && !isSample) {
-              return [0, 0, 0, 0];
-            }
+          if (shouldHideNodeByHeatmap(d, heatmapSettings)) {
+            return [0, 0, 0, 0];
           }
           return calculateNodeColor(d, selectedNode ?? null, temporalRange, temporalFilterMode, colors);
         },
         getLineColor: (d: NodeDiff3D) => {
           // Hide nodes based on heatmap visibility settings
-          const isSample = d.time === minTime;
-          if (heatmapSettings?.enabled) {
-            if (heatmapSettings.nodeVisibility === 'none') {
-              return [0, 0, 0, 0];
-            } else if (heatmapSettings.nodeVisibility === 'samples' && !isSample) {
-              return [0, 0, 0, 0];
-            }
+          if (shouldHideNodeByHeatmap(d, heatmapSettings)) {
+            return [0, 0, 0, 0];
           }
           return calculateNodeOutlineColor(d, selectedNode ?? null, firstData, temporalRange, temporalFilterMode, colors, minTime);
         },
         getLineWidth: (d: NodeDiff3D) => {
           // Hide nodes based on heatmap visibility settings
-          const isSample = d.time === minTime;
-          if (heatmapSettings?.enabled) {
-            if (heatmapSettings.nodeVisibility === 'none') {
-              return 0;
-            } else if (heatmapSettings.nodeVisibility === 'samples' && !isSample) {
-              return 0;
-            }
+          if (shouldHideNodeByHeatmap(d, heatmapSettings)) {
+            return 0;
           }
           
+          const isSample = d.time === minTime;
+          const nodeForSize = isSample ? { ...d, is_sample: true } : d;
           const isRoot = isRootNode(d, firstData?.nodes || [], firstData?.edges || []);
-          const baseSize = isSample ? nodeSizes.sample * 0.5 : 
-                          isRoot ? nodeSizes.root * 0.5 : nodeSizes.other * 0.5;
+          const baseSize = calculateNodeBaseRadius(nodeForSize, nodeSizes, isRoot);
           
           const sizeFactor = baseSize / (nodeSizes.other * 0.5);
           
@@ -1428,16 +630,6 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
           if (info.object) {
             // Use the button that was pressed during pointerdown (not pointerup which is always 0)
             const isRightClick = lastPointerButtonRef.current === 2;
-            
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Node clicked:', {
-                lastPointerButton: lastPointerButtonRef.current,
-                eventButton: event.srcEvent?.button,
-                type: event.srcEvent?.type,
-                isRightClick
-              });
-            }
             
             if (isRightClick && onNodeRightClick) {
               event.srcEvent?.preventDefault?.();
@@ -1467,9 +659,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     layers.push(
       new TextLayer<NodeLabel3D>({
         id: 'node-labels',
-        data: (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'none') ? [] :
-              (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'samples') ? 
-                nodeLabels.filter(label => label.labelId?.startsWith('sample-label-')) : nodeLabels,
+        data: filterNodeLabelsByHeatmap(nodeLabels, heatmapSettings),
         pickable: false,
         sizeUnits: 'meters',
         sizeScale: 1,
@@ -1493,8 +683,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     layers.push(
       new TextLayer<EdgeLabel3D>({
         id: 'edge-labels',
-        data: (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'none') ||
-              (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'samples') ? [] : edgeLabels,
+        data: filterDataByHeatmap(edgeLabels, heatmapSettings),
         pickable: false,
         sizeUnits: 'meters',
         sizeScale: 1,
@@ -1519,8 +708,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     layers.push(
       new TextLayer<MutationMarker3D>({
         id: 'mutation-markers',
-        data: (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'none') ||
-              (heatmapSettings?.enabled && heatmapSettings.nodeVisibility === 'samples') ? [] : mutationMarkers,
+        data: filterDataByHeatmap(mutationMarkers, heatmapSettings),
         pickable: false,
         sizeUnits: 'meters',
         sizeScale: 1,
@@ -1552,9 +740,9 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   // View state management
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number],
-    zoom: VISUALIZATION_CONSTANTS.DEFAULT_ZOOM as number,
-    minZoom: VISUALIZATION_CONSTANTS.MIN_ZOOM as number,
-    maxZoom: VISUALIZATION_CONSTANTS.MAX_ZOOM as number,
+    zoom: VISUALIZATION_CONSTANTS_DIFF.DEFAULT_ZOOM as number,
+    minZoom: VISUALIZATION_CONSTANTS_DIFF.MIN_ZOOM as number,
+    maxZoom: VISUALIZATION_CONSTANTS_DIFF.MAX_ZOOM as number,
     rotationX: 30 as number,
     rotationOrbit: 0 as number,
     orbitAxis: 'Y' as const

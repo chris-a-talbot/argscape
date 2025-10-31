@@ -9,38 +9,9 @@
  */
 
 import { GraphNode, GraphEdge } from '../ForceDirectedGraph/ForceDirectedGraph.types';
-
-export interface Node3D extends GraphNode {
-  position: [number, number, number];
-  color: [number, number, number, number];
-  size: number;
-  is_combined?: boolean;
-  combined_nodes?: number[];
-}
-
-export interface AncestorLocation {
-  x: number;
-  y: number;
-  generation: number; // How many generations back
-}
-
-export interface HeatmapCell {
-  x: number;
-  y: number;
-  density: number;
-  normalizedDensity: number; // 0 to 1
-}
-
-export interface HeatmapGrid {
-  cells: HeatmapCell[];
-  gridSize: number;
-  bounds: {
-    minX: number;
-    maxX: number;
-    minY: number;
-    maxY: number;
-  };
-}
+import { AncestorLocation } from './SpatialArg.types';
+import { HeatmapGrid } from './SpatialArg.types';
+import { HeatmapCell } from './SpatialArg.types';
 
 /**
  * Trace ancestors backward from a given node within a time window
