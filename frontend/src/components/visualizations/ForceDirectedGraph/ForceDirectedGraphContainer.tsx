@@ -1,12 +1,15 @@
-import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo } from 'react';
+import { useEffect, useState, forwardRef, ForwardedRef, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
-import { LayoutSpacingSection, NodesSection, EdgesSection, InformationSection } from './ForceDirectedGraphSidebarSections';
-import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
+import { LayoutSpacingSection, NodesSection, EdgesSection, InformationSection, ViewControlsSection, ClusteringSection } from './ForceDirectedGraphSidebarSections';
+import { GraphData, GraphNode, GraphEdge, TreeInterval, NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, ForceTuningSettings } from './ForceDirectedGraph.types';
 import { RangeSlider } from '../../ui/range-slider';
 import { TreeRangeSlider } from '../../ui/tree-range-slider';
+import { TemporalRangeSlider } from '../../ui/temporal-range-slider';
 import { SampleOrderType } from '../../ui/sample-order-control';
 import { ArgStatsData } from '../../ui/arg-stats-display';
 import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
+import AlertModal from '../../ui/AlertModal';
 import { api } from '../../../lib/api';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { useTreeSequence } from '../../../context/TreeSequenceContext';
@@ -51,8 +54,8 @@ const DEFAULT_VISUAL_SETTINGS = {
     edgeThickness: 2.5,
     edgeOpacity: 95,
     temporalSpacingMode: 'equal' as TemporalSpacingMode,
-    temporalSpacing: 12,
-    sampleSpacing: 20
+    temporalSpacing: 14,
+    sampleSpacing: 40
 };
 
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({ 
@@ -67,6 +70,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     const { treeSequence } = useTreeSequence();
+    const [searchParams] = useSearchParams();
     const [data, setData] = useState<GraphData | null>(null);
     const [subArgData, setSubArgData] = useState<GraphData | null>(null); // Rename to clarify this is the SubARG
     const [error, setError] = useState<string | null>(null);
@@ -81,11 +85,17 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [isInitialized, setIsInitialized] = useState(false);
     const [filterMode, setFilterMode] = useState<FilterMode>('genomic');
     const [treeRange, setTreeRange] = useState<[number, number]>([0, 0]);
+    // Force remount of the visualization on layout-affecting changes (e.g., sample order)
+    const [layoutVersion, setLayoutVersion] = useState(0);
     const [debouncedTreeRange, setDebouncedTreeRange] = useState<[number, number]>([0, 0]);
     const [isUpdatingTreeRange, setIsUpdatingTreeRange] = useState(false);
     const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
     const [isFilterActive, setIsFilterActive] = useState(false);
-    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>('custom');
+    // Initialize sampleOrder based on URL parameter for clustering
+    const [sampleOrder, setSampleOrder] = useState<SampleOrderType>(() => {
+        const clusteringParam = searchParams.get('clustering');
+        return clusteringParam === 'true' ? 'dagre' : 'custom';
+    });
     const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
     const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>(DEFAULT_VISUAL_SETTINGS.nodeSizes);
     const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
@@ -96,9 +106,193 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [isLoading, setIsLoading] = useState(false);
     const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
     const [isUpdatingOrder, setIsUpdatingOrder] = useState(false);
+    const [forceTuning, setForceTuning] = useState<ForceTuningSettings>({
+        chargeScale: 1,
+        linkStrengthScale: 0.4,
+        xStrengthScale: 4,
+        yStrengthScale: 1,
+        collisionRadiusScale: 1.1,
+        collisionStrength: 0.7,
+        edgeCrossingScale: 1,
+        edgeBundlingScale: 1,
+        descendantRangeScale: 1,
+    });
+
+    // Temporal filtering state
+    const [temporalState, setTemporalState] = useState<{
+        isActive: boolean;
+        minTime: number;
+        maxTime: number;
+        range: [number, number];
+    }>({
+        isActive: false,
+        minTime: 0,
+        maxTime: 1,
+        range: [0, 1]
+    });
+
+    // Opacity for dimmed (out-of-range) elements during temporal filtering (0.0 - 0.99)
+    const [temporalDimOpacity, setTemporalDimOpacity] = useState<number>(0.05);
+
+    // Layer reveal state
+    const [layerReveal, setLayerReveal] = useState<{
+        isPlaying: boolean;
+        rate: number; // layers per second
+        mode: 'hide' | 'fade';
+        currentProgress: number; // 0 to 1
+        initialTarget: [number, number]; // Store initial camera position
+        simulationPaused: boolean; // Track if simulation should be paused
+    }>({
+        isPlaying: false,
+        rate: 2.0,
+        mode: 'hide',
+        currentProgress: 0,
+        initialTarget: [0, 0],
+        simulationPaused: false
+    });
+
+    // Manual simulation control
+    const [manualSimulationPaused, setManualSimulationPaused] = useState(false);
+    const [unpinTrigger, setUnpinTrigger] = useState(0); // Counter to trigger unpin action
+    const [resetTrigger, setResetTrigger] = useState(0); // Counter to trigger simulation reset
+
+    // Clustering state - initialize from URL parameter if present
+    const [clusteringEnabled, setClusteringEnabled] = useState(() => {
+        return searchParams.get('clustering') === 'true';
+    });
+    const [clusteringMinTreeSize, setClusteringMinTreeSize] = useState(() => {
+        const clusteringParam = searchParams.get('clustering');
+        return clusteringParam === 'true' ? 2 : 3; // Minimum tree size for URL-enabled clustering (max clustering = min size)
+    });
+    const [clusteringRequireDensity, setClusteringRequireDensity] = useState(() => {
+        const clusteringParam = searchParams.get('clustering');
+        return clusteringParam === 'true'; // Enable density for URL-enabled clustering
+    });
+    const [clusteringDensityIntensity, setClusteringDensityIntensity] = useState(() => {
+        const clusteringParam = searchParams.get('clustering');
+        return clusteringParam === 'true' ? 0.05 : 0.5; // 5% for maximum clustering (very lenient = more clusters)
+    });
+    const [clusteringRequireTemporalCompactness, setClusteringRequireTemporalCompactness] = useState(true);
+    const [clusteringTemporalIntensity, setClusteringTemporalIntensity] = useState(() => {
+        const clusteringParam = searchParams.get('clustering');
+        return clusteringParam === 'true' ? 0.25 : 0.5; // 25% when enabled from URL/result page, 50% default
+    });
+    
+    // Track if clustering has been initialized to avoid re-triggering on data changes
+    // If clustering is enabled from URL, mark as initialized immediately since state is set correctly from the start
+    const [clusteringInitialized, setClusteringInitialized] = useState(() => {
+        return searchParams.get('clustering') === 'true';
+    });
+    
+    // Handler for when clustering is enabled/disabled from within the visualizer
+    // Sets temporal intensity to 40% when enabled by user interaction
+    const handleClusteringEnabledChange = useCallback((enabled: boolean) => {
+        if (enabled && !clusteringEnabled) {
+            // User just enabled clustering - set temporal intensity to 40%
+            setClusteringTemporalIntensity(0.40);
+        }
+        setClusteringEnabled(enabled);
+    }, [clusteringEnabled]);
+    
+    // Store clustering state before viewing subARG (to restore later)
+    const [savedClusteringState, setSavedClusteringState] = useState<{
+        enabled: boolean;
+        minTreeSize: number;
+        requireDensity: boolean;
+        densityIntensity: number;
+        requireTemporalCompactness: boolean;
+        temporalIntensity: number;
+    } | null>(null);
+
+    // Edge crossings tracking
+    const [edgeCrossings, setEdgeCrossings] = useState<number | null>(null);
+    const [isCalculatingEdgeCrossings, setIsCalculatingEdgeCrossings] = useState(false);
+
+    // Track if we should show notification about auto-enabled clustering
+    const [showAutoClusteringNotification, setShowAutoClusteringNotification] = useState(false);
+    // Track if clustering was auto-enabled (for opening the panel by default)
+    const [wasAutoEnabled, setWasAutoEnabled] = useState(false);
 
     // Destructure visual settings for easier access
     const { nodeSizes: visualNodeSizes, edgeThickness: visualEdgeThickness, temporalSpacingMode: visualTemporalSpacingMode, temporalSpacing: visualTemporalSpacing, sampleSpacing: visualSampleSpacing } = visualSettings;
+
+    // Set calculating state when data changes (new visualization loaded)
+    useEffect(() => {
+        if (data) {
+            setIsCalculatingEdgeCrossings(true);
+        }
+    }, [data]);
+
+    // Clustering initialization is now handled in the initial fetch effect
+    // URL-based clustering is initialized via lazy state initialization
+    // Auto-enable clustering (>250 nodes) is handled during initial data fetch
+
+    // Track previous clustering settings to detect changes
+    const prevClusteringSettings = useRef({
+        enabled: clusteringEnabled,
+        minTreeSize: clusteringMinTreeSize,
+        requireDensity: clusteringRequireDensity,
+        densityIntensity: clusteringDensityIntensity,
+        requireTemporalCompactness: clusteringRequireTemporalCompactness,
+        temporalIntensity: clusteringTemporalIntensity
+    });
+
+    // Reset layout when clustering settings change to ensure proper sample/cluster placement
+    // This prevents overlapping nodes and ensures correct positioning in dagre mode
+    // Only trigger after initialization is complete to avoid interfering with initial load
+    useEffect(() => {
+        // Don't trigger during initialization
+        if (!clusteringInitialized) {
+            // Update the ref to current values for future comparisons
+            prevClusteringSettings.current = {
+                enabled: clusteringEnabled,
+                minTreeSize: clusteringMinTreeSize,
+                requireDensity: clusteringRequireDensity,
+                densityIntensity: clusteringDensityIntensity,
+                requireTemporalCompactness: clusteringRequireTemporalCompactness,
+                temporalIntensity: clusteringTemporalIntensity
+            };
+            return;
+        }
+        
+        const prev = prevClusteringSettings.current;
+        const hasChanged = 
+            prev.enabled !== clusteringEnabled ||
+            prev.minTreeSize !== clusteringMinTreeSize ||
+            prev.requireDensity !== clusteringRequireDensity ||
+            prev.densityIntensity !== clusteringDensityIntensity ||
+            prev.requireTemporalCompactness !== clusteringRequireTemporalCompactness ||
+            prev.temporalIntensity !== clusteringTemporalIntensity;
+        
+        if (hasChanged && data) {
+            console.log('Clustering settings changed:', {
+                enabled: `${prev.enabled} → ${clusteringEnabled}`,
+                minTreeSize: `${prev.minTreeSize} → ${clusteringMinTreeSize}`,
+                requireDensity: `${prev.requireDensity} → ${clusteringRequireDensity}`,
+                densityIntensity: `${prev.densityIntensity} → ${clusteringDensityIntensity}`,
+                requireTemporalCompactness: `${prev.requireTemporalCompactness} → ${clusteringRequireTemporalCompactness}`,
+                temporalIntensity: `${prev.temporalIntensity} → ${clusteringTemporalIntensity}`
+            });
+            // For dagre mode, don't trigger reset - the main rendering effect will handle position recalculation
+            // For non-dagre modes, trigger reset to recalculate sample spacing
+            if (sampleOrder !== 'dagre') {
+                console.log('Triggering layout reset - this will recalculate sample spacing');
+                setResetTrigger(prev => prev + 1);
+            } else {
+                console.log('Clustering changed in dagre mode - main rendering effect will handle position recalculation');
+            }
+            
+            // Update the ref for next comparison
+            prevClusteringSettings.current = {
+                enabled: clusteringEnabled,
+                minTreeSize: clusteringMinTreeSize,
+                requireDensity: clusteringRequireDensity,
+                densityIntensity: clusteringDensityIntensity,
+                requireTemporalCompactness: clusteringRequireTemporalCompactness,
+                temporalIntensity: clusteringTemporalIntensity
+            };
+        }
+    }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringInitialized, data, sampleOrder]);
 
     // Debounce genomic range changes to prevent excessive API calls
     useEffect(() => {
@@ -136,7 +330,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 console.log('Fetching initial graph data for file:', filename, 'with max_samples:', max_samples);
                 
                 // Build options including URL parameters
-                const options: any = { maxSamples: max_samples, sampleOrder };
+                let currentSampleOrder = sampleOrder;
+                const options: any = { maxSamples: max_samples, sampleOrder: currentSampleOrder };
                 
                 // Add temporal filtering if provided via URL
                 if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -156,9 +351,35 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     console.log('Applying tree index filtering:', treeStartIdx, '-', treeEndIdx);
                 }
                 
-                const response = await api.getGraphData(filename, options);
-                const graphData = response.data as GraphData;
+                let response = await api.getGraphData(filename, options);
+                let graphData = response.data as GraphData;
                 console.log('Received initial graph data:', graphData);
+                
+                // Check if auto-enable clustering is needed (>250 nodes) and not already enabled from URL
+                // Use searchParams to check URL state, as clusteringEnabled might not reflect URL param in closure
+                const clusteringParam = searchParams.get('clustering');
+                const isClusteringEnabledFromURL = clusteringParam === 'true';
+                const shouldAutoEnableClustering = graphData.nodes.length > 250 && !isClusteringEnabledFromURL;
+                if (shouldAutoEnableClustering) {
+                    console.log(`Auto-enabling clustering for large graph (${graphData.nodes.length} nodes)`);
+                    
+                    // Set clustering state with maximum clustering settings
+                    setClusteringEnabled(true);
+                    setClusteringMinTreeSize(2);  // Minimum tree size for maximum clustering
+                    setClusteringRequireDensity(true);  // Enable density
+                    setClusteringDensityIntensity(0.05);  // 5% for maximum clustering (very lenient = more clusters)
+                    setClusteringRequireTemporalCompactness(true);  // Enable temporal
+                    setClusteringTemporalIntensity(0.25);  // 25% when auto-enabled
+                    setSampleOrder('dagre');
+                    currentSampleOrder = 'dagre';
+                    
+                    // Re-fetch with correct sampleOrder before setting data
+                    console.log('Re-fetching with clustering settings and dagre sampleOrder');
+                    options.sampleOrder = 'dagre';
+                    response = await api.getGraphData(filename, options);
+                    graphData = response.data as GraphData;
+                    console.log('Received re-fetched graph data with clustering settings');
+                }
                 
                 // Initialize genomic range settings
                 if (graphData.metadata.sequence_length) {
@@ -177,6 +398,50 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     setDebouncedTreeRange(treeFullRange);
                 }
 
+                // Initialize temporal state from data
+                if (graphData.nodes.length > 0) {
+                    const times = graphData.nodes.map(n => n.time);
+                    const minTime = Math.min(...times);
+                    const maxTime = Math.max(...times);
+                    setTemporalState({
+                        isActive: false,
+                        minTime,
+                        maxTime,
+                        range: [minTime, maxTime]
+                    });
+                }
+
+                // Dynamic vertical spacing based on number of layers
+                const uniqueTimes = Array.from(new Set(graphData.nodes.map(n => n.time)));
+                const numLayers = uniqueTimes.length;
+                
+                let dynamicVertical = 14; // fallback
+                
+                if (numLayers > 1) {
+                    const rawV = 100 / Math.log2(numLayers + 2);
+                    dynamicVertical = Math.ceil(Math.max(8, Math.min(20, rawV)));
+                }
+                
+                // Horizontal spacing is constant per sample (slider value = spacing per sample)
+                // Use default 40px - this stays the same regardless of sample count
+                const constantHorizontal = 40;
+                
+                console.log(`Dynamic spacing: H=${constantHorizontal}px per sample (constant), V=${dynamicVertical} (layers=${numLayers})`);
+                
+                setVisualSettings(prev => ({
+                    ...prev,
+                    sampleSpacing: constantHorizontal,
+                    temporalSpacing: dynamicVertical
+                }));
+
+                // Mark clustering as initialized if we enabled it
+                if (shouldAutoEnableClustering) {
+                    setClusteringInitialized(true);
+                    setWasAutoEnabled(true);
+                    // Show notification after data is loaded
+                    setShowAutoClusteringNotification(true);
+                }
+
                 setIsInitialized(true);
                 setData(graphData);
                 setSubArgData(graphData); // Store SubARG data (what was loaded with max_samples)
@@ -193,8 +458,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         // Reset initialization state when filename or max_samples change
         setIsInitialized(false);
         setIsFilterActive(false); // Also reset filter state
+        setShowAutoClusteringNotification(false); // Reset notification state
+        setWasAutoEnabled(false); // Reset auto-enablement tracking
+        // Reset clustering initialized flag when starting fresh (but preserve if clustering was set from URL)
+        // Note: clusteringEnabled is read inside the effect, not from dependencies, to use current state value
+        const currentClusteringEnabled = searchParams.get('clustering') === 'true';
+        if (!currentClusteringEnabled) {
+            setClusteringInitialized(false);
+        }
         fetchInitialData();
-    }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, convertTreeIntervals]);
+    // convertTreeIntervals is a stable utility function and doesn't need to be in dependencies
+    // sampleOrder and clusteringEnabled are read inside the effect but not in deps to avoid re-fetch loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx]);
 
     // Data loading with filtering and sample order changes
     useEffect(() => {
@@ -301,8 +577,73 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         }
     }, [isFilterActive]);
 
-    // Filter data based on current view mode
-    const getFilteredData = (): GraphData | null => {
+    // Layer-by-layer reveal effect
+    useEffect(() => {
+        if (!layerReveal.isPlaying || !data || !temporalState.isActive) return;
+
+        // Get unique times from the data (sorted)
+        const uniqueTimes = Array.from(new Set(data.nodes.map(node => node.time))).sort((a, b) => a - b);
+        const numLayers = uniqueTimes.length;
+        
+        if (numLayers === 0) return;
+
+        // Calculate time between layers based on rate (layers per second)
+        const msPerLayer = 1000 / layerReveal.rate;
+        
+        // Start from the current progress
+        const startLayerIndex = Math.floor(layerReveal.currentProgress * numLayers);
+        let currentLayerIndex = startLayerIndex;
+
+        // Set initial layer
+        if (currentLayerIndex < numLayers) {
+            setTemporalState(prev => ({
+                ...prev,
+                range: [temporalState.minTime, uniqueTimes[currentLayerIndex]]
+            }));
+        }
+
+        const interval = setInterval(() => {
+            currentLayerIndex++;
+            
+            if (currentLayerIndex >= numLayers) {
+                // Animation complete - resume simulation
+                clearInterval(interval);
+                setLayerReveal(prev => ({
+                    ...prev,
+                    isPlaying: false,
+                    currentProgress: 1,
+                    simulationPaused: false // Signal to resume simulation
+                }));
+                setTemporalState(prev => ({
+                    ...prev,
+                    range: [temporalState.minTime, temporalState.maxTime]
+                }));
+            } else {
+                // Update to next layer
+                const progress = currentLayerIndex / numLayers;
+                setLayerReveal(prev => ({
+                    ...prev,
+                    currentProgress: progress
+                }));
+                setTemporalState(prev => ({
+                    ...prev,
+                    range: [temporalState.minTime, uniqueTimes[currentLayerIndex]]
+                }));
+            }
+        }, msPerLayer);
+
+        return () => {
+            clearInterval(interval);
+            // If layer reveal is interrupted, resume simulation
+            setLayerReveal(prev => ({
+                ...prev,
+                simulationPaused: false
+            }));
+        };
+    }, [layerReveal.isPlaying, layerReveal.rate, data, temporalState.isActive, temporalState.minTime, temporalState.maxTime]);
+
+    // Memoize filtered data to prevent unnecessary re-renders
+    const filteredData = useMemo(() => {
         if (!data || !selectedNode) return data;
 
         switch (viewMode) {
@@ -328,14 +669,43 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 };
             }
             case 'ancestors': {
-                const ancestors = getAncestors(selectedNode, data.nodes, data.edges);
-                ancestors.add(selectedNode.id);
+                let allAncestors: Set<number>;
                 
-                const filteredNodes = data.nodes.filter(node => ancestors.has(node.id));
+                // Handle sample clusters: combine ancestors of all samples in the cluster
+                if (selectedNode.is_sample_cluster && selectedNode.cluster_nodes && selectedNode.cluster_nodes.length > 0) {
+                    // Start with ancestors reachable through the cluster node
+                    // (edges that were remapped from samples to point to the cluster node)
+                    allAncestors = getAncestors(selectedNode, data.nodes, data.edges);
+                    
+                    // Add the cluster node itself
+                    allAncestors.add(selectedNode.id);
+                    
+                    // Also try to find individual sample nodes that might still exist in data
+                    // (in case some samples weren't fully clustered or are present for other reasons)
+                    for (const sampleId of selectedNode.cluster_nodes) {
+                        const sampleNode = data.nodes.find(n => n.id === sampleId);
+                        if (sampleNode) {
+                            // Sample node exists - get its ancestors and add to union
+                            const sampleAncestors = getAncestors(sampleNode, data.nodes, data.edges);
+                            sampleAncestors.forEach(id => allAncestors.add(id));
+                            allAncestors.add(sampleId);
+                        } else {
+                            // Sample node was clustered and removed - include its ID anyway
+                            // (even though it won't be in filteredNodes, this ensures completeness)
+                            allAncestors.add(sampleId);
+                        }
+                    }
+                } else {
+                    // Regular node (not a sample cluster) - use normal ancestor computation
+                    allAncestors = getAncestors(selectedNode, data.nodes, data.edges);
+                    allAncestors.add(selectedNode.id);
+                }
+                
+                const filteredNodes = data.nodes.filter(node => allAncestors.has(node.id));
                 const filteredEdges = data.edges.filter(edge => {
                     const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
                     const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                    return ancestors.has(sourceId) && ancestors.has(targetId);
+                    return allAncestors.has(sourceId) && allAncestors.has(targetId);
                 });
 
                 return {
@@ -351,14 +721,11 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             default:
                 return data;
         }
-    };
+    }, [data, selectedNode, viewMode]);
 
-    // Calculate ARG statistics for display
-    const calculateArgStats = (): ArgStatsData | null => {
-        if (!subArgData || !data || !treeSequence) return null;
-
-        const filteredData = getFilteredData();
-        if (!filteredData) return null;
+    // Memoize ARG statistics for display
+    const argStats = useMemo((): ArgStatsData | null => {
+        if (!subArgData || !data || !treeSequence || !filteredData) return null;
 
         // SubARG stats are the same as filtered data in force-directed graph
         // since temporal filtering is not available here
@@ -370,39 +737,116 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             displayedNodes: filteredData.nodes.length,
             displayedEdges: filteredData.edges.length
         };
-    };
+    }, [subArgData, data, treeSequence, filteredData]);
 
     // Handle left click - show subgraph
-    const handleNodeClick = (node: GraphNode) => {
-        if (viewMode === 'full') {
+    // Use refs to avoid recreating callback on every state change
+    const selectedNodeRef = useRef(selectedNode);
+    const viewModeRef = useRef(viewMode);
+    
+    useEffect(() => {
+        selectedNodeRef.current = selectedNode;
+        viewModeRef.current = viewMode;
+    }, [selectedNode, viewMode]);
+    
+    // Helper function to save clustering state when leaving full view
+    const saveClusteringStateIfNeeded = useCallback(() => {
+        // Only save if we're in full view and haven't saved yet
+        if (viewMode === 'full' && !savedClusteringState) {
+            setSavedClusteringState({
+                enabled: clusteringEnabled,
+                minTreeSize: clusteringMinTreeSize,
+                requireDensity: clusteringRequireDensity,
+                densityIntensity: clusteringDensityIntensity,
+                requireTemporalCompactness: clusteringRequireTemporalCompactness,
+                temporalIntensity: clusteringTemporalIntensity
+            });
+        }
+    }, [viewMode, savedClusteringState, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity]);
+    
+    // Helper function to restore clustering state when returning to full view
+    const restoreClusteringStateIfNeeded = useCallback(() => {
+        if (savedClusteringState) {
+            setClusteringEnabled(savedClusteringState.enabled);
+            setClusteringMinTreeSize(savedClusteringState.minTreeSize);
+            setClusteringRequireDensity(savedClusteringState.requireDensity);
+            setClusteringDensityIntensity(savedClusteringState.densityIntensity);
+            setClusteringRequireTemporalCompactness(savedClusteringState.requireTemporalCompactness);
+            setClusteringTemporalIntensity(savedClusteringState.temporalIntensity);
+            setSavedClusteringState(null);
+        }
+    }, [savedClusteringState]);
+    
+    const handleNodeClick = useCallback((node: GraphNode) => {
+        const currentViewMode = viewModeRef.current;
+        const currentSelectedNode = selectedNodeRef.current;
+        
+        if (currentViewMode === 'full') {
+            // Entering subARG view - save clustering state and disable clustering
+            saveClusteringStateIfNeeded();
+            setClusteringEnabled(false); // Disable clustering in subARG (expand cluster)
+            
             setSelectedNode(node);
             setViewMode('subgraph');
-        } else if (selectedNode?.id === node.id) {
-            // Same node clicked again - return to full view
+        } else if (currentSelectedNode?.id === node.id) {
+            // Same node clicked again - return to full view and restore clustering
             setViewMode('full');
             setSelectedNode(null);
+            
+            // Restore clustering state
+            restoreClusteringStateIfNeeded();
         } else {
-            // Different node clicked - show its subgraph
+            // Different node clicked - show its subgraph (keep clustering disabled)
             setSelectedNode(node);
             setViewMode('subgraph');
         }
-    };
+    }, [saveClusteringStateIfNeeded, restoreClusteringStateIfNeeded]); // Need dependencies for state access
 
     // Handle right click - show ancestors
-    const handleNodeRightClick = (node: GraphNode) => {
+    const handleNodeRightClick = useCallback((node: GraphNode) => {
+        // Only save clustering state if we're entering from full view
+        if (viewMode === 'full') {
+            saveClusteringStateIfNeeded();
+            setClusteringEnabled(false); // Disable clustering in parent ARG
+        }
         setSelectedNode(node);
         setViewMode('ancestors');
-    };
+    }, [viewMode, saveClusteringStateIfNeeded]);
 
-    const handleEdgeClick = (edge: GraphEdge) => {
+    const handleEdgeClick = useCallback((edge: GraphEdge) => {
         console.log('Edge clicked:', edge);
         // Add your edge click handling logic here
-    };
+    }, []);
 
-    const handleReturnToFull = () => {
+    const handleReturnToFull = useCallback(() => {
+        // Restore clustering state when returning to full view
+        restoreClusteringStateIfNeeded();
         setViewMode('full');
         setSelectedNode(null);
-    };
+    }, [restoreClusteringStateIfNeeded]);
+
+    // Callback for edge crossings calculation
+    const handleEdgeCrossingsChange = useCallback((count: number) => {
+        setEdgeCrossings(count);
+        setIsCalculatingEdgeCrossings(false);
+    }, []);
+
+    // Handler for sample order change that triggers calculation state
+    const handleSampleOrderChange = useCallback((order: SampleOrderType) => {
+        setSampleOrder(order);
+        setIsCalculatingEdgeCrossings(true);
+        
+        // If switching to dagre mode, trigger a reset to fix spacing and apply dagre positions immediately
+        if (order === 'dagre') {
+            console.log('Switching to dagre mode - triggering spacing recalculation');
+            // Small delay to let the mode switch take effect first
+            setTimeout(() => {
+                setResetTrigger(prev => prev + 1);
+            }, 100);
+        }
+        // Force a remount so the layout resets cleanly to the new ordering
+        setLayoutVersion(prev => prev + 1);
+    }, []);
 
     // Genomic range control handlers
     const handleGenomicRangeChange = useCallback((newRange: [number, number]) => {
@@ -567,8 +1011,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         </div>
                         
                         <div className="flex items-center gap-6">
-                            {/* Show/hide slider controls button when filters are active */}
-                            {isFilterActive && (
+                            {/* Show/hide controls button when filters are active */}
+                            {(isFilterActive || temporalState.isActive) && (
                                 <button
                                     onClick={() => setIsFilterSectionCollapsed(!isFilterSectionCollapsed)}
                                     className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors"
@@ -584,7 +1028,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     }}
                                 >
                                     <span>
-                                        {isFilterSectionCollapsed ? 'Show Sliders' : 'Hide Sliders'}
+                                        {isFilterSectionCollapsed ? 'Show Controls' : 'Hide Controls'}
                                     </span>
                                     <svg 
                                         className={`w-4 h-4 transition-transform ${isFilterSectionCollapsed ? 'rotate-180' : ''}`}
@@ -650,7 +1094,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             </div>
             
             {/* Filter Controls Section - only show when filters are active */}
-            {isFilterActive && (
+            {(isFilterActive || temporalState.isActive) && (
                 <div 
                     className="flex-shrink-0 border-b"
                     style={{ 
@@ -662,8 +1106,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         <div className="px-4 py-3">
                             <div className="flex items-start justify-between gap-6">
                                 <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
-                                    {/* Filter mode selection */}
-                                    {treeIntervals.length > 0 && (
+                                    {/* Genomic Filter mode selection */}
+                                    {isFilterActive && treeIntervals.length > 0 && (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
                                                 Genomic Mode:
@@ -702,67 +1146,106 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     )}
                                 </div>
 
-                                <div className="flex items-center gap-4 flex-1 min-w-0">
-                                    <div className="flex-1 max-w-md min-w-0">
-                                        {filterMode === 'genomic' && sequenceLength > 0 ? (
-                                            <RangeSlider
-                                                min={0}
-                                                max={sequenceLength}
-                                                step={Math.max(1, Math.floor(sequenceLength / 1000))}
-                                                value={genomicRange}
-                                                onChange={handleGenomicRangeChange}
-                                                formatValue={formatGenomicPosition}
-                                                className="w-full"
-                                            />
-                                        ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
-                                            <TreeRangeSlider
-                                                treeIntervals={treeIntervals}
-                                                value={treeRange}
-                                                onChange={handleTreeRangeChange}
-                                                className="w-full"
-                                            />
-                                        ) : null}
+                                {isFilterActive && (
+                                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                                        <div className="flex-1 max-w-md min-w-0">
+                                            {filterMode === 'genomic' && sequenceLength > 0 ? (
+                                                <RangeSlider
+                                                    min={0}
+                                                    max={sequenceLength}
+                                                    step={Math.max(1, Math.floor(sequenceLength / 1000))}
+                                                    value={genomicRange}
+                                                    onChange={handleGenomicRangeChange}
+                                                    formatValue={formatGenomicPosition}
+                                                    className="w-full"
+                                                />
+                                            ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                                                <TreeRangeSlider
+                                                    treeIntervals={treeIntervals}
+                                                    value={treeRange}
+                                                    onChange={handleTreeRangeChange}
+                                                    className="w-full"
+                                                />
+                                            ) : null}
+                                        </div>
+                                        
+                                        {/* Inline filter info */}
+                                        <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
+                                            {filterMode === 'genomic' ? (
+                                                <span>
+                                                    {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
+                                                    ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}%)
+                                                    {data?.metadata.num_local_trees !== undefined && (
+                                                        <> • {data.metadata.num_local_trees} trees</>
+                                                    )}
+                                                </span>
+                                            ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
+                                                <span>
+                                                    Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length})
+                                                    {data?.metadata.num_local_trees !== undefined && (
+                                                        <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
+                                                    )}
+                                                    {data?.metadata.tree_count_mismatch && (
+                                                        <> ⚠️ (actual: {data.metadata.num_local_trees})</>
+                                                    )}
+                                                </span>
+                                            ) : null}
+                                            {loading && (
+                                                <div className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.accentPrimary }}></div>
+                                            )}
+                                        </div>
                                     </div>
-                                    
-                                    {/* Inline filter info */}
-                                    <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
-                                        {filterMode === 'genomic' ? (
-                                            <span>
-                                                {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
-                                                ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}%)
-                                                {data?.metadata.num_local_trees !== undefined && (
-                                                    <> • {data.metadata.num_local_trees} trees</>
-                                                )}
-                                            </span>
-                                        ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
-                                            <span>
-                                                Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length})
-                                                {data?.metadata.num_local_trees !== undefined && (
-                                                    <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
-                                                )}
-                                                {data?.metadata.tree_count_mismatch && (
-                                                    <> ⚠️ (actual: {data.metadata.num_local_trees})</>
-                                                )}
-                                            </span>
-                                        ) : null}
-                                        {loading && (
-                                            <div className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent" style={{ borderColor: colors.accentPrimary }}></div>
-                                        )}
+                                )}
+                            </div>
+
+                            {/* Temporal filter info */}
+                            {temporalState.isActive && (
+                                <div className="text-xs mt-3" style={{ color: colors.text }}>
+                                    <div className="flex items-center gap-2">
+                                        <span>
+                                            Temporal Range: {temporalState.range[0].toFixed(0)} - {temporalState.range[1].toFixed(0)}{' '}
+                                            ({(((temporalState.range[1] - temporalState.range[0]) / (temporalState.maxTime - temporalState.minTime)) * 100).toFixed(1)}% of time range)
+                                            • Hold Shift + drag to maintain window size
+                                        </span>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     )}
                 </div>
             )}
 
             {/* Main Content Area with Sidebar */}
-            <div className="flex-1 overflow-hidden flex flex-row min-h-0 min-w-0">
-                {/* Graph Visualization */}
-                <div className="flex-1 overflow-hidden relative min-h-0 min-w-0">
+            <div className="flex-1 overflow-hidden flex min-h-0 min-w-0">
+                {/* Temporal Slider - only show when temporal filter is active */}
+                {temporalState.isActive && !isFilterSectionCollapsed && (
+                    <div 
+                        className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center"
+                        style={{ 
+                            backgroundColor: colors.background,
+                            borderRightColor: colors.border 
+                        }}
+                    >
+                        <TemporalRangeSlider
+                            min={temporalState.minTime}
+                            max={temporalState.maxTime}
+                            step={(temporalState.maxTime - temporalState.minTime) / 100}
+                            value={temporalState.range}
+                            onChange={(newRange) => setTemporalState(prev => ({ ...prev, range: newRange }))}
+                            formatValue={(v) => v.toFixed(0)}
+                            height={500}
+                        />
+                    </div>
+                )}
+
+                {/* Graph Visualization and Sidebar Container */}
+                <div className="flex-1 overflow-hidden flex flex-row min-h-0 min-w-0">
+                    {/* Graph Visualization */}
+                    <div className="flex-1 overflow-hidden relative min-h-0 min-w-0">
                     <ForceDirectedGraph 
+                        key={`fdg-${layoutVersion}-${sampleOrder}`}
                         ref={ref}
-                        data={getFilteredData()}
+                        data={filteredData}
                         onNodeClick={handleNodeClick}
                         onNodeRightClick={handleNodeRightClick}
                         onEdgeClick={handleEdgeClick}
@@ -777,11 +1260,38 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         temporalSpacingMode={visualTemporalSpacingMode}
                         temporalSpacing={visualTemporalSpacing}
                         sampleSpacing={visualSampleSpacing}
+                        temporalRange={temporalState.isActive ? temporalState.range : undefined}
+                            temporalDimOpacity={temporalDimOpacity}
+                        simulationPaused={layerReveal.simulationPaused || manualSimulationPaused || temporalState.isActive}
+                        unpinTrigger={unpinTrigger}
+                        onEdgeCrossingsChange={handleEdgeCrossingsChange}
+                        forceTuning={forceTuning}
+                        resetTrigger={resetTrigger}
+                        clusteringEnabled={clusteringEnabled}
+                        clusteringMinTreeSize={clusteringMinTreeSize}
+                        clusteringRequireDensity={clusteringRequireDensity}
+                        clusteringDensityIntensity={clusteringDensityIntensity}
+                        clusteringRequireTemporalCompactness={clusteringRequireTemporalCompactness}
+                        clusteringTemporalIntensity={clusteringTemporalIntensity}
                     />
-                </div>
-                    
-                {/* Unified Sidebar */}
-                <VisualizationSidebar
+
+                    {temporalState.isActive && (
+                        <div 
+                            className="absolute left-1/2 -translate-x-1/2 top-2 px-2.5 py-1.5 rounded text-xs font-semibold border shadow-sm"
+                            style={{ 
+                                backgroundColor: `${colors.containerBackground}E6`,
+                                color: colors.text,
+                                borderColor: colors.border,
+                                backdropFilter: 'blur(2px)'
+                            }}
+                        >
+                            t = {temporalState.range[1].toFixed(0)}
+                        </div>
+                    )}
+                    </div>
+                        
+                    {/* Unified Sidebar */}
+                    <VisualizationSidebar
                     position="right"
                     defaultWidth={350}
                     minWidth={280}
@@ -799,16 +1309,25 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                             content: (
                                 <LayoutSpacingSection
                                     sampleOrder={sampleOrder}
-                                    onSampleOrderChange={setSampleOrder}
+                                    onSampleOrderChange={handleSampleOrderChange}
                                     temporalSpacingMode={visualTemporalSpacingMode}
                                     onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
                                     temporalSpacing={visualTemporalSpacing}
                                     onTemporalSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, temporalSpacing: spacing }))}
                                     sampleSpacing={visualSampleSpacing}
                                     onSampleSpacingChange={(spacing) => setVisualSettings(prev => ({ ...prev, sampleSpacing: spacing }))}
+                                    simulationPaused={manualSimulationPaused}
+                                    onSimulationPausedChange={setManualSimulationPaused}
+                                    temporalFilterEnabled={temporalState.isActive}
+                                    onUnpinAllNodes={() => setUnpinTrigger(prev => prev + 1)}
+                                    onResetSimulation={() => setResetTrigger(prev => prev + 1)}
+                                    edgeCrossings={edgeCrossings}
+                                    isCalculatingEdgeCrossings={isCalculatingEdgeCrossings}
+                                    forceTuning={forceTuning}
+                                    onForceTuningChange={setForceTuning}
                                 />
                             ),
-                            defaultOpen: true
+                            defaultOpen: false
                         },
                         {
                             id: 'nodes',
@@ -826,7 +1345,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
                                 />
                             ),
-                            defaultOpen: true
+                            defaultOpen: false
                         },
                         {
                             id: 'edges',
@@ -848,7 +1367,97 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
                                 />
                             ),
-                            defaultOpen: true
+                            defaultOpen: false
+                        },
+                        {
+                            id: 'view',
+                            title: 'View Controls',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                            ),
+                            content: (
+                                <ViewControlsSection
+                                    temporalFilterEnabled={temporalState.isActive}
+                                    onTemporalFilterChange={(enabled) => {
+                                        setTemporalState(prev => ({
+                                            ...prev,
+                                            isActive: enabled,
+                                            range: enabled ? prev.range : [prev.minTime, prev.maxTime]
+                                        }));
+                                        if (enabled && isFilterSectionCollapsed) {
+                                            setIsFilterSectionCollapsed(false);
+                                        }
+                                    }}
+                                    temporalDimOpacity={temporalDimOpacity}
+                                    onTemporalDimOpacityChange={(value) => setTemporalDimOpacity(Math.max(0, Math.min(0.99, value)))}
+                                    layerRevealEnabled={layerReveal.isPlaying}
+                                    layerRevealRate={layerReveal.rate}
+                                    onLayerRevealRateChange={(rate) => setLayerReveal(prev => ({ ...prev, rate }))}
+                                    onLayerRevealPlay={() => {
+                                        if (!temporalState.isActive) {
+                                            // Auto-enable temporal filter
+                                            setTemporalState(prev => ({ ...prev, isActive: true }));
+                                            setIsFilterSectionCollapsed(false);
+                                        }
+                                        setLayerReveal(prev => ({
+                                            ...prev,
+                                            isPlaying: true,
+                                            currentProgress: 0,
+                                            simulationPaused: true // Pause simulation during reveal
+                                        }));
+                                        // Reset to show only oldest layer
+                                        setTemporalState(prev => ({
+                                            ...prev,
+                                            range: [prev.minTime, prev.minTime]
+                                        }));
+                                    }}
+                                    onLayerRevealPause={() => setLayerReveal(prev => ({ ...prev, isPlaying: false, simulationPaused: false }))}
+                                    onLayerRevealReset={() => {
+                                        setLayerReveal(prev => ({
+                                            ...prev,
+                                            isPlaying: false,
+                                            currentProgress: 0,
+                                            simulationPaused: false
+                                        }));
+                                        setTemporalState(prev => ({
+                                            ...prev,
+                                            range: [prev.minTime, prev.minTime]
+                                        }));
+                                    }}
+                                />
+                            ),
+                            defaultOpen: false
+                        },
+                        {
+                            id: 'clustering',
+                            title: 'Performance',
+                            icon: (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            ),
+                            content: (
+                                <ClusteringSection
+                                    clusteringEnabled={clusteringEnabled}
+                                    onClusteringEnabledChange={handleClusteringEnabledChange}
+                                    clusteringMinTreeSize={clusteringMinTreeSize}
+                                    onClusteringMinTreeSizeChange={setClusteringMinTreeSize}
+                                    clusteringRequireDensity={clusteringRequireDensity}
+                                    onClusteringRequireDensityChange={setClusteringRequireDensity}
+                                    clusteringDensityIntensity={clusteringDensityIntensity}
+                                    onClusteringDensityIntensityChange={setClusteringDensityIntensity}
+                                    clusteringRequireTemporalCompactness={clusteringRequireTemporalCompactness}
+                                    onClusteringRequireTemporalCompactnessChange={setClusteringRequireTemporalCompactness}
+                                    clusteringTemporalIntensity={clusteringTemporalIntensity}
+                                    onClusteringTemporalIntensityChange={setClusteringTemporalIntensity}
+                                    nodeCount={data?.nodes.length}
+                                    clusteredNodeCount={filteredData?.nodes.length}
+                                />
+                            ),
+                            defaultOpen: wasAutoEnabled
                         },
                         {
                             id: 'information',
@@ -860,12 +1469,12 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                             ),
                             content: (
                                 <InformationSection
-                                    originalNodeCount={calculateArgStats()?.originalNodes}
-                                    originalEdgeCount={calculateArgStats()?.originalEdges}
-                                    subargNodeCount={calculateArgStats()?.subArgNodes}
-                                    subargEdgeCount={calculateArgStats()?.subArgEdges}
-                                    displayedNodeCount={calculateArgStats()?.displayedNodes}
-                                    displayedEdgeCount={calculateArgStats()?.displayedEdges}
+                                    originalNodeCount={argStats?.originalNodes}
+                                    originalEdgeCount={argStats?.originalEdges}
+                                    subargNodeCount={argStats?.subArgNodes}
+                                    subargEdgeCount={argStats?.subArgEdges}
+                                    displayedNodeCount={argStats?.displayedNodes}
+                                    displayedEdgeCount={argStats?.displayedEdges}
                                     genomicRange={isFilterActive ? genomicRange : undefined}
                                     sequenceLength={sequenceLength}
                                     isFiltered={isFilterActive}
@@ -874,8 +1483,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                             defaultOpen: false
                         }
                     ]}
-                />
+                    />
+                </div>
             </div>
+
+            {/* Notification for auto-enabled clustering */}
+            <AlertModal
+                isOpen={showAutoClusteringNotification}
+                title="Clustering Auto-Enabled"
+                message="This graph has been automatically loaded with subtree-clustering enabled and dagre-d3 layout mode for optimal rendering performance due to its large size. You can adjust these settings from the sidebar if needed."
+                buttonText="Got it"
+                type="info"
+                onClose={() => setShowAutoClusteringNotification(false)}
+            />
         </div>
     );
 }); 

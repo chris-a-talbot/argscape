@@ -28,11 +28,38 @@ export const VisualizationSidebar: React.FC<VisualizationSidebarProps> = ({
   defaultCollapsed = false,
 }) => {
   const { colors } = useColorTheme();
-  const [isCollapsed, setIsCollapsed] = useState(defaultCollapsed);
-  const [width, setWidth] = useState(defaultWidth);
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(
-    new Set(sections.filter(s => s.defaultOpen !== false).map(s => s.id))
-  );
+  const storageKey = 'vizSidebar';
+  const sectionsKey = sections.map(s => s.id).join('|');
+
+  // Initialize from localStorage when available, fall back to defaults
+  const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
+    try {
+      const raw = localStorage.getItem(`${storageKey}:collapsed`);
+      return raw !== null ? JSON.parse(raw) : defaultCollapsed;
+    } catch {
+      return defaultCollapsed;
+    }
+  });
+
+  const [width, setWidth] = useState<number>(() => {
+    try {
+      const raw = localStorage.getItem(`${storageKey}:width`);
+      return raw !== null ? JSON.parse(raw) : defaultWidth;
+    } catch {
+      return defaultWidth;
+    }
+  });
+
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem(`${storageKey}:expanded:${sectionsKey}`);
+      if (raw) {
+        const ids: string[] = JSON.parse(raw);
+        return new Set(ids);
+      }
+    } catch {}
+    return new Set(sections.filter(s => s.defaultOpen !== false).map(s => s.id));
+  });
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const resizeStartX = useRef<number>(0);
@@ -96,6 +123,21 @@ export const VisualizationSidebar: React.FC<VisualizationSidebarProps> = ({
       document.body.style.userSelect = '';
     };
   }, [isResizing, minWidth, maxWidth, position]);
+
+  // Persist UI state
+  useEffect(() => {
+    try { localStorage.setItem(`${storageKey}:collapsed`, JSON.stringify(isCollapsed)); } catch {}
+  }, [isCollapsed]);
+
+  useEffect(() => {
+    try { localStorage.setItem(`${storageKey}:width`, JSON.stringify(width)); } catch {}
+  }, [width]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(`${storageKey}:expanded:${sectionsKey}`, JSON.stringify(Array.from(expandedSections)));
+    } catch {}
+  }, [expandedSections, sectionsKey]);
 
   const collapseExpandButton = (
     <button

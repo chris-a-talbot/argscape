@@ -1,4 +1,6 @@
-export interface GraphNode {
+// Unified node type that works for both API data and D3 force simulation
+// Extends d3.SimulationNodeDatum to add vx, vy, and index properties for D3 compatibility
+export interface GraphNode extends d3.SimulationNodeDatum {
     id: number;
     time: number;
     is_sample: boolean;
@@ -12,7 +14,7 @@ export interface GraphNode {
         y: number;
         z?: number;  // Optional Z coordinate for 3D locations
     };
-    // D3 force simulation will add these properties
+    // D3 force simulation properties (from SimulationNodeDatum: vx, vy, index are inherited)
     x?: number;
     y?: number;
     fx?: number | null;
@@ -21,11 +23,29 @@ export interface GraphNode {
     is_combined?: boolean;
     combined_nodes?: number[]; // Array of original node IDs that were combined
     spatial_combine_only?: boolean; // True if combined only for spatial visualization (type 3)
+    // Clustering properties
+    is_cluster?: boolean; // True if this is a cluster node representing multiple nodes
+    is_sample_cluster?: boolean; // True if this is a cluster of consecutive sample nodes
+    cluster_nodes?: number[]; // Array of node IDs contained in this cluster
+    cluster_size?: number; // Number of nodes in the cluster
+    cluster_depth?: number; // Maximum depth of the subtree in this cluster
+    cluster_samples?: number; // Number of sample nodes descended from this cluster
     // tskit-compatible properties
     ts_flags?: number; // msprime node flags (e.g., NODE_IS_RE_EVENT)
     is_recombination?: boolean; // Whether this is a recombination node
     label?: string; // Node label (for combined nodes, shows "id1/id2/id3")
+    // Runtime properties for D3 simulation and layout algorithms
+    dagreX?: number; // For dagre-based ordering within layers
+    // Properties for spacing preservation
+    originalX?: number; // Store original position for spacing calculations
+    originalY?: number; // Store original position for spacing calculations
+    // Properties for simulation pinning tracking
+    __autoPinnedX?: boolean;
+    __autoPinnedY?: boolean;
 }
+
+// Backward compatibility: Node is now an alias for GraphNode
+export type Node = GraphNode;
 
 export interface GraphEdge {
     source: number | GraphNode;
@@ -123,6 +143,18 @@ export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
 
 export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre' | 'coalescence';
 
+export interface ForceTuningSettings {
+    chargeScale: number;            // Multiplier for many-body charge strength
+    linkStrengthScale: number;      // Multiplier for link force strength
+    xStrengthScale: number;         // Multiplier for x-positioning force strength
+    yStrengthScale: number;         // Multiplier for y-positioning force strength
+    collisionRadiusScale: number;   // Multiplier for collision radius
+    collisionStrength: number;      // Absolute collision force strength (0..1)
+    edgeCrossingScale: number;      // Multiplier for edge crossing repulsion
+    edgeBundlingScale: number;      // Multiplier for edge bundling strength
+    descendantRangeScale: number;   // Multiplier for descendant range nudging
+}
+
 export interface ForceDirectedGraphProps {
     data: GraphData | null;
     width?: number;
@@ -141,4 +173,59 @@ export interface ForceDirectedGraphProps {
     temporalSpacingMode?: TemporalSpacingMode;
     temporalSpacing?: number;  // Temporal spacing factor for layer separation
     sampleSpacing?: number;  // Sample spacing factor for horizontal sample separation
+    temporalRange?: [number, number];  // Optional temporal range filter [minTime, maxTime]
+    // Opacity to use for visually dimmed (out-of-range) elements during temporal filtering (0.0 - 0.99)
+    temporalDimOpacity?: number;
+    simulationPaused?: boolean;  // Pause the force simulation (e.g., during layer reveal)
+    unpinTrigger?: number;  // Counter that triggers unpinning of all nodes when it changes
+    onEdgeCrossingsChange?: (count: number) => void;  // Callback when edge crossings are calculated
+    forceTuning?: ForceTuningSettings; // Optional runtime tuning of force strengths
+    resetTrigger?: number; // Counter that triggers a full simulation reset without changing sample order
+    clusteringEnabled?: boolean;  // Enable clustering of dense subtrees
+    clusteringMinTreeSize?: number;  // Minimum subtree size to cluster (default: 3)
+    clusteringRequireDensity?: boolean;  // Require density check (default: false)
+    clusteringDensityIntensity?: number;  // Intensity of density requirement (0=no effect, 1=max effect, default 0.5)
+    clusteringRequireTemporalCompactness?: boolean;  // Require temporal compactness check (default: true)
+    clusteringTemporalIntensity?: number;  // Intensity of temporal compactness (0=no effect, 1=max effect, default 0.5)
 } 
+
+// Add type for simulation
+export type Simulation = d3.Simulation<GraphNode, undefined>;
+
+// export interface Node extends d3.SimulationNodeDatum {
+//     id: number;
+//     time: number;
+//     is_sample: boolean;
+//     individual: number;  // Added from GraphNode
+//     location?: {         // Added spatial location from GraphNode
+//         x: number;
+//         y: number;
+//         z?: number;
+//     };
+//     x?: number;
+//     y?: number;
+//     fx?: number | null;
+//     fy?: number | null;
+//     timeIndex?: number;
+//     layer?: number;  // For layered layout
+//     degree?: number; // For connectivity-based positioning
+//     order_position?: number; // For sample ordering from backend
+//     // Properties for combined nodes
+//     is_combined?: boolean;
+//     combined_nodes?: number[]; // Array of original node IDs that were combined
+//     label?: string; // Node label (for combined nodes, shows "id1/id2/id3")
+//     dagreX?: number; // For dagre-based ordering within layers
+//     // Properties for spacing preservation
+//     originalX?: number; // Store original position for spacing calculations
+//     originalY?: number; // Store original position for spacing calculations
+//     // Properties for simulation pinning tracking
+//     __autoPinnedX?: boolean;
+//     __autoPinnedY?: boolean;
+//     // Clustering properties
+//     is_cluster?: boolean;
+//     is_sample_cluster?: boolean;
+//     cluster_nodes?: number[];
+//     cluster_size?: number;
+//     cluster_depth?: number;
+//     cluster_samples?: number;
+// }

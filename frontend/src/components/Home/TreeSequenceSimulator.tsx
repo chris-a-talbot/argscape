@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import './TreeSequenceSimulator.css';
+import { Tooltip } from '../ui/tooltip';
 
 export type SimulationParams = {
   num_samples: number;
@@ -239,6 +240,17 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   const [showFilenameExplanation, setShowFilenameExplanation] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const isRailwayDemo = useMemo(() => {
+    // Prefer explicit env flag when provided (set on Railway)
+    const envFlag = (import.meta.env as any)?.VITE_IS_RAILWAY;
+    const fromEnv = typeof envFlag === 'string' ? envFlag.toLowerCase() === 'true' : !!envFlag;
+    if (fromEnv) return true;
+    if (typeof window === 'undefined') return false;
+    const host = window.location.hostname.toLowerCase();
+    return host.includes('railway.app') || host.includes('railway');
+  }, []);
+  const isUnsafeToggleAllowed = import.meta.env.DEV || (!isRailwayDemo);
+  const [unsafeRangesEnabled, setUnsafeRangesEnabled] = useState(false);
   
   // Separate display state for inputs to allow temporary empty values
   const [inputValues, setInputValues] = useState({
@@ -260,7 +272,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     setInputValues(prev => ({ ...prev, [key]: value }));
   };
   
-  const handleNumberInput = (key: keyof SimulationParams, value: string, min: number, max: number, defaultValue: number) => {
+  const handleNumberInput = (key: keyof SimulationParams, value: string, min: number, max: number, _defaultValue: number) => {
     // Allow empty string temporarily
     if (value === '') {
       updateInputValue(key as keyof typeof inputValues, value);
@@ -269,8 +281,11 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     
     const numValue = parseInt(value);
     if (!isNaN(numValue)) {
-      // Clamp value to min/max range
-      const clampedValue = Math.max(min, Math.min(max, numValue));
+      // Determine effective bounds
+      const effectiveMin = unsafeRangesEnabled ? 1 : min;
+      const effectiveMax = unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : max;
+      // Clamp value to effective min/max range
+      const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, numValue));
       updateParam(key, clampedValue);
       updateInputValue(key as keyof typeof inputValues, clampedValue.toString());
     }
@@ -281,8 +296,10 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     let finalValue = defaultValue;
     
     if (!isNaN(numValue)) {
-      // Clamp to min/max range
-      finalValue = Math.max(min, Math.min(max, numValue));
+      const effectiveMin = unsafeRangesEnabled ? 1 : min;
+      const effectiveMax = unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : max;
+      // Clamp to effective min/max range
+      finalValue = Math.max(effectiveMin, Math.min(effectiveMax, numValue));
     }
     
     updateParam(key, finalValue);
@@ -337,7 +354,27 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
 
   const handleSimulate = async () => {
     // Validate parameters before simulating
-    const errors = validateParams(params);
+    const errors = unsafeRangesEnabled ? (() => {
+      const errs: ValidationError[] = [];
+      // Only enforce positivity (>0) for numeric fields when unsafe is enabled
+      const positiveIntFields: Array<keyof SimulationParams> = ['num_samples', 'ploidy', 'max_time', 'sequence_length'];
+      positiveIntFields.forEach((field) => {
+        const v = params[field] as unknown as number | undefined;
+        if (v !== undefined && (!Number.isFinite(v) || v <= 0)) {
+          errs.push({ param: String(field), value: v as number, min: 1, max: Number.MAX_SAFE_INTEGER, name: String(field) });
+        }
+      });
+      if (params.population_size !== undefined && (!Number.isFinite(params.population_size) || params.population_size <= 0)) {
+        errs.push({ param: 'population_size', value: params.population_size, min: 1, max: Number.MAX_SAFE_INTEGER, name: 'Effective population size' });
+      }
+      if (params.mutation_rate !== undefined && (!Number.isFinite(params.mutation_rate) || params.mutation_rate <= 0)) {
+        errs.push({ param: 'mutation_rate', value: params.mutation_rate, min: Number.MIN_VALUE, max: Number.MAX_VALUE, name: 'Mutation rate' });
+      }
+      if (params.recombination_rate !== undefined && (!Number.isFinite(params.recombination_rate) || params.recombination_rate <= 0)) {
+        errs.push({ param: 'recombination_rate', value: params.recombination_rate, min: Number.MIN_VALUE, max: Number.MAX_VALUE, name: 'Recombination rate' });
+      }
+      return errs;
+    })() : validateParams(params);
     
     if (errors.length > 0) {
       setValidationErrors(errors);
@@ -607,6 +644,37 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
           </summary>
           
           <div className="px-5 py-3 space-y-3 bg-sp-very-dark-blue/50">
+            {/* Unsafe range toggle */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <label htmlFor="unsafe-range-toggle" className="text-sm font-medium text-sp-white">
+                    Disable safe parameter ranges
+                  </label>
+                  {isRailwayDemo && (
+                    <Tooltip
+                      content={
+                        'To run larger simulations, download and run ARGscape locally (Python package) or use the development setup. This feature is disabled on the hosted demo.'
+                      }
+                    />
+                  )}
+                </div>
+                <input
+                  id="unsafe-range-toggle"
+                  type="checkbox"
+                  checked={unsafeRangesEnabled && isUnsafeToggleAllowed}
+                  onChange={(e) => {
+                    if (!isUnsafeToggleAllowed) return;
+                    setUnsafeRangesEnabled(e.target.checked);
+                  }}
+                  disabled={!isUnsafeToggleAllowed}
+                  className="w-4 h-4 text-sp-pale-green bg-sp-very-dark-blue border-sp-pale-green/30 rounded focus:ring-sp-pale-green focus:ring-2 disabled:opacity-50"
+                />
+              </div>
+              <p className="text-xs text-sp-white/60">
+                When enabled, numeric parameters accept any positive value; use with caution.
+              </p>
+            </div>
             {/* Filename options */}
             <div className="space-y-2">
               <div className="flex items-center">

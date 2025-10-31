@@ -1094,6 +1094,9 @@ export default function ResultPage() {
   const [isSimplifying, setIsSimplifying] = useState(false);
   const [heatmapOnlyMode, setHeatmapOnlyMode] = useState(false);
   
+  // Clustering control for ARG visualization
+  const [enableClustering, setEnableClustering] = useState(false);
+  
   // Temporal range input states
   const [temporalStartInput, setTemporalStartInput] = useState('');
   const [temporalEndInput, setTemporalEndInput] = useState('');
@@ -2127,9 +2130,36 @@ export default function ResultPage() {
                   {/* Divider */}
                   <div className="border-t border-sp-pale-green/20 my-4"></div>
 
-                  {/* Heatmap Mode Option */}
-                  {visualizeSpatialArgEnabled && (
-                    <div className="mb-4">
+                  {/* Performance Options */}
+                  <div className="space-y-3 mb-4">
+                    {/* Enable Clustering for ARG visualization */}
+                    <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id="enable-clustering"
+                          checked={enableClustering}
+                          onChange={(e) => setEnableClustering(e.target.checked)}
+                          className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                        />
+                        <label htmlFor="enable-clustering" className="text-sm text-sp-white font-medium cursor-pointer">
+                          Enable Clustering (ARG Performance)
+                        </label>
+                      </div>
+                      <div className="group relative">
+                        <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                          <strong className="text-sp-pale-green">⚠️ Beta Feature</strong><br/>
+                          Condense dense subtrees into cluster nodes for better performance with large ARGs. Auto-enabled for graphs with &gt;250 nodes. Click cluster nodes to expand and explore details.<br/><br/>
+                          <em className="text-sp-white/60">Note: This is a testing feature and may cause unexpected results.</em>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Heatmap Mode Option for Spatial */}
+                    {visualizeSpatialArgEnabled && (
                       <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
                         <div className="flex items-center gap-2">
                           <input
@@ -2152,8 +2182,8 @@ export default function ResultPage() {
                           </div>
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Launch Buttons */}
                   <h4 className="font-medium text-sp-white text-sm mb-3">Launch Visualization</h4>
@@ -2175,6 +2205,9 @@ export default function ResultPage() {
                           params.append('tree_start_idx', genomicRange[0].toString());
                           params.append('tree_end_idx', genomicRange[1].toString());
                         }
+                      }
+                      if (enableClustering) {
+                        params.append('clustering', 'true');
                       }
                       const queryString = params.toString();
                       navigate(`/graph/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);

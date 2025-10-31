@@ -9,6 +9,332 @@ import {
 import { SampleOrderControl, SampleOrderType } from '../../ui/sample-order-control';
 import { NodeSizeSettings, TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from './ForceDirectedGraph.types';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
+import { Tooltip } from '../../ui/tooltip';
+
+// Clustering Section
+interface ClusteringSectionProps {
+  clusteringEnabled: boolean;
+  onClusteringEnabledChange: (enabled: boolean) => void;
+  clusteringMinTreeSize: number;
+  onClusteringMinTreeSizeChange: (size: number) => void;
+  clusteringRequireDensity: boolean;
+  onClusteringRequireDensityChange: (enabled: boolean) => void;
+  clusteringDensityIntensity: number;
+  onClusteringDensityIntensityChange: (intensity: number) => void;
+  clusteringRequireTemporalCompactness: boolean;
+  onClusteringRequireTemporalCompactnessChange: (enabled: boolean) => void;
+  clusteringTemporalIntensity: number;
+  onClusteringTemporalIntensityChange: (intensity: number) => void;
+  nodeCount?: number;
+  clusteredNodeCount?: number;
+}
+
+export function ClusteringSection({
+  clusteringEnabled,
+  onClusteringEnabledChange,
+  clusteringMinTreeSize,
+  onClusteringMinTreeSizeChange,
+  clusteringRequireDensity,
+  onClusteringRequireDensityChange,
+  clusteringDensityIntensity,
+  onClusteringDensityIntensityChange,
+  clusteringRequireTemporalCompactness,
+  onClusteringRequireTemporalCompactnessChange,
+  clusteringTemporalIntensity,
+  onClusteringTemporalIntensityChange,
+  nodeCount,
+  clusteredNodeCount
+}: ClusteringSectionProps) {
+  const { colors } = useColorTheme();
+
+  const reductionPercentage = nodeCount && clusteredNodeCount 
+    ? Math.round(((nodeCount - clusteredNodeCount) / nodeCount) * 100)
+    : 0;
+
+  return (
+    <div className="space-y-4">
+      <SidebarSubsection title="Performance Clustering">
+        <SidebarCheckbox
+          label="Enable Clustering"
+          checked={clusteringEnabled}
+          onChange={onClusteringEnabledChange}
+          tooltip="⚠️ Beta Feature: Condense dense subtrees into cluster nodes for better performance with large graphs. This is a testing feature and may cause unexpected results."
+        />
+
+        {clusteringEnabled && (
+          <>
+            <SidebarSlider
+              label="Min Tree Size"
+              value={clusteringMinTreeSize}
+              min={2}
+              max={50}
+              step={1}
+              onChange={onClusteringMinTreeSizeChange}
+              tooltip="Minimum number of nodes in a subtree to cluster it. Lower values = more clustering (more nodes clustered)."
+              formatValue={(v) => `${Math.round(v)} nodes`}
+            />
+
+            <SidebarCheckbox
+              label="Require Density"
+              checked={clusteringRequireDensity}
+              onChange={onClusteringRequireDensityChange}
+              tooltip="Only cluster subtrees with high density (many nodes per depth level). When off, density is not considered."
+            />
+
+            {clusteringRequireDensity && (
+              <SidebarSlider
+                label="Density Intensity"
+                value={clusteringDensityIntensity}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={onClusteringDensityIntensityChange}
+                tooltip="Intensity of density filtering. 0 = no effect (all subtrees pass), 1 = maximum effect (only very dense subtrees pass)."
+                formatValue={(v) => {
+                  if (v === 0) return '0% (no effect)';
+                  if (v === 1) return '100% (max effect)';
+                  return `${Math.round(v * 100)}%`;
+                }}
+              />
+            )}
+
+            <SidebarCheckbox
+              label="Require Temporal Compactness"
+              checked={clusteringRequireTemporalCompactness}
+              onChange={onClusteringRequireTemporalCompactnessChange}
+              tooltip="Only cluster subtrees that are temporally compact (nodes close together in time). When off, temporal spacing is not considered."
+            />
+
+            {clusteringRequireTemporalCompactness && (
+              <div className="space-y-2">
+                <SidebarSlider
+                  label="Temporal Intensity"
+                  value={clusteringTemporalIntensity}
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  onChange={onClusteringTemporalIntensityChange}
+                  tooltip="Intensity of temporal compactness filtering. 0 = no effect (all subtrees pass), 1 = maximum effect (only very compact subtrees pass). Uses logarithmic scale for smoother transitions."
+                  formatValue={(v) => {
+                    if (v === 0) return '0% (no effect)';
+                    if (v === 1) return '100% (max effect)';
+                    return `${Math.round(v * 100)}%`;
+                  }}
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      const newValue = Math.max(0, Math.round((clusteringTemporalIntensity - 0.01) * 100) / 100);
+                      onClusteringTemporalIntensityChange(newValue);
+                    }}
+                    className="px-2 py-1 text-xs font-medium rounded border transition-colors"
+                    style={{
+                      backgroundColor: colors.containerBackground,
+                      borderColor: colors.border + '40',
+                      color: colors.text,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.border + '20';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.containerBackground;
+                    }}
+                    disabled={clusteringTemporalIntensity <= 0}
+                  >
+                    −1%
+                  </button>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(clusteringTemporalIntensity * 100)}
+                    onChange={(e) => {
+                      const numValue = parseInt(e.target.value, 10);
+                      if (!isNaN(numValue) && numValue >= 0 && numValue <= 100) {
+                        onClusteringTemporalIntensityChange(numValue / 100);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      // Reset to current value if invalid
+                      const numValue = parseInt(e.target.value, 10);
+                      if (isNaN(numValue) || numValue < 0 || numValue > 100) {
+                        e.target.value = Math.round(clusteringTemporalIntensity * 100).toString();
+                      }
+                    }}
+                    className="flex-1 px-2 py-1 text-xs text-center rounded border"
+                    style={{
+                      backgroundColor: colors.containerBackground,
+                      borderColor: colors.border + '40',
+                      color: colors.text,
+                    }}
+                  />
+                  <span className="text-xs" style={{ color: colors.text, opacity: 0.7 }}>%</span>
+                  <button
+                    onClick={() => {
+                      const newValue = Math.min(1, Math.round((clusteringTemporalIntensity + 0.01) * 100) / 100);
+                      onClusteringTemporalIntensityChange(newValue);
+                    }}
+                    className="px-2 py-1 text-xs font-medium rounded border transition-colors"
+                    style={{
+                      backgroundColor: colors.containerBackground,
+                      borderColor: colors.border + '40',
+                      color: colors.text,
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.border + '20';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.containerBackground;
+                    }}
+                    disabled={clusteringTemporalIntensity >= 1}
+                  >
+                    +1%
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {nodeCount && clusteredNodeCount && nodeCount !== clusteredNodeCount && (
+              <SidebarInfoBox>
+                <div className="text-xs space-y-1">
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.text, opacity: 0.8 }}>Original nodes:</span>
+                    <span style={{ color: colors.text, fontWeight: 500 }}>{nodeCount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.text, opacity: 0.8 }}>Displayed nodes:</span>
+                    <span style={{ color: colors.accentPrimary, fontWeight: 600 }}>{clusteredNodeCount.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.text, opacity: 0.8 }}>Reduction:</span>
+                    <span style={{ color: colors.accentSecondary, fontWeight: 600 }}>{reductionPercentage}%</span>
+                  </div>
+                </div>
+              </SidebarInfoBox>
+            )}
+          </>
+        )}
+      </SidebarSubsection>
+    </div>
+  );
+}
+
+// View Controls Section
+interface ViewControlsSectionProps {
+  temporalFilterEnabled: boolean;
+  onTemporalFilterChange: (enabled: boolean) => void;
+  temporalDimOpacity: number;
+  onTemporalDimOpacityChange: (opacity: number) => void;
+  layerRevealEnabled: boolean;
+  layerRevealRate: number;
+  onLayerRevealRateChange: (rate: number) => void;
+  onLayerRevealPlay: () => void;
+  onLayerRevealPause: () => void;
+  onLayerRevealReset: () => void;
+}
+
+export function ViewControlsSection({
+  temporalFilterEnabled,
+  onTemporalFilterChange,
+  temporalDimOpacity,
+  onTemporalDimOpacityChange,
+  layerRevealEnabled,
+  layerRevealRate,
+  onLayerRevealRateChange,
+  onLayerRevealPlay,
+  onLayerRevealPause,
+  onLayerRevealReset
+}: ViewControlsSectionProps) {
+  const { colors } = useColorTheme();
+
+  return (
+    <div className="space-y-4">
+      <SidebarSubsection title="Temporal Filter">
+        <SidebarCheckbox
+          label="Enable Temporal Filter"
+          checked={temporalFilterEnabled}
+          onChange={onTemporalFilterChange}
+          tooltip="Filter nodes and edges by time using the vertical slider"
+        />
+
+        {temporalFilterEnabled && (
+          <SidebarSlider
+            label="Dimmed Opacity"
+            value={temporalDimOpacity}
+            min={0}
+            max={0.99}
+            step={0.01}
+            onChange={onTemporalDimOpacityChange}
+            tooltip="Opacity for out-of-range elements (0 hides, 0.99 nearly visible)"
+            formatValue={(v) => `${Math.round(v * 100)}%`}
+          />
+        )}
+      </SidebarSubsection>
+
+      {temporalFilterEnabled && (
+        <SidebarSubsection title="Layer Reveal">
+          <div className="space-y-2">
+            <div className="flex items-center gap-1 mb-2">
+              <span className="text-xs font-semibold" style={{ color: colors.text }}>
+                Animation
+              </span>
+              <Tooltip content="Progressively reveal time layers from oldest to newest" />
+            </div>
+
+            <SidebarSlider
+              label="Reveal Speed"
+              value={layerRevealRate}
+              min={0.1}
+              max={10}
+              step={0.1}
+              onChange={onLayerRevealRateChange}
+              unit=" layers/s"
+              formatValue={(v) => v.toFixed(1)}
+            />
+
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={onLayerRevealPlay}
+                disabled={layerRevealEnabled}
+                className="px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: layerRevealEnabled ? colors.containerBackground : colors.accentPrimary,
+                  color: layerRevealEnabled ? colors.text : colors.background,
+                  cursor: layerRevealEnabled ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Play
+              </button>
+              <button
+                onClick={onLayerRevealPause}
+                disabled={!layerRevealEnabled}
+                className="px-3 py-2 rounded text-xs font-medium transition-colors disabled:opacity-50"
+                style={{
+                  backgroundColor: !layerRevealEnabled ? colors.containerBackground : colors.accentPrimary,
+                  color: !layerRevealEnabled ? colors.text : colors.background,
+                  cursor: !layerRevealEnabled ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Pause
+              </button>
+              <button
+                onClick={onLayerRevealReset}
+                className="px-3 py-2 rounded text-xs font-medium transition-colors"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  color: colors.text
+                }}
+              >
+                Reset
+              </button>
+            </div>
+          </div>
+        </SidebarSubsection>
+      )}
+    </div>
+  );
+}
 
 // Layout & Spacing Section
 interface LayoutSpacingSectionProps {
@@ -20,6 +346,26 @@ interface LayoutSpacingSectionProps {
   onTemporalSpacingChange: (spacing: number) => void;
   sampleSpacing: number;
   onSampleSpacingChange: (spacing: number) => void;
+  simulationPaused: boolean;
+  onSimulationPausedChange: (paused: boolean) => void;
+  temporalFilterEnabled?: boolean;
+  onUnpinAllNodes: () => void;
+  onResetSimulation: () => void;
+  edgeCrossings?: number | null;
+  isCalculatingEdgeCrossings?: boolean;
+  // Force tuning controls
+  forceTuning: {
+    chargeScale: number;
+    linkStrengthScale: number;
+    xStrengthScale: number;
+    yStrengthScale: number;
+    collisionRadiusScale: number;
+    collisionStrength: number;
+    edgeCrossingScale: number;
+    edgeBundlingScale: number;
+    descendantRangeScale: number;
+  };
+  onForceTuningChange: (next: LayoutSpacingSectionProps['forceTuning']) => void;
 }
 
 export function LayoutSpacingSection({
@@ -30,7 +376,16 @@ export function LayoutSpacingSection({
   temporalSpacing,
   onTemporalSpacingChange,
   sampleSpacing,
-  onSampleSpacingChange
+  onSampleSpacingChange,
+  simulationPaused,
+  onSimulationPausedChange,
+  temporalFilterEnabled = false,
+  onUnpinAllNodes,
+  onResetSimulation,
+  edgeCrossings,
+  isCalculatingEdgeCrossings = false,
+  forceTuning,
+  onForceTuningChange
 }: LayoutSpacingSectionProps) {
   const { colors } = useColorTheme();
 
@@ -41,9 +396,26 @@ export function LayoutSpacingSection({
           value={sampleOrder}
           onChange={onSampleOrderChange}
         />
+        {(edgeCrossings !== null && edgeCrossings !== undefined) || isCalculatingEdgeCrossings ? (
+          <div 
+            className="mt-2 px-2 py-1.5 rounded text-xs flex items-center justify-between"
+            style={{ 
+              backgroundColor: colors.containerBackground,
+              border: `1px solid ${colors.border}`
+            }}
+          >
+            <span style={{ color: colors.text, opacity: 0.8 }}>Edge Crossings:</span>
+            <span 
+              className="font-semibold"
+              style={{ color: colors.accentPrimary }}
+            >
+              {isCalculatingEdgeCrossings ? '...' : edgeCrossings?.toLocaleString()}
+            </span>
+          </div>
+        ) : null}
       </SidebarSubsection>
 
-      <SidebarSubsection title="Temporal Spacing">
+      <SidebarSubsection title="Spacing">
         <SidebarButtonGroup
           value={temporalSpacingMode}
           options={[
@@ -55,25 +427,128 @@ export function LayoutSpacingSection({
         />
         
         <SidebarSlider
-          label="Spacing Multiplier"
+          label="Vertical Spacing"
           value={temporalSpacing}
           min={0.1}
-          max={5}
+          max={20}
           step={0.1}
           onChange={onTemporalSpacingChange}
           tooltip="Adjust the vertical spacing between temporal layers"
         />
-      </SidebarSubsection>
-
-      <SidebarSubsection title="Sample Spacing">
+        
         <SidebarSlider
           label="Horizontal Spacing"
           value={sampleSpacing}
-          min={10}
-          max={200}
+          min={5}
+          max={800}
           step={5}
           onChange={onSampleSpacingChange}
+          tooltip="Adjust horizontal spacing between sample nodes"
         />
+      </SidebarSubsection>
+
+      <SidebarSubsection title="Force Simulation">
+        <SidebarCheckbox
+          label="Pause Simulation"
+          checked={simulationPaused}
+          onChange={onSimulationPausedChange}
+          tooltip="Pause the force-directed simulation to freeze node positions"
+        />
+        {temporalFilterEnabled && (
+          <div className="mt-2 text-xs" style={{ color: colors.text, opacity: 0.7 }}>
+            Note: Simulation is auto-paused when temporal filter is active
+          </div>
+        )}
+        
+        <button
+          onClick={onUnpinAllNodes}
+          className="w-full mt-2 px-3 py-2 rounded text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: colors.containerBackground,
+            color: colors.text,
+            border: `1px solid ${colors.border}`
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = colors.accentPrimary;
+            e.currentTarget.style.color = colors.background;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = colors.containerBackground;
+            e.currentTarget.style.color = colors.text;
+          }}
+        >
+          Unpin All Nodes
+        </button>
+
+        <button
+          onClick={onResetSimulation}
+          className="w-full mt-2 px-3 py-2 rounded text-xs font-medium transition-colors"
+          style={{
+            backgroundColor: colors.containerBackground,
+            color: colors.text,
+            border: `1px solid ${colors.border}`
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = colors.accentPrimary;
+            e.currentTarget.style.color = colors.background;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = colors.containerBackground;
+            e.currentTarget.style.color = colors.text;
+          }}
+        >
+          Reset Simulation
+        </button>
+
+        {/* Force tuning sliders */}
+        <div className="mt-3 space-y-2">
+          <SidebarSlider
+            label="Charge Scale"
+            value={forceTuning.chargeScale}
+            min={0}
+            max={10}
+            step={0.1}
+            onChange={(v) => onForceTuningChange({ ...forceTuning, chargeScale: v })}
+            tooltip="Multiply many-body repulsion"
+          />
+          <SidebarSlider
+            label="Link Strength"
+            value={forceTuning.linkStrengthScale}
+            min={0}
+            max={10}
+            step={0.1}
+            onChange={(v) => onForceTuningChange({ ...forceTuning, linkStrengthScale: v })}
+            tooltip="Multiply link spring strength"
+          />
+          <SidebarSlider
+            label="X-Position Strength"
+            value={forceTuning.xStrengthScale}
+            min={0}
+            max={10}
+            step={0.1}
+            onChange={(v) => onForceTuningChange({ ...forceTuning, xStrengthScale: v })}
+            tooltip="Multiply X anchoring strength"
+          />
+          <SidebarSlider
+            label="Collision Radius"
+            value={forceTuning.collisionRadiusScale}
+            min={0.2}
+            max={6}
+            step={0.1}
+            onChange={(v) => onForceTuningChange({ ...forceTuning, collisionRadiusScale: v })}
+            tooltip="Multiply collision radius"
+          />
+          <SidebarSlider
+            label="Collision Strength"
+            value={forceTuning.collisionStrength}
+            min={0}
+            max={1}
+            step={0.01}
+            onChange={(v) => onForceTuningChange({ ...forceTuning, collisionStrength: v })}
+            tooltip="Set collision force strength"
+          />
+          {/* Removed per request: Y strength, Crossing Repulsion, Edge Bundling, Descendant Range */}
+        </div>
       </SidebarSubsection>
     </div>
   );
@@ -340,18 +815,17 @@ export function InformationSection({
       )}
 
       {/* View Instructions */}
-      <SidebarInfoBox
-        title="View Controls"
-        content={
-          <div className="space-y-1 text-xs">
+      <SidebarSubsection title="View Controls">
+        <SidebarInfoBox>
+          <div className="space-y-1">
             <div>• Drag: Pan view</div>
             <div>• Scroll: Zoom in/out</div>
             <div>• Left click: Select node</div>
             <div>• Right click: Show ancestors</div>
             <div>• Drag nodes to reposition</div>
           </div>
-        }
-      />
+        </SidebarInfoBox>
+      </SidebarSubsection>
 
       {/* Node Types Legend */}
       <SidebarSubsection title="Node Types">
@@ -396,4 +870,6 @@ export function InformationSection({
     </div>
   );
 }
+
+
 
