@@ -18,6 +18,9 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dots, setDots] = useState(0);
+  const [showNodeLimitModal, setShowNodeLimitModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const { setTreeSequence } = useTreeSequence();
 
   useEffect(() => {
@@ -73,7 +76,16 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
 
     switch (selectedOption) {
       case 'upload':
-        return <Dropzone onUploadComplete={handleUploadComplete} setLoading={setLoading} />;
+        return <Dropzone 
+          onUploadComplete={handleUploadComplete} 
+          setLoading={setLoading}
+          showNodeLimitModal={showNodeLimitModal}
+          setShowNodeLimitModal={setShowNodeLimitModal}
+          showErrorModal={showErrorModal}
+          setShowErrorModal={setShowErrorModal}
+          errorMessage={errorMessage}
+          setErrorMessage={setErrorMessage}
+        />;
       case 'simulate':
         return <TreeSequenceSimulator onSimulationComplete={handleSimulationComplete} setLoading={setLoading} />;
       case 'load':

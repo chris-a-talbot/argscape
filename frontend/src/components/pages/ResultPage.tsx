@@ -1164,7 +1164,9 @@ export default function ResultPage() {
     message: string;
     type: 'success' | 'error' | 'info';
     buttonText?: string;
+    secondaryButtonText?: string;
     onClose?: () => void;
+    onSecondaryAction?: () => void;
   }>({
     isOpen: false,
     title: '',
@@ -1279,9 +1281,13 @@ export default function ResultPage() {
           : `Fast location inference failed: ${errorMessage}`,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
+        secondaryButtonText: isTimeout ? 'Close' : undefined,
         onClose: isTimeout ? () => {
           setAlertModal({ ...alertModal, isOpen: false });
           navigate('/install');
+        } : undefined,
+        onSecondaryAction: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
         } : undefined
       });
     } finally {
@@ -1342,9 +1348,13 @@ export default function ResultPage() {
           : `GAIA quadratic inference failed: ${errorMessage}`,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
+        secondaryButtonText: isTimeout ? 'Close' : undefined,
         onClose: isTimeout ? () => {
           setAlertModal({ ...alertModal, isOpen: false });
           navigate('/install');
+        } : undefined,
+        onSecondaryAction: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
         } : undefined
       });
     } finally {
@@ -1454,9 +1464,13 @@ export default function ResultPage() {
               : `GAIA linear inference failed: ${errorMessage}`,
             type: 'error',
             buttonText: isTimeout ? 'Install Locally' : undefined,
+            secondaryButtonText: isTimeout ? 'Close' : undefined,
             onClose: isTimeout ? () => {
               setAlertModal({ ...alertModal, isOpen: false });
               navigate('/install');
+            } : undefined,
+            onSecondaryAction: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
             } : undefined
           });
         } finally {
@@ -1512,9 +1526,13 @@ export default function ResultPage() {
               : `sparg inference failed: ${errorMessage}`,
             type: 'error',
             buttonText: isTimeout ? 'Install Locally' : undefined,
+            secondaryButtonText: isTimeout ? 'Close' : undefined,
             onClose: isTimeout ? () => {
               setAlertModal({ ...alertModal, isOpen: false });
               navigate('/install');
+            } : undefined,
+            onSecondaryAction: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
             } : undefined
           });
         } finally {
@@ -1570,9 +1588,13 @@ export default function ResultPage() {
               : `Midpoint inference failed: ${errorMessage}`,
             type: 'error',
             buttonText: isTimeout ? 'Install Locally' : undefined,
+            secondaryButtonText: isTimeout ? 'Close' : undefined,
             onClose: isTimeout ? () => {
               setAlertModal({ ...alertModal, isOpen: false });
               navigate('/install');
+            } : undefined,
+            onSecondaryAction: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
             } : undefined
           });
         } finally {
@@ -2348,6 +2370,8 @@ export default function ResultPage() {
             type={alertModal.type}
             onClose={alertModal.onClose || (() => setAlertModal({ ...alertModal, isOpen: false }))}
             buttonText={alertModal.buttonText}
+            secondaryButtonText={alertModal.secondaryButtonText}
+            onSecondaryAction={alertModal.onSecondaryAction}
           />
         </div>
       </div>

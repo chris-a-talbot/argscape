@@ -5,7 +5,9 @@ interface AlertModalProps {
   title: string;
   message: string;
   buttonText?: string;
+  secondaryButtonText?: string;
   onClose: () => void;
+  onSecondaryAction?: () => void;
   type?: 'success' | 'error' | 'info';
 }
 
@@ -14,7 +16,9 @@ export default function AlertModal({
   title, 
   message, 
   buttonText = 'OK',
+  secondaryButtonText,
   onClose,
+  onSecondaryAction,
   type = 'info'
 }: AlertModalProps) {
   // Handle ESC key
@@ -100,7 +104,15 @@ export default function AlertModal({
           </div>
           
           {/* Action */}
-          <div className="flex justify-end">
+          <div className={`flex ${secondaryButtonText ? 'justify-between' : 'justify-end'} gap-3`}>
+            {secondaryButtonText && onSecondaryAction && (
+              <button
+                onClick={onSecondaryAction}
+                className="font-bold py-3 px-6 rounded-xl transition-all duration-200 bg-sp-dark-blue hover:bg-sp-dark-blue/80 text-sp-white border border-sp-pale-green/20"
+              >
+                {secondaryButtonText}
+              </button>
+            )}
             <button
               onClick={onClose}
               className={`font-bold py-3 px-6 rounded-xl transition-all duration-200 ${buttonColor}`}

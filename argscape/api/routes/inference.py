@@ -74,11 +74,12 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         raise HTTPException(status_code=404, detail="File not found")
     
     # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE for local testing
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
     is_railway = (
         os.getenv("RAILWAY_ENVIRONMENT") is not None or 
         os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
     )
     
     async def run_inference():
@@ -207,11 +208,12 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         )
     
     # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE for local testing
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
     is_railway = (
         os.getenv("RAILWAY_ENVIRONMENT") is not None or 
         os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
     )
     
     async def run_inference():
@@ -291,11 +293,12 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
         )
     
     # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE for local testing
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
     is_railway = (
         os.getenv("RAILWAY_ENVIRONMENT") is not None or 
         os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
     )
     
     async def run_inference():
@@ -375,11 +378,12 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
         )
     
     # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE for local testing
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
     is_railway = (
         os.getenv("RAILWAY_ENVIRONMENT") is not None or 
         os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
     )
     
     async def run_inference():
@@ -613,11 +617,12 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         )
     
     # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE for local testing
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
     is_railway = (
         os.getenv("RAILWAY_ENVIRONMENT") is not None or 
         os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
     )
     
     async def run_inference():

@@ -186,8 +186,24 @@ class PersistentSessionStorage:
             f = Fernet(key)
             return f.decrypt(encrypted_data)
         except Exception as e:
-            logger.error(f"Decryption failed (wrong IP or corrupted data): {e}")
-            raise
+            # If decryption fails, check if data might be unencrypted (legacy files)
+            # Fernet-encrypted data is base64url-encoded and typically starts with 'gAAAAAB'
+            # Unencrypted tskit .trees files have a specific binary structure
+            # If the data doesn't look like Fernet-encrypted, it's likely legacy unencrypted data
+            is_likely_encrypted = (
+                len(encrypted_data) > 10 and 
+                encrypted_data[:10].startswith(b'gAAAAAB')  # Fernet header pattern
+            )
+            
+            if is_likely_encrypted:
+                # Data appears encrypted but decryption failed - likely wrong IP/key
+                logger.error(f"Decryption failed (wrong IP or corrupted data): {e}")
+                raise
+            else:
+                # Data doesn't look encrypted - likely a legacy file from before encryption was enabled
+                logger.debug(f"Data appears unencrypted (legacy file), returning as-is. "
+                           f"File was likely created before encryption was enabled.")
+                return encrypted_data
     
     def _get_session_id_from_ip(self, client_ip: str) -> str:
         """Generate a consistent session ID from client IP."""

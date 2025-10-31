@@ -14,6 +14,7 @@ import tskit
 import tszip
 import msprime
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request, BackgroundTasks, Query
+from fastapi.responses import FileResponse
 
 from argscape.api.core.dependencies import get_client_ip
 from argscape.api.services import session_storage
@@ -53,10 +54,12 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
         ts, updated_filename = load_tree_sequence_from_file(contents, file.filename)
         
         # Check if running on Railway
+        # Check for actual Railway environment variables, or flags for testing Railway mode locally
         is_railway = (
             os.getenv("RAILWAY_ENVIRONMENT") is not None or 
             os.getenv("RAILWAY_PROJECT_ID") is not None or
-            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+            os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
         )
         
         # Check node count limit on Railway
@@ -487,11 +490,12 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
             raise HTTPException(status_code=400, detail="Recombination rate must be positive")
         
         # Check if running on Railway (by checking for environment variable or Railway-specific env vars)
-        # Also check for FORCE_RAILWAY_MODE for local testing
+        # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
         is_railway = (
             os.getenv("RAILWAY_ENVIRONMENT") is not None or 
             os.getenv("RAILWAY_PROJECT_ID") is not None or
-            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+            os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
         )
         
         # Enforce Railway parameter limits to prevent memory issues

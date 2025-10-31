@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
-import { FILE_TYPES, isRailway, RAILWAY_LIMITS } from '../../config/constants';
+import { FILE_TYPES, RAILWAY_LIMITS } from '../../config/constants';
 import AlertModal from '../ui/AlertModal';
 
 const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
@@ -11,6 +11,12 @@ const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
 type DropzoneProps = {
   onUploadComplete?: (result: any) => void;
   setLoading: (isLoading: boolean) => void;
+  showNodeLimitModal?: boolean;
+  setShowNodeLimitModal?: (show: boolean) => void;
+  showErrorModal?: boolean;
+  setShowErrorModal?: (show: boolean) => void;
+  errorMessage?: string;
+  setErrorMessage?: (message: string) => void;
 };
 
 type LocationFiles = {
@@ -18,7 +24,16 @@ type LocationFiles = {
   nodeLocations: File | null;
 };
 
-export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps) {  
+export default function Dropzone({ 
+  onUploadComplete, 
+  setLoading,
+  showNodeLimitModal: propShowNodeLimitModal,
+  setShowNodeLimitModal: propSetShowNodeLimitModal,
+  showErrorModal: propShowErrorModal,
+  setShowErrorModal: propSetShowErrorModal,
+  errorMessage: propErrorMessage,
+  setErrorMessage: propSetErrorMessage,
+}: DropzoneProps) {  
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'none' | 'load-as-is' | 'add-locations'>('none');
   const [locationFiles, setLocationFiles] = useState<LocationFiles>({
@@ -29,10 +44,22 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
     sample_locations?: string;
     node_locations?: string;
   }>({});
-  const [showNodeLimitModal, setShowNodeLimitModal] = useState(false);
-  const [showErrorModal, setShowErrorModal] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
+  
+  // Use parent state if provided, otherwise use local state (for backwards compatibility)
+  const [localShowNodeLimitModal, setLocalShowNodeLimitModal] = useState(false);
+  const [localShowErrorModal, setLocalShowErrorModal] = useState(false);
+  const [localErrorMessage, setLocalErrorMessage] = useState('');
+  
+  const showNodeLimitModal = propShowNodeLimitModal ?? localShowNodeLimitModal;
+  const setShowNodeLimitModal = propSetShowNodeLimitModal ?? setLocalShowNodeLimitModal;
+  const showErrorModal = propShowErrorModal ?? localShowErrorModal;
+  const setShowErrorModal = propSetShowErrorModal ?? setLocalShowErrorModal;
+  const errorMessage = propErrorMessage ?? localErrorMessage;
+  const setErrorMessage = propSetErrorMessage ?? setLocalErrorMessage;
+  
   const navigate = useNavigate();
+  // Use ref to track if we're showing a modal (for synchronous check in finally block)
+  const isShowingModalRef = useRef(false);
 
   // Main tree sequence file dropzone
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -79,16 +106,20 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
   const handleLoadAsIs = async () => {
     if (file) {
       setLoading(true);
+      isShowingModalRef.current = false;
       
       try {
         log.user.action('upload-start', { filename: file.name, size: file.size }, 'Dropzone');
         const result = await api.uploadTreeSequence(file);
         
-        // Check node count on Railway
-        if (isRailway() && result.data) {
-          const numNodes = result.data.num_nodes;
+        // Check node count on Railway (check error message content, not frontend flag)
+        // Backend might be in Railway mode even if frontend flag isn't set
+        // Note: This check is redundant since backend will reject before returning,
+        // but keeping for defensive programming
+        if (result.data && typeof result.data === 'object' && 'num_nodes' in result.data) {
+          const numNodes = (result.data as any).num_nodes;
           if (numNodes && numNodes > RAILWAY_MAX_NODES) {
-            setLoading(false);
+            isShowingModalRef.current = true;
             setShowNodeLimitModal(true);
             return;
           }
@@ -112,19 +143,30 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
         const errorMessage = err instanceof Error ? err.message : 'Unknown error';
         const lowerErrorMessage = errorMessage.toLowerCase();
         
-        // Check if this is a node limit error
-        if (isRailway() && lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
-          setLoading(false);
+        // Check if this is a node limit error (check error message content, not frontend flag)
+        // Backend might be in Railway mode even if frontend flag isn't set
+        if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+          console.log('Detected Railway node limit error, setting modal state');
+          isShowingModalRef.current = true;
+          // Set modal state first (this persists in parent component across remounts)
           setShowNodeLimitModal(true);
+          // Then set loading to false - parent will remount but modal state is preserved
+          setLoading(false);
           return;
         }
         
         // Show general error modal
-        setLoading(false);
+        isShowingModalRef.current = true;
         setErrorMessage(errorMessage);
         setShowErrorModal(true);
-      } finally {
+        // Set loading to false so parent renders Dropzone (modal needs component to be mounted)
         setLoading(false);
+      } finally {
+        // Only set loading to false if we're not showing a modal
+        // This prevents the parent from unmounting us while modals are showing
+        if (!isShowingModalRef.current) {
+          setLoading(false);
+        }
       }
     }
   };
@@ -157,6 +199,7 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
     }
 
     setLoading(true);
+    isShowingModalRef.current = false;
 
     try {
       // First upload the main tree sequence file
@@ -208,19 +251,28 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       const lowerErrorMessage = errorMessage.toLowerCase();
       
-      // Check if this is a node limit error
-      if (isRailway() && lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
-        setLoading(false);
+      // Check if this is a node limit error (check error message content, not frontend flag)
+      // Backend might be in Railway mode even if frontend flag isn't set
+      if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+        isShowingModalRef.current = true;
         setShowNodeLimitModal(true);
+        // Set loading to false so parent renders Dropzone (modal needs component to be mounted)
+        setLoading(false);
         return;
       }
       
       // Show general error modal
-      setLoading(false);
+      isShowingModalRef.current = true;
       setErrorMessage(errorMessage);
       setShowErrorModal(true);
-    } finally {
+      // Set loading to false so parent renders Dropzone (modal needs component to be mounted)
       setLoading(false);
+    } finally {
+      // Only set loading to false if we're not showing a modal
+      // This prevents the parent from unmounting us while modals are showing
+      if (!isShowingModalRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -370,10 +422,18 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
         title="Node Limit Exceeded"
         message={`The tree sequence has more than ${RAILWAY_MAX_NODES} nodes and has been deleted. For larger ARGs, please install ARGscape locally via Python.`}
         buttonText="Install Locally"
+        secondaryButtonText="Close"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowNodeLimitModal(false);
+          setLoading(false);
           navigate('/install');
+        }}
+        onSecondaryAction={() => {
+          isShowingModalRef.current = false;
+          setShowNodeLimitModal(false);
+          setLoading(false);
         }}
       />
 
@@ -385,7 +445,9 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
         buttonText="OK"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowErrorModal(false);
+          setLoading(false);
         }}
       />
     </div>

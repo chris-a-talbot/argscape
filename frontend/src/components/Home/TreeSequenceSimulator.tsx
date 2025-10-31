@@ -258,6 +258,8 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   const [unsafeRangesEnabled, setUnsafeRangesEnabled] = useState(false);
   
   const hasClampedParamsRef = useRef(false);
+  // Use ref to track if we're showing a modal (for synchronous check in finally block)
+  const isShowingModalRef = useRef(false);
   
   // Force unsafe mode to false when Railway is detected (useEffect to handle dynamic changes)
   useEffect(() => {
@@ -540,6 +542,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     
     setIsSimulating(true);
     setLoading(true);
+    isShowingModalRef.current = false;
     setShowTimeoutModal(false);
     setShowSizeLimitModal(false);
     setShowParameterLimitModal(false);
@@ -562,6 +565,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       
       // Check for timeout error (504 status or timeout in message)
       if (result.status === 504 || (result.data as any)?.detail?.includes('timed out')) {
+        isShowingModalRef.current = true;
         setIsSimulating(false);
         setShowTimeoutModal(true);
         // Don't set loading to false - keep component mounted
@@ -589,6 +593,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             });
           }
           
+          isShowingModalRef.current = true;
           setIsSimulating(false);
           setShowSizeLimitModal(true);
           // Don't set loading to false - keep component mounted
@@ -611,6 +616,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             });
           }
           
+          isShowingModalRef.current = true;
           setIsSimulating(false);
           setShowNodeLimitModal(true);
           // Don't set loading to false - keep component mounted
@@ -658,6 +664,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       // Check if this is a timeout error
       if (lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout')) {
         console.log('Detected timeout error');
+        isShowingModalRef.current = true;
         setIsSimulating(false);
         setShowTimeoutModal(true);
         // Don't set loading to false - keep component mounted
@@ -684,6 +691,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       if (hasRailwayLimit || hasExceedsRailway || hasExceedRailwayLimits || hasSimulationParametersExceed) {
         // Check if it's a node limit error specifically
         if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+          isShowingModalRef.current = true;
           setIsSimulating(false);
           setShowNodeLimitModal(true);
           // Don't set loading to false - keep component mounted
@@ -696,6 +704,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         
         // IMPORTANT: Don't set loading to false yet - this would cause parent to unmount this component
         // Keep loading true so parent doesn't remount us and lose modal state
+        isShowingModalRef.current = true;
         setParameterLimitMessage(errorMessage);
         setShowParameterLimitModal(true);
         setIsSimulating(false);
@@ -706,6 +715,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       }
       
       // Show error message to user with styled modal
+      isShowingModalRef.current = true;
       setIsSimulating(false);
       setErrorMessage(errorMessage);
       setShowErrorModal(true);
@@ -713,8 +723,8 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     } finally {
       // Only set loading to false if we're not showing any modal
       // This prevents the parent from unmounting us while modals are showing
-      if (!showTimeoutModal && !showSizeLimitModal && !showParameterLimitModal && 
-          !showNodeLimitModal && !showErrorModal) {
+      // Use ref instead of state for synchronous check
+      if (!isShowingModalRef.current) {
         setLoading(false);
       }
       setIsSimulating(false);
@@ -1252,11 +1262,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         title="Simulation Timeout"
         message="This simulation took longer than 60 seconds and was cancelled. For larger simulations, please install ARGscape locally via Python."
         buttonText="Install Locally"
+        secondaryButtonText="Close"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowTimeoutModal(false);
           setLoading(false); // Now safe to set loading to false
           navigate('/install');
+        }}
+        onSecondaryAction={() => {
+          isShowingModalRef.current = false;
+          setShowTimeoutModal(false);
+          setLoading(false);
         }}
       />
 
@@ -1266,11 +1283,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         title="File Size Limit Exceeded"
         message="The simulated ARG exceeds 50MB and has been deleted. For larger simulations, please install ARGscape locally via Python."
         buttonText="Install Locally"
+        secondaryButtonText="Close"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowSizeLimitModal(false);
           setLoading(false); // Now safe to set loading to false
           navigate('/install');
+        }}
+        onSecondaryAction={() => {
+          isShowingModalRef.current = false;
+          setShowSizeLimitModal(false);
+          setLoading(false);
         }}
       />
 
@@ -1280,11 +1304,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         title="Parameter Limit Exceeded"
         message={parameterLimitMessage ? (parameterLimitMessage + '\n\nFor larger simulations, please install ARGscape locally via Python.') : 'For larger simulations, please install ARGscape locally via Python.'}
         buttonText="Install Locally"
+        secondaryButtonText="Close"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowParameterLimitModal(false);
           setLoading(false); // Now safe to set loading to false
           navigate('/install');
+        }}
+        onSecondaryAction={() => {
+          isShowingModalRef.current = false;
+          setShowParameterLimitModal(false);
+          setLoading(false);
         }}
       />
 
@@ -1294,11 +1325,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         title="Node Limit Exceeded"
         message={`The tree sequence has more than ${RAILWAY_MAX_NODES} nodes and has been deleted. For larger ARGs, please install ARGscape locally via Python.`}
         buttonText="Install Locally"
+        secondaryButtonText="Close"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowNodeLimitModal(false);
           setLoading(false); // Now safe to set loading to false
           navigate('/install');
+        }}
+        onSecondaryAction={() => {
+          isShowingModalRef.current = false;
+          setShowNodeLimitModal(false);
+          setLoading(false);
         }}
       />
 
@@ -1310,6 +1348,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         buttonText="OK"
         type="error"
         onClose={() => {
+          isShowingModalRef.current = false;
           setShowErrorModal(false);
           setLoading(false); // Now safe to set loading to false
         }}
