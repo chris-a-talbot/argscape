@@ -1,8 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
+import { isRailway, RAILWAY_MAX_FILE_SIZE_BYTES, RAILWAY_LIMITS } from '../../config/constants';
+
+const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
 import './TreeSequenceSimulator.css';
 import { Tooltip } from '../ui/tooltip';
+import AlertModal from '../ui/AlertModal';
 
 export type SimulationParams = {
   num_samples: number;
@@ -252,6 +257,49 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   const isUnsafeToggleAllowed = import.meta.env.DEV || (!isRailwayDemo);
   const [unsafeRangesEnabled, setUnsafeRangesEnabled] = useState(false);
   
+  const hasClampedParamsRef = useRef(false);
+  
+  // Force unsafe mode to false when Railway is detected (useEffect to handle dynamic changes)
+  useEffect(() => {
+    if (isRailwayDemo && unsafeRangesEnabled) {
+      setUnsafeRangesEnabled(false);
+    }
+  }, [isRailwayDemo, unsafeRangesEnabled]);
+  
+  // Clamp parameters to Railway limits when Railway mode is first detected
+  useEffect(() => {
+    if (isRailwayDemo && !hasClampedParamsRef.current) {
+      let updated = false;
+      const newParams = { ...params };
+      
+      if (params.num_samples > RAILWAY_LIMITS.MAX_SAMPLES) {
+        newParams.num_samples = RAILWAY_LIMITS.MAX_SAMPLES;
+        updateInputValue('num_samples', RAILWAY_LIMITS.MAX_SAMPLES.toString());
+        updated = true;
+      }
+      if (params.sequence_length > RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH) {
+        newParams.sequence_length = RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH;
+        updateInputValue('sequence_length', formatSequenceLength(RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH));
+        updated = true;
+      }
+      if (params.max_time > RAILWAY_LIMITS.MAX_TIME) {
+        newParams.max_time = RAILWAY_LIMITS.MAX_TIME;
+        updateInputValue('max_time', RAILWAY_LIMITS.MAX_TIME.toString());
+        updated = true;
+      }
+      
+      if (updated) {
+        setParams(newParams);
+        hasClampedParamsRef.current = true;
+      }
+    }
+    
+    // Reset flag if Railway mode is disabled
+    if (!isRailwayDemo) {
+      hasClampedParamsRef.current = false;
+    }
+  }, [isRailwayDemo, params.num_samples, params.sequence_length, params.max_time]);
+  
   // Separate display state for inputs to allow temporary empty values
   const [inputValues, setInputValues] = useState({
     num_samples: DEFAULT_PARAMS.num_samples.toString(),
@@ -282,8 +330,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     const numValue = parseInt(value);
     if (!isNaN(numValue)) {
       // Determine effective bounds
-      const effectiveMin = unsafeRangesEnabled ? 1 : min;
-      const effectiveMax = unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : max;
+      let effectiveMin = unsafeRangesEnabled && !isRailwayDemo ? 1 : min;
+      let effectiveMax = unsafeRangesEnabled && !isRailwayDemo ? Number.MAX_SAFE_INTEGER : max;
+      
+      // Apply Railway limits if on Railway
+      if (isRailwayDemo) {
+        if (key === 'num_samples') {
+          effectiveMax = Math.min(effectiveMax, RAILWAY_LIMITS.MAX_SAMPLES);
+        } else if (key === 'max_time') {
+          effectiveMax = Math.min(effectiveMax, RAILWAY_LIMITS.MAX_TIME);
+        }
+      }
+      
       // Clamp value to effective min/max range
       const clampedValue = Math.max(effectiveMin, Math.min(effectiveMax, numValue));
       updateParam(key, clampedValue);
@@ -296,8 +354,18 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     let finalValue = defaultValue;
     
     if (!isNaN(numValue)) {
-      const effectiveMin = unsafeRangesEnabled ? 1 : min;
-      const effectiveMax = unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : max;
+      let effectiveMin = unsafeRangesEnabled && !isRailwayDemo ? 1 : min;
+      let effectiveMax = unsafeRangesEnabled && !isRailwayDemo ? Number.MAX_SAFE_INTEGER : max;
+      
+      // Apply Railway limits if on Railway
+      if (isRailwayDemo) {
+        if (key === 'num_samples') {
+          effectiveMax = Math.min(effectiveMax, RAILWAY_LIMITS.MAX_SAMPLES);
+        } else if (key === 'max_time') {
+          effectiveMax = Math.min(effectiveMax, RAILWAY_LIMITS.MAX_TIME);
+        }
+      }
+      
       // Clamp to effective min/max range
       finalValue = Math.max(effectiveMin, Math.min(effectiveMax, numValue));
     }
@@ -318,7 +386,12 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     try {
       const parsedLength = parseSequenceLength(value);
       if (!isNaN(parsedLength) && parsedLength > 0) {
-        setParams(prev => ({ ...prev, sequence_length: parsedLength }));
+        // Apply Railway limit if on Railway
+        const maxLength = isRailwayDemo 
+          ? Math.min(RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH, unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : PARAM_RANGES.sequence_length.max)
+          : (unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : PARAM_RANGES.sequence_length.max);
+        const clampedLength = Math.min(parsedLength, maxLength);
+        setParams(prev => ({ ...prev, sequence_length: clampedLength }));
       }
     } catch (e) {
       // Invalid input, keep previous value
@@ -333,9 +406,14 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(DEFAULT_PARAMS.sequence_length) }));
         setParams(prev => ({ ...prev, sequence_length: DEFAULT_PARAMS.sequence_length }));
       } else {
+        // Apply Railway limit if on Railway
+        const maxLength = isRailwayDemo 
+          ? Math.min(RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH, unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : PARAM_RANGES.sequence_length.max)
+          : (unsafeRangesEnabled ? Number.MAX_SAFE_INTEGER : PARAM_RANGES.sequence_length.max);
+        const clampedLength = Math.min(parsedLength, maxLength);
         // Format the value nicely
-        setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(parsedLength) }));
-        setParams(prev => ({ ...prev, sequence_length: parsedLength }));
+        setInputValues(prev => ({ ...prev, sequence_length: formatSequenceLength(clampedLength) }));
+        setParams(prev => ({ ...prev, sequence_length: clampedLength }));
       }
     } catch (e) {
       // Reset to default if parsing fails
@@ -352,7 +430,28 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
     return params.filename_prefix;
   };
 
+  const [showTimeoutModal, setShowTimeoutModal] = useState(false);
+  const [showSizeLimitModal, setShowSizeLimitModal] = useState(false);
+  const [showParameterLimitModal, setShowParameterLimitModal] = useState(false);
+  const [showNodeLimitModal, setShowNodeLimitModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [parameterLimitMessage, setParameterLimitMessage] = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+  const [isSimulating, setIsSimulating] = useState(false);
+  const navigate = useNavigate();
+  
+  // Debug: Log when modal state changes
+  useEffect(() => {
+    if (showParameterLimitModal) {
+      console.log('Parameter limit modal is now OPEN');
+    }
+  }, [showParameterLimitModal]);
+
   const handleSimulate = async () => {
+    // Prevent multiple simultaneous simulations
+    if (isSimulating) {
+      return;
+    }
     // Validate parameters before simulating
     const errors = unsafeRangesEnabled ? (() => {
       const errs: ValidationError[] = [];
@@ -382,7 +481,61 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       return;
     }
     
+    // Additional Railway-specific validation (backend also enforces, but catch early)
+    if (isRailwayDemo) {
+      const railwayErrors: ValidationError[] = [];
+      if (params.num_samples > RAILWAY_LIMITS.MAX_SAMPLES) {
+        railwayErrors.push({
+          param: 'num_samples',
+          value: params.num_samples,
+          min: 1,
+          max: RAILWAY_LIMITS.MAX_SAMPLES,
+          name: 'Sample individuals'
+        });
+      }
+      if (params.sequence_length > RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH) {
+        railwayErrors.push({
+          param: 'sequence_length',
+          value: params.sequence_length,
+          min: 1,
+          max: RAILWAY_LIMITS.MAX_SEQUENCE_LENGTH,
+          name: 'Sequence length'
+        });
+      }
+      if (params.max_time > RAILWAY_LIMITS.MAX_TIME) {
+        railwayErrors.push({
+          param: 'max_time',
+          value: params.max_time,
+          min: 1,
+          max: RAILWAY_LIMITS.MAX_TIME,
+          name: 'Max generations'
+        });
+      }
+      const calculatedPopSize = params.num_samples * (params.ploidy ?? 2);
+      if (calculatedPopSize > RAILWAY_LIMITS.MAX_POPULATION_SIZE) {
+        railwayErrors.push({
+          param: 'population_size',
+          value: calculatedPopSize,
+          min: 1,
+          max: RAILWAY_LIMITS.MAX_POPULATION_SIZE,
+          name: 'Effective population size'
+        });
+      }
+      
+      if (railwayErrors.length > 0) {
+        setValidationErrors(railwayErrors);
+        setShowValidationModal(true);
+        return;
+      }
+    }
+    
+    setIsSimulating(true);
     setLoading(true);
+    setShowTimeoutModal(false);
+    setShowSizeLimitModal(false);
+    setShowParameterLimitModal(false);
+    setShowNodeLimitModal(false);
+    setShowErrorModal(false);
     
     try {
       log.user.action('simulate-start', { params }, 'TreeSequenceSimulator');
@@ -396,7 +549,65 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       };
       
       // Simulate tree sequence
-      const result = await api.simulateTreeSequence(simulationParams) as SimulationResult;
+      const result = await api.simulateTreeSequence(simulationParams) as any;
+      
+      // Check for timeout error (504 status or timeout in message)
+      if (result.status === 504 || (result.data as any)?.detail?.includes('timed out')) {
+        setLoading(false);
+        setIsSimulating(false);
+        setShowTimeoutModal(true);
+        return;
+      }
+      
+      // Check file size and node count on Railway
+      if (isRailway() && result.data) {
+        const fileSizeBytes = (result.data as any).file_size_bytes;
+        const numNodes = (result.data as any).num_nodes;
+        
+        // Check file size first
+        if (fileSizeBytes && fileSizeBytes > RAILWAY_MAX_FILE_SIZE_BYTES) {
+          // Delete the file immediately
+          try {
+            await api.deleteTreeSequence(result.data.filename);
+            log.info('Deleted oversized simulation file on Railway', {
+              component: 'TreeSequenceSimulator',
+              data: { filename: result.data.filename, size: fileSizeBytes }
+            });
+          } catch (deleteErr) {
+            log.error('Failed to delete oversized file', {
+              component: 'TreeSequenceSimulator',
+              error: deleteErr instanceof Error ? deleteErr : new Error(String(deleteErr))
+            });
+          }
+          
+          setLoading(false);
+          setIsSimulating(false);
+          setShowSizeLimitModal(true);
+          return;
+        }
+        
+        // Check node count
+        if (numNodes && numNodes > RAILWAY_MAX_NODES) {
+          // Delete the file immediately
+          try {
+            await api.deleteTreeSequence(result.data.filename);
+            log.info('Deleted tree sequence exceeding node limit on Railway', {
+              component: 'TreeSequenceSimulator',
+              data: { filename: result.data.filename, numNodes }
+            });
+          } catch (deleteErr) {
+            log.error('Failed to delete file exceeding node limit', {
+              component: 'TreeSequenceSimulator',
+              error: deleteErr instanceof Error ? deleteErr : new Error(String(deleteErr))
+            });
+          }
+          
+          setLoading(false);
+          setIsSimulating(false);
+          setShowNodeLimitModal(true);
+          return;
+        }
+      }
       
       // Fetch full metadata
       const metadata = await api.getTreeSequenceMetadata(result.data.filename) as TreeSequenceMetadata;
@@ -417,15 +628,82 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         onSimulationComplete(mergedMetadata);
       }
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      
       log.error('Tree sequence simulation failed', {
         component: 'TreeSequenceSimulator',
         error: err instanceof Error ? err : new Error(String(err)),
-        data: { params }
+        data: { params, errorMessage }
       });
-      // Show error message to user
-      alert(`Simulation failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      
+      // Debug logging for Railway mode
+      if (isRailwayDemo) {
+        console.log('Railway error detected:', errorMessage);
+        console.log('Error message length:', errorMessage.length);
+        console.log('Is Railway demo?', isRailwayDemo);
+      }
+      
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      console.log('Lowercase error message:', lowerErrorMessage);
+      
+      // Check if this is a timeout error
+      if (lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout')) {
+        console.log('Detected timeout error');
+        setLoading(false);
+        setIsSimulating(false);
+        setShowTimeoutModal(true);
+        return;
+      }
+      
+      // Check if this is a Railway parameter limit error
+      // Look for various patterns: "exceeds Railway limit", "exceed Railway limits", "Railway limit"
+      const hasRailwayLimit = lowerErrorMessage.includes('railway limit');
+      const hasExceedsRailway = lowerErrorMessage.includes('exceeds railway');
+      const hasExceedRailwayLimits = lowerErrorMessage.includes('exceed railway limits');
+      const hasSimulationParametersExceed = lowerErrorMessage.includes('simulation parameters exceed');
+      
+      console.log('Railway limit check:', {
+        isRailwayDemo,
+        hasRailwayLimit,
+        hasExceedsRailway,
+        hasExceedRailwayLimits,
+        hasSimulationParametersExceed
+      });
+      
+      // Show modal if error message contains Railway limit indicators
+      // Check error message content (backend might be in Railway mode even if frontend flag isn't set)
+      if (hasRailwayLimit || hasExceedsRailway || hasExceedRailwayLimits || hasSimulationParametersExceed) {
+        // Check if it's a node limit error specifically
+        if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+          setLoading(false);
+          setIsSimulating(false);
+          setShowNodeLimitModal(true);
+          return;
+        }
+        
+        // Otherwise it's a parameter limit error
+        console.log('Setting parameter limit modal to show');
+        console.log('Current showParameterLimitModal state:', showParameterLimitModal);
+        setLoading(false);
+        setIsSimulating(false);
+        setParameterLimitMessage(errorMessage);
+        setShowParameterLimitModal(true);
+        console.log('After setState - showParameterLimitModal should be true');
+        // Force a re-render by using setTimeout to check state after React updates
+        setTimeout(() => {
+          console.log('After React update - checking if modal should be visible');
+        }, 0);
+        return;
+      }
+      
+      // Show error message to user with styled modal
+      setLoading(false);
+      setIsSimulating(false);
+      setErrorMessage(errorMessage);
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
+      setIsSimulating(false);
     }
   };
 
@@ -844,7 +1122,12 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         <button
           type="button"
           onClick={handleSimulate}
-          className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+          disabled={isSimulating}
+          className={`font-bold py-3 px-6 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+            isSimulating
+              ? 'bg-gray-600 text-gray-400 cursor-not-allowed'
+              : 'bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue transform hover:scale-105 hover:shadow-lg'
+          }`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -948,6 +1231,72 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
           </div>
         </div>
       )}
+
+      {/* Timeout Modal */}
+      <AlertModal
+        isOpen={showTimeoutModal}
+        title="Simulation Timeout"
+        message="This simulation took longer than 60 seconds and was cancelled. For larger simulations, please install ARGscape locally via Python."
+        buttonText="Install Locally"
+        type="error"
+        onClose={() => {
+          setShowTimeoutModal(false);
+          navigate('/install');
+        }}
+      />
+
+      {/* Size Limit Modal */}
+      <AlertModal
+        isOpen={showSizeLimitModal}
+        title="File Size Limit Exceeded"
+        message="The simulated ARG exceeds 50MB and has been deleted. For larger simulations, please install ARGscape locally via Python."
+        buttonText="Install Locally"
+        type="error"
+        onClose={() => {
+          setShowSizeLimitModal(false);
+          navigate('/install');
+        }}
+      />
+
+      {/* Parameter Limit Modal */}
+      {showParameterLimitModal && (
+        <AlertModal
+          isOpen={showParameterLimitModal}
+          title="Parameter Limit Exceeded"
+          message={parameterLimitMessage + '\n\nFor larger simulations, please install ARGscape locally via Python.'}
+          buttonText="Install Locally"
+          type="error"
+          onClose={() => {
+            setShowParameterLimitModal(false);
+            navigate('/install');
+          }}
+        />
+      )}
+
+      {/* Node Limit Modal */}
+      <AlertModal
+        isOpen={showNodeLimitModal}
+        title="Node Limit Exceeded"
+        message={`The tree sequence has more than ${RAILWAY_MAX_NODES} nodes and has been deleted. For larger ARGs, please install ARGscape locally via Python.`}
+        buttonText="Install Locally"
+        type="error"
+        onClose={() => {
+          setShowNodeLimitModal(false);
+          navigate('/install');
+        }}
+      />
+
+      {/* General Error Modal */}
+      <AlertModal
+        isOpen={showErrorModal}
+        title="Simulation Failed"
+        message={errorMessage}
+        buttonText="OK"
+        type="error"
+        onClose={() => {
+          setShowErrorModal(false);
+        }}
+      />
     </div>
   );
 } 

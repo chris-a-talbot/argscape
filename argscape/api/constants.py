@@ -77,4 +77,16 @@ GEOGRAPHIC_LAND_REGIONS = [
 ]
 
 # Validation percentages
-VALIDATION_PERCENTAGE_MULTIPLIER = 100 
+VALIDATION_PERCENTAGE_MULTIPLIER = 100
+
+# Railway deployment limits (for resource-constrained environments)
+RAILWAY_SIMULATION_TIMEOUT_SECONDS = 60
+RAILWAY_INFERENCE_TIMEOUT_SECONDS = 90
+RAILWAY_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024  # 50MB
+
+# Railway simulation parameter limits (to prevent memory issues)
+RAILWAY_MAX_SAMPLES = 500  # Maximum number of sample individuals
+RAILWAY_MAX_SEQUENCE_LENGTH = 10_000_000  # Maximum sequence length in base pairs (10Mb)
+RAILWAY_MAX_TIME = 1000  # Maximum time/generations
+RAILWAY_MAX_POPULATION_SIZE = 100_000  # Maximum effective population size
+RAILWAY_MAX_NODES = 2500  # Maximum total nodes in tree sequence 

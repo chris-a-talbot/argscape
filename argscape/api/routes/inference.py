@@ -3,6 +3,8 @@ Location and temporal inference endpoints.
 """
 
 import logging
+import os
+import asyncio
 
 import tskit
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
@@ -32,8 +34,8 @@ from argscape.api.models import (
 from argscape.api.constants import (
     LARGE_TREE_SEQUENCE_NODE_THRESHOLD,
     SPATIAL_CHECK_NODE_LIMIT,
+    RAILWAY_INFERENCE_TIMEOUT_SECONDS,
 )
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +73,42 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
     
-    try:
-        # Run fastgaia inference
-        ts_with_locations, inference_info = run_fastgaia_inference(
-            ts,
-            weight_span=inference_request.weight_span,
-            weight_branch_length=inference_request.weight_branch_length
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None,
+            lambda: run_fastgaia_inference(
+                ts,
+                weight_span=inference_request.weight_span,
+                weight_branch_length=inference_request.weight_branch_length
+            )
         )
+    
+    try:
+        # Run fastgaia inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Fast location inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
         new_filename = f"{inference_request.filename.rsplit('.', 1)[0]}_fastgaia.trees"
@@ -99,6 +130,8 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
             **inference_info
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during fast location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -173,9 +206,35 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
             detail="GAIA quadratic inference requires tree sequences with location data for all sample nodes"
         )
     
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: run_gaia_quadratic_inference(ts))
+    
     try:
-        # Run GAIA quadratic inference
-        ts_with_locations, inference_info = run_gaia_quadratic_inference(ts)
+        # Run GAIA quadratic inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"GAIA quadratic inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
         base_filename = inference_request.filename
@@ -202,6 +261,8 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
             **updated_spatial_info
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during GAIA quadratic location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"GAIA quadratic location inference failed: {str(e)}")
@@ -229,9 +290,35 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
             detail="GAIA linear inference requires tree sequences with location data for all sample nodes"
         )
     
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: run_gaia_linear_inference(ts))
+    
     try:
-        # Run GAIA linear inference
-        ts_with_locations, inference_info = run_gaia_linear_inference(ts)
+        # Run GAIA linear inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"GAIA linear inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
         base_filename = inference_request.filename
@@ -258,6 +345,8 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
             **updated_spatial_info
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during GAIA linear location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"GAIA linear location inference failed: {str(e)}")
@@ -285,9 +374,35 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
             detail="Midpoint inference requires tree sequences with location data for all sample nodes"
         )
     
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: run_midpoint_inference(ts))
+    
     try:
-        # Run midpoint inference
-        ts_with_locations, inference_info = run_midpoint_inference(ts)
+        # Run midpoint inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"Midpoint inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
         base_filename = inference_request.filename
@@ -314,6 +429,8 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
             **updated_spatial_info
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during midpoint location inference: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Midpoint location inference failed: {str(e)}")
@@ -495,9 +612,35 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
             detail="sparg requires tree sequences with location data for all sample nodes"
         )
     
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: run_sparg_inference(ts))
+    
     try:
-        # Run sparg inference
-        ts_with_locations, inference_info = run_sparg_inference(ts)
+        # Run sparg inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"sparg inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
         base_filename = inference_request.filename
@@ -524,6 +667,8 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
             **updated_spatial_info
         }
         
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

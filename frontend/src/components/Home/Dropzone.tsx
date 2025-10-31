@@ -1,8 +1,12 @@
 import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
-import { FILE_TYPES } from '../../config/constants';
+import { FILE_TYPES, isRailway, RAILWAY_LIMITS } from '../../config/constants';
+import AlertModal from '../ui/AlertModal';
+
+const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
 
 type DropzoneProps = {
   onUploadComplete?: (result: any) => void;
@@ -25,6 +29,10 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
     sample_locations?: string;
     node_locations?: string;
   }>({});
+  const [showNodeLimitModal, setShowNodeLimitModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const navigate = useNavigate();
 
   // Main tree sequence file dropzone
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -76,6 +84,16 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
         log.user.action('upload-start', { filename: file.name, size: file.size }, 'Dropzone');
         const result = await api.uploadTreeSequence(file);
         
+        // Check node count on Railway
+        if (isRailway() && result.data) {
+          const numNodes = result.data.num_nodes;
+          if (numNodes && numNodes > RAILWAY_MAX_NODES) {
+            setLoading(false);
+            setShowNodeLimitModal(true);
+            return;
+          }
+        }
+        
         log.info('File upload completed successfully', {
           component: 'Dropzone',
           data: { filename: file.name, result }
@@ -90,7 +108,21 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
           error: err instanceof Error ? err : new Error(String(err)),
           data: { filename: file.name }
         });
-        alert(`Upload failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+        const lowerErrorMessage = errorMessage.toLowerCase();
+        
+        // Check if this is a node limit error
+        if (isRailway() && lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+          setLoading(false);
+          setShowNodeLimitModal(true);
+          return;
+        }
+        
+        // Show general error modal
+        setLoading(false);
+        setErrorMessage(errorMessage);
+        setShowErrorModal(true);
       } finally {
         setLoading(false);
       }
@@ -172,7 +204,21 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
         error: err instanceof Error ? err : new Error(String(err)),
         data: { filename: file.name }
       });
-      alert(`Update failed: ${err instanceof Error ? err.message : 'Unknown error'}`);
+      
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      
+      // Check if this is a node limit error
+      if (isRailway() && lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
+        setLoading(false);
+        setShowNodeLimitModal(true);
+        return;
+      }
+      
+      // Show general error modal
+      setLoading(false);
+      setErrorMessage(errorMessage);
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
     }
@@ -317,6 +363,31 @@ export default function Dropzone({ onUploadComplete, setLoading }: DropzoneProps
           </button>
         </div>
       )}
+
+      {/* Node Limit Modal */}
+      <AlertModal
+        isOpen={showNodeLimitModal}
+        title="Node Limit Exceeded"
+        message={`The tree sequence has more than ${RAILWAY_MAX_NODES} nodes and has been deleted. For larger ARGs, please install ARGscape locally via Python.`}
+        buttonText="Install Locally"
+        type="error"
+        onClose={() => {
+          setShowNodeLimitModal(false);
+          navigate('/install');
+        }}
+      />
+
+      {/* General Error Modal */}
+      <AlertModal
+        isOpen={showErrorModal}
+        title="Upload Failed"
+        message={errorMessage}
+        buttonText="OK"
+        type="error"
+        onClose={() => {
+          setShowErrorModal(false);
+        }}
+      />
     </div>
   );
 } 

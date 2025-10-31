@@ -133,4 +133,27 @@ export const ERROR_MESSAGES = {
   NO_SPATIAL_DATA: 'No spatial data found in this ARG. This visualization requires nodes with 2D spatial coordinates.',
   NO_SPATIAL_RANGE: 'No spatial data found in this genomic range.',
   UNKNOWN_ERROR: 'Unknown error occurred',
+} as const;
+
+// Railway deployment detection and limits
+export const isRailway = (): boolean => {
+  return (import.meta.env as any)?.VITE_IS_RAILWAY === 'true';
+};
+
+// Railway timeout constants (in milliseconds)
+export const RAILWAY_TIMEOUTS = {
+  SIMULATION: 60000,  // 60 seconds
+  INFERENCE: 90000,   // 90 seconds
+} as const;
+
+// Railway file size limit (50MB in bytes)
+export const RAILWAY_MAX_FILE_SIZE_BYTES = 50 * 1024 * 1024;
+
+// Railway simulation parameter limits (to prevent memory issues)
+export const RAILWAY_LIMITS = {
+  MAX_SAMPLES: 500,
+  MAX_SEQUENCE_LENGTH: 10_000_000,  // 10Mb
+  MAX_TIME: 1000,
+  MAX_POPULATION_SIZE: 100_000,
+  MAX_NODES: 2500,  // Maximum total nodes in tree sequence
 } as const; 

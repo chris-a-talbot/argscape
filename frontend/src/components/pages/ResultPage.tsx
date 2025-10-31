@@ -1163,6 +1163,8 @@ export default function ResultPage() {
     title: string;
     message: string;
     type: 'success' | 'error' | 'info';
+    buttonText?: string;
+    onClose?: () => void;
   }>({
     isOpen: false,
     title: '',
@@ -1266,11 +1268,21 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
       setAlertModal({
         isOpen: true,
-        title: 'Error',
-        message: `Fast location inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        type: 'error'
+        title: isTimeout ? 'Inference Timeout' : 'Error',
+        message: isTimeout 
+          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+          : `Fast location inference failed: ${errorMessage}`,
+        type: 'error',
+        buttonText: isTimeout ? 'Install Locally' : undefined,
+        onClose: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+          navigate('/install');
+        } : undefined
       });
     } finally {
       setIsInferringLocationsFast(false);
@@ -1319,11 +1331,21 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
       setAlertModal({
         isOpen: true,
-        title: 'Error',
-        message: `GAIA quadratic inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        type: 'error'
+        title: isTimeout ? 'Inference Timeout' : 'Error',
+        message: isTimeout 
+          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+          : `GAIA quadratic inference failed: ${errorMessage}`,
+        type: 'error',
+        buttonText: isTimeout ? 'Install Locally' : undefined,
+        onClose: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+          navigate('/install');
+        } : undefined
       });
     } finally {
       setIsInferringLocationsGaiaQuadratic(false);
@@ -1422,11 +1444,20 @@ export default function ResultPage() {
             error: error instanceof Error ? error : new Error(String(error)),
             data: { filename: data.filename }
           });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
           setAlertModal({
             isOpen: true,
-            title: 'Error',
-            message: `GAIA linear inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            type: 'error'
+            title: isTimeout ? 'Inference Timeout' : 'Error',
+            message: isTimeout 
+              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+              : `GAIA linear inference failed: ${errorMessage}`,
+            type: 'error',
+            buttonText: isTimeout ? 'Install Locally' : undefined,
+            onClose: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
+              navigate('/install');
+            } : undefined
           });
         } finally {
           setIsInferringLocationsGaiaLinear(false);
@@ -1471,11 +1502,20 @@ export default function ResultPage() {
             error: error instanceof Error ? error : new Error(String(error)),
             data: { filename: data.filename }
           });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
           setAlertModal({
             isOpen: true,
-            title: 'Error',
-            message: `sparg inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            type: 'error'
+            title: isTimeout ? 'Inference Timeout' : 'Error',
+            message: isTimeout 
+              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+              : `sparg inference failed: ${errorMessage}`,
+            type: 'error',
+            buttonText: isTimeout ? 'Install Locally' : undefined,
+            onClose: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
+              navigate('/install');
+            } : undefined
           });
         } finally {
           setIsInferringLocationsSparg(false);
@@ -1520,11 +1560,20 @@ export default function ResultPage() {
             error: error instanceof Error ? error : new Error(String(error)),
             data: { filename: data.filename }
           });
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
           setAlertModal({
             isOpen: true,
-            title: 'Error',
-            message: `Midpoint inference failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-            type: 'error'
+            title: isTimeout ? 'Inference Timeout' : 'Error',
+            message: isTimeout 
+              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+              : `Midpoint inference failed: ${errorMessage}`,
+            type: 'error',
+            buttonText: isTimeout ? 'Install Locally' : undefined,
+            onClose: isTimeout ? () => {
+              setAlertModal({ ...alertModal, isOpen: false });
+              navigate('/install');
+            } : undefined
           });
         } finally {
           setIsInferringLocationsMidpoint(false);
@@ -2297,7 +2346,8 @@ export default function ResultPage() {
             title={alertModal.title}
             message={alertModal.message}
             type={alertModal.type}
-            onClose={() => setAlertModal({ ...alertModal, isOpen: false })}
+            onClose={alertModal.onClose || (() => setAlertModal({ ...alertModal, isOpen: false }))}
+            buttonText={alertModal.buttonText}
           />
         </div>
       </div>

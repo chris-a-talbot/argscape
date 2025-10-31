@@ -4,7 +4,7 @@
  * Now uses IP-based persistent sessions for simplified session management
  */
 
-import { API_CONFIG, ERROR_MESSAGES } from '../config/constants';
+import { API_CONFIG, ERROR_MESSAGES, isRailway, RAILWAY_TIMEOUTS } from '../config/constants';
 import { log } from './logger';
 
 interface ApiResponse<T = unknown> {
@@ -52,7 +52,8 @@ class ApiService {
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    timeoutMs?: number
   ): Promise<ApiResponse<T>> {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
@@ -63,12 +64,13 @@ class ApiService {
     const maxRetries = 3;
     const retryDelay = 1000; // 1 second
     let lastError: Error | null = null;
+    const timeout = timeoutMs ?? 60000; // Default 60 second timeout
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
         // Add timeout for long-running operations
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
 
         const response = await fetch(url, {
           ...options,
@@ -100,7 +102,18 @@ class ApiService {
 
         if (!response.ok) {
           const errorDetail = (data && (data.detail || data.message)) || rawText || `HTTP error! status: ${response.status}`;
-          throw new Error(errorDetail);
+          const error = new Error(errorDetail);
+          
+          // Don't retry client errors (4xx) - these are not transient failures
+          // Only retry server errors (5xx) and network errors
+          // Throw immediately for client errors to prevent retries
+          if (response.status >= 400 && response.status < 500) {
+            log.api.error(endpoint, error, method);
+            throw error; // This will exit the try block and skip retry logic
+          }
+          
+          // For server errors, continue to retry logic below
+          throw error;
         }
 
         log.api.success(endpoint, method, data ?? rawText);
@@ -111,10 +124,24 @@ class ApiService {
         
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
-            const timeoutError = new Error('Request timed out after 60 seconds');
+            const timeoutError = new Error(`Request timed out after ${timeout / 1000} seconds`);
             log.api.error(endpoint, timeoutError, method);
             throw timeoutError;
           }
+        }
+        
+        // Check if this is a client error (4xx) - don't retry these
+        // We check the error message since we don't have access to response.status here
+        const isClientError = lastError.message.includes('400') || 
+                              lastError.message.includes('401') || 
+                              lastError.message.includes('403') || 
+                              lastError.message.includes('404') ||
+                              lastError.message.includes('Bad Request') ||
+                              lastError.message.includes('Railway limit'); // Railway limit errors are 400
+        
+        if (isClientError) {
+          log.api.error(endpoint, lastError, method);
+          throw lastError; // Don't retry client errors
         }
         
         // If this was the last attempt, throw the error
@@ -123,7 +150,8 @@ class ApiService {
           throw lastError;
         }
         
-        // Otherwise wait and retry
+        // Only retry for network errors or server errors (5xx)
+        // Wait and retry (only for server errors or network issues)
         await new Promise(resolve => setTimeout(resolve, retryDelay));
       }
     }
@@ -250,48 +278,53 @@ class ApiService {
     weight_span: boolean;
     weight_branch_length: boolean;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_FAST, {
       method: 'POST',
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   async inferLocationsSparg(params: {
     filename: string;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_SPARG, {
       method: 'POST',
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request<any>('/infer-locations-gaia-quadratic', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   async inferLocationsGaiaLinear(params: {
     filename: string;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request<any>('/infer-locations-gaia-linear', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   async inferLocationsMidpoint(params: {
     filename: string;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_MIDPOINT, {
       method: 'POST',
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   // Tree sequence simulation
@@ -307,10 +340,11 @@ class ApiService {
     mutation_rate?: number;
     recombination_rate?: number;
   }) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.SIMULATION : undefined;
     return this.request(API_CONFIG.ENDPOINTS.SIMULATE_TREE_SEQUENCE, {
       method: 'POST',
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   // Custom location operations

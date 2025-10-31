@@ -6,6 +6,7 @@ import logging
 import os
 import tempfile
 import time
+import asyncio
 from datetime import datetime
 
 import numpy as np
@@ -23,6 +24,12 @@ from argscape.api.models import SimulationRequest, SimplifyTreeSequenceRequest
 from argscape.api.constants import (
     FILENAME_TIMESTAMP_PRECISION_MICROSECONDS,
     DEFAULT_MAX_SAMPLES_FOR_GRAPH,
+    RAILWAY_SIMULATION_TIMEOUT_SECONDS,
+    RAILWAY_MAX_SAMPLES,
+    RAILWAY_MAX_SEQUENCE_LENGTH,
+    RAILWAY_MAX_TIME,
+    RAILWAY_MAX_POPULATION_SIZE,
+    RAILWAY_MAX_NODES,
 )
 
 logger = logging.getLogger(__name__)
@@ -44,6 +51,28 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
         session_storage.store_file(session_id, file.filename, contents)
         
         ts, updated_filename = load_tree_sequence_from_file(contents, file.filename)
+        
+        # Check if running on Railway
+        is_railway = (
+            os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+            os.getenv("RAILWAY_PROJECT_ID") is not None or
+            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        )
+        
+        # Check node count limit on Railway
+        if is_railway and ts.num_nodes > RAILWAY_MAX_NODES:
+            # Clean up stored files before raising error
+            try:
+                session_storage.delete_file(session_id, file.filename)
+                session_storage.delete_file(session_id, updated_filename)
+            except Exception as cleanup_error:
+                logger.warning(f"Failed to cleanup files after node limit check: {cleanup_error}")
+            
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tree sequence has {ts.num_nodes} nodes, which exceeds Railway limit ({RAILWAY_MAX_NODES}). For larger ARGs, please install ARGscape locally."
+            )
+        
         session_storage.store_tree_sequence(session_id, updated_filename, ts)
         
         has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
@@ -457,39 +486,106 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
         if simulation_request.recombination_rate is not None and simulation_request.recombination_rate <= 0:
             raise HTTPException(status_code=400, detail="Recombination rate must be positive")
         
+        # Check if running on Railway (by checking for environment variable or Railway-specific env vars)
+        # Also check for FORCE_RAILWAY_MODE for local testing
+        is_railway = (
+            os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+            os.getenv("RAILWAY_PROJECT_ID") is not None or
+            os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes")
+        )
+        
+        # Enforce Railway parameter limits to prevent memory issues
+        if is_railway:
+            validation_errors = []
+            if simulation_request.num_samples > RAILWAY_MAX_SAMPLES:
+                validation_errors.append(
+                    f"Number of samples ({simulation_request.num_samples}) exceeds Railway limit ({RAILWAY_MAX_SAMPLES}). "
+                    f"For larger simulations, please install ARGscape locally."
+                )
+            if simulation_request.sequence_length > RAILWAY_MAX_SEQUENCE_LENGTH:
+                validation_errors.append(
+                    f"Sequence length ({simulation_request.sequence_length}) exceeds Railway limit ({RAILWAY_MAX_SEQUENCE_LENGTH:,} bp). "
+                    f"For larger simulations, please install ARGscape locally."
+                )
+            if simulation_request.max_time > RAILWAY_MAX_TIME:
+                validation_errors.append(
+                    f"Maximum time ({simulation_request.max_time}) exceeds Railway limit ({RAILWAY_MAX_TIME}). "
+                    f"For larger simulations, please install ARGscape locally."
+                )
+            if simulation_request.population_size is not None and simulation_request.population_size > RAILWAY_MAX_POPULATION_SIZE:
+                validation_errors.append(
+                    f"Population size ({simulation_request.population_size}) exceeds Railway limit ({RAILWAY_MAX_POPULATION_SIZE:,}). "
+                    f"For larger simulations, please install ARGscape locally."
+                )
+            
+            if validation_errors:
+                error_message = "Simulation parameters exceed Railway limits:\n\n" + "\n\n".join(validation_errors)
+                logger.warning(f"Rejected simulation on Railway due to parameter limits: {simulation_request.dict()}")
+                raise HTTPException(status_code=400, detail=error_message)
+        
         # Log simulation parameters
         logger.info(f"Simulating tree sequence with parameters: {simulation_request.dict()}")
         
         # Simulate the tree sequence
-        try:
-            # First simulate ancestry
-            ts = msprime.sim_ancestry(
-                samples=simulation_request.num_samples,
-                sequence_length=simulation_request.sequence_length,
-                recombination_rate=simulation_request.recombination_rate,
-                population_size=simulation_request.population_size,
-                random_seed=simulation_request.random_seed,
-                model=simulation_request.model,
-                end_time=simulation_request.max_time
-            )
+        async def run_simulation():
+            """Run the simulation in a separate function for timeout handling."""
+            # Run simulation in executor to avoid blocking
+            loop = asyncio.get_event_loop()
             
-            # Then add mutations if mutation_rate is provided
-            if simulation_request.mutation_rate is not None:
-                logger.info(f"Adding mutations with rate {simulation_request.mutation_rate}")
-                ts = msprime.sim_mutations(
-                    ts,
-                    rate=simulation_request.mutation_rate,
-                    random_seed=simulation_request.random_seed
+            def _simulate():
+                # First simulate ancestry
+                ts = msprime.sim_ancestry(
+                    samples=simulation_request.num_samples,
+                    sequence_length=simulation_request.sequence_length,
+                    recombination_rate=simulation_request.recombination_rate,
+                    population_size=simulation_request.population_size,
+                    random_seed=simulation_request.random_seed,
+                    model=simulation_request.model,
+                    end_time=simulation_request.max_time
                 )
-                logger.info(f"Added {ts.num_mutations} mutations to the tree sequence")
+                
+                # Then add mutations if mutation_rate is provided
+                if simulation_request.mutation_rate is not None:
+                    logger.info(f"Adding mutations with rate {simulation_request.mutation_rate}")
+                    ts = msprime.sim_mutations(
+                        ts,
+                        rate=simulation_request.mutation_rate,
+                        random_seed=simulation_request.random_seed
+                    )
+                    logger.info(f"Added {ts.num_mutations} mutations to the tree sequence")
+                
+                # Generate spatial locations for samples based on genealogical relationships
+                logger.info(f"Generating spatial locations for samples using CRS: {simulation_request.crs}")
+                ts = generate_spatial_locations_for_samples(
+                    ts,
+                    random_seed=simulation_request.random_seed,
+                    crs=simulation_request.crs
+                )
+                
+                return ts
             
-            # Generate spatial locations for samples based on genealogical relationships
-            logger.info(f"Generating spatial locations for samples using CRS: {simulation_request.crs}")
-            ts = generate_spatial_locations_for_samples(
-                ts,
-                random_seed=simulation_request.random_seed,
-                crs=simulation_request.crs
-            )
+            return await loop.run_in_executor(None, _simulate)
+        
+        try:
+            # Apply timeout on Railway
+            if is_railway:
+                try:
+                    ts = await asyncio.wait_for(run_simulation(), timeout=RAILWAY_SIMULATION_TIMEOUT_SECONDS)
+                except asyncio.TimeoutError:
+                    logger.warning(f"Simulation timed out after {RAILWAY_SIMULATION_TIMEOUT_SECONDS} seconds on Railway")
+                    raise HTTPException(
+                        status_code=504,
+                        detail=f"Simulation timed out after {RAILWAY_SIMULATION_TIMEOUT_SECONDS} seconds. For larger simulations, please install ARGscape locally."
+                    )
+            else:
+                ts = await run_simulation()
+            
+            # Check node count limit on Railway
+            if is_railway and ts.num_nodes > RAILWAY_MAX_NODES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Simulated tree sequence has {ts.num_nodes} nodes, which exceeds Railway limit ({RAILWAY_MAX_NODES}). For larger simulations, please install ARGscape locally."
+                )
             
             # Generate a unique filename
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -498,6 +594,9 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
             # Store in session (this will handle saving to disk)
             session_storage.store_tree_sequence(session_id, filename, ts)
             logger.info(f"Successfully simulated and saved tree sequence to {filename}")
+            
+            # Get file size
+            file_size_bytes = session_storage.get_file_size_bytes(session_id, filename)
             
             # Calculate temporal range and spatial info
             has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
@@ -510,7 +609,7 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
                 }
             spatial_info = check_spatial_completeness(ts)
             
-            return {
+            response = {
                 "message": "Tree sequence simulated successfully",
                 "filename": filename,
                 "num_samples": ts.num_samples,
@@ -523,6 +622,14 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
                 **spatial_info
             }
             
+            # Add file size if available
+            if file_size_bytes is not None:
+                response["file_size_bytes"] = file_size_bytes
+            
+            return response
+            
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error during tree sequence simulation: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")

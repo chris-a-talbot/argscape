@@ -542,6 +542,40 @@ class PersistentSessionStorage:
         
         return True
     
+    def get_file_size_bytes(self, session_id: str, filename: str) -> Optional[int]:
+        """Get file size in bytes from the session."""
+        session = self.get_session(session_id)
+        if not session:
+            return None
+        
+        # Check if file data is in memory
+        file_data = session.uploaded_files.get(filename)
+        if file_data is not None:
+            return len(file_data)
+        
+        # Check disk for tree sequence file
+        session_dir = self._get_session_dir(session_id)
+        if filename.endswith('.trees'):
+            ts_file_path = session_dir / filename
+        else:
+            ts_file_path = session_dir / f"{filename}.trees"
+        
+        if ts_file_path.exists():
+            try:
+                return ts_file_path.stat().st_size
+            except Exception as e:
+                logger.warning(f"Failed to get file size for {filename}: {e}")
+        
+        # Check for .data file
+        file_data_file = session_dir / f"{filename}.data"
+        if file_data_file.exists():
+            try:
+                return file_data_file.stat().st_size
+            except Exception as e:
+                logger.warning(f"Failed to get file data size for {filename}: {e}")
+        
+        return None
+    
     def get_file_data(self, session_id: str, filename: str) -> Optional[bytes]:
         """Get raw file data from the session."""
         session = self.get_session(session_id)
