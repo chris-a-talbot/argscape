@@ -2,25 +2,26 @@ import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
-import { GraphData, GraphNode, GraphEdge, GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphData, GraphNode, GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { convertShapeToLines, createShapeLines, GeographicLine3D } from '../SpatialArgUtils/GeographicUtils';
 import { combineSpatiallyColocatedNodes } from '../../../utils/nodeCombining';
 import { isRootNode } from '../../../utils/graphTraversal';
-import { formatCoordinates } from '../../../utils/colorUtils';
-import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, LabelConnectingLine3D, LabelPositionResult, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
+import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
+  EdgeMutationSettings, LabelConnectingLine3D, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { 
   groupEdgesByPairs, 
-  expandEdgeSpansForCombinedNodes,
-  EdgeGroupWithSpans 
+  expandEdgeSpansForCombinedNodes, 
 } from '../../../utils/genomicSpanUtils';
 import {
   calculateAncestryDensity,
   generateHeatmapGrid,
   heatmapGridToPolygons
 } from '../SpatialArgUtils/AncestryHeatmap';
-import { determineGeographicShape, shouldHideNodeByHeatmap, filterDataByHeatmap, filterNodeLabelsByHeatmap, calculateNodeBaseRadius, calculateZPosition } from '../SpatialArgUtils/SpatialArg.utils';
-import { createMutationMarkers as createMutationMarkersUtil, createHeatmapPolygonLayer } from '../SpatialArgUtils/LayerHelpers';
+import { determineGeographicShape, shouldHideNodeByHeatmap, filterDataByHeatmap, 
+  filterNodeLabelsByHeatmap, calculateNodeBaseRadius, calculateZPosition } from '../SpatialArgUtils/SpatialArg.utils';
+import { createMutationMarkers as createMutationMarkersUtil, 
+  createHeatmapPolygonLayer } from '../SpatialArgUtils/LayerHelpers';
 import {
   calculateCoordinateTransform,
   transformNodesToThreeD,
@@ -35,7 +36,7 @@ import {
 import { VISUALIZATION_CONSTANTS_REG } from '../SpatialArgUtils/SpatialArg.constants';
 import { GeographicMode, EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
 import { Node3D, Edge3D, NodeLabel3D } from './SpatialArg3D.types';
-import { NODE_SIZES, LINE_WIDTHS } from './SpatialArg3D.constants';
+import { LINE_WIDTHS } from './SpatialArg3D.constants';
 
 interface SpatialArg3DProps {
   data: GraphData | null;
@@ -263,7 +264,6 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   React.useEffect(() => {
     if (bounds) {
       const zoomLimits = calculateZoomLimits(bounds);
-      const zHeight = bounds.maxZ - bounds.minZ;
       
       setViewState(prev => ({
         ...prev,
@@ -911,7 +911,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         }}
         controller={true}
         layers={layers}
-        getCursor={({ isDragging: deckIsDragging, isHovering, pickedInfos }: any) => {
+        getCursor={({ isDragging: isHovering, pickedInfos }: any) => {
           // Show grabbing cursor when dragging sample labels
           if (isDragging !== null) return 'grabbing';
           

@@ -313,7 +313,6 @@ export function findLabelEdgePoint(
 export function findVisibleNodeConnectionPoint(
   targetNode: Node3D,
   allSampleNodes: Node3D[],
-  labelPosition: [number, number, number],
   baseNodeSize: number
 ): [number, number, number] {
   const nodePos = targetNode.position;
@@ -542,7 +541,6 @@ export function createNodeLabels(
       const visibleConnectionPoint = findVisibleNodeConnectionPoint(
         node,
         nodes3D.filter(n => n.is_sample),
-        labelPosition,
         baseNodeSize
       );
       

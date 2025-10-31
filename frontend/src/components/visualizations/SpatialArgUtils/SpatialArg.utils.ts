@@ -1,5 +1,5 @@
 import { GeographicMode, Node3D } from "./SpatialArg.types";
-import { VISUALIZATION_CONSTANTS, VISUALIZATION_CONSTANTS_REG } from "./SpatialArg.constants";
+import { VISUALIZATION_CONSTANTS } from "./SpatialArg.constants";
 import { GeographicShape, GraphNode, GraphEdge } from "../ForceDirectedGraph/ForceDirectedGraph.types";
 import { createUnitGridShape } from "./GeographicUtils";
 

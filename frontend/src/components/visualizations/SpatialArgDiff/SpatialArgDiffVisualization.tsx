@@ -2,19 +2,19 @@ import React, { useMemo, useState, useRef, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
-import { GraphData, GraphNode, GraphEdge, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphData, GraphNode, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { convertShapeToLines, createShapeLines } from '../SpatialArgUtils/GeographicUtils';
 import { isRootNode } from '../../../utils/graphTraversal';
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
   EdgeMutationSettings, AncestryHeatmapSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
-import { groupEdgesByPairs, expandEdgeSpansForCombinedNodes } from '../../../utils/genomicSpanUtils';
 import {
   calculateAncestryDensity,
   generateHeatmapGrid,
   heatmapGridToPolygons
 } from '../SpatialArgUtils/AncestryHeatmap';
-import { determineGeographicShape, shouldHideNodeByHeatmap, filterDataByHeatmap, filterNodeLabelsByHeatmap, calculateNodeBaseRadius, calculateZPosition } from '../SpatialArgUtils/SpatialArg.utils';
+import { determineGeographicShape, shouldHideNodeByHeatmap, filterDataByHeatmap, 
+  filterNodeLabelsByHeatmap, calculateNodeBaseRadius, calculateZPosition } from '../SpatialArgUtils/SpatialArg.utils';
 import { createMutationMarkers as createMutationMarkersUtil, createHeatmapPolygonLayer } from '../SpatialArgUtils/LayerHelpers';
 import {
   calculateCoordinateTransform,
@@ -27,8 +27,8 @@ import {
   createEdgeLabels
 } from './SpatialArgDiff.utils';
 import { VISUALIZATION_CONSTANTS_DIFF } from '../SpatialArgUtils/SpatialArg.constants';
-import { GeographicMode, EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
-import { DiffViewMode, NodeDiff3D, EdgeDiff3D, DiffEdge, TransformResult, EdgeTransformResult, NodeLabel3D } from './SpatialArgDiff.types';
+import { EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
+import { DiffViewMode, NodeDiff3D, EdgeDiff3D, TransformResult, NodeLabel3D } from './SpatialArgDiff.types';
 import { LINE_WIDTHS } from './SpatialArgDiff.constants';
 
 interface SpatialArgDiffProps {
