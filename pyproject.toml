@@ -51,7 +51,7 @@ include = ["argscape*"]
 
 [tool.setuptools.package-data]
 "argscape" = [
-    "frontend_dist/**/*",
+    "frontend_dist_python/**/*",
     "api/environment.yml",
     "api/geo_utils/data/**/*.geojson",
     "api/geo_utils/data/**/*.shp",
@@ -61,3 +61,6 @@ include = ["argscape*"]
     "api/geo_utils/data/**/*.cpg",
     "api/geo_utils/data/**/*.xml",
 ]
+
+[tool.setuptools]
+exclude = ["frontend_dist_railway/**"]

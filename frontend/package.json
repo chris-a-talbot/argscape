@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build --emptyOutDir",
+    "build:railway": "VITE_IS_RAILWAY=true vite build --emptyOutDir",
+    "build:python": "VITE_IS_RAILWAY=false vite build --emptyOutDir",
     "lint": "eslint .",
     "preview": "vite preview",
     "tauri": "tauri",

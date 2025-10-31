@@ -27,8 +27,11 @@ export default defineConfig({
         // Ensure assets are properly copied
         assetsInlineLimit: 0,
         copyPublicDir: true,
-        // Output compiled frontend into the Python package so backend can serve it
-        outDir: '../argscape/frontend_dist',
+        // Output compiled frontend into different directories based on build target
+        // Railway build uses frontend_dist_railway, Python package uses frontend_dist_python
+        outDir: process.env.VITE_IS_RAILWAY === 'true' 
+            ? '../argscape/frontend_dist_railway'
+            : '../argscape/frontend_dist_python',
     },
     publicDir: 'public'
 })

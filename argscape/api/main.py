@@ -142,10 +142,28 @@ app.include_router(inference_router, prefix="/api", tags=["inference"])
 app.include_router(geographic_router, prefix="/api", tags=["geographic"])
 
 # Mount static files for frontend
-frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
+# Use Railway frontend if on Railway, otherwise use Python package frontend
+# Check for Railway environment or explicit frontend selection
+is_railway = (
+    os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+    os.getenv("RAILWAY_PROJECT_ID") is not None or
+    os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
+)
+
+if is_railway:
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist_railway"
+    if not frontend_dist.exists():
+        # Fallback to regular frontend_dist for backwards compatibility
+        frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
+else:
+    frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist_python"
+    if not frontend_dist.exists():
+        # Fallback to regular frontend_dist for backwards compatibility
+        frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
+
 if frontend_dist.exists():
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
-    logger.info(f"Serving frontend from {frontend_dist}")
+    logger.info(f"Serving frontend from {frontend_dist} (Railway: {is_railway})")
 else:
     logger.warning(f"Frontend build directory not found: {frontend_dist}")
 

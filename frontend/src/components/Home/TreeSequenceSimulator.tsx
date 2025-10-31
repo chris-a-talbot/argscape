@@ -442,10 +442,19 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
   
   // Debug: Log when modal state changes
   useEffect(() => {
+    console.log('showParameterLimitModal changed to:', showParameterLimitModal);
     if (showParameterLimitModal) {
-      console.log('Parameter limit modal is now OPEN');
+      console.log('Parameter limit modal is now OPEN - modal should render');
     }
   }, [showParameterLimitModal]);
+  
+  // Debug: Log component mount/unmount
+  useEffect(() => {
+    console.log('TreeSequenceSimulator MOUNTED');
+    return () => {
+      console.log('TreeSequenceSimulator UNMOUNTED - this would clear modal state!');
+    };
+  }, []);
 
   const handleSimulate = async () => {
     // Prevent multiple simultaneous simulations
@@ -553,9 +562,9 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       
       // Check for timeout error (504 status or timeout in message)
       if (result.status === 504 || (result.data as any)?.detail?.includes('timed out')) {
-        setLoading(false);
         setIsSimulating(false);
         setShowTimeoutModal(true);
+        // Don't set loading to false - keep component mounted
         return;
       }
       
@@ -580,9 +589,9 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             });
           }
           
-          setLoading(false);
           setIsSimulating(false);
           setShowSizeLimitModal(true);
+          // Don't set loading to false - keep component mounted
           return;
         }
         
@@ -602,9 +611,9 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
             });
           }
           
-          setLoading(false);
           setIsSimulating(false);
           setShowNodeLimitModal(true);
+          // Don't set loading to false - keep component mounted
           return;
         }
       }
@@ -649,9 +658,9 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       // Check if this is a timeout error
       if (lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout')) {
         console.log('Detected timeout error');
-        setLoading(false);
         setIsSimulating(false);
         setShowTimeoutModal(true);
+        // Don't set loading to false - keep component mounted
         return;
       }
       
@@ -675,34 +684,39 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
       if (hasRailwayLimit || hasExceedsRailway || hasExceedRailwayLimits || hasSimulationParametersExceed) {
         // Check if it's a node limit error specifically
         if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
-          setLoading(false);
           setIsSimulating(false);
           setShowNodeLimitModal(true);
+          // Don't set loading to false - keep component mounted
           return;
         }
         
         // Otherwise it's a parameter limit error
         console.log('Setting parameter limit modal to show');
         console.log('Current showParameterLimitModal state:', showParameterLimitModal);
-        setLoading(false);
-        setIsSimulating(false);
+        
+        // IMPORTANT: Don't set loading to false yet - this would cause parent to unmount this component
+        // Keep loading true so parent doesn't remount us and lose modal state
         setParameterLimitMessage(errorMessage);
         setShowParameterLimitModal(true);
-        console.log('After setState - showParameterLimitModal should be true');
-        // Force a re-render by using setTimeout to check state after React updates
-        setTimeout(() => {
-          console.log('After React update - checking if modal should be visible');
-        }, 0);
+        setIsSimulating(false);
+        // Keep setLoading(false) in finally block - but we'll handle it differently
+        
+        console.log('Modal state set - keeping loading true to prevent unmount');
         return;
       }
       
       // Show error message to user with styled modal
-      setLoading(false);
       setIsSimulating(false);
       setErrorMessage(errorMessage);
       setShowErrorModal(true);
+      // Don't set loading to false for error modals - keep component mounted
     } finally {
-      setLoading(false);
+      // Only set loading to false if we're not showing any modal
+      // This prevents the parent from unmounting us while modals are showing
+      if (!showTimeoutModal && !showSizeLimitModal && !showParameterLimitModal && 
+          !showNodeLimitModal && !showErrorModal) {
+        setLoading(false);
+      }
       setIsSimulating(false);
     }
   };
@@ -1241,6 +1255,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         type="error"
         onClose={() => {
           setShowTimeoutModal(false);
+          setLoading(false); // Now safe to set loading to false
           navigate('/install');
         }}
       />
@@ -1254,24 +1269,24 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         type="error"
         onClose={() => {
           setShowSizeLimitModal(false);
+          setLoading(false); // Now safe to set loading to false
           navigate('/install');
         }}
       />
 
       {/* Parameter Limit Modal */}
-      {showParameterLimitModal && (
-        <AlertModal
-          isOpen={showParameterLimitModal}
-          title="Parameter Limit Exceeded"
-          message={parameterLimitMessage + '\n\nFor larger simulations, please install ARGscape locally via Python.'}
-          buttonText="Install Locally"
-          type="error"
-          onClose={() => {
-            setShowParameterLimitModal(false);
-            navigate('/install');
-          }}
-        />
-      )}
+      <AlertModal
+        isOpen={showParameterLimitModal}
+        title="Parameter Limit Exceeded"
+        message={parameterLimitMessage ? (parameterLimitMessage + '\n\nFor larger simulations, please install ARGscape locally via Python.') : 'For larger simulations, please install ARGscape locally via Python.'}
+        buttonText="Install Locally"
+        type="error"
+        onClose={() => {
+          setShowParameterLimitModal(false);
+          setLoading(false); // Now safe to set loading to false
+          navigate('/install');
+        }}
+      />
 
       {/* Node Limit Modal */}
       <AlertModal
@@ -1282,6 +1297,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         type="error"
         onClose={() => {
           setShowNodeLimitModal(false);
+          setLoading(false); // Now safe to set loading to false
           navigate('/install');
         }}
       />
@@ -1295,6 +1311,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         type="error"
         onClose={() => {
           setShowErrorModal(false);
+          setLoading(false); // Now safe to set loading to false
         }}
       />
     </div>

@@ -144,7 +144,14 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
    pip install -e .
    
    # Start the backend server
-   uvicorn argscape.backend.main:app --reload --port 8000
+   uvicorn argscape.api.main:app --reload --port 8000
+   ```
+
+Or, to run as if on Railway, use:
+
+   ```
+   # Start the backend server
+   FORCE_RAILWAY_MODE=true VITE_IS_RAILWAY=true ENABLE_ENCRYPTION=true uvicorn argscape.api.main:app --reload --port 8000
    ```
 
 3. **Frontend setup** (in new terminal):
@@ -152,6 +159,12 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
    cd frontend
    npm install
    npm run dev
+   ```
+
+Or, to run as if on Railway, use:
+
+   ```
+   VITE_IS_RAILWAY=true npm run dev
    ```
 
 4. **Access the application**:
