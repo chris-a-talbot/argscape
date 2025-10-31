@@ -1,12 +1,13 @@
-# Include built frontend distribution
-recursive-include argscape/frontend_dist *
+# Include built frontend distribution (Python package version only)
+recursive-include argscape/frontend_dist_python *
+recursive-exclude argscape/frontend_dist_railway *
 
 # Include geographic data files
-recursive-include argscape/backend/geo_utils/data *
+recursive-include argscape/api/geo_utils/data *
 
 # Include project metadata
 include LICENSE
 include README.md
 
 # Include conda environment specification
-include argscape/backend/environment.yml
+include argscape/api/environment.yml

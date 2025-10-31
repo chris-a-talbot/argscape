@@ -61,6 +61,3 @@ include = ["argscape*"]
     "api/geo_utils/data/**/*.cpg",
     "api/geo_utils/data/**/*.xml",
 ]
-
-[tool.setuptools]
-exclude = ["frontend_dist_railway/**"]
