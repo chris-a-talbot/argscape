@@ -155,7 +155,7 @@ export default function InstallPage() {
     {
       number: 9,
       title: 'Launch ARGscape',
-      description: 'Start ARGscape. Note: The backend will take 1-5 minutes to initialize before the frontend becomes available. If port 8000 is already in use, you\'ll see an error - use argscape --port 8001 (or another available port) instead.',
+      description: 'Start ARGscape. Note: The backend will take 1-5 minutes to initialize before the frontend becomes available. ',
       code: 'argscape',
       portNote: true
     },
