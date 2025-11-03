@@ -33,4 +33,4 @@ dependencies:
       - fastgaia
       - geoancestry
       - tsdate
-      - argscape=0.4.6
+      - argscape
