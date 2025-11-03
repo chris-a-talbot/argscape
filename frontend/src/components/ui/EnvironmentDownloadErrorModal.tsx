@@ -19,7 +19,7 @@ export default function EnvironmentDownloadErrorModal({
     setIsDownloadingFromGitHub(true);
     try {
       // Direct download from GitHub raw URL
-      const response = await fetch('https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/backend/environment.yml');
+      const response = await fetch('https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/api/environment.yml');
       if (response.ok) {
         const text = await response.text();
         const blob = new Blob([text], { type: 'text/yaml' });
@@ -37,7 +37,7 @@ export default function EnvironmentDownloadErrorModal({
       }
     } catch (error) {
       // If that fails, open GitHub page
-      window.open('https://github.com/chris-a-talbot/argscape/blob/dev/argscape/backend/environment.yml', '_blank');
+      window.open('https://github.com/chris-a-talbot/argscape/blob/dev/argscape/api/environment.yml', '_blank');
       onClose();
     } finally {
       setIsDownloadingFromGitHub(false);

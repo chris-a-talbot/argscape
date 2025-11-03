@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 # Configure logging first
@@ -140,6 +140,43 @@ app.include_router(sessions_router, prefix="/api", tags=["sessions"])
 app.include_router(tree_sequences_router, prefix="/api", tags=["tree_sequences"])
 app.include_router(inference_router, prefix="/api", tags=["inference"])
 app.include_router(geographic_router, prefix="/api", tags=["geographic"])
+
+# Serve environment.yml as a static file (before static file mount to take precedence)
+@app.get("/environment.yml")
+async def serve_environment_yml():
+    """Serve the environment.yml file for local installation"""
+    try:
+        # Try multiple locations for the environment.yml file (same logic as API endpoint)
+        api_dir = Path(__file__).resolve().parent
+        possible_paths = [
+            api_dir / "environment.yml",
+            api_dir.parent / "api" / "environment.yml",
+            Path.cwd() / "argscape" / "api" / "environment.yml",
+        ]
+        
+        environment_file = None
+        for path in possible_paths:
+            if path.exists():
+                environment_file = path
+                break
+        
+        if environment_file is None:
+            logger.warning(f"Environment file not found in any of the expected locations: {[str(p) for p in possible_paths]}")
+            github_url = "https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/api/environment.yml"
+            return RedirectResponse(url=github_url)
+        
+        return FileResponse(
+            path=str(environment_file),
+            filename="environment.yml",
+            media_type="text/yaml",
+            headers={
+                "Cache-Control": "public, max-age=3600"  # Cache for 1 hour
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to serve environment.yml: {str(e)}", exc_info=True)
+        github_url = "https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/argscape/api/environment.yml"
+        return RedirectResponse(url=github_url)
 
 # Mount static files for frontend
 # Use Railway frontend if on Railway, otherwise use Python package frontend
