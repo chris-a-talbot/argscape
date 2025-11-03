@@ -1,4 +1,4 @@
-name: argscape_env
+name: argscape_local
 channels:
   - conda-forge
 dependencies:

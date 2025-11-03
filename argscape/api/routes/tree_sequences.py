@@ -255,7 +255,7 @@ async def get_graph_data(
     tree_end_idx: int = None,
     temporal_start: float = None,
     temporal_end: float = None,
-    sample_order: str = "custom"
+    sample_order: str = "consensus_minlex"
 ):
     """Get graph data for visualization.
     

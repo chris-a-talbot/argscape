@@ -16,6 +16,7 @@ import { useTreeSequence } from '../../../context/TreeSequenceContext';
 import { getDescendants, getAncestors } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { convertTreeIntervals } from '../../../utils/dataHelpers';
+import { findBestSampleOrder, testSampleOrder, SampleOrderType as TestSampleOrderType } from '../../../utils/sampleOrderTester';
 
 // Define view modes for the graph
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
@@ -94,7 +95,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     // Initialize sampleOrder based on URL parameter for clustering
     const [sampleOrder, setSampleOrder] = useState<SampleOrderType>(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true' ? 'dagre' : 'custom';
+        return clusteringParam === 'true' ? 'dagre' : 'consensus_minlex';
     });
     const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
     const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>(DEFAULT_VISUAL_SETTINGS.nodeSizes);
@@ -207,6 +208,10 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     // Edge crossings tracking
     const [edgeCrossings, setEdgeCrossings] = useState<number | null>(null);
     const [isCalculatingEdgeCrossings, setIsCalculatingEdgeCrossings] = useState(false);
+    
+    // Track if we're optimizing sample order to prevent re-testing loops
+    const isOptimizingSampleOrderRef = useRef(false);
+    const [isOptimizingSampleOrder, setIsOptimizingSampleOrder] = useState(false);
 
     // Track if we should show notification about auto-enabled clustering
     const [showAutoClusteringNotification, setShowAutoClusteringNotification] = useState(false);
@@ -380,8 +385,92 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     graphData = response.data as GraphData;
                     console.log('Received re-fetched graph data with clustering settings');
                 }
+
+                // Auto-optimize sample order for small graphs (< 500 nodes) BEFORE setting data
+                // This prevents flashing between different orders
+                // CRITICAL: We must fetch data for each order to test properly, since order_position
+                // is set by the backend based on the sample order used
+                const totalNodes = graphData.metadata.original_num_nodes || graphData.nodes.length;
+                const shouldTestSampleOrder = 
+                    totalNodes < 500 && 
+                    currentSampleOrder !== 'dagre' && 
+                    !shouldAutoEnableClustering &&
+                    !isClusteringEnabledFromURL;
                 
-                // Initialize genomic range settings
+                let finalGraphData = graphData;
+                let finalSampleOrder = currentSampleOrder;
+                
+                if (shouldTestSampleOrder) {
+                    // Show optimization loading state
+                    setIsOptimizingSampleOrder(true);
+                    isOptimizingSampleOrderRef.current = true;
+                    
+                    try {
+                        // Fetch data for each order we want to test (required because order_position is backend-set)
+                        const ordersToTest: TestSampleOrderType[] = ['first_minlex', 'center_minlex', 'consensus_minlex'];
+                        const orderMap: Record<TestSampleOrderType, SampleOrderType> = {
+                            'first_minlex': 'first_minlex',
+                            'center_minlex': 'center_minlex',
+                            'consensus_minlex': 'consensus_minlex'
+                        };
+                        
+                        // Fetch data for all orders in parallel
+                        const testDataPromises = ordersToTest.map(async (testOrder) => {
+                            const mappedOrder = orderMap[testOrder];
+                            const testOptions = { ...options, sampleOrder: mappedOrder };
+                            const response = await api.getGraphData(filename, testOptions);
+                            const data = response.data as GraphData;
+                            return { order: testOrder, data };
+                        });
+                        
+                        const testDataResults = await Promise.all(testDataPromises);
+                        
+                        // Now test each order's data with its own layout
+                        const testResults = await Promise.all(
+                            testDataResults.map(async ({ order, data }) => {
+                                const crossings = await testSampleOrder(data, order, {
+                                    maxTicks: 200, // Increased for better settling
+                                    reducedForces: true
+                                });
+                                return { order, estimatedCrossings: crossings };
+                            })
+                        );
+                        
+                        // Find the best order (lowest crossings)
+                        testResults.sort((a, b) => a.estimatedCrossings - b.estimatedCrossings);
+                        const bestResult = testResults[0];
+                        
+                        // Find current order's crossings for comparison
+                        const currentOrderResult = testResults.find(r => {
+                            const mapped = orderMap[r.order];
+                            return mapped === currentSampleOrder;
+                        });
+                        
+                        // Always use the best order if it's different
+                        const mappedBestOrder = orderMap[bestResult.order];
+                        
+                        if (mappedBestOrder !== currentSampleOrder) {
+                            // Use the data we already fetched for the best order
+                            const bestDataResult = testDataResults.find(r => r.order === bestResult.order);
+                            if (bestDataResult) {
+                                finalGraphData = bestDataResult.data;
+                                finalSampleOrder = mappedBestOrder;
+                                setSampleOrder(mappedBestOrder);
+                            }
+                        }
+                    } catch (err) {
+                        // Silently fail - use original data and order
+                    } finally {
+                        setIsOptimizingSampleOrder(false);
+                        isOptimizingSampleOrderRef.current = false;
+                    }
+                }
+                
+                // Use optimized data and order
+                graphData = finalGraphData;
+                currentSampleOrder = finalSampleOrder;
+                
+                // Initialize genomic range settings (after optimization to use final data)
                 if (graphData.metadata.sequence_length) {
                     setSequenceLength(graphData.metadata.sequence_length);
                     const fullRange: [number, number] = [0, graphData.metadata.sequence_length];
@@ -460,6 +549,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         setIsFilterActive(false); // Also reset filter state
         setShowAutoClusteringNotification(false); // Reset notification state
         setWasAutoEnabled(false); // Reset auto-enablement tracking
+        isOptimizingSampleOrderRef.current = false; // Reset optimization flag
+        setIsOptimizingSampleOrder(false); // Reset optimization loading state
         // Reset clustering initialized flag when starting fresh (but preserve if clustering was set from URL)
         // Note: clusteringEnabled is read inside the effect, not from dependencies, to use current state value
         const currentClusteringEnabled = searchParams.get('clustering') === 'true';
@@ -931,7 +1022,16 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4"
                         style={{ borderColor: colors.accentPrimary }}
                     ></div>
-                    <p style={{ color: colors.text }}>Loading force-directed ARG visualization...</p>
+                    <p style={{ color: colors.text }}>
+                        {isOptimizingSampleOrder 
+                            ? 'Optimizing layout...' 
+                            : 'Loading force-directed ARG visualization...'}
+                    </p>
+                    {isOptimizingSampleOrder && (
+                        <p className="text-sm mt-2" style={{ color: `${colors.text}99` }}>
+                            Testing sample orders for best layout
+                        </p>
+                    )}
                 </div>
             </div>
         );

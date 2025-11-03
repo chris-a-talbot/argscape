@@ -89,7 +89,7 @@ export default function InstallPage() {
     {
       number: 3,
       title: 'Navigate to folder',
-      description: 'Open terminal/Anaconda prompt and navigate to the folder.',
+      description: 'Open terminal/Anaconda prompt and navigate to the folder containing environment.yml.',
       code: 'cd /path/to/your/folder'
     },
     {
@@ -107,7 +107,7 @@ export default function InstallPage() {
       number: 6,
       title: 'Activate environment',
       description: 'Activate the environment:',
-      code: 'conda activate argscape_env'
+      code: 'conda activate argscape_local'
     },
     {
       number: 7,
@@ -225,7 +225,7 @@ export default function InstallPage() {
                         <p className="text-sm text-sp-white/70">
                           Download directly from{' '}
                           <a 
-                            href="https://github.com/chris-a-talbot/argscape/blob/dev/argscape/backend/environment.yml" 
+                            href="https://github.com/chris-a-talbot/argscape/blob/dev/argscape/api/environment.yml" 
                             target="_blank" 
                             rel="noopener noreferrer"
                             className="text-sp-pale-green hover:underline"
@@ -249,7 +249,8 @@ export default function InstallPage() {
             </h3>
             <ul className="space-y-2 text-sp-white/80">
               <li>• Conda not found? Check PATH or use Anaconda Prompt (Windows)</li>
-              <li>• Package conflicts? Add <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">--force-reinstall</code> flag</li>
+              <li>• Environment already exists? Remove it first: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env remove -n argscape_local</code>, then run step 4 again</li>
+              <li>• Package conflicts? Try updating instead: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env update -f environment.yml --prune</code></li>
               <li>• Web interface not loading? Wait 2-3 minutes, then refresh</li>
             </ul>
           </div>

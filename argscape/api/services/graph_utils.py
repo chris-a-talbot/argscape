@@ -163,11 +163,15 @@ def apply_sample_ordering(nodes: List[Dict[str, Any]], sample_order: str, ts: ts
         ordered_samples = get_sample_order_by_degree(ts)
     elif sample_order == "center_minlex":
         ordered_samples = get_sample_order_center_tree(ts)
-    elif sample_order == "first_tree":
+    elif sample_order == "first_minlex":
         ordered_samples = get_sample_order_first_tree(ts)
-    elif sample_order == "custom":
+    elif sample_order == "consensus_minlex":
         ordered_samples = get_sample_order_custom_algorithm(ts)
     elif sample_order == "numeric":
+        ordered_samples = get_sample_order_numeric(ts)
+    elif sample_order in ["ancestral", "coalescence", "dagre"]:
+        # Frontend-only ordering methods - use numeric as fallback since backend doesn't compute these
+        logger.info(f"Sample order '{sample_order}' is frontend-only, using numeric ordering as fallback")
         ordered_samples = get_sample_order_numeric(ts)
     else:
         # Default to degree ordering
@@ -314,13 +318,13 @@ def detect_edges_with_mutations(ts: tskit.TreeSequence) -> set:
     return edges_with_mutations
 
 
-def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = None, sample_order: str = "custom") -> Dict[str, Any]:
+def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = None, sample_order: str = "consensus_minlex") -> Dict[str, Any]:
     """Convert a tskit.TreeSequence to graph data format for D3 visualization.
     
     Args:
         ts: The tree sequence to convert
         expected_tree_count: If provided, the expected number of trees (used when filtering by tree indices)
-        sample_order: Method for ordering samples ("degree", "center_minlex", "first_tree", "custom")
+        sample_order: Method for ordering samples ("numeric", "first_minlex", "center_minlex", "consensus_minlex", "ancestral", "coalescence", "dagre")
     """
     logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
     

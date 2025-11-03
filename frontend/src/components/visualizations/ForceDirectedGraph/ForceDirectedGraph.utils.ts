@@ -118,54 +118,70 @@ export function calculateAncestralPathLength(sampleNode: Node, allNodes: Node[],
     return maxDepth;
 }
 
-// Helper function to arrange samples by ancestral path length with parent grouping
+// Helper function to compute a tree-based ordering key for a sample
+// This creates a consistent ordering based on the tree structure
+function getTreeOrderingKey(sampleNode: Node, allNodes: Node[], edges: GraphEdge[]): number {
+    // Build a key based on the ancestral path to the root
+    // We'll use a combination of ancestor times and IDs to create a stable ordering
+    
+    const path: { node: Node; minTime: number }[] = [];
+    let current: Node | null = sampleNode;
+    const visited = new Set<number>();
+    
+    // Walk up the tree to the root, collecting ancestor information
+    while (current && !visited.has(current.id)) {
+        visited.add(current.id);
+        
+        const parents = getImmediateParents(current, allNodes, edges);
+        if (parents.length > 0) {
+            // For ordering, use the parent with the smallest time (most recent)
+            const earliestParent = parents.reduce((earliest, p) => p.time < earliest.time ? p : earliest);
+            path.push({ node: current, minTime: earliestParent.time });
+            current = earliestParent;
+        } else {
+            // Reached root
+            path.push({ node: current, minTime: current.time });
+            break;
+        }
+    }
+    
+    // Create ordering key: weight earlier ancestors (closer to root) more heavily
+    // This ensures samples with different root paths are properly ordered
+    let orderingKey = 0;
+    for (let i = 0; i < path.length; i++) {
+        const weight = Math.pow(1000, path.length - 1 - i);
+        // Use a combination of node ID and time for the key
+        orderingKey += path[i].node.id * weight + path[i].minTime * weight * 0.001;
+    }
+    
+    return orderingKey;
+}
+
+// Helper function to arrange samples by ancestral path length with tree-based ordering
 export function arrangeSamplesByAncestralPath(sampleNodes: Node[], allNodes: Node[], edges: GraphEdge[]): Node[] {
-    // Calculate ancestral path length and parents for each sample
+    // Calculate ancestral path length for each sample
     const samplesWithData = sampleNodes.map(node => ({
         node,
-        pathLength: calculateAncestralPathLength(node, allNodes, edges),
-        parents: getImmediateParents(node, allNodes, edges)
+        pathLength: calculateAncestralPathLength(node, allNodes, edges)
     }));
     
-    // Group samples by ancestral path length
-    const pathGroups = new Map<number, typeof samplesWithData>();
-    samplesWithData.forEach(sample => {
-        const length = sample.pathLength;
-        if (!pathGroups.has(length)) {
-            pathGroups.set(length, []);
+    // Sort by path length (descending), then by tree position using postorder-like ordering
+    samplesWithData.sort((a, b) => {
+        // First by path length (descending - longer paths first)
+        if (a.pathLength !== b.pathLength) {
+            return b.pathLength - a.pathLength;
         }
-        pathGroups.get(length)!.push(sample);
+        // Then by tree position (using tree-based ordering)
+        const aOrder = getTreeOrderingKey(a.node, allNodes, edges);
+        const bOrder = getTreeOrderingKey(b.node, allNodes, edges);
+        if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+        }
+        // Final tiebreaker: node ID
+        return a.node.id - b.node.id;
     });
     
-    // Sort path lengths in descending order
-    const sortedPathLengths = Array.from(pathGroups.keys()).sort((a, b) => b - a);
-    
-    const result: Node[] = [];
-    
-    // Process each path length group
-    sortedPathLengths.forEach(pathLength => {
-        const group = pathGroups.get(pathLength)!;
-        
-        if (group.length === 1) {
-            // Single sample, just add it
-            result.push(group[0].node);
-        } else {
-            // Multiple samples with same path length - group by shared parents
-            const parentGroups = groupSamplesBySharedParents(group);
-            
-            // Arrange parent groups by MRCA coalescence depth (outside-in)
-            const arrangedParentGroups = arrangeParentGroupsByMRCADepth(parentGroups, allNodes, edges);
-            
-            // Add all parent groups to result
-            arrangedParentGroups.forEach(parentGroup => {
-                // Sort within parent group by node ID for consistency
-                parentGroup.sort((a, b) => a.node.id - b.node.id);
-                parentGroup.forEach(sample => result.push(sample.node));
-            });
-        }
-    });
-    
-    return result;
+    return samplesWithData.map(s => s.node);
 }
 
 // Helper function to calculate time to coalescence for a sample node
@@ -212,54 +228,31 @@ export function getImmediateParents(sampleNode: Node, allNodes: Node[], edges: G
     return parents;
 }
 
-// Helper function to arrange samples by coalescence time with parent grouping
+// Helper function to arrange samples by coalescence time with tree-based ordering
 export function arrangeSamplesByCoalescence(sampleNodes: Node[], allNodes: Node[], edges: GraphEdge[]): Node[] {
-    // Calculate coalescence time and parents for each sample
+    // Calculate coalescence time for each sample
     const samplesWithData = sampleNodes.map(node => ({
         node,
-        coalescenceTime: calculateTimeToCoalescence(node, allNodes, edges),
-        parents: getImmediateParents(node, allNodes, edges)
+        coalescenceTime: calculateTimeToCoalescence(node, allNodes, edges)
     }));
     
-    // Group samples by coalescence time
-    const coalescenceGroups = new Map<number, typeof samplesWithData>();
-    samplesWithData.forEach(sample => {
-        const time = sample.coalescenceTime;
-        if (!coalescenceGroups.has(time)) {
-            coalescenceGroups.set(time, []);
+    // Sort by coalescence time (descending - larger times first), then by tree position
+    samplesWithData.sort((a, b) => {
+        // First by coalescence time (descending - longer times first)
+        if (a.coalescenceTime !== b.coalescenceTime) {
+            return b.coalescenceTime - a.coalescenceTime;
         }
-        coalescenceGroups.get(time)!.push(sample);
+        // Then by tree position (using tree-based ordering)
+        const aOrder = getTreeOrderingKey(a.node, allNodes, edges);
+        const bOrder = getTreeOrderingKey(b.node, allNodes, edges);
+        if (aOrder !== bOrder) {
+            return aOrder - bOrder;
+        }
+        // Final tiebreaker: node ID
+        return a.node.id - b.node.id;
     });
     
-    // Sort coalescence times in descending order
-    const sortedCoalescenceTimes = Array.from(coalescenceGroups.keys()).sort((a, b) => b - a);
-    
-    const result: Node[] = [];
-    
-    // Process each coalescence time group
-    sortedCoalescenceTimes.forEach(coalescenceTime => {
-        const group = coalescenceGroups.get(coalescenceTime)!;
-        
-        if (group.length === 1) {
-            // Single sample, just add it
-            result.push(group[0].node);
-                 } else {
-             // Multiple samples with same coalescence time - group by shared parents
-             const parentGroups = groupSamplesBySharedParents(group);
-             
-             // Arrange parent groups by MRCA coalescence depth (outside-in)
-             const arrangedParentGroups = arrangeParentGroupsByMRCADepth(parentGroups, allNodes, edges);
-             
-             // Add all parent groups to result
-             arrangedParentGroups.forEach(parentGroup => {
-                 // Sort within parent group by node ID for consistency
-                 parentGroup.sort((a, b) => a.node.id - b.node.id);
-                 parentGroup.forEach(sample => result.push(sample.node));
-             });
-         }
-    });
-    
-    return result;
+    return samplesWithData.map(s => s.node);
 }
 
 // Helper function to find the Most Recent Common Ancestor (MRCA) of a group of nodes

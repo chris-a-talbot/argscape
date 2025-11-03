@@ -262,7 +262,7 @@ export const setupInitialNodePositions = (
         const nodesForTraversal = originalNodes || combinedNodes;
         let sortedAllSamples: GraphNode[];
         switch (sampleOrder) {
-            case 'ancestral_path':
+            case 'ancestral':
                 sortedAllSamples = arrangeSamplesByAncestralPath(
                     allSamplesForSorting,
                     nodesForTraversal,
@@ -280,7 +280,7 @@ export const setupInitialNodePositions = (
                 sortedAllSamples = [...allSamplesForSorting].sort((a, b) => a.id - b.id);
                 break;
             default:
-                // For other modes (center_minlex, first_tree, custom), use backend order_position if available
+                // For other modes (center_minlex, first_minlex, consensus_minlex), use backend order_position if available
                 sortedAllSamples = [...allSamplesForSorting].sort((a, b) => {
                     if (a.order_position !== undefined && b.order_position !== undefined) {
                         return a.order_position - b.order_position;

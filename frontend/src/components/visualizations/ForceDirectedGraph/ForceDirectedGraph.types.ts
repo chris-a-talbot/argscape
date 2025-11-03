@@ -141,7 +141,7 @@ export interface EdgeMutationSettings {
 
 export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
 
-export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre' | 'coalescence';
+export type SampleOrderType = 'ancestral' | 'center_minlex' | 'first_minlex' | 'consensus_minlex' | 'numeric' | 'dagre' | 'coalescence';
 
 export interface ForceTuningSettings {
     chargeScale: number;            // Multiplier for many-body charge strength

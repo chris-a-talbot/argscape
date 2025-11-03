@@ -81,7 +81,7 @@ Install ARGscape locally for better performance and offline use:
 
 1. **Download the environment file**:
    - Visit [argscape.com/install](https://argscape.com/install) and click "Download environment.yml"
-   - Or download directly from [GitHub](https://github.com/chris-a-talbot/argscape/blob/dev/argscape/backend/environment.yml)
+   - Or download directly from [GitHub](https://github.com/chris-a-talbot/argscape/blob/dev/argscape/api/environment.yml)
 
 2. **Navigate to the download folder**:
    ```bash
@@ -96,7 +96,7 @@ Install ARGscape locally for better performance and offline use:
 
 4. **Activate the environment**:
    ```bash
-   conda activate argscape_env
+   conda activate argscape_local
    
 
 5. **Launch ARGscape**:
@@ -137,8 +137,8 @@ argscape [--host HOST] [--port PORT] [--reload] [--no-browser] [--no-tsdate]
 2. **Backend setup**:
    ```bash
    # Create and activate conda environment
-   conda env create -f argscape/backend/environment.yml
-   conda activate argscape
+   conda env create -f argscape/api/environment.yml
+   conda activate argscape_local
    
    # Install the package in development mode
    pip install -e .

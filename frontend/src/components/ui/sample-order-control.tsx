@@ -1,7 +1,7 @@
 import React from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
-export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_tree' | 'custom' | 'numeric' | 'dagre' | 'coalescence';
+export type SampleOrderType = 'ancestral' | 'center_minlex' | 'first_minlex' | 'consensus_minlex' | 'numeric' | 'dagre' | 'coalescence';
 
 interface SampleOrderControlProps {
   value: SampleOrderType;
@@ -16,7 +16,7 @@ const basicOrderOptions: { value: SampleOrderType; label: string; description: s
     description: 'Simple numeric order (0, 1, 2, ...)'
   },
   {
-    value: 'first_tree',
+    value: 'first_minlex',
     label: 'First Tree',
     description: 'Minlex postorder of first tree'
   },
@@ -26,7 +26,7 @@ const basicOrderOptions: { value: SampleOrderType; label: string; description: s
     description: 'Minlex postorder of tree at center genomic position'
   },
   {
-    value: 'custom',
+    value: 'consensus_minlex',
     label: 'Consensus',
     description: 'Majority vote across multiple trees'
   }
@@ -42,7 +42,7 @@ const staticOrderOptions: { value: SampleOrderType; label: string; description: 
 
 const customOrderOptions: { value: SampleOrderType; label: string; description: string }[] = [
   {
-    value: 'ancestral_path',
+    value: 'ancestral',
     label: 'Ancestral Path',
     description: 'Order by ancestral path length with hierarchical MRCA-based grouping'
   },
