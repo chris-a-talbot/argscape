@@ -64,13 +64,26 @@ class ApiService {
     const maxRetries = 3;
     const retryDelay = 1000; // 1 second
     let lastError: Error | null = null;
-    const timeout = timeoutMs ?? 60000; // Default 60 second timeout
+    
+    // Determine timeout: use provided timeout, or Railway default if on Railway, or no timeout locally
+    // For local installations, we want to use maximum resources and avoid timeouts
+    let timeout: number | undefined;
+    if (timeoutMs !== undefined) {
+      timeout = timeoutMs;
+    } else if (isRailway()) {
+      // On Railway, use a default timeout to prevent hanging requests
+      timeout = 60000; // 60 seconds default for Railway
+    }
+    // On local, timeout is undefined = no timeout (browser/fetch default behavior)
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
-        // Add timeout for long-running operations
+        // Add timeout only if specified (Railway or explicitly provided)
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        let timeoutId: NodeJS.Timeout | undefined;
+        if (timeout !== undefined) {
+          timeoutId = setTimeout(() => controller.abort(), timeout);
+        }
 
         const response = await fetch(url, {
           ...options,
@@ -78,10 +91,12 @@ class ApiService {
             'Content-Type': 'application/json',
             ...options.headers,
           },
-          signal: controller.signal,
+          signal: timeout !== undefined ? controller.signal : undefined,
         });
 
-        clearTimeout(timeoutId);
+        if (timeoutId !== undefined) {
+          clearTimeout(timeoutId);
+        }
 
         // Safely parse response as JSON if possible, else fallback to text
         const contentType = response.headers.get('content-type') || '';
@@ -124,7 +139,8 @@ class ApiService {
         
         if (error instanceof Error) {
           if (error.name === 'AbortError') {
-            const timeoutError = new Error(`Request timed out after ${timeout / 1000} seconds`);
+            const timeoutSeconds = timeout !== undefined ? timeout / 1000 : 'unknown';
+            const timeoutError = new Error(`Request timed out after ${timeoutSeconds} seconds`);
             log.api.error(endpoint, timeoutError, method);
             throw timeoutError;
           }
@@ -166,17 +182,25 @@ class ApiService {
     formData.append('file', file);
 
     log.api.call(endpoint, 'POST', { filename: file.name, size: file.size });
+    console.log(`[API] Starting upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
     try {
+      const uploadStartTime = Date.now();
       const response = await fetch(url, {
         method: 'POST',
         body: formData,
       });
 
+      const uploadTime = Date.now() - uploadStartTime;
+      console.log(`[API] Upload request completed in ${uploadTime}ms, status: ${response.status}`);
+
       const contentType = response.headers.get('content-type') || '';
       let data: any = null;
       let rawText: string | null = null;
 
+      console.log(`[API] Parsing response, content-type: ${contentType}`);
+      const parseStartTime = Date.now();
+      
       if (contentType.includes('application/json')) {
         data = await response.json();
       } else {
@@ -188,15 +212,21 @@ class ApiService {
         }
       }
 
+      const parseTime = Date.now() - parseStartTime;
+      console.log(`[API] Response parsed in ${parseTime}ms`);
+
       if (!response.ok) {
         const errorDetail = (data && (data.detail || data.message)) || rawText || ERROR_MESSAGES.UPLOAD_FAILED;
+        console.error(`[API] Upload failed with status ${response.status}:`, errorDetail);
         throw new Error(errorDetail);
       }
 
+      console.log(`[API] Upload successful, response data:`, data);
       log.api.success(endpoint, 'POST', data ?? rawText);
       return { data: (data ?? (rawText as any)), status: response.status };
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.UPLOAD_FAILED;
+      console.error(`[API] Upload error for ${file.name}:`, error);
       log.api.error(endpoint, new Error(errorMsg), 'POST');
       throw error;
     }

@@ -659,6 +659,15 @@ export function EdgesSection({
   edgeMutationSettings,
   onEdgeMutationSettingsChange
 }: EdgesSectionProps) {
+  // Convert edgeOpacity from 0-100 scale (state) to 0-1 scale (slider display)
+  const edgeOpacitySliderValue = Math.max(0, Math.min(1, edgeOpacity / 100));
+  
+  // Handle opacity change: convert from 0-1 scale (slider) to 0-100 scale (state)
+  const handleEdgeOpacityChange = (sliderValue: number) => {
+    const clampedValue = Math.max(0, Math.min(100, sliderValue * 100));
+    onEdgeOpacityChange(clampedValue);
+  };
+
   return (
     <div className="space-y-4">
       <SidebarSubsection title="Edge Appearance">
@@ -673,11 +682,12 @@ export function EdgesSection({
         
         <SidebarSlider
           label="Edge Opacity"
-          value={edgeOpacity}
-          min={0.1}
+          value={edgeOpacitySliderValue}
+          min={0}
           max={1}
-          step={0.1}
-          onChange={onEdgeOpacityChange}
+          step={0.01}
+          onChange={handleEdgeOpacityChange}
+          formatValue={(v) => `${Math.round(v * 100)}%`}
         />
       </SidebarSubsection>
 

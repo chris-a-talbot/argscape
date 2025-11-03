@@ -4,7 +4,7 @@ All hard-coded values are defined here with meaningful names.
 """
 
 # API Configuration
-DEFAULT_API_VERSION = "0.4.5"
+DEFAULT_API_VERSION = "0.4.8"
 REQUEST_TIMEOUT_SECONDS = 60
 FILENAME_TIMESTAMP_PRECISION_MICROSECONDS = 1000000
 
@@ -19,6 +19,9 @@ GENEALOGICAL_DISTANCE_FALLBACK = 1000.0
 MDS_MAX_ITERATIONS = 1000
 MDS_N_INIT = 4
 SPATIAL_GRID_SIZE = 10
+# Threshold for switching from genealogical distance-based to random location assignment
+# Above this number of individuals, random locations are used for performance
+RANDOM_LOCATION_THRESHOLD = 500
 UNIT_GRID_MARGIN = 0.05
 UNIT_GRID_NOISE_SCALE = 0.02
 COORDINATE_BOUNDARY_EPSILON = 0.01

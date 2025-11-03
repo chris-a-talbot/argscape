@@ -13,7 +13,8 @@ from argscape.api.constants import (
     MDS_MAX_ITERATIONS,
     MDS_N_INIT,
     SPATIAL_GRID_SIZE,
-    MINIMUM_SAMPLES_REQUIRED
+    MINIMUM_SAMPLES_REQUIRED,
+    RANDOM_LOCATION_THRESHOLD
 )
 from argscape.api.geo_utils import (
     generate_wgs84_coordinates,
@@ -122,8 +123,13 @@ def generate_spatial_locations_for_samples(
     """
     Generate 2D spatial locations for sample nodes based on genealogical relationships.
     
-    More closely related samples will be placed closer together in space.
-    Uses multidimensional scaling to embed genealogical distances in 2D space.
+    For small numbers of individuals (≤ RANDOM_LOCATION_THRESHOLD), more closely 
+    related samples will be placed closer together in space using multidimensional 
+    scaling to embed genealogical distances in 2D space.
+    
+    For large numbers of individuals (> RANDOM_LOCATION_THRESHOLD), random locations
+    are used instead for performance reasons, as computing pairwise genealogical 
+    distances and MDS embedding becomes computationally expensive (O(n²) complexity).
     
     Args:
         ts: Tree sequence to add spatial locations to
@@ -170,23 +176,36 @@ def generate_spatial_locations_for_samples(
     
     logger.info(f"Using {len(representative_nodes)} representatives for {len(individual_to_nodes)} individuals")
 
-    # Distance matrix and 2D embedding based on representatives
-    distances = calculate_genealogical_distances(representative_nodes, ts)
-    coords_2d = embed_distances_in_2d(distances, random_seed)
-    normalized_coords = normalize_coordinates(coords_2d)
+    num_individuals = len(representative_nodes)
+    
+    # For large numbers of individuals, use random locations instead of genealogical distances
+    # This avoids the O(n²) cost of computing pairwise divergences and MDS embedding
+    if num_individuals > RANDOM_LOCATION_THRESHOLD:
+        logger.info(
+            f"Number of individuals ({num_individuals}) exceeds threshold ({RANDOM_LOCATION_THRESHOLD}). "
+            "Using random locations for performance."
+        )
+        # Generate random normalized coordinates uniformly in [0, 1]²
+        rng = np.random.default_rng(seed=random_seed)
+        normalized_coords = rng.random(size=(num_individuals, 2))
+    else:
+        # Distance matrix and 2D embedding based on representatives
+        logger.info(f"Computing genealogical distances and MDS embedding for {num_individuals} individuals")
+        distances = calculate_genealogical_distances(representative_nodes, ts)
+        coords_2d = embed_distances_in_2d(distances, random_seed)
+        normalized_coords = normalize_coordinates(coords_2d)
 
     # CRS-based coordinate generation
-    crs_generators = {
-        "unit_grid": generate_unit_grid_coordinates,
-        "EPSG:4326": generate_wgs84_coordinates,
-        "EPSG:3857": generate_web_mercator_coordinates,
-    }
-    coord_func = crs_generators.get(crs, generate_unit_grid_coordinates)
-
-    if crs not in crs_generators:
+    if crs == "EPSG:4326":
+        # WGS84 requires random_seed parameter
+        final_coords = generate_wgs84_coordinates(normalized_coords, random_seed=random_seed)
+    elif crs == "EPSG:3857":
+        final_coords = generate_web_mercator_coordinates(normalized_coords)
+    elif crs == "unit_grid":
+        final_coords = generate_unit_grid_coordinates(normalized_coords)
+    else:
         logger.warning(f"Unknown CRS '{crs}', defaulting to unit_grid")
-
-    final_coords = coord_func(normalized_coords)
+        final_coords = generate_unit_grid_coordinates(normalized_coords)
 
     logger.info(
         f"Generated spatial coordinates from "

@@ -14,6 +14,8 @@ import { VisualizationSection, ViewControlsSection, ElementsSection, Information
 import { getDescendants, getAncestors, isRootNode } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { calculatePercentage, convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
+import { useElapsedTime, formatElapsedTime } from '../../../hooks/useElapsedTime';
+import { isRailway } from '../../../config/constants';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 type FilterMode = 'genomic' | 'tree';
@@ -349,6 +351,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const [data, setData] = useState<GraphData | null>(null);
   const [subArgData, setSubArgData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
+  const elapsedSeconds = useElapsedTime(loading);
   const [error, setError] = useState<string | null>(null);
   
   const [viewMode, setViewMode] = useState<ViewMode>('full');
@@ -867,6 +870,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   };
 
   if (loading) {
+    const elapsedTime = formatElapsedTime(elapsedSeconds);
+    const showElapsedTime = elapsedSeconds > 5; // Show elapsed time after 5 seconds
+    const isLocal = !isRailway();
+    
     return (
       <div 
         className="w-full h-full flex items-center justify-center"
@@ -878,6 +885,18 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             style={{ borderColor: colors.accentPrimary }}
           ></div>
           <p style={{ color: colors.text }}>Loading 3D spatial ARG visualization...</p>
+          {showElapsedTime && (
+            <>
+              <p className="text-sm mt-3" style={{ color: `${colors.text}99` }}>
+                Elapsed: {elapsedTime}
+              </p>
+              {isLocal && elapsedSeconds > 30 && (
+                <p className="text-xs mt-2 max-w-md mx-auto" style={{ color: `${colors.text}80` }}>
+                  Large datasets may take several minutes. Processing continues in the background...
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
     );

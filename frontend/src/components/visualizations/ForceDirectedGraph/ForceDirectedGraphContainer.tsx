@@ -17,6 +17,8 @@ import { getDescendants, getAncestors } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { convertTreeIntervals } from '../../../utils/dataHelpers';
 import { findBestSampleOrder, testSampleOrder, SampleOrderType as TestSampleOrderType } from '../../../utils/sampleOrderTester';
+import { useElapsedTime, formatElapsedTime } from '../../../hooks/useElapsedTime';
+import { isRailway } from '../../../config/constants';
 
 // Define view modes for the graph
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
@@ -76,6 +78,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [subArgData, setSubArgData] = useState<GraphData | null>(null); // Rename to clarify this is the SubARG
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const elapsedSeconds = useElapsedTime(loading);
     const [viewMode, setViewMode] = useState<ViewMode>('full');
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const [genomicRange, setGenomicRange] = useState<[number, number]>([0, 0]);
@@ -93,9 +96,13 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [treeIntervals, setTreeIntervals] = useState<TreeInterval[]>([]);
     const [isFilterActive, setIsFilterActive] = useState(false);
     // Initialize sampleOrder based on URL parameter for clustering
+    // Also check treeSequence context to auto-enable clustering for large ARGs
     const [sampleOrder, setSampleOrder] = useState<SampleOrderType>(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true' ? 'dagre' : 'consensus_minlex';
+        if (clusteringParam === 'true') return 'dagre';
+        // Check treeSequence context to auto-detect large ARGs
+        // This enables clustering BEFORE the first fetch for faster loading
+        return 'consensus_minlex'; // Will be set to dagre if needed during initialization
     });
     const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
     const [nodeSizes, setNodeSizes] = useState<NodeSizeSettings>(DEFAULT_VISUAL_SETTINGS.nodeSizes);
@@ -158,32 +165,54 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     const [resetTrigger, setResetTrigger] = useState(0); // Counter to trigger simulation reset
 
     // Clustering state - initialize from URL parameter if present
+    // Also check treeSequence context to auto-enable for large ARGs
     const [clusteringEnabled, setClusteringEnabled] = useState(() => {
-        return searchParams.get('clustering') === 'true';
+        const clusteringParam = searchParams.get('clustering');
+        if (clusteringParam === 'true') return true;
+        // Check treeSequence context to auto-detect large ARGs BEFORE first fetch
+        // This avoids double-fetch and enables clustering immediately
+        const shouldAutoEnable = !!(treeSequence?.num_nodes && treeSequence.num_nodes > 250);
+        return shouldAutoEnable;
     });
     const [clusteringMinTreeSize, setClusteringMinTreeSize] = useState(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true' ? 2 : 3; // Minimum tree size for URL-enabled clustering (max clustering = min size)
+        if (clusteringParam === 'true') return 2;
+        // Auto-enable with max clustering if treeSequence indicates large ARG
+        const shouldAutoEnable = treeSequence?.num_nodes && treeSequence.num_nodes > 250;
+        return shouldAutoEnable ? 2 : 3;
     });
     const [clusteringRequireDensity, setClusteringRequireDensity] = useState(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true'; // Enable density for URL-enabled clustering
+        if (clusteringParam === 'true') return true;
+        // Auto-enable density if treeSequence indicates large ARG
+        const shouldAutoEnable = !!(treeSequence?.num_nodes && treeSequence.num_nodes > 250);
+        return shouldAutoEnable;
     });
     const [clusteringDensityIntensity, setClusteringDensityIntensity] = useState(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true' ? 0.05 : 0.5; // 5% for maximum clustering (very lenient = more clusters)
+        if (clusteringParam === 'true') return 0.05;
+        // Auto-enable with max clustering intensity if treeSequence indicates large ARG
+        const shouldAutoEnable = treeSequence?.num_nodes && treeSequence.num_nodes > 250;
+        return shouldAutoEnable ? 0.05 : 0.5;
     });
     const [clusteringRequireTemporalCompactness, setClusteringRequireTemporalCompactness] = useState(true);
     const [clusteringTemporalIntensity, setClusteringTemporalIntensity] = useState(() => {
         const clusteringParam = searchParams.get('clustering');
-        return clusteringParam === 'true' ? 0.25 : 0.5; // 25% when enabled from URL/result page, 50% default
+        if (clusteringParam === 'true') return 0.25;
+        // Auto-enable with optimized intensity if treeSequence indicates large ARG
+        const shouldAutoEnable = treeSequence?.num_nodes && treeSequence.num_nodes > 250;
+        return shouldAutoEnable ? 0.25 : 0.5;
     });
     const [clusteringMaxSampleClusterSize, setClusteringMaxSampleClusterSize] = useState(25);
     
     // Track if clustering has been initialized to avoid re-triggering on data changes
-    // If clustering is enabled from URL, mark as initialized immediately since state is set correctly from the start
+    // If clustering is enabled from URL or treeSequence context, mark as initialized immediately
     const [clusteringInitialized, setClusteringInitialized] = useState(() => {
-        return searchParams.get('clustering') === 'true';
+        const clusteringParam = searchParams.get('clustering');
+        if (clusteringParam === 'true') return true;
+        // Mark as initialized if auto-enabled from treeSequence context
+        const shouldAutoEnable = !!(treeSequence?.num_nodes && treeSequence.num_nodes > 250);
+        return shouldAutoEnable;
     });
     
     // Handler for when clustering is enabled/disabled from within the visualizer
@@ -340,8 +369,33 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 setLoading(true);
                 console.log('Fetching initial graph data for file:', filename, 'with max_samples:', max_samples);
                 
-                // Build options including URL parameters
+                // OPTIMIZATION: Check treeSequence context to determine if we should use clustering/dagre BEFORE fetching
+                // This avoids double-fetch for large ARGs and enables clustering immediately
+                const clusteringParam = searchParams.get('clustering');
+                const isClusteringEnabledFromURL = clusteringParam === 'true';
+                const shouldAutoEnableFromContext = treeSequence?.num_nodes && treeSequence.num_nodes > 250 && !isClusteringEnabledFromURL;
+                
+                // If clustering should be auto-enabled, use dagre sampleOrder from the start
                 let currentSampleOrder = sampleOrder;
+                if (shouldAutoEnableFromContext || (clusteringEnabled && !isClusteringEnabledFromURL)) {
+                    currentSampleOrder = 'dagre';
+                    // Ensure clustering state is set if it wasn't already from context initialization
+                    if (!clusteringEnabled) {
+                        setClusteringEnabled(true);
+                        setClusteringMinTreeSize(2);
+                        setClusteringRequireDensity(true);
+                        setClusteringDensityIntensity(0.05);
+                        setClusteringTemporalIntensity(0.25);
+                        setClusteringInitialized(true);
+                        setWasAutoEnabled(true);
+                    }
+                    if (currentSampleOrder !== sampleOrder) {
+                        setSampleOrder('dagre');
+                    }
+                    console.log(`Auto-enabling clustering for large ARG (${treeSequence?.num_nodes} nodes) - using dagre from start`);
+                }
+                
+                // Build options including URL parameters
                 const options: any = { maxSamples: max_samples, sampleOrder: currentSampleOrder };
                 
                 // Add temporal filtering if provided via URL
@@ -366,30 +420,40 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 let graphData = response.data as GraphData;
                 console.log('Received initial graph data:', graphData);
                 
-                // Check if auto-enable clustering is needed (>250 nodes) and not already enabled from URL
-                // Use searchParams to check URL state, as clusteringEnabled might not reflect URL param in closure
-                const clusteringParam = searchParams.get('clustering');
-                const isClusteringEnabledFromURL = clusteringParam === 'true';
-                const shouldAutoEnableClustering = graphData.nodes.length > 250 && !isClusteringEnabledFromURL;
-                if (shouldAutoEnableClustering) {
-                    console.log(`Auto-enabling clustering for large graph (${graphData.nodes.length} nodes)`);
+                // FALLBACK: Check metadata.original_num_nodes from response if context wasn't available
+                // This catches cases where treeSequence context wasn't loaded yet
+                // Only do this if clustering wasn't already enabled from context/URL
+                if (!shouldAutoEnableFromContext && !isClusteringEnabledFromURL) {
+                    const originalNodeCount = graphData.metadata.original_num_nodes || graphData.nodes.length;
+                    const shouldAutoEnableFromMetadata = originalNodeCount > 250;
                     
-                    // Set clustering state with maximum clustering settings
-                    setClusteringEnabled(true);
-                    setClusteringMinTreeSize(2);  // Minimum tree size for maximum clustering
-                    setClusteringRequireDensity(true);  // Enable density
-                    setClusteringDensityIntensity(0.05);  // 5% for maximum clustering (very lenient = more clusters)
-                    setClusteringRequireTemporalCompactness(true);  // Enable temporal
-                    setClusteringTemporalIntensity(0.25);  // 25% when auto-enabled
-                    setSampleOrder('dagre');
-                    currentSampleOrder = 'dagre';
-                    
-                    // Re-fetch with correct sampleOrder before setting data
-                    console.log('Re-fetching with clustering settings and dagre sampleOrder');
-                    options.sampleOrder = 'dagre';
-                    response = await api.getGraphData(filename, options);
-                    graphData = response.data as GraphData;
-                    console.log('Received re-fetched graph data with clustering settings');
+                    if (shouldAutoEnableFromMetadata) {
+                        console.log(`Auto-enabling clustering for large graph (${originalNodeCount} nodes from metadata)`);
+                        
+                        // Set clustering state with maximum clustering settings
+                        setClusteringEnabled(true);
+                        setClusteringMinTreeSize(2);
+                        setClusteringRequireDensity(true);
+                        setClusteringDensityIntensity(0.05);
+                        setClusteringTemporalIntensity(0.25);
+                        setClusteringInitialized(true);
+                        setWasAutoEnabled(true);
+                        
+                        // Only re-fetch if we need to change sampleOrder to dagre
+                        if (currentSampleOrder !== 'dagre') {
+                            setSampleOrder('dagre');
+                            currentSampleOrder = 'dagre';
+                            console.log('Re-fetching with clustering settings and dagre sampleOrder');
+                            options.sampleOrder = 'dagre';
+                            response = await api.getGraphData(filename, options);
+                            graphData = response.data as GraphData;
+                            console.log('Received re-fetched graph data with clustering settings');
+                        } else {
+                            // Clustering is now enabled, but sampleOrder was already dagre
+                            // No re-fetch needed - clustering will be applied during processing
+                            console.log('Clustering enabled, sampleOrder already dagre - no re-fetch needed');
+                        }
+                    }
                 }
 
                 // Auto-optimize sample order for small graphs (< 500 nodes) BEFORE setting data
@@ -400,7 +464,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 const shouldTestSampleOrder = 
                     totalNodes < 500 && 
                     currentSampleOrder !== 'dagre' && 
-                    !shouldAutoEnableClustering &&
+                    !shouldAutoEnableFromContext &&
+                    !(graphData.metadata.original_num_nodes && graphData.metadata.original_num_nodes > 250) &&
                     !isClusteringEnabledFromURL;
                 
                 let finalGraphData = graphData;
@@ -529,23 +594,43 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     temporalSpacing: dynamicVertical
                 }));
 
-                // Mark clustering as initialized if we enabled it
-                if (shouldAutoEnableClustering) {
-                    setClusteringInitialized(true);
-                    setWasAutoEnabled(true);
+                // Mark clustering as initialized if we enabled it (already set above, but ensure it's set)
+                if (shouldAutoEnableFromContext || (clusteringEnabled && !isClusteringEnabledFromURL && (graphData.metadata.original_num_nodes || graphData.nodes.length) > 250)) {
+                    if (!clusteringInitialized) {
+                        setClusteringInitialized(true);
+                    }
+                    if (shouldAutoEnableFromContext || (graphData.metadata.original_num_nodes || graphData.nodes.length) > 250) {
+                        setWasAutoEnabled(true);
+                    }
                     // Show notification after data is loaded
                     setShowAutoClusteringNotification(true);
                 }
 
+                // Validate data before setting it
+                if (!graphData || !graphData.nodes || graphData.nodes.length === 0) {
+                    console.error('[ForceDirectedGraph] Invalid graph data received:', graphData);
+                    throw new Error('Received empty or invalid graph data');
+                }
+                
+                console.log('[ForceDirectedGraph] Data loaded successfully:', {
+                    nodes: graphData.nodes.length,
+                    edges: graphData.edges?.length || 0,
+                    filename
+                });
+                
                 setIsInitialized(true);
                 setData(graphData);
                 setSubArgData(graphData); // Store SubARG data (what was loaded with max_samples)
                 setError(null);
+                
+                // Ensure loading is cleared after data is set
+                setLoading(false);
+                console.log('[ForceDirectedGraph] Loading cleared, data ready');
             } catch (e) {
-                console.error('Error fetching initial graph data:', e);
-                setError(e instanceof Error ? e.message : 'An error occurred while fetching graph data');
+                console.error('[ForceDirectedGraph] Error fetching initial graph data:', e);
+                const errorMessage = e instanceof Error ? e.message : 'An error occurred while fetching graph data';
+                setError(errorMessage);
                 setData(null);
-            } finally {
                 setLoading(false);
             }
         };
@@ -1023,6 +1108,10 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     };
 
     if (loading) {
+        const elapsedTime = formatElapsedTime(elapsedSeconds);
+        const showElapsedTime = elapsedSeconds > 5; // Show elapsed time after 5 seconds
+        const isLocal = !isRailway();
+        
         return (
             <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: colors.background }}>
                 <div className="text-center">
@@ -1040,6 +1129,18 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                             Testing sample orders for best layout
                         </p>
                     )}
+                    {showElapsedTime && (
+                        <>
+                            <p className="text-sm mt-3" style={{ color: `${colors.text}99` }}>
+                                Elapsed: {elapsedTime}
+                            </p>
+                            {isLocal && elapsedSeconds > 30 && (
+                                <p className="text-xs mt-2 max-w-md mx-auto" style={{ color: `${colors.text}80` }}>
+                                    Large datasets may take several minutes. Processing continues in the background...
+                                </p>
+                            )}
+                        </>
+                    )}
                 </div>
             </div>
         );
@@ -1051,6 +1152,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 <div className="text-center" style={{ color: colors.text }}>
                     <p className="text-lg mb-2">Error loading visualization</p>
                     <p className="text-sm" style={{ color: `${colors.text}B3` }}>{error}</p>
+                </div>
+            </div>
+        );
+    }
+
+    // Check if we have data - if loading is false but no data and no error, something went wrong
+    if (!loading && !data) {
+        console.warn('[ForceDirectedGraph] No data available but not loading and no error');
+        return (
+            <div className="w-full h-full flex items-center justify-center" style={{ backgroundColor: colors.background }}>
+                <div className="text-center" style={{ color: colors.text }}>
+                    <p className="text-lg mb-2">No data available</p>
+                    <p className="text-sm" style={{ color: `${colors.text}B3` }}>The visualization data could not be loaded.</p>
                 </div>
             </div>
         );

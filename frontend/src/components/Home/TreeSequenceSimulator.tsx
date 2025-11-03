@@ -572,12 +572,13 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
         return;
       }
       
-      // Check file size and node count on Railway
+      // Check file size and node count on Railway only
+      // On local installations, allow unlimited file sizes and node counts
       if (isRailway() && result.data) {
         const fileSizeBytes = (result.data as any).file_size_bytes;
         const numNodes = (result.data as any).num_nodes;
         
-        // Check file size first
+        // Check file size first (Railway only)
         if (fileSizeBytes && fileSizeBytes > RAILWAY_MAX_FILE_SIZE_BYTES) {
           // Delete the file immediately
           try {
@@ -600,7 +601,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
           return;
         }
         
-        // Check node count
+        // Check node count (Railway only)
         if (numNodes && numNodes > RAILWAY_MAX_NODES) {
           // Delete the file immediately
           try {

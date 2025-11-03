@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDropzone } from 'react-dropzone';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
-import { FILE_TYPES, RAILWAY_LIMITS } from '../../config/constants';
+import { FILE_TYPES, RAILWAY_LIMITS, isRailway } from '../../config/constants';
 import AlertModal from '../ui/AlertModal';
 
 const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
@@ -108,18 +108,32 @@ export default function Dropzone({
       setLoading(true);
       isShowingModalRef.current = false;
       
+      console.log(`[Dropzone] Starting upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+      
       try {
         log.user.action('upload-start', { filename: file.name, size: file.size }, 'Dropzone');
-        const result = await api.uploadTreeSequence(file);
         
-        // Check node count on Railway (check error message content, not frontend flag)
-        // Backend might be in Railway mode even if frontend flag isn't set
-        // Note: This check is redundant since backend will reject before returning,
-        // but keeping for defensive programming
-        if (result.data && typeof result.data === 'object' && 'num_nodes' in result.data) {
+        console.log(`[Dropzone] Calling api.uploadTreeSequence...`);
+        const uploadStartTime = Date.now();
+        const result = await api.uploadTreeSequence(file);
+        const uploadDuration = Date.now() - uploadStartTime;
+        
+        console.log(`[Dropzone] Upload completed in ${uploadDuration}ms, result:`, result);
+        
+        // Validate response structure
+        if (!result || !result.data) {
+          console.error('[Dropzone] Invalid response structure:', result);
+          throw new Error('Invalid response from server');
+        }
+        
+        // Only check node count limits if we're on Railway
+        // On local installations, allow unlimited node counts
+        if (isRailway() && result.data && typeof result.data === 'object' && 'num_nodes' in result.data) {
           const numNodes = (result.data as any).num_nodes;
           if (numNodes && numNodes > RAILWAY_MAX_NODES) {
+            console.log(`[Dropzone] Node limit exceeded on Railway: ${numNodes} > ${RAILWAY_MAX_NODES}`);
             isShowingModalRef.current = true;
+            setLoading(false);
             setShowNodeLimitModal(true);
             return;
           }
@@ -127,13 +141,25 @@ export default function Dropzone({
         
         log.info('File upload completed successfully', {
           component: 'Dropzone',
-          data: { filename: file.name, result }
+          data: { filename: file.name, result, uploadDuration }
         });
         
+        console.log(`[Dropzone] Upload successful, clearing loading and calling onUploadComplete`);
+        
+        // Clear loading state before navigating away
+        setLoading(false);
+        
+        // Small delay to ensure state updates before navigation
+        await new Promise(resolve => setTimeout(resolve, 50));
+        
         if (onUploadComplete) {
+          console.log(`[Dropzone] Calling onUploadComplete with:`, result.data);
           onUploadComplete(result.data);
+        } else {
+          console.warn('[Dropzone] onUploadComplete callback not provided');
         }
       } catch (err) {
+        console.error('[Dropzone] Upload error caught:', err);
         log.error('File upload failed', {
           component: 'Dropzone',
           error: err instanceof Error ? err : new Error(String(err)),
@@ -146,7 +172,7 @@ export default function Dropzone({
         // Check if this is a node limit error (check error message content, not frontend flag)
         // Backend might be in Railway mode even if frontend flag isn't set
         if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
-          console.log('Detected Railway node limit error, setting modal state');
+          console.log('[Dropzone] Detected Railway node limit error, setting modal state');
           isShowingModalRef.current = true;
           // Set modal state first (this persists in parent component across remounts)
           setShowNodeLimitModal(true);
@@ -156,18 +182,14 @@ export default function Dropzone({
         }
         
         // Show general error modal
+        console.log('[Dropzone] Showing error modal');
         isShowingModalRef.current = true;
         setErrorMessage(errorMessage);
         setShowErrorModal(true);
         // Set loading to false so parent renders Dropzone (modal needs component to be mounted)
         setLoading(false);
-      } finally {
-        // Only set loading to false if we're not showing a modal
-        // This prevents the parent from unmounting us while modals are showing
-        if (!isShowingModalRef.current) {
-          setLoading(false);
-        }
       }
+      // Removed finally block - we handle loading state explicitly in each path
     }
   };
 
@@ -236,6 +258,9 @@ export default function Dropzone({
         data: { originalFilename: file.name, newFilename: (updateResult.data as any).new_filename }
       });
 
+      // Clear loading state before calling callback
+      setLoading(false);
+      
       if (onUploadComplete) {
         console.log('Calling onUploadComplete with:', updateResult.data);
         onUploadComplete(updateResult.data);
