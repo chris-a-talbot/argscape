@@ -112,13 +112,13 @@ export default function InstallPage() {
     {
       number: 7,
       title: 'Launch ARGscape',
-      description: 'Start ARGscape:',
+      description: 'Start ARGscape. Note: The backend will take 1-5 minutes to initialize before the frontend becomes available.',
       code: 'argscape'
     },
     {
       number: 8,
       title: 'Open in browser',
-      description: 'ARGscape opens automatically at http://127.0.0.1:8000 on most platforms. Wait 2-3 minutes for startup then refresh if needed.'
+      description: 'ARGscape opens automatically at http://127.0.0.1:8000 on most platforms. Wait 1-5 minutes for the backend to fully load, then refresh the browser page if it doesn\'t load automatically.'
     }
   ];
 
@@ -251,6 +251,8 @@ export default function InstallPage() {
               <li>• Conda not found? Check PATH or use Anaconda Prompt (Windows)</li>
               <li>• Environment already exists? Remove it first: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env remove -n argscape_local</code>, then run step 4 again</li>
               <li>• Package conflicts? Try updating instead: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env update -f environment.yml --prune</code></li>
+              <li>• GDAL/geospatial errors? Ensure you're using conda (not pip) - the environment.yml handles all geospatial dependencies automatically</li>
+              <li>• Installation fails on Apple Silicon? Try using mamba: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">mamba env create -f environment.yml</code> (install mamba first: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda install mamba -n base -c conda-forge</code>)</li>
               <li>• Web interface not loading? Wait 2-3 minutes, then refresh</li>
             </ul>
           </div>

@@ -79,7 +79,13 @@ def cmd_list(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from argscape import __version__
     p = argparse.ArgumentParser(prog="argscape_load", description="Manage ARGscape session storage (load, list, rm, clear)")
+    p.add_argument(
+        "--version", action="version",
+        version=f"ARGscape {__version__}",
+        help="Show version number and exit"
+    )
     sub = p.add_subparsers(dest="command")
 
     p_load = sub.add_parser("load", help="Load a .trees file into storage")

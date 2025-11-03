@@ -4,6 +4,7 @@ import threading
 import time
 import argparse
 import os
+from argscape import __version__
 
 
 def open_browser(host: str, port: int):
@@ -45,6 +46,11 @@ def main():
     parser.add_argument(
         "--no-tsdate", action="store_true",
         help="Disable tsdate temporal inference"
+    )
+    parser.add_argument(
+        "--version", action="version",
+        version=f"ARGscape {__version__}",
+        help="Show version number and exit"
     )
     args = parser.parse_args()
 

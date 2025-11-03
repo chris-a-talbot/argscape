@@ -361,9 +361,15 @@ def cmd_interactive(_: argparse.Namespace) -> int:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    from argscape import __version__
     parser = argparse.ArgumentParser(
         prog="argscape_infer",
         description="Run ARGscape inference (spatial and temporal) from the command line.",
+    )
+    parser.add_argument(
+        "--version", action="version",
+        version=f"ARGscape {__version__}",
+        help="Show version number and exit"
     )
     subparsers = parser.add_subparsers(dest="command")
 
