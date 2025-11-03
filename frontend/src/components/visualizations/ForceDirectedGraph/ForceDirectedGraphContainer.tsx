@@ -178,6 +178,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         const clusteringParam = searchParams.get('clustering');
         return clusteringParam === 'true' ? 0.25 : 0.5; // 25% when enabled from URL/result page, 50% default
     });
+    const [clusteringMaxSampleClusterSize, setClusteringMaxSampleClusterSize] = useState(25);
     
     // Track if clustering has been initialized to avoid re-triggering on data changes
     // If clustering is enabled from URL, mark as initialized immediately since state is set correctly from the start
@@ -203,6 +204,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         densityIntensity: number;
         requireTemporalCompactness: boolean;
         temporalIntensity: number;
+        maxSampleClusterSize: number;
     } | null>(null);
 
     // Edge crossings tracking
@@ -239,7 +241,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         requireDensity: clusteringRequireDensity,
         densityIntensity: clusteringDensityIntensity,
         requireTemporalCompactness: clusteringRequireTemporalCompactness,
-        temporalIntensity: clusteringTemporalIntensity
+        temporalIntensity: clusteringTemporalIntensity,
+        maxSampleClusterSize: clusteringMaxSampleClusterSize
     });
 
     // Reset layout when clustering settings change to ensure proper sample/cluster placement
@@ -255,7 +258,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 requireDensity: clusteringRequireDensity,
                 densityIntensity: clusteringDensityIntensity,
                 requireTemporalCompactness: clusteringRequireTemporalCompactness,
-                temporalIntensity: clusteringTemporalIntensity
+                temporalIntensity: clusteringTemporalIntensity,
+                maxSampleClusterSize: clusteringMaxSampleClusterSize
             };
             return;
         }
@@ -267,7 +271,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             prev.requireDensity !== clusteringRequireDensity ||
             prev.densityIntensity !== clusteringDensityIntensity ||
             prev.requireTemporalCompactness !== clusteringRequireTemporalCompactness ||
-            prev.temporalIntensity !== clusteringTemporalIntensity;
+            prev.temporalIntensity !== clusteringTemporalIntensity ||
+            prev.maxSampleClusterSize !== clusteringMaxSampleClusterSize;
         
         if (hasChanged && data) {
             console.log('Clustering settings changed:', {
@@ -294,10 +299,11 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 requireDensity: clusteringRequireDensity,
                 densityIntensity: clusteringDensityIntensity,
                 requireTemporalCompactness: clusteringRequireTemporalCompactness,
-                temporalIntensity: clusteringTemporalIntensity
+                temporalIntensity: clusteringTemporalIntensity,
+                maxSampleClusterSize: clusteringMaxSampleClusterSize
             };
         }
-    }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringInitialized, data, sampleOrder]);
+    }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize, clusteringInitialized, data, sampleOrder]);
 
     // Debounce genomic range changes to prevent excessive API calls
     useEffect(() => {
@@ -850,10 +856,11 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 requireDensity: clusteringRequireDensity,
                 densityIntensity: clusteringDensityIntensity,
                 requireTemporalCompactness: clusteringRequireTemporalCompactness,
-                temporalIntensity: clusteringTemporalIntensity
+                temporalIntensity: clusteringTemporalIntensity,
+                maxSampleClusterSize: clusteringMaxSampleClusterSize
             });
         }
-    }, [viewMode, savedClusteringState, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity]);
+    }, [viewMode, savedClusteringState, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
     
     // Helper function to restore clustering state when returning to full view
     const restoreClusteringStateIfNeeded = useCallback(() => {
@@ -864,6 +871,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             setClusteringDensityIntensity(savedClusteringState.densityIntensity);
             setClusteringRequireTemporalCompactness(savedClusteringState.requireTemporalCompactness);
             setClusteringTemporalIntensity(savedClusteringState.temporalIntensity);
+            setClusteringMaxSampleClusterSize(savedClusteringState.maxSampleClusterSize);
             setSavedClusteringState(null);
         }
     }, [savedClusteringState]);
@@ -1376,6 +1384,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         clusteringDensityIntensity={clusteringDensityIntensity}
                         clusteringRequireTemporalCompactness={clusteringRequireTemporalCompactness}
                         clusteringTemporalIntensity={clusteringTemporalIntensity}
+                        clusteringMaxSampleClusterSize={clusteringMaxSampleClusterSize}
                     />
 
                     {temporalState.isActive && (
@@ -1556,6 +1565,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     onClusteringRequireTemporalCompactnessChange={setClusteringRequireTemporalCompactness}
                                     clusteringTemporalIntensity={clusteringTemporalIntensity}
                                     onClusteringTemporalIntensityChange={setClusteringTemporalIntensity}
+                                    clusteringMaxSampleClusterSize={clusteringMaxSampleClusterSize}
+                                    onClusteringMaxSampleClusterSizeChange={setClusteringMaxSampleClusterSize}
                                     nodeCount={data?.nodes.length}
                                     clusteredNodeCount={filteredData?.nodes.length}
                                 />

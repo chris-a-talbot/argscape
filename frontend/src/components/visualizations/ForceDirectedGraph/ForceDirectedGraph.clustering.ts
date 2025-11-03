@@ -568,7 +568,8 @@ export function createSampleClusters(
     originalNodes: GraphNode[],
     originalEdges: GraphEdge[],
     _sampleOrder: string,  // Keep parameter for API compatibility, but ignore it
-    originalParentMap?: Map<number, Set<number>>  // Optional: map from sample ID to original parent IDs before clustering
+    originalParentMap?: Map<number, Set<number>>,  // Optional: map from sample ID to original parent IDs before clustering
+    maxSampleClusterSize: number = 25  // Maximum number of samples per cluster (default: 25)
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
     const nodes = [...originalNodes];
     const edges = [...originalEdges];
@@ -615,9 +616,6 @@ export function createSampleClusters(
     const internalClusterNodes = nodes.filter(n => 
         n.is_cluster && !n.is_sample_cluster && !n.is_sample
     );
-    
-    // Create a set of cluster node IDs for fast lookup
-    const clusterNodeIds = new Set(internalClusterNodes.map(n => n.id));
     
     // Group samples by their internal cluster node parent
     // Map: clusterNodeId -> array of sample children
@@ -674,14 +672,14 @@ export function createSampleClusters(
         }
     }
     
-    // Convert map values to clusters array, handling max cluster size of 10
+    // Convert map values to clusters array, handling max cluster size
     const sampleClusters: GraphNode[][] = [];
     
     for (const cluster of clusterToSamplesMap.values()) {
-        if (cluster.length > 10) {
-            // Split large clusters into multiple clusters of max 10
-            for (let i = 0; i < cluster.length; i += 10) {
-                const subCluster = cluster.slice(i, Math.min(i + 10, cluster.length));
+        if (cluster.length > maxSampleClusterSize) {
+            // Split large clusters into multiple clusters of max size
+            for (let i = 0; i < cluster.length; i += maxSampleClusterSize) {
+                const subCluster = cluster.slice(i, Math.min(i + maxSampleClusterSize, cluster.length));
                 if (subCluster.length >= 3) {
                     sampleClusters.push(subCluster);
                 }

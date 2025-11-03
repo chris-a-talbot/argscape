@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { useUIPreferences } from '../../context/UIPreferencesContext';
 
 interface Particle {
   x: number;
@@ -16,13 +17,24 @@ interface MousePosition {
   active: boolean;
 }
 
-export default function ParticleBackground() {
+interface ParticleBackgroundProps {
+  forceShow?: boolean; // If true, always show regardless of preference
+}
+
+export default function ParticleBackground({ forceShow = false }: ParticleBackgroundProps) {
+  const { backgroundAnimationEnabled } = useUIPreferences();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationFrameRef = useRef<number | undefined>(undefined);
   const mouseRef = useRef<MousePosition>({ x: 0, y: 0, active: false });
 
+  // Determine if we should show the animation
+  const shouldShow = forceShow || backgroundAnimationEnabled;
+
   useEffect(() => {
+    // Don't run effect if animation shouldn't be shown
+    if (!shouldShow) return;
+
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -157,7 +169,12 @@ export default function ParticleBackground() {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, []);
+  }, [shouldShow]);
+
+  // Don't render if animation is disabled (unless forced to show)
+  if (!shouldShow) {
+    return null;
+  }
 
   return (
     <canvas

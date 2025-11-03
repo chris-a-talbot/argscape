@@ -5,6 +5,7 @@ import Footer from './components/layout/Footer';
 import { useState, useEffect } from 'react';
 import { TreeSequenceProvider } from './context/TreeSequenceContext';
 import { ColorThemeProvider } from './context/ColorThemeContext';
+import { UIPreferencesProvider } from './context/UIPreferencesContext';
 import SpatialArg3DVisualizationPage from './components/pages/SpatialArg3DVisualizationPage';
 import SpatialArgDiffVisualizationPage from './components/pages/SpatialArgDiffVisualizationPage';
 import IntroAnimation from './components/layout/IntroAnimation';
@@ -259,25 +260,27 @@ function App() {
 
   return (
     <ColorThemeProvider>
-      <TreeSequenceProvider>
-        <Router>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/upload" element={<Home />} />
-            <Route path="/simulate" element={<Home />} />
-            <Route path="/load" element={<Home />} />
-            <Route path="/install" element={<Layout><InstallPage /></Layout>} />
-            <Route path="/background-animation" element={<BackgroundAnimationPage />} />
-            <Route path="/graph/:filename" element={<ArgVisualizationPage />} />
-            <Route path="/spatial/:filename" element={<SpatialArg3DVisualizationPage />} />
-            <Route path="/spatial-diff/:filename" element={<SpatialArgDiffVisualizationPage />} />
-            <Route path="/result" element={<ResultPage />} />
-            <Route path="/tutorials" element={<Layout><TutorialsPage /></Layout>} />
-            <Route path="/tutorials/:lessonId" element={<Layout><LessonPage /></Layout>} />
-            <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
-          </Routes>
-        </Router>
-      </TreeSequenceProvider>
+      <UIPreferencesProvider>
+        <TreeSequenceProvider>
+          <Router>
+            <Routes>
+              <Route path="/" element={<Home />} />
+              <Route path="/upload" element={<Home />} />
+              <Route path="/simulate" element={<Home />} />
+              <Route path="/load" element={<Home />} />
+              <Route path="/install" element={<Layout><InstallPage /></Layout>} />
+              <Route path="/background-animation" element={<BackgroundAnimationPage />} />
+              <Route path="/graph/:filename" element={<ArgVisualizationPage />} />
+              <Route path="/spatial/:filename" element={<SpatialArg3DVisualizationPage />} />
+              <Route path="/spatial-diff/:filename" element={<SpatialArgDiffVisualizationPage />} />
+              <Route path="/result" element={<ResultPage />} />
+              <Route path="/tutorials" element={<Layout><TutorialsPage /></Layout>} />
+              <Route path="/tutorials/:lessonId" element={<Layout><LessonPage /></Layout>} />
+              <Route path="/docs" element={<Layout><DocsPage /></Layout>} />
+            </Routes>
+          </Router>
+        </TreeSequenceProvider>
+      </UIPreferencesProvider>
     </ColorThemeProvider>
   );
 }

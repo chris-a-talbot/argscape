@@ -25,6 +25,8 @@ interface ClusteringSectionProps {
   onClusteringRequireTemporalCompactnessChange: (enabled: boolean) => void;
   clusteringTemporalIntensity: number;
   onClusteringTemporalIntensityChange: (intensity: number) => void;
+  clusteringMaxSampleClusterSize: number;
+  onClusteringMaxSampleClusterSizeChange: (size: number) => void;
   nodeCount?: number;
   clusteredNodeCount?: number;
 }
@@ -42,6 +44,8 @@ export function ClusteringSection({
   onClusteringRequireTemporalCompactnessChange,
   clusteringTemporalIntensity,
   onClusteringTemporalIntensityChange,
+  clusteringMaxSampleClusterSize,
+  onClusteringMaxSampleClusterSizeChange,
   nodeCount,
   clusteredNodeCount
 }: ClusteringSectionProps) {
@@ -194,6 +198,17 @@ export function ClusteringSection({
                 </div>
               </div>
             )}
+
+            <SidebarSlider
+              label="Max Sample Cluster Size"
+              value={clusteringMaxSampleClusterSize}
+              min={5}
+              max={100}
+              step={1}
+              onChange={onClusteringMaxSampleClusterSizeChange}
+              tooltip="Maximum number of samples per sample cluster. Larger values allow bigger clusters (reduces clutter but may hide details)."
+              formatValue={(v) => `${Math.round(v)} samples`}
+            />
 
             {nodeCount && clusteredNodeCount && nodeCount !== clusteredNodeCount && (
               <SidebarInfoBox>

@@ -51,7 +51,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     clusteringRequireDensity = false,
     clusteringDensityIntensity = 0.5,
     clusteringRequireTemporalCompactness = true,
-    clusteringTemporalIntensity = 0.5
+    clusteringTemporalIntensity = 0.5,
+    clusteringMaxSampleClusterSize = 25
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors } = useColorTheme();
     
@@ -90,7 +91,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             requireTemporalCompactness: clusteringRequireTemporalCompactness,
             temporalIntensity: clusteringTemporalIntensity
         };
-    }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity]);
+    }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
     
     // Store current visualization state to preserve user movements and zoom
     const visualStateRef = useRef<{
@@ -420,7 +421,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 currentData.nodes as GraphNode[],
                 currentData.edges,
                 sampleOrder,  // Parameter kept for compatibility but ignored
-                originalParentMap  // Pass through original parent relationships
+                originalParentMap,  // Pass through original parent relationships
+                clusteringMaxSampleClusterSize  // Maximum samples per cluster
             );
             
             currentData = { 
@@ -434,7 +436,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         }
         
         return currentData;
-    }, [combinedData, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, sampleOrder]);
+    }, [combinedData, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize, sampleOrder]);
     
     // Track focal node changes to determine when auto-zoom should happen
     // Auto-zoom should only occur for structural changes:
@@ -1947,7 +1949,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     // clusteredData depends on combinedData, so only clusteredData is needed in dependencies
         // Update previous sample order after applying layout
         prevSampleOrderRef.current = sampleOrder;
-    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity]);
+    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
 
     // Effect to pause/resume simulation based on simulationPaused prop
     useEffect(() => {

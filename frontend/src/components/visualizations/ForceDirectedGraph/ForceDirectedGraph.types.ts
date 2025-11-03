@@ -187,6 +187,7 @@ export interface ForceDirectedGraphProps {
     clusteringDensityIntensity?: number;  // Intensity of density requirement (0=no effect, 1=max effect, default 0.5)
     clusteringRequireTemporalCompactness?: boolean;  // Require temporal compactness check (default: true)
     clusteringTemporalIntensity?: number;  // Intensity of temporal compactness (0=no effect, 1=max effect, default 0.5)
+    clusteringMaxSampleClusterSize?: number;  // Maximum number of samples per sample cluster (default: 25)
 } 
 
 // Add type for simulation
