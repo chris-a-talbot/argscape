@@ -12,7 +12,7 @@ import ParticleBackground from '../ui/ParticleBackground';
 import Footer from '../layout/Footer';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
 import { RangeSlider } from '../ui/range-slider';
-import { Tooltip } from '../ui/tooltip';
+import { Tooltip, GroupTooltip } from '../ui/tooltip';
 
 // Use the TreeSequenceData type from the context
 type TreeSequence = NonNullable<ReturnType<typeof useTreeSequence>['treeSequence']>;
@@ -109,8 +109,10 @@ function LocationInferenceDropdown({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [tooltipMethod, setTooltipMethod] = useState<LocationInferenceMethod | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState<{left?: string, right?: string, top?: string, bottom?: string, transform?: string, marginLeft?: string, marginRight?: string}>({});
   const [openUpward, setOpenUpward] = useState(false);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const tooltipRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
 
   // Filter and sort methods
   const availableMethods = locationInferenceMethods
@@ -136,6 +138,54 @@ function LocationInferenceDropdown({
       setIsOpen(newIsOpen);
     }
   };
+
+  // Calculate tooltip position with bounds checking
+  React.useLayoutEffect(() => {
+    if (!tooltipMethod || !isOpen) {
+      setTooltipPosition({});
+      return;
+    }
+
+    // Use requestAnimationFrame to ensure DOM is ready
+    requestAnimationFrame(() => {
+      const tooltipElement = tooltipRefs.current.get(tooltipMethod.id);
+      const parentElement = tooltipElement?.parentElement;
+      
+      if (!tooltipElement || !parentElement) return;
+
+      // Force a layout calculation
+      const originalDisplay = tooltipElement.style.display;
+      const originalVisibility = tooltipElement.style.visibility;
+      tooltipElement.style.visibility = 'hidden';
+      tooltipElement.style.display = 'block';
+      const tooltipRect = tooltipElement.getBoundingClientRect();
+      const parentRect = parentElement.getBoundingClientRect();
+      tooltipElement.style.display = originalDisplay;
+      tooltipElement.style.visibility = originalVisibility;
+      
+      const margin = 8;
+      const gap = 8;
+      
+      // Default: try to position to the left
+      const tooltipWidth = tooltipRect.width || 288; // w-72 = 18rem = 288px
+      const leftPosition = parentRect.left - tooltipWidth - gap;
+      
+      // Check if tooltip would go off left edge
+      if (leftPosition < margin) {
+        // Position to the right instead
+        setTooltipPosition({
+          left: '100%',
+          marginLeft: `${gap}px`
+        });
+      } else {
+        // Position to the left (default)
+        setTooltipPosition({
+          right: '100%',
+          marginRight: `${gap}px`
+        });
+      }
+    });
+  }, [tooltipMethod, isOpen]);
 
   return (
     <div className="relative group">
@@ -165,11 +215,10 @@ function LocationInferenceDropdown({
 
       {/* Hover Tooltip */}
       {!isOpen && (
-        <div className="hidden group-hover:block absolute z-[300] left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl pointer-events-none">
-          <p className="text-xs text-sp-white/80">
-            Infer ancestral locations for nodes in the ARG using spatial inference methods. Choose from multiple algorithms optimized for different scenarios and ARG sizes.
-          </p>
-        </div>
+        <GroupTooltip 
+          content="Infer ancestral locations for nodes in the ARG using spatial inference methods. Choose from multiple algorithms optimized for different scenarios and ARG sizes."
+          preferredPlacement="bottom"
+        />
       )}
 
       {/* Dropdown Menu */}
@@ -185,12 +234,14 @@ function LocationInferenceDropdown({
                 key={method.id}
                 className="relative group"
                 onMouseEnter={() => setTooltipMethod(method)}
-                onMouseLeave={(e) => {
-                  // Check if we're moving to the tooltip
-                  const tooltip = document.querySelector(`[data-tooltip-id="${method.id}"]`);
-                  if (tooltip && !tooltip.contains(e.relatedTarget as Node)) {
-                    setTooltipMethod(null);
-                  }
+                onMouseLeave={() => {
+                  // Small delay to allow moving to tooltip
+                  setTimeout(() => {
+                    const tooltip = tooltipRefs.current.get(method.id);
+                    if (tooltip && !tooltip.matches(':hover')) {
+                      setTooltipMethod(null);
+                    }
+                  }, 100);
                 }}
               >
                 <button
@@ -215,27 +266,42 @@ function LocationInferenceDropdown({
                 {/* Tooltip */}
                 {tooltipMethod?.id === method.id ? (() => {
                   const methodIndex = availableMethods.findIndex(m => m.id === method.id);
-                  let positioning = {};
+                  let verticalPositioning: { top?: string; bottom?: string; transform?: string } = {};
                   
                   if (methodIndex <= 1) {
                     // Top 2 methods: align tooltip top with entry top
-                    positioning = { top: '0' };
+                    verticalPositioning = { top: '0' };
                   } else if (methodIndex <= 3) {
                     // Middle 2 methods: center tooltip with entry
-                    positioning = { top: '50%', transform: 'translateY(-50%)' };
+                    verticalPositioning = { top: '50%', transform: 'translateY(-50%)' };
                   } else {
                     // Bottom 2 methods: align tooltip bottom with entry bottom
-                    positioning = { bottom: '0' };
+                    verticalPositioning = { bottom: '0' };
                   }
+                  
+                  // Merge vertical positioning with horizontal positioning from bounds checking
+                  const finalTransform = verticalPositioning.transform || tooltipPosition.transform || undefined;
                   
                   return (
                     <div 
-                      className="absolute z-[600] w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl"
-                      style={{
-                        right: '100%',
-                        marginRight: '8px',
-                        ...positioning
+                      ref={(el) => {
+                        if (el) {
+                          tooltipRefs.current.set(method.id, el);
+                        } else {
+                          tooltipRefs.current.delete(method.id);
+                        }
                       }}
+                      data-tooltip-id={method.id}
+                      className="absolute z-[9999] w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl pointer-events-auto"
+                      style={{
+                        ...tooltipPosition,
+                        ...verticalPositioning,
+                        transform: finalTransform,
+                        marginRight: tooltipPosition.marginRight,
+                        marginLeft: tooltipPosition.marginLeft
+                      }}
+                      onMouseEnter={() => setTooltipMethod(method)}
+                      onMouseLeave={() => setTooltipMethod(null)}
                     >
                     <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
                     <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
@@ -1211,9 +1277,6 @@ export default function ResultPage() {
     };
   };
 
-  // Determine button states based on backend data
-  const inferTimesEnabled = !data?.has_temporal;
-  
   // Fast location inference is available for:
   // 1. ARGs with spatial info for samples but not all nodes (sample_only)
   // 2. ARGs with spatial info for all nodes (all) - for re-inference
@@ -1385,23 +1448,6 @@ export default function ResultPage() {
       log.nav('result', 'landing');
       navigate('/', { state: { fromInternal: true } });
     }
-  };
-
-  const getBackButtonText = () => {
-    const fromIntermediate = location.state?.fromIntermediate;
-    if (fromIntermediate) {
-      switch (fromIntermediate) {
-        case 'upload':
-          return 'Back to Upload';
-        case 'simulate':
-          return 'Back to Simulate';
-        case 'load':
-          return 'Back to options';
-        default:
-          return 'Back';
-      }
-    }
-    return 'Back';
   };
 
   // Modify the Analysis Tools section to use the new dropdown
@@ -1925,6 +1971,31 @@ export default function ResultPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Large Tree Sequence Warning */}
+                {data.num_nodes >= 1500 && (
+                  <div className="bg-yellow-900/20 border border-yellow-500/40 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-yellow-400 mb-2">Large Tree Sequence Detected</h4>
+                        <div className="text-sm text-yellow-200/90 space-y-1.5">
+                          <p>
+                            <strong>Inference Methods:</strong> Spatial and temporal inference methods may vary in speed, and may take up to several hours to complete on large ARGs.
+                          </p>
+                          <p>
+                            <strong>2D Visualization:</strong> Works best for tree sequences/selections of 3,000 total nodes or fewer; larger files may result in long wait times or crash the browser window.
+                          </p>
+                          <p>
+                            <strong>3D Visualizations:</strong> Work best for tree sequences/selections of 10,000 total nodes or fewer; larger files should load, but may take a long time to process before rendering.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Tree Sequence Modification Section */}
                 <CollapsibleSection
@@ -1954,11 +2025,10 @@ export default function ResultPage() {
                         {isSimplifying ? 'Processing...' : 'Simplify Tree Sequence'}
                       </button>
                       {/* Hover Tooltip */}
-                      <div className="hidden group-hover:block absolute z-[300] left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl pointer-events-none">
-                        <p className="text-xs text-sp-white/80">
-                          Simplify the tree sequence by retaining only specific samples or nodes using tskit simplify.
-                        </p>
-                      </div>
+                      <GroupTooltip 
+                        content="Simplify the tree sequence by retaining only specific samples or nodes using tskit simplify."
+                        preferredPlacement="bottom"
+                      />
                     </div>
 
                     {/* Inference Tools */}
@@ -1980,14 +2050,12 @@ export default function ResultPage() {
                           </svg>
                           {isInferringTimes ? 'Inferring...' : 'Infer Ages (tsdate)'}
                         </button>
-                        {/* Hover Tooltip */}
-                        <div className="hidden group-hover:block absolute z-[300] left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl pointer-events-none">
-                          <p className="text-xs text-sp-white/80">
-                            {!hasMutations 
-                              ? "Requires mutations in the tree sequence to infer ages." 
-                              : "Infer node ages using tsdate, a Bayesian method that estimates times of ancestral nodes based on mutation patterns."}
-                          </p>
-                        </div>
+                        <GroupTooltip 
+                          content={!hasMutations 
+                            ? "Requires mutations in the tree sequence to infer ages." 
+                            : "Infer node ages using tsdate, a Bayesian method that estimates times of ancestral nodes based on mutation patterns."}
+                          preferredPlacement="bottom"
+                        />
                       </div>
                       <LocationInferenceDropdown
                         selectedMethod={selectedInferenceMethod}
@@ -2050,7 +2118,10 @@ export default function ResultPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
                         </div>
-                        <h4 className="font-medium text-sp-white text-sm" title="Filter nodes and edges by time">Temporal Range</h4>
+                        <h4 className="font-medium text-sp-white text-sm flex items-center gap-2">
+                          Temporal Range
+                          <Tooltip content="Filter nodes and edges by time range. Only nodes within the specified time range will be displayed in the visualization. This can significantly improve performance for large ARGs by reducing the number of nodes and edges rendered." />
+                        </h4>
                       </div>
                       <div className="mb-3">
                         <span className="text-xs text-sp-white/60">
@@ -2119,7 +2190,10 @@ export default function ResultPage() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                           </svg>
                         </div>
-                        <h4 className="font-medium text-sp-white text-sm" title="Filter by genomic position or tree index">Genomic Range</h4>
+                        <h4 className="font-medium text-sp-white text-sm flex items-center gap-2">
+                          Genomic Range
+                          <Tooltip content="Filter by genomic position (base pairs) or tree index. When using base pairs, only trees overlapping the specified genomic region will be shown. When using tree indices, only trees within the specified index range will be displayed. This helps focus on specific regions of the genome or reduce the number of trees for better performance." />
+                        </h4>
                         <select
                           value={genomicMode}
                           onChange={(e) => {
@@ -2213,19 +2287,18 @@ export default function ResultPage() {
                           onChange={(e) => setEnableClustering(e.target.checked)}
                           className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
                         />
-                        <label htmlFor="enable-clustering" className="text-sm text-sp-white font-medium cursor-pointer">
+                        <label htmlFor="enable-clustering" className="text-sm text-sp-white font-medium cursor-pointer flex items-center gap-1.5">
                           Enable Clustering (ARG Performance)
+                          <Tooltip 
+                            content={
+                              <>
+                                <strong className="text-sp-pale-green">⚠️ Beta Feature</strong><br/>
+                                Condense dense subtrees into cluster nodes for better performance with large ARGs. Auto-enabled for graphs with &gt;250 nodes. Click cluster nodes to expand and explore details.<br/><br/>
+                                <em className="text-sp-white/60">Note: This is a testing feature and may cause unexpected results.</em>
+                              </>
+                            }
+                          />
                         </label>
-                      </div>
-                      <div className="group relative">
-                        <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
-                          <strong className="text-sp-pale-green">⚠️ Beta Feature</strong><br/>
-                          Condense dense subtrees into cluster nodes for better performance with large ARGs. Auto-enabled for graphs with &gt;250 nodes. Click cluster nodes to expand and explore details.<br/><br/>
-                          <em className="text-sp-white/60">Note: This is a testing feature and may cause unexpected results.</em>
-                        </div>
                       </div>
                     </div>
 
@@ -2240,24 +2313,20 @@ export default function ResultPage() {
                             onChange={(e) => setHeatmapOnlyMode(e.target.checked)}
                             className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
                           />
-                          <label htmlFor="heatmap-only-mode" className="text-sm text-sp-white font-medium cursor-pointer">
+                          <label htmlFor="heatmap-only-mode" className="text-sm text-sp-white font-medium cursor-pointer flex items-center gap-1.5">
                             Start in Heatmap-Only Mode
+                            <Tooltip content="Load spatial visualizations with only the heatmap visible. Nodes and edges remain hidden to improve performance for large ARGs. You can enable them later from the sidebar if needed." />
                           </label>
-                        </div>
-                        <div className="group relative">
-                          <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-72 p-3 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
-                            Load spatial visualizations with only the heatmap visible. Nodes and edges remain hidden to improve performance for large ARGs. You can enable them later from the sidebar if needed.
-                          </div>
                         </div>
                       </div>
                     )}
                   </div>
 
                   {/* Launch Buttons */}
-                  <h4 className="font-medium text-sp-white text-sm mb-3">Launch Visualization</h4>
+                  <h4 className="font-medium text-sp-white text-sm mb-3 flex items-center gap-2">
+                    Launch Visualization
+                    <Tooltip content="Choose a visualization type: Visualize ARG (interactive D3 force-directed graph), Spatial ARG (3D visualization with spatial coordinates), or Spatial Diff (compare spatial coordinates between two tree sequences). Each visualization type supports different features and is optimized for different use cases." />
+                  </h4>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}

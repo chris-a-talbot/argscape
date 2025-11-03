@@ -142,6 +142,32 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     // Opacity for dimmed (out-of-range) elements during temporal filtering (0.0 - 0.99)
     const [temporalDimOpacity, setTemporalDimOpacity] = useState<number>(0.05);
 
+    // Genomic filter mode: 'subset' (filter via API) or 'dim' (highlight by dimming)
+    const [genomicFilterMode, setGenomicFilterMode] = useState<'subset' | 'dim'>('dim');
+    // Opacity for dimmed (out-of-range) elements during genomic filtering (0.0 - 0.99)
+    const [genomicDimOpacity, setGenomicDimOpacity] = useState<number>(0.30);
+    
+    // Tree filter mode: 'subset' (filter via API) or 'dim' (highlight by dimming)
+    const [treeFilterMode, setTreeFilterMode] = useState<'subset' | 'dim'>('dim');
+    // Opacity for dimmed (out-of-range) elements during tree filtering (0.0 - 0.99)
+    const [treeDimOpacity, setTreeDimOpacity] = useState<number>(0.30);
+    
+    // Cache for full graph data (before any subsetting) - keyed by filename, sampleOrder, max_samples
+    // Use ref to avoid dependency issues that cause infinite loops
+    const fullGraphCacheRef = useRef<{
+        data: GraphData;
+        key: string; // `${filename}-${sampleOrder}-${max_samples}`
+    } | null>(null);
+    const [fullGraphCache, setFullGraphCache] = useState<{
+        data: GraphData;
+        key: string;
+    } | null>(null);
+    
+    // Keep ref in sync with state
+    useEffect(() => {
+        fullGraphCacheRef.current = fullGraphCache;
+    }, [fullGraphCache]);
+
     // Layer reveal state
     const [layerReveal, setLayerReveal] = useState<{
         isPlaying: boolean;
@@ -343,7 +369,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         const timer = setTimeout(() => {
             setDebouncedGenomicRange(genomicRange);
             setIsUpdatingGenomicRange(false);
-        }, 500); // Increased from 300ms to 500ms for better performance
+        }, 750); // Increased to 750ms to prevent rapid-fire API calls during slider movement
 
         return () => clearTimeout(timer);
     }, [genomicRange, isFilterActive, filterMode]);
@@ -357,7 +383,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         const timer = setTimeout(() => {
             setDebouncedTreeRange(treeRange);
             setIsUpdatingTreeRange(false);
-        }, 500);
+        }, 750); // Increased to 750ms to prevent rapid-fire API calls during slider movement
 
         return () => clearTimeout(timer);
     }, [treeRange, isFilterActive, filterMode]);
@@ -618,6 +644,17 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                     filename
                 });
                 
+                // Cache full graph data if this is full data (not a subset from URL parameters)
+                const isFullData = !genomicStart && !genomicEnd && !treeStartIdx && !treeEndIdx;
+                if (isFullData) {
+                    const cacheKey = `${filename}-${currentSampleOrder}-${max_samples}`;
+                    console.log('Caching initial full graph data');
+                    setFullGraphCache({
+                        data: graphData,
+                        key: cacheKey
+                    });
+                }
+                
                 setIsInitialized(true);
                 setData(graphData);
                 setSubArgData(graphData); // Store SubARG data (what was loaded with max_samples)
@@ -642,6 +679,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         setWasAutoEnabled(false); // Reset auto-enablement tracking
         isOptimizingSampleOrderRef.current = false; // Reset optimization flag
         setIsOptimizingSampleOrder(false); // Reset optimization loading state
+        fullGraphCacheRef.current = null; // Clear cache ref when filename or max_samples change
+        setFullGraphCache(null); // Clear cache state when filename or max_samples change
         // Reset clustering initialized flag when starting fresh (but preserve if clustering was set from URL)
         // Note: clusteringEnabled is read inside the effect, not from dependencies, to use current state value
         const currentClusteringEnabled = searchParams.get('clustering') === 'true';
@@ -661,40 +700,89 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             return;
         }
 
+        // Create cache key for current configuration
+        const cacheKey = `${filename}-${sampleOrder}-${max_samples}`;
+        
         // Determine if we need to make an API call
         let needsApiCall = false;
         let genomicParams = null;
         let treeParams = null;
+        let isRequestingFullData = false;
 
         if (isFilterActive) {
             if (filterMode === 'genomic') {
-                // Check if genomic range covers the full sequence
-                const isFullSequence = debouncedGenomicRange[0] === 0 && debouncedGenomicRange[1] === sequenceLength;
-                if (!isFullSequence) {
-                    needsApiCall = true;
-                    genomicParams = {
-                        genomic_start: debouncedGenomicRange[0],
-                        genomic_end: debouncedGenomicRange[1]
-                    };
+                // In 'dim' mode, don't make API calls - we'll dim elements client-side
+                if (genomicFilterMode === 'dim') {
+                    // Skip API call, we'll handle dimming in the visualization
+                    needsApiCall = false;
+                } else {
+                    // Check if genomic range covers the full sequence
+                    const isFullSequence = debouncedGenomicRange[0] === 0 && debouncedGenomicRange[1] === sequenceLength;
+                    if (!isFullSequence) {
+                        needsApiCall = true;
+                        genomicParams = {
+                            genomic_start: debouncedGenomicRange[0],
+                            genomic_end: debouncedGenomicRange[1]
+                        };
+                    } else {
+                        // Expanding to full range - check cache first
+                        isRequestingFullData = true;
+                    }
                 }
             } else if (filterMode === 'tree') {
-                // Check if tree range covers all trees
-                const isFullTreeRange = debouncedTreeRange[0] === 0 && debouncedTreeRange[1] === treeIntervals.length - 1;
-                if (!isFullTreeRange && treeIntervals.length > 0) {
-                    needsApiCall = true;
-                    treeParams = {
-                        tree_start_idx: debouncedTreeRange[0],
-                        tree_end_idx: debouncedTreeRange[1]
-                    };
+                // In 'dim' mode, don't make API calls - we'll dim elements client-side
+                if (treeFilterMode === 'dim') {
+                    // Skip API call, we'll handle dimming in the visualization
+                    needsApiCall = false;
+                } else {
+                    // Check if tree range covers all trees
+                    const isFullTreeRange = debouncedTreeRange[0] === 0 && debouncedTreeRange[1] === treeIntervals.length - 1;
+                    if (!isFullTreeRange && treeIntervals.length > 0) {
+                        needsApiCall = true;
+                        treeParams = {
+                            tree_start_idx: debouncedTreeRange[0],
+                            tree_end_idx: debouncedTreeRange[1]
+                        };
+                    } else {
+                        // Expanding to full range - check cache first
+                        isRequestingFullData = true;
+                    }
                 }
             }
+        } else {
+            // No filter active - requesting full data
+            isRequestingFullData = true;
         }
 
-        // Always make API call if sample order has changed, regardless of filter state
-        if (!needsApiCall) {
+        // When switching to 'dim' mode, we need to restore full graph from cache if we have subset data
+        if (!needsApiCall && !isRequestingFullData) {
+            // Check if we're in 'dim' mode and have subset data that needs to be restored
+            const isDimMode = (filterMode === 'genomic' && genomicFilterMode === 'dim') || 
+                             (filterMode === 'tree' && treeFilterMode === 'dim');
+            const cachedFullData = fullGraphCacheRef.current;
+            
+            if (isDimMode && cachedFullData && cachedFullData.key === cacheKey) {
+                // Check if current data is a subset (has fewer nodes/edges than cached full data)
+                const currentData = data;
+                if (currentData && (
+                    currentData.nodes.length < cachedFullData.data.nodes.length ||
+                    currentData.edges.length < cachedFullData.data.edges.length ||
+                    currentData.metadata.is_subset === true
+                )) {
+                    console.log('Switching to dim mode - restoring full graph from cache');
+                    // Restore full graph from cache
+                    const timeoutId = setTimeout(() => {
+                        setData(cachedFullData.data);
+                        setError(null);
+                    }, 150);
+                    return () => clearTimeout(timeoutId);
+                }
+            }
+            
             // Check if we have data and the sample order in metadata matches current selection
             if (!data || data.metadata.sample_order !== sampleOrder) {
                 needsApiCall = true;
+                isRequestingFullData = true; // Sample order change means we need full data
                 console.log('Making API call due to sample order change');
             } else {
                 console.log('Skipping API call - using existing data (full range or filter disabled)');
@@ -702,9 +790,38 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             }
         }
 
+        // Check cache for full data if we're requesting full data
+        // Use ref to check cache without causing dependency issues
+        const cachedFullData = fullGraphCacheRef.current;
+        if (isRequestingFullData && !needsApiCall && cachedFullData && cachedFullData.key === cacheKey) {
+            // Check if data is already set to cached data to prevent loops
+            const currentData = data;
+            const isAlreadyCached = currentData && 
+                currentData.nodes.length === cachedFullData.data.nodes.length &&
+                currentData.edges.length === cachedFullData.data.edges.length &&
+                currentData.metadata.sequence_length === cachedFullData.data.metadata.sequence_length;
+            
+            if (!isAlreadyCached) {
+                console.log('Restoring full graph from cache');
+                // Use setTimeout to delay the state update and prevent immediate re-trigger
+                const timeoutId = setTimeout(() => {
+                    setData(cachedFullData.data);
+                    setError(null);
+                }, 150); // Small delay to prevent loop
+                
+                // Return cleanup function to cancel timeout if effect re-runs
+                return () => clearTimeout(timeoutId);
+            }
+            return;
+        }
+
         const fetchData = async () => {
             try {
                 setLoading(true);
+                
+                // Before fetching a subset, cache current full data if it exists
+                // We can't safely read data here since it's not in dependencies, so we skip this
+                // The cache will be populated when we fetch full data
                 
                 let options: any = { maxSamples: max_samples, sampleOrder };
                 
@@ -738,6 +855,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 const graphData = response.data as GraphData;
                 console.log('Received graph data:', graphData);
                 
+                // Cache full data if we just fetched it (no genomic/tree filtering)
+                if (!genomicParams && !treeParams && 
+                    !genomicStart && !genomicEnd && 
+                    !treeStartIdx && !treeEndIdx) {
+                    console.log('Caching full graph data');
+                    const cacheEntry = {
+                        data: graphData,
+                        key: cacheKey
+                    };
+                    fullGraphCacheRef.current = cacheEntry;
+                    setFullGraphCache(cacheEntry);
+                }
+                
                 setData(graphData);
                 setError(null);
             } catch (e) {
@@ -750,7 +880,10 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         };
 
         fetchData();
-    }, [filename, max_samples, debouncedGenomicRange, debouncedTreeRange, isFilterActive, filterMode, isInitialized, sequenceLength, treeIntervals, sampleOrder]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [filename, max_samples, debouncedGenomicRange, debouncedTreeRange, isFilterActive, filterMode, genomicFilterMode, treeFilterMode, isInitialized, sequenceLength, treeIntervals, sampleOrder]);
+        // Note: We intentionally exclude fullGraphCache and data from dependencies to prevent infinite loops
+        // The cache is checked inside the effect using the current state values
 
     // Auto-collapse filter section when filters are inactive, but only on initialization
     useEffect(() => {
@@ -1335,7 +1468,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     {isFilterActive && treeIntervals.length > 0 && (
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
-                                                Genomic Mode:
+                                                Filter Mode:
                                             </span>
                                             <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
                                                 <button
@@ -1368,6 +1501,85 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                                 </button>
                                             </div>
                                         </div>
+                                    )}
+                                    {/* Filter behavior mode selection */}
+                                    {isFilterActive && (
+                                        <>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+                                                    Behavior:
+                                                </span>
+                                                <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (filterMode === 'genomic') {
+                                                                setGenomicFilterMode('subset');
+                                                            } else {
+                                                                setTreeFilterMode('subset');
+                                                            }
+                                                        }}
+                                                        className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                            (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' 
+                                                                ? '' 
+                                                                : 'hover:opacity-80'
+                                                        }`}
+                                                        style={{
+                                                            backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.accentPrimary : colors.containerBackground,
+                                                            color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.background : colors.text
+                                                        }}
+                                                    >
+                                                        Hide Others
+                                                    </button>
+                                                    <button
+                                                        onClick={() => {
+                                                            if (filterMode === 'genomic') {
+                                                                setGenomicFilterMode('dim');
+                                                            } else {
+                                                                setTreeFilterMode('dim');
+                                                            }
+                                                        }}
+                                                        className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                            (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' 
+                                                                ? '' 
+                                                                : 'hover:opacity-80'
+                                                        }`}
+                                                        style={{
+                                                            backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.accentPrimary : colors.containerBackground,
+                                                            color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.background : colors.text
+                                                        }}
+                                                    >
+                                                        Dim Others
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {(filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' && (
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+                                                        Dim Opacity:
+                                                    </span>
+                                                    <input
+                                                        type="range"
+                                                        min="0"
+                                                        max="0.99"
+                                                        step="0.01"
+                                                        value={filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity}
+                                                        onChange={(e) => {
+                                                            const value = Math.max(0, Math.min(0.99, parseFloat(e.target.value)));
+                                                            if (filterMode === 'genomic') {
+                                                                setGenomicDimOpacity(value);
+                                                            } else {
+                                                                setTreeDimOpacity(value);
+                                                            }
+                                                        }}
+                                                        className="flex-1"
+                                                        style={{ maxWidth: '150px' }}
+                                                    />
+                                                    <span className="text-xs whitespace-nowrap" style={{ color: colors.text, minWidth: '40px' }}>
+                                                        {Math.round((filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity) * 100)}%
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </>
                                     )}
                                 </div>
 
@@ -1407,10 +1619,17 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                             ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
                                                 <span>
                                                     Trees {treeRange[0]}-{treeRange[1]} ({treeRange[1] - treeRange[0] + 1} of {treeIntervals.length})
-                                                    {data?.metadata.num_local_trees !== undefined && (
-                                                        <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
-                                                    )}
-                                                    {data?.metadata.tree_count_mismatch && (
+                                                    {(() => {
+                                                        // In 'dim' mode, calculate expected count from treeRange
+                                                        // In 'subset' mode, use metadata from API response
+                                                        const expectedCount = treeFilterMode === 'dim' 
+                                                            ? treeRange[1] - treeRange[0] + 1
+                                                            : (data?.metadata.expected_tree_count ?? data?.metadata.num_local_trees);
+                                                        return expectedCount !== undefined ? (
+                                                            <> • {expectedCount} displayed</>
+                                                        ) : null;
+                                                    })()}
+                                                    {data?.metadata.tree_count_mismatch && treeFilterMode === 'subset' && (
                                                         <> ⚠️ (actual: {data.metadata.num_local_trees})</>
                                                     )}
                                                 </span>
@@ -1487,6 +1706,11 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         sampleSpacing={visualSampleSpacing}
                         temporalRange={temporalState.isActive ? temporalState.range : undefined}
                             temporalDimOpacity={temporalDimOpacity}
+                        genomicRange={isFilterActive && filterMode === 'genomic' && genomicFilterMode === 'dim' ? genomicRange : undefined}
+                        genomicDimOpacity={genomicDimOpacity}
+                        treeRange={isFilterActive && filterMode === 'tree' && treeFilterMode === 'dim' ? treeRange : undefined}
+                        treeIntervals={isFilterActive && filterMode === 'tree' && treeFilterMode === 'dim' ? treeIntervals : undefined}
+                        treeDimOpacity={treeDimOpacity}
                         simulationPaused={layerReveal.simulationPaused || manualSimulationPaused || temporalState.isActive}
                         unpinTrigger={unpinTrigger}
                         onEdgeCrossingsChange={handleEdgeCrossingsChange}

@@ -1,9 +1,16 @@
-import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useRef, useLayoutEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
 interface TooltipProps {
-  content: string;
+  content: string | React.ReactNode;
   className?: string;
+}
+
+interface GroupTooltipProps {
+  content: string | React.ReactNode;
+  className?: string;
+  preferredPlacement?: 'top' | 'bottom' | 'left' | 'right';
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => {
@@ -78,11 +85,24 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
 
   useLayoutEffect(() => {
     if (!isVisible) return;
-    computePosition();
-    const handler = () => computePosition();
+    
+    // Small delay to ensure DOM has settled after layout changes (e.g., collapsible sections)
+    const timeoutId = setTimeout(() => {
+      computePosition();
+    }, 0);
+    
+    const handler = () => {
+      // Use requestAnimationFrame to ensure we calculate after layout
+      requestAnimationFrame(() => {
+        computePosition();
+      });
+    };
+    
     window.addEventListener('resize', handler);
     window.addEventListener('scroll', handler, true);
+    
     return () => {
+      clearTimeout(timeoutId);
       window.removeEventListener('resize', handler);
       window.removeEventListener('scroll', handler, true);
     };
@@ -111,10 +131,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
         </svg>
       </button>
       
-      {isVisible && (
+      {isVisible && typeof document !== 'undefined' && createPortal(
         <div
           ref={tooltipRef}
-          className="fixed z-[9999] pointer-events-none -translate-y-1/2"
+          className="fixed z-[9999] pointer-events-none"
           style={{ 
             minWidth: '250px',
             maxWidth: '350px',
@@ -182,8 +202,317 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
               }}
             />
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
+  );
+};
+
+// Group hover tooltip component with bounds checking
+export const GroupTooltip: React.FC<GroupTooltipProps> = ({ 
+  content, 
+  className = "",
+  preferredPlacement = 'bottom'
+}) => {
+  const { colors } = useColorTheme();
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const placeholderRef = useRef<HTMLDivElement>(null);
+  const groupRef = useRef<HTMLElement | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [position, setPosition] = useState<{
+    left?: string | number;
+    right?: string | number;
+    top?: string | number;
+    bottom?: string | number;
+    transform?: string;
+    marginTop?: string;
+    marginBottom?: string;
+    marginLeft?: string;
+    marginRight?: string;
+    position?: 'fixed' | 'absolute';
+  }>({});
+
+  // Find the group element and set up hover handlers
+  useLayoutEffect(() => {
+    // Find the parent container with 'group' class (the actual trigger element)
+    const findGroupElement = () => {
+      const placeholder = placeholderRef.current;
+      if (!placeholder) return null;
+      
+      let container: HTMLElement | null = placeholder.parentElement;
+      while (container && !container.classList.contains('group')) {
+        container = container.parentElement;
+      }
+      if (container) {
+        groupRef.current = container;
+        return container;
+      }
+      return null;
+    };
+
+    // Try to find group element, with retry if not immediately available
+    let cleanup: (() => void) | null = null;
+
+    const setupHandlers = () => {
+      const group = findGroupElement();
+      if (group && !cleanup) {
+        const handleMouseEnter = () => {
+          setIsVisible(true);
+        };
+
+        const handleMouseLeave = () => {
+          setIsVisible(false);
+        };
+
+        group.addEventListener('mouseenter', handleMouseEnter);
+        group.addEventListener('mouseleave', handleMouseLeave);
+
+        cleanup = () => {
+          group.removeEventListener('mouseenter', handleMouseEnter);
+          group.removeEventListener('mouseleave', handleMouseLeave);
+        };
+      }
+    };
+
+    // Try immediately
+    setupHandlers();
+    
+    // Retry after a short delay if not found
+    const timeoutId = setTimeout(() => {
+      setupHandlers();
+    }, 0);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isVisible) return;
+
+    const updatePosition = () => {
+      const tooltip = tooltipRef.current;
+      const container = groupRef.current;
+      if (!tooltip || !container) return;
+
+      // Temporarily show to measure dimensions
+      const wasVisible = window.getComputedStyle(tooltip).display !== 'none';
+      if (!wasVisible) {
+        tooltip.style.display = 'block';
+        tooltip.style.visibility = 'hidden';
+        tooltip.style.position = 'fixed';
+        tooltip.style.left = '0';
+        tooltip.style.top = '0';
+      }
+
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      
+      if (!wasVisible) {
+        tooltip.style.display = '';
+        tooltip.style.visibility = '';
+        tooltip.style.position = '';
+        tooltip.style.left = '';
+        tooltip.style.top = '';
+      }
+
+      const viewportW = window.innerWidth;
+      const viewportH = window.innerHeight;
+      const margin = 8;
+      const gap = 8; // Gap between tooltip and trigger (matches Tooltip component)
+      const tooltipWidth = tooltipRect.width || 288;
+      const tooltipHeight = tooltipRect.height || 100;
+
+      // Use fixed positioning like the Tooltip component - position relative to viewport
+      let positionStyle: typeof position = {
+        position: 'fixed'
+      };
+
+      // Simple positioning: use preferred placement, position relative to container's viewport position
+      if (preferredPlacement === 'bottom') {
+        // Position below container, centered horizontally
+        let left = containerRect.left + containerRect.width / 2 - tooltipWidth / 2;
+        let top = containerRect.bottom + gap;
+        
+        // Check bounds and adjust
+        if (left < margin) {
+          left = margin;
+        } else if (left + tooltipWidth > viewportW - margin) {
+          left = viewportW - tooltipWidth - margin;
+        }
+        
+        if (top + tooltipHeight > viewportH - margin) {
+          // Not enough space below, try above
+          top = containerRect.top - tooltipHeight - gap;
+        }
+        
+        positionStyle.left = `${left}px`;
+        positionStyle.top = `${Math.max(margin, top)}px`;
+      } else if (preferredPlacement === 'top') {
+        // Position above container, centered horizontally
+        let left = containerRect.left + containerRect.width / 2 - tooltipWidth / 2;
+        let top = containerRect.top - tooltipHeight - gap;
+        
+        // Check bounds
+        if (left < margin) {
+          left = margin;
+        } else if (left + tooltipWidth > viewportW - margin) {
+          left = viewportW - tooltipWidth - margin;
+        }
+        
+        if (top < margin) {
+          // Not enough space above, try below
+          top = containerRect.bottom + gap;
+        }
+        
+        positionStyle.left = `${left}px`;
+        positionStyle.top = `${Math.max(margin, top)}px`;
+      } else if (preferredPlacement === 'right') {
+        // Position to the right of container, centered vertically
+        let left = containerRect.right + gap;
+        let top = containerRect.top + containerRect.height / 2 - tooltipHeight / 2;
+        
+        // Check bounds
+        if (left + tooltipWidth > viewportW - margin) {
+          left = containerRect.left - tooltipWidth - gap;
+        }
+        if (top < margin) {
+          top = margin;
+        } else if (top + tooltipHeight > viewportH - margin) {
+          top = viewportH - tooltipHeight - margin;
+        }
+        
+        positionStyle.left = `${Math.max(margin, left)}px`;
+        positionStyle.top = `${top}px`;
+      } else {
+        // preferredPlacement === 'left'
+        // Position to the left of container, centered vertically
+        let left = containerRect.left - tooltipWidth - gap;
+        let top = containerRect.top + containerRect.height / 2 - tooltipHeight / 2;
+        
+        // Check bounds
+        if (left < margin) {
+          left = containerRect.right + gap;
+        }
+        if (top < margin) {
+          top = margin;
+        } else if (top + tooltipHeight > viewportH - margin) {
+          top = viewportH - tooltipHeight - margin;
+        }
+        
+        positionStyle.left = `${Math.max(margin, left)}px`;
+        positionStyle.top = `${top}px`;
+      }
+      
+      setPosition(positionStyle);
+    };
+
+    // Use ResizeObserver to detect size and position changes
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(updatePosition);
+    });
+    
+    // Observe tooltip and find container to observe
+    const setupObservers = () => {
+      const tooltip = tooltipRef.current;
+      if (!tooltip) return;
+      
+      resizeObserver.observe(tooltip);
+      
+      // Find and observe the container element
+      let container: HTMLElement | null = tooltip.parentElement;
+      while (container && !container.classList.contains('group')) {
+        container = container.parentElement;
+      }
+      if (!container) {
+        container = tooltip.parentElement;
+      }
+      if (container) {
+        resizeObserver.observe(container);
+        // Also observe all ancestor containers for position changes
+        let ancestor = container.parentElement;
+        while (ancestor && ancestor !== document.body) {
+          resizeObserver.observe(ancestor);
+          ancestor = ancestor.parentElement;
+        }
+      }
+    };
+
+    setupObservers();
+
+    // Use MutationObserver to detect when tooltip becomes visible via group-hover
+    const mutationObserver = new MutationObserver(() => {
+      requestAnimationFrame(() => {
+        updatePosition();
+        setupObservers(); // Re-setup observers in case DOM changed
+      });
+    });
+    
+    if (tooltipRef.current) {
+      mutationObserver.observe(tooltipRef.current, { 
+        attributes: true, 
+        attributeFilter: ['class']
+      });
+      // Also observe parent containers
+      let container = tooltipRef.current.parentElement;
+      while (container && container !== document.body) {
+        mutationObserver.observe(container, { 
+          attributes: true, 
+          attributeFilter: ['class']
+        });
+        container = container.parentElement;
+      }
+    }
+
+    // Initial position update with delay to ensure DOM has settled
+    const timeoutId = setTimeout(() => {
+      requestAnimationFrame(updatePosition);
+    }, 0);
+    
+    const scrollHandler = () => {
+      requestAnimationFrame(updatePosition);
+    };
+    
+    window.addEventListener('scroll', scrollHandler, true);
+    window.addEventListener('resize', scrollHandler);
+
+    return () => {
+      clearTimeout(timeoutId);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+      window.removeEventListener('scroll', scrollHandler, true);
+      window.removeEventListener('resize', scrollHandler);
+    };
+  }, [preferredPlacement, content, isVisible]);
+
+  return (
+    <>
+      {/* Placeholder to find group element */}
+      <div ref={placeholderRef} className="hidden" />
+      
+      {/* Portaled tooltip */}
+      {isVisible && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={tooltipRef}
+          className={`z-[9999] w-72 p-3 rounded-lg shadow-xl pointer-events-none ${className}`}
+          style={{
+            ...position,
+            backgroundColor: colors.background || '#0a0e27',
+            borderColor: colors.border || 'rgba(187, 247, 208, 0.2)',
+            color: colors.text || 'rgba(255, 255, 255, 0.8)',
+            border: `1px solid ${colors.border || 'rgba(187, 247, 208, 0.2)'}`,
+          }}
+        >
+          <div className="text-xs whitespace-normal" style={{ color: colors.text || 'rgba(255, 255, 255, 0.8)' }}>
+            {content}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }; 

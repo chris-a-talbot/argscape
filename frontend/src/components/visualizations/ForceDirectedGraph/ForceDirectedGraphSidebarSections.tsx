@@ -406,7 +406,28 @@ export function LayoutSpacingSection({
 
   return (
     <div className="space-y-4">
-      <SidebarSubsection title="Sample Order">
+      <SidebarSubsection 
+        title="Sample Order"
+        tooltip={
+          <div className="space-y-2">
+            <div>
+              <strong>What it does:</strong> Changes the horizontal order of sample nodes at the bottom of the graph. Different orders can help untangle edges and reduce visual crossings.
+            </div>
+            <div>
+              <strong>Algorithms:</strong>
+              <ul className="list-disc list-inside mt-1 space-y-0.5">
+                <li><strong>Numeric:</strong> Simple numeric order (0, 1, 2...)</li>
+                <li><strong>First Tree:</strong> Minlex postorder from the first genomic tree</li>
+                <li><strong>Center Tree:</strong> Minlex postorder from the tree at the center genomic position</li>
+                <li><strong>Consensus:</strong> Majority vote across multiple trees (often best for reducing crossings)</li>
+                <li><strong>Ancestral Path:</strong> Order by ancestral path length with MRCA-based grouping</li>
+                <li><strong>Coalescence:</strong> Order by coalescence time with MRCA-based grouping</li>
+                <li><strong>Dagre-d3:</strong> Layer-by-layer optimization algorithm</li>
+              </ul>
+            </div>
+          </div>
+        }
+      >
         <SampleOrderControl 
           value={sampleOrder}
           onChange={onSampleOrderChange}
@@ -430,7 +451,22 @@ export function LayoutSpacingSection({
         ) : null}
       </SidebarSubsection>
 
-      <SidebarSubsection title="Spacing">
+      <SidebarSubsection 
+        title="Spacing"
+        tooltip={
+          <div className="space-y-2">
+            <div>
+              <strong>Equal:</strong> Uniform spacing between all time layers. Best for consistent visual spacing regardless of actual time differences.
+            </div>
+            <div>
+              <strong>Linear:</strong> Spacing proportional to actual time differences. Best for representing real-time relationships accurately.
+            </div>
+            <div>
+              <strong>Log:</strong> Logarithmic spacing that accounts for changes in coalescent frequency going back in time. Best for visualizing genealogies where most coalescence happens recently.
+            </div>
+          </div>
+        }
+      >
         <SidebarButtonGroup
           value={temporalSpacingMode}
           options={[
@@ -524,7 +560,7 @@ export function LayoutSpacingSection({
             max={10}
             step={0.1}
             onChange={(v) => onForceTuningChange({ ...forceTuning, chargeScale: v })}
-            tooltip="Multiply many-body repulsion"
+            tooltip="Controls repulsion between nodes. Higher values push nodes apart more, reducing overlap. Lower values allow nodes to cluster closer together."
           />
           <SidebarSlider
             label="Link Strength"
@@ -533,7 +569,7 @@ export function LayoutSpacingSection({
             max={10}
             step={0.1}
             onChange={(v) => onForceTuningChange({ ...forceTuning, linkStrengthScale: v })}
-            tooltip="Multiply link spring strength"
+            tooltip="Controls how strongly connected nodes are pulled together. Higher values keep edges shorter and tighter, lower values allow more flexibility in edge lengths."
           />
           <SidebarSlider
             label="X-Position Strength"
@@ -542,7 +578,7 @@ export function LayoutSpacingSection({
             max={10}
             step={0.1}
             onChange={(v) => onForceTuningChange({ ...forceTuning, xStrengthScale: v })}
-            tooltip="Multiply X anchoring strength"
+            tooltip="Controls how strongly nodes are anchored to their horizontal (x) positions. Higher values keep sample nodes in their assigned order, lower values allow more horizontal drift."
           />
           <SidebarSlider
             label="Collision Radius"
@@ -551,7 +587,7 @@ export function LayoutSpacingSection({
             max={6}
             step={0.1}
             onChange={(v) => onForceTuningChange({ ...forceTuning, collisionRadiusScale: v })}
-            tooltip="Multiply collision radius"
+            tooltip="Sets the minimum distance between node centers. Higher values create more space around each node, preventing overlap. Lower values allow nodes to sit closer together."
           />
           <SidebarSlider
             label="Collision Strength"
@@ -560,7 +596,7 @@ export function LayoutSpacingSection({
             max={1}
             step={0.01}
             onChange={(v) => onForceTuningChange({ ...forceTuning, collisionStrength: v })}
-            tooltip="Set collision force strength"
+            tooltip="Controls how strongly the collision force is applied. At 1.0, collisions are fully enforced. At 0, collision detection is disabled, allowing nodes to overlap."
           />
           {/* Removed per request: Y strength, Crossing Repulsion, Edge Bundling, Descendant Range */}
         </div>

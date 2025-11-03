@@ -41,6 +41,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     sampleSpacing = 20,
     temporalRange,
     temporalDimOpacity = 0.05,
+    genomicRange,
+    genomicDimOpacity = 0.05,
+    treeRange,
+    treeIntervals,
+    treeDimOpacity = 0.30,
     simulationPaused = false,
     unpinTrigger = 0,
     onEdgeCrossingsChange,
@@ -786,7 +791,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const tooltip = d3.select("body")
             .append("div")
             .attr("class", "tooltip")
-            .style("position", "absolute")
+            .style("position", "fixed")
             .style("visibility", "hidden")
             .style("background-color", colors.tooltipBackground)
             .style("color", colors.tooltipText)
@@ -794,7 +799,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("padding", "8px")
             .style("border-radius", "4px")
             .style("font-size", GRAPH_CONSTANTS.TOOLTIP_FONT_SIZE)
-            .style("pointer-events", "none");
+            .style("pointer-events", "none")
+            .style("z-index", "9999")
+            .style("max-width", "300px");
 
         // Create simulation with proper typing
         const simulation: Simulation = d3.forceSimulation<GraphNode>(combinedNodes)
@@ -914,8 +921,57 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 });
         }
 
+        // Helper function to check if an edge overlaps with genomic range
+        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
+            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
+            const [genomicLeft, genomicRight] = genomicRange;
+            // Check if edge overlaps with genomic range (edges use [left, right) notation)
+            return edge.left < genomicRight && edge.right > genomicLeft;
+        };
+
+        // Helper function to check if a node has any edges in the genomic range
+        const nodeHasEdgesInGenomicRange = (node: GraphNode): boolean => {
+            if (!genomicRange) return true;
+            const nodeId = node.id;
+            // Check if this node has any edges that overlap with the genomic range
+            return combinedEdges.some(edge => {
+                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsGenomicRange(edge);
+            });
+        };
+
+        // Helper function to check if an edge overlaps with any selected tree intervals
+        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
+            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
+            const [treeStartIdx, treeEndIdx] = treeRange;
+            
+            // Find all tree intervals in the selected range
+            const selectedIntervals = treeIntervals.filter(interval => 
+                interval.index >= treeStartIdx && interval.index <= treeEndIdx
+            );
+            
+            // Check if edge overlaps with any selected tree interval's genomic range
+            return selectedIntervals.some(interval => {
+                // Check if edge overlaps with this tree interval's genomic range
+                return edge.left < interval.right && edge.right > interval.left;
+            });
+        };
+
+        // Helper function to check if a node has any edges in the tree range
+        const nodeHasEdgesInTreeRange = (node: GraphNode): boolean => {
+            if (!treeRange || !treeIntervals) return true;
+            const nodeId = node.id;
+            // Check if this node has any edges that overlap with the tree range
+            return combinedEdges.some(edge => {
+                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsTreeRange(edge);
+            });
+        };
+
         // Helper function to calculate opacity based on temporal range
-        const getNodeOpacity = (node: GraphNode): number => {
+        const getTemporalNodeOpacity = (node: GraphNode): number => {
             if (!temporalRange) return 1;
             const [minTime, maxTime] = temporalRange;
             if (node.time >= minTime && node.time <= maxTime) {
@@ -924,7 +980,35 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             return Math.max(0, Math.min(0.99, temporalDimOpacity));
         };
 
-        const getEdgeOpacity = (edge: GraphEdge): number => {
+        // Helper function to calculate opacity based on genomic range
+        const getGenomicNodeOpacity = (node: GraphNode): number => {
+            if (!genomicRange) return 1;
+            if (nodeHasEdgesInGenomicRange(node)) {
+                return 1;
+            }
+            return Math.max(0, Math.min(0.99, genomicDimOpacity));
+        };
+
+        // Helper function to calculate opacity based on tree range
+        const getTreeNodeOpacity = (node: GraphNode): number => {
+            if (!treeRange || !treeIntervals) return 1;
+            if (nodeHasEdgesInTreeRange(node)) {
+                return 1;
+            }
+            return Math.max(0, Math.min(0.99, treeDimOpacity));
+        };
+
+        // Combined node opacity (temporal, genomic, and tree)
+        const getNodeOpacity = (node: GraphNode): number => {
+            const temporal = getTemporalNodeOpacity(node);
+            const genomic = getGenomicNodeOpacity(node);
+            const tree = getTreeNodeOpacity(node);
+            // Use minimum so all filters apply
+            return Math.min(temporal, genomic, tree);
+        };
+
+        // Helper function to calculate edge opacity based on temporal range
+        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
             if (!temporalRange) return edgeOpacity / 100;
             const sourceNode = typeof edge.source === 'number' ? 
                 combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
@@ -933,13 +1017,40 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             
             // Edge is visible if both nodes are visible
             if (sourceNode && targetNode) {
-                const sourceVisible = getNodeOpacity(sourceNode) > 0.5;
-                const targetVisible = getNodeOpacity(targetNode) > 0.5;
+                const sourceVisible = getTemporalNodeOpacity(sourceNode) > 0.5;
+                const targetVisible = getTemporalNodeOpacity(targetNode) > 0.5;
                 if (sourceVisible && targetVisible) {
                     return edgeOpacity / 100;
                 }
             }
             return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Helper function to calculate edge opacity based on genomic range
+        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
+            if (!genomicRange) return edgeOpacity / 100;
+            if (edgeOverlapsGenomicRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Helper function to calculate edge opacity based on tree range
+        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
+            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
+            if (edgeOverlapsTreeRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Combined edge opacity (temporal, genomic, and tree)
+        const getEdgeOpacity = (edge: GraphEdge): number => {
+            const temporal = getTemporalEdgeOpacity(edge);
+            const genomic = getGenomicEdgeOpacity(edge);
+            const tree = getTreeEdgeOpacity(edge);
+            // Use minimum so all filters apply
+            return Math.min(temporal, genomic, tree);
         };
 
         const edges = g.append("g")
@@ -1672,16 +1783,96 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     }
                 }
 
-                tooltip
-                    .style("visibility", "visible")
-                    .html(tooltipContent)
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 10) + "px");
+                // Calculate position with bounds checking
+                const gap = 10;
+                const margin = 8;
+                const tooltipNode = tooltip.node() as HTMLElement;
+                if (tooltipNode) {
+                    tooltip.html(tooltipContent);
+                    // Force a layout calculation to get actual dimensions
+                    tooltip.style("visibility", "hidden");
+                    tooltipNode.style.display = "block";
+                    const tooltipRect = tooltipNode.getBoundingClientRect();
+                    tooltipNode.style.display = "";
+                    
+                    const viewportW = window.innerWidth;
+                    const viewportH = window.innerHeight;
+                    const clientX = (event as MouseEvent).clientX;
+                    const clientY = (event as MouseEvent).clientY;
+                    
+                    // Calculate preferred position (to the right and slightly below cursor)
+                    let left = clientX + gap;
+                    let top = clientY + gap;
+                    
+                    // Adjust if tooltip would go off right edge
+                    if (left + tooltipRect.width > viewportW - margin) {
+                        // Try left side
+                        left = clientX - gap - tooltipRect.width;
+                        // If still off screen, clamp to viewport
+                        if (left < margin) {
+                            left = viewportW - tooltipRect.width - margin;
+                        }
+                    }
+                    
+                    // Adjust if tooltip would go off bottom edge
+                    if (top + tooltipRect.height > viewportH - margin) {
+                        // Try above cursor
+                        top = clientY - gap - tooltipRect.height;
+                        // If still off screen, clamp to viewport
+                        if (top < margin) {
+                            top = viewportH - tooltipRect.height - margin;
+                        }
+                    }
+                    
+                    // Ensure minimum margins
+                    left = Math.max(margin, Math.min(left, viewportW - tooltipRect.width - margin));
+                    top = Math.max(margin, Math.min(top, viewportH - tooltipRect.height - margin));
+                    
+                    tooltip
+                        .style("visibility", "visible")
+                        .style("left", left + "px")
+                        .style("top", top + "px");
+                }
             })
             .on("mousemove", (event) => {
-                tooltip
-                    .style("left", (event.pageX + 10) + "px")
-                    .style("top", (event.pageY - 10) + "px");
+                const gap = 10;
+                const margin = 8;
+                const tooltipNode = tooltip.node() as HTMLElement;
+                if (tooltipNode) {
+                    const tooltipRect = tooltipNode.getBoundingClientRect();
+                    const viewportW = window.innerWidth;
+                    const viewportH = window.innerHeight;
+                    const clientX = (event as MouseEvent).clientX;
+                    const clientY = (event as MouseEvent).clientY;
+                    
+                    // Calculate preferred position
+                    let left = clientX + gap;
+                    let top = clientY + gap;
+                    
+                    // Adjust if tooltip would go off right edge
+                    if (left + tooltipRect.width > viewportW - margin) {
+                        left = clientX - gap - tooltipRect.width;
+                        if (left < margin) {
+                            left = viewportW - tooltipRect.width - margin;
+                        }
+                    }
+                    
+                    // Adjust if tooltip would go off bottom edge
+                    if (top + tooltipRect.height > viewportH - margin) {
+                        top = clientY - gap - tooltipRect.height;
+                        if (top < margin) {
+                            top = viewportH - tooltipRect.height - margin;
+                        }
+                    }
+                    
+                    // Ensure minimum margins
+                    left = Math.max(margin, Math.min(left, viewportW - tooltipRect.width - margin));
+                    top = Math.max(margin, Math.min(top, viewportH - tooltipRect.height - margin));
+                    
+                    tooltip
+                        .style("left", left + "px")
+                        .style("top", top + "px");
+                }
             })
             .on("mouseout", () => {
                 tooltip.style("visibility", "hidden");
@@ -2044,7 +2235,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         console.log('All non-sample nodes unpinned - simulation continues from current positions');
     }, [unpinTrigger]);
 
-    // Effect to update opacities when temporal range changes (without restarting simulation)
+    // Effect to update opacities when temporal, genomic, or tree range changes (without restarting simulation)
     useEffect(() => {
         if (!ref || typeof ref === 'function' || !ref.current) return;
         if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) return;
@@ -2052,8 +2243,49 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const svg = d3.select(ref.current);
         const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
 
+        // Helper function to check if an edge overlaps with genomic range
+        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
+            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
+            const [genomicLeft, genomicRight] = genomicRange;
+            return edge.left < genomicRight && edge.right > genomicLeft;
+        };
+
+        // Helper function to check if a node has any edges in the genomic range
+        const nodeHasEdgesInGenomicRange = (node: GraphNode): boolean => {
+            if (!genomicRange) return true;
+            const nodeId = node.id;
+            return combinedEdges.some(edge => {
+                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsGenomicRange(edge);
+            });
+        };
+
+        // Helper function to check if an edge overlaps with any selected tree intervals
+        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
+            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
+            const [treeStartIdx, treeEndIdx] = treeRange;
+            const selectedIntervals = treeIntervals.filter(interval => 
+                interval.index >= treeStartIdx && interval.index <= treeEndIdx
+            );
+            return selectedIntervals.some(interval => {
+                return edge.left < interval.right && edge.right > interval.left;
+            });
+        };
+
+        // Helper function to check if a node has any edges in the tree range
+        const nodeHasEdgesInTreeRange = (node: GraphNode): boolean => {
+            if (!treeRange || !treeIntervals) return true;
+            const nodeId = node.id;
+            return combinedEdges.some(edge => {
+                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsTreeRange(edge);
+            });
+        };
+
         // Helper function to calculate opacity based on temporal range
-        const getNodeOpacity = (node: GraphNode): number => {
+        const getTemporalNodeOpacity = (node: GraphNode): number => {
             if (!temporalRange) return 1;
             const [minTime, maxTime] = temporalRange;
             if (node.time >= minTime && node.time <= maxTime) {
@@ -2062,22 +2294,74 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             return Math.max(0, Math.min(0.99, temporalDimOpacity));
         };
 
-        const getEdgeOpacity = (edge: GraphEdge): number => {
+        // Helper function to calculate opacity based on genomic range
+        const getGenomicNodeOpacity = (node: GraphNode): number => {
+            if (!genomicRange) return 1;
+            if (nodeHasEdgesInGenomicRange(node)) {
+                return 1;
+            }
+            return Math.max(0, Math.min(0.99, genomicDimOpacity));
+        };
+
+        // Helper function to calculate opacity based on tree range
+        const getTreeNodeOpacity = (node: GraphNode): number => {
+            if (!treeRange || !treeIntervals) return 1;
+            if (nodeHasEdgesInTreeRange(node)) {
+                return 1;
+            }
+            return Math.max(0, Math.min(0.99, treeDimOpacity));
+        };
+
+        // Combined node opacity (temporal, genomic, and tree)
+        const getNodeOpacity = (node: GraphNode): number => {
+            const temporal = getTemporalNodeOpacity(node);
+            const genomic = getGenomicNodeOpacity(node);
+            const tree = getTreeNodeOpacity(node);
+            return Math.min(temporal, genomic, tree);
+        };
+
+        // Helper function to calculate edge opacity based on temporal range
+        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
             if (!temporalRange) return edgeOpacity / 100;
             const sourceNode = typeof edge.source === 'number' ? 
                 combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
             const targetNode = typeof edge.target === 'number' ? 
                 combinedNodes.find(n => n.id === edge.target) : edge.target as GraphNode;
             
-            // Edge is visible if both nodes are visible
             if (sourceNode && targetNode) {
-                const sourceVisible = getNodeOpacity(sourceNode) > 0.5;
-                const targetVisible = getNodeOpacity(targetNode) > 0.5;
+                const sourceVisible = getTemporalNodeOpacity(sourceNode) > 0.5;
+                const targetVisible = getTemporalNodeOpacity(targetNode) > 0.5;
                 if (sourceVisible && targetVisible) {
                     return edgeOpacity / 100;
                 }
             }
             return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Helper function to calculate edge opacity based on genomic range
+        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
+            if (!genomicRange) return edgeOpacity / 100;
+            if (edgeOverlapsGenomicRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Helper function to calculate edge opacity based on tree range
+        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
+            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
+            if (edgeOverlapsTreeRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        // Combined edge opacity (temporal, genomic, and tree)
+        const getEdgeOpacity = (edge: GraphEdge): number => {
+            const temporal = getTemporalEdgeOpacity(edge);
+            const genomic = getGenomicEdgeOpacity(edge);
+            const tree = getTreeEdgeOpacity(edge);
+            return Math.min(temporal, genomic, tree);
         };
 
         // Update node opacities
@@ -2117,7 +2401,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 return 0.05;
             });
 
-    }, [temporalRange, temporalDimOpacity, ref, edgeOpacity]);
+    }, [temporalRange, temporalDimOpacity, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity, ref, edgeOpacity]);
 
     // Effect to update node sizes without restarting simulation
     useEffect(() => {
@@ -2152,7 +2436,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     useEffect(() => {
         // Debug logging only in development
         if (process.env.NODE_ENV === 'development') {
-          console.log('Edge opacity effect triggered:', { edgeThickness, edgeOpacity, hasTemporalRange: !!temporalRange });
+          console.log('Edge opacity effect triggered:', { edgeThickness, edgeOpacity, hasTemporalRange: !!temporalRange, hasGenomicRange: !!genomicRange });
         }
         if (!ref || typeof ref === 'function' || !ref.current) {
             // Debug logging only in development
@@ -2170,7 +2454,59 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         }
 
         const svg = d3.select(ref.current);
-        const { nodes: combinedNodes } = visualStateRef.current;
+        const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
+
+        // Helper functions for opacity calculation
+        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
+            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
+            const [genomicLeft, genomicRight] = genomicRange;
+            return edge.left < genomicRight && edge.right > genomicLeft;
+        };
+
+        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
+            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
+            const [treeStartIdx, treeEndIdx] = treeRange;
+            const selectedIntervals = treeIntervals.filter(interval => 
+                interval.index >= treeStartIdx && interval.index <= treeEndIdx
+            );
+            return selectedIntervals.some(interval => {
+                return edge.left < interval.right && edge.right > interval.left;
+            });
+        };
+
+        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
+            if (!temporalRange) return edgeOpacity / 100;
+            const sourceNode = typeof edge.source === 'number' ? 
+                combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
+            const targetNode = typeof edge.target === 'number' ? 
+                combinedNodes.find(n => n.id === edge.target) : edge.target as GraphNode;
+            
+            if (sourceNode && targetNode) {
+                const [minTime, maxTime] = temporalRange;
+                const sourceVisible = sourceNode.time >= minTime && sourceNode.time <= maxTime;
+                const targetVisible = targetNode.time >= minTime && targetNode.time <= maxTime;
+                if (sourceVisible && targetVisible) {
+                    return edgeOpacity / 100;
+                }
+            }
+            return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
+            if (!genomicRange) return edgeOpacity / 100;
+            if (edgeOverlapsGenomicRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
+        };
+
+        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
+            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
+            if (edgeOverlapsTreeRange(edge)) {
+                return edgeOpacity / 100;
+            }
+            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
+        };
 
         const edges = svg.selectAll<SVGLineElement, GraphEdge>("line");
         console.log('Edge opacity effect: found', edges.size(), 'edges');
@@ -2178,37 +2514,26 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update edge thickness
         edges.attr("stroke-width", edgeThickness);
 
-        // Update edge opacity (respecting temporal filter if active)
+        // Update edge opacity (respecting temporal, genomic, and tree filters if active)
         let visibleCount = 0;
         let hiddenCount = 0;
         edges.attr("stroke-opacity", (d: GraphEdge) => {
-                if (!temporalRange) {
+                const temporal = getTemporalEdgeOpacity(d);
+                const genomic = getGenomicEdgeOpacity(d);
+                const tree = getTreeEdgeOpacity(d);
+                const finalOpacity = Math.min(temporal, genomic, tree);
+                
+                if (finalOpacity > 0.5) {
                     visibleCount++;
-                    return edgeOpacity / 100;
+                } else {
+                    hiddenCount++;
                 }
-                
-                // If temporal filter is active, check if both nodes are visible
-                const sourceNode = typeof d.source === 'number' ? 
-                    combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
-                const targetNode = typeof d.target === 'number' ? 
-                    combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
-                
-                if (sourceNode && targetNode) {
-                    const [minTime, maxTime] = temporalRange;
-                    const sourceVisible = sourceNode.time >= minTime && sourceNode.time <= maxTime;
-                    const targetVisible = targetNode.time >= minTime && targetNode.time <= maxTime;
-                    if (sourceVisible && targetVisible) {
-                        visibleCount++;
-                        return edgeOpacity / 100;
-                    }
-                }
-                hiddenCount++;
-                return 0.02; // Very faint for filtered out edges
+                return finalOpacity;
             });
         
-        console.log('Edge opacity effect: updated', edges.size(), 'edges to opacity', edgeOpacity / 100, '(visible:', visibleCount, 'hidden:', hiddenCount, ')');
-
-    }, [edgeThickness, edgeOpacity, temporalRange, ref]);
+        console.log('Edge opacity effect: updated', edges.size(), 'edges (visible:', visibleCount, 'hidden:', hiddenCount, ')');
+        
+    }, [edgeThickness, edgeOpacity, temporalRange, temporalDimOpacity, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity, ref]);
 
     // Effect to update node ID visibility without restarting simulation
     useEffect(() => {

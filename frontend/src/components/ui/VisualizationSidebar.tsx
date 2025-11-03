@@ -580,7 +580,7 @@ export const SidebarInfoBox: React.FC<SidebarInfoBoxProps> = ({ children }) => {
 interface SidebarSubsectionProps {
   title: string;
   children: React.ReactNode;
-  tooltip?: string;
+  tooltip?: string | React.ReactNode;
 }
 
 export const SidebarSubsection: React.FC<SidebarSubsectionProps> = ({ title, children, tooltip }) => {

@@ -176,6 +176,13 @@ export interface ForceDirectedGraphProps {
     temporalRange?: [number, number];  // Optional temporal range filter [minTime, maxTime]
     // Opacity to use for visually dimmed (out-of-range) elements during temporal filtering (0.0 - 0.99)
     temporalDimOpacity?: number;
+    genomicRange?: [number, number];  // Optional genomic range filter [left, right] for dimming mode
+    // Opacity to use for visually dimmed (out-of-range) elements during genomic filtering (0.0 - 0.99)
+    genomicDimOpacity?: number;
+    treeRange?: [number, number];  // Optional tree range filter [startIdx, endIdx] for dimming mode
+    treeIntervals?: TreeInterval[];  // Tree intervals for checking tree range overlap
+    // Opacity to use for visually dimmed (out-of-range) elements during tree filtering (0.0 - 0.99)
+    treeDimOpacity?: number;
     simulationPaused?: boolean;  // Pause the force simulation (e.g., during layer reveal)
     unpinTrigger?: number;  // Counter that triggers unpinning of all nodes when it changes
     onEdgeCrossingsChange?: (count: number) => void;  // Callback when edge crossings are calculated
