@@ -5,17 +5,42 @@ import { GRAPH_CONSTANTS, DEFAULT_NODE_SIZES } from './ForceDirectedGraph.consta
 import { EdgeGroupWithSpans } from '../../../utils/genomicSpanUtils';
 
 // Add helper function to get children of a node
-export function getChildren(node: GraphNode, nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] {
-    return edges
-        .filter(e => {
+// Optimized version that can use pre-built edge maps if provided
+export function getChildren(
+    node: GraphNode, 
+    nodes: GraphNode[], 
+    edges: GraphEdge[],
+    outgoingEdgesMap?: Map<number, GraphEdge[]>,
+    nodeMap?: Map<number, GraphNode>
+): GraphNode[] {
+    const children: GraphNode[] = [];
+    
+    // Use pre-built maps if provided (much faster for large graphs)
+    const edgesToCheck = outgoingEdgesMap?.get(node.id) || 
+        edges.filter(e => {
             const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
             return sourceId === node.id;
-        })
-        .map(e => {
-            const targetId = typeof e.target === 'number' ? e.target : e.target.id;
-            return nodes.find(n => n.id === targetId);
-        })
-        .filter((n): n is Node => n !== undefined);
+        });
+    
+    const nodeIdSet = nodeMap ? new Set(nodeMap.keys()) : new Set(nodes.map(n => n.id));
+    const nodeGetter = nodeMap || new Map(nodes.map(n => [n.id, n]));
+    
+    for (const e of edgesToCheck) {
+        const targetId = typeof e.target === 'number' ? e.target : e.target.id;
+        
+        // Check if target exists in nodes array
+        if (!nodeIdSet.has(targetId)) {
+            console.warn(`getChildren: Node ${node.id} has edge to non-existent node ${targetId}. This indicates an edge remapping issue during clustering.`);
+            continue;
+        }
+        
+        const childNode = nodeGetter instanceof Map ? nodeGetter.get(targetId) : nodes.find(n => n.id === targetId);
+        if (childNode) {
+            children.push(childNode);
+        }
+    }
+    
+    return children;
 }
 
 // Helper function to get node radius based on type and settings

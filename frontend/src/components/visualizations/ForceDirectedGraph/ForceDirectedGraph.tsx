@@ -392,8 +392,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         let currentData = combinedData;
         
         // Step 1: Apply regular subtree clustering if enabled
+        let originalParentMap: Map<number, Set<number>> | undefined;
         if (clusteringEnabled) {
-            const { nodes: clusteredNodes, edges: clusteredEdges } = createClusterNodes(
+            const { nodes: clusteredNodes, edges: clusteredEdges, originalParentMap: parentMap } = createClusterNodes(
                 currentData.nodes as GraphNode[],
                 currentData.edges,
                 clusteringMinTreeSize,
@@ -406,6 +407,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             console.log(`Subtree clustering: ${currentData.nodes.length} nodes -> ${clusteredNodes.length} nodes (${currentData.nodes.length - clusteredNodes.length} clustered)`);
             
             currentData = { nodes: clusteredNodes as GraphNode[], edges: clusteredEdges };
+            originalParentMap = parentMap;
         }
         
         // Store nodes before sample clustering (for position calculation)
@@ -417,7 +419,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             const { nodes: sampleClusteredNodes, edges: sampleClusteredEdges } = createSampleClusters(
                 currentData.nodes as GraphNode[],
                 currentData.edges,
-                sampleOrder  // Parameter kept for compatibility but ignored
+                sampleOrder,  // Parameter kept for compatibility but ignored
+                originalParentMap  // Pass through original parent relationships
             );
             
             currentData = { 
@@ -1481,17 +1484,38 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Combined node ${nodeIdDisplay}<br>Time: ${d.time}`;
                 } else if (isRootNode(d, combinedNodes, combinedEdges)) {
-                    const children = [...new Set(combinedEdges
+                    const childEdges = combinedEdges
                         .filter(e => {
                             const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as GraphNode;
                             return source?.id === d.id;
-                        })
-                        .map(e => {
-                            const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
-                            return target?.id;
-                        })
-                        .filter(id => id !== undefined))]
-                        .sort((a, b) => a - b);
+                        });
+                    
+                    // Get children, expanding clusters to show original nodes
+                    const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
+                    
+                    childEdges.forEach(e => {
+                        const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
+                        if (!target) return;
+                        
+                        // If child is a cluster, show the actual nodes that were clustered
+                        if (target.is_cluster && target.cluster_nodes && target.cluster_nodes.length > 0) {
+                            target.cluster_nodes.forEach(nodeId => {
+                                if (!childrenInfo.some(c => c.id === nodeId)) {
+                                    childrenInfo.push({
+                                        id: nodeId,
+                                        isInCluster: true,
+                                        clusterId: target.id
+                                    });
+                                }
+                            });
+                        } else {
+                            if (!childrenInfo.some(c => c.id === target.id)) {
+                                childrenInfo.push({ id: target.id });
+                            }
+                        }
+                    });
+                    
+                    childrenInfo.sort((a, b) => a.id - b.id);
 
                     const descendantSamples = getDescendantSamples(d, combinedNodes, combinedEdges)
                         .map(sample => sample.id)
@@ -1499,8 +1523,37 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Root node ${nodeIdDisplay}<br>Time: ${d.time}`;
-                    if (children.length > 0) {
-                        tooltipContent += `<br>Children: ${children.join(", ")}`;
+                    
+                    if (childrenInfo.length > 0) {
+                        // Group by cluster
+                        const clusterMap = new Map<number, number[]>();
+                        const regularChildren: number[] = [];
+                        
+                        childrenInfo.forEach(child => {
+                            if (child.isInCluster && child.clusterId !== undefined) {
+                                if (!clusterMap.has(child.clusterId)) {
+                                    clusterMap.set(child.clusterId, []);
+                                }
+                                clusterMap.get(child.clusterId)!.push(child.id);
+                            } else {
+                                regularChildren.push(child.id);
+                            }
+                        });
+                        
+                        // Build children display string
+                        const childParts: string[] = [];
+                        if (regularChildren.length > 0) {
+                            childParts.push(regularChildren.join(", "));
+                        }
+                        clusterMap.forEach((nodeIds, clusterId) => {
+                            if (nodeIds.length <= 3) {
+                                childParts.push(`${nodeIds.join(", ")} (in cluster ${clusterId})`);
+                            } else {
+                                childParts.push(`${nodeIds.slice(0, 3).join(", ")} +${nodeIds.length - 3} more (in cluster ${clusterId})`);
+                            }
+                        });
+                        
+                        tooltipContent += `<br>Children: ${childParts.join(", ")}`;
                     }
                     if (descendantSamples.length > 0) {
                         tooltipContent += `<br>Descendant samples: ${descendantSamples.join(", ")}`;
@@ -1518,25 +1571,77 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         .filter(id => id !== undefined))]
                         .sort((a, b) => a - b);
                     
-                    const children = [...new Set(combinedEdges
+                    const childEdges = combinedEdges
                         .filter(e => {
                             const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as GraphNode;
                             return source?.id === d.id;
-                        })
-                        .map(e => {
-                            const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
-                            return target?.id;
-                        })
-                        .filter(id => id !== undefined))]
-                        .sort((a, b) => a - b);
+                        });
+                    
+                    // Get children, expanding clusters to show original nodes
+                    const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
+                    
+                    childEdges.forEach(e => {
+                        const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
+                        if (!target) return;
+                        
+                        // If child is a cluster, show the actual nodes that were clustered
+                        if (target.is_cluster && target.cluster_nodes && target.cluster_nodes.length > 0) {
+                            // Add each node in the cluster with metadata
+                            target.cluster_nodes.forEach(nodeId => {
+                                if (!childrenInfo.some(c => c.id === nodeId)) {
+                                    childrenInfo.push({
+                                        id: nodeId,
+                                        isInCluster: true,
+                                        clusterId: target.id
+                                    });
+                                }
+                            });
+                        } else {
+                            // Regular child
+                            if (!childrenInfo.some(c => c.id === target.id)) {
+                                childrenInfo.push({ id: target.id });
+                            }
+                        }
+                    });
+                    
+                    // Sort by ID
+                    childrenInfo.sort((a, b) => a.id - b.id);
 
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Internal node ${nodeIdDisplay}<br>Time: ${d.time}`;
                     if (parents.length > 0) {
                         tooltipContent += `<br>Parents: ${parents.join(", ")}`;
                     }
-                    if (children.length > 0) {
-                        tooltipContent += `<br>Children: ${children.join(", ")}`;
+                    if (childrenInfo.length > 0) {
+                        // Group by cluster
+                        const clusterMap = new Map<number, number[]>();
+                        const regularChildren: number[] = [];
+                        
+                        childrenInfo.forEach(child => {
+                            if (child.isInCluster && child.clusterId !== undefined) {
+                                if (!clusterMap.has(child.clusterId)) {
+                                    clusterMap.set(child.clusterId, []);
+                                }
+                                clusterMap.get(child.clusterId)!.push(child.id);
+                            } else {
+                                regularChildren.push(child.id);
+                            }
+                        });
+                        
+                        // Build children display string
+                        const childParts: string[] = [];
+                        if (regularChildren.length > 0) {
+                            childParts.push(regularChildren.join(", "));
+                        }
+                        clusterMap.forEach((nodeIds, clusterId) => {
+                            if (nodeIds.length <= 3) {
+                                childParts.push(`${nodeIds.join(", ")} (in cluster ${clusterId})`);
+                            } else {
+                                childParts.push(`${nodeIds.slice(0, 3).join(", ")} +${nodeIds.length - 3} more (in cluster ${clusterId})`);
+                            }
+                        });
+                        
+                        tooltipContent += `<br>Children: ${childParts.join(", ")}`;
                     }
                 }
 

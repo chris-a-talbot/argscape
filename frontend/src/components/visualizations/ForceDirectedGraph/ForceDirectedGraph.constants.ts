@@ -131,12 +131,18 @@ export const setupInitialNodePositions = (
         
         const nodeRadius = nodeSizes?.sample ?? 8;
         
-        // Add nodes to dagre graph
+        // Add nodes to dagre graph with FIXED ranks based on time
+        // This prevents dagre from moving samples to different ranks
         combinedNodes.forEach(node => {
+            const rank = timeToRank.get(node.time);
+            if (rank === undefined) {
+                console.warn(`Node ${node.id} has time ${node.time} which is not in timeToRank map`);
+            }
             g.setNode(node.id.toString(), {
                 width: nodeRadius * GRAPH_CONSTANTS.DAGRE.NODE_SIZE_MULTIPLIER,
                 height: nodeRadius * GRAPH_CONSTANTS.DAGRE.NODE_SIZE_MULTIPLIER,
-                label: node.id.toString()
+                label: node.id.toString(),
+                rank: rank // CRITICAL: Fix rank to prevent dagre from moving nodes between temporal layers
             });
         });
 
@@ -180,17 +186,29 @@ export const setupInitialNodePositions = (
         const dagreWidth = maxX - minX;
         const dagreHeight = maxY - minY;
 
-        // Calculate base scale to fit the standard layout, then apply user spacing multipliers
-        const baseScaleX = Math.min(availableWidth / Math.max(dagreWidth, 1), 2.0);
+        // Calculate base scale to fit the standard layout
+        // For X-axis: don't compress if samples are dense - allow scrolling/panning instead
+        // Only scale down if the layout is genuinely too wide
+        const baseScaleX = Math.min(availableWidth / Math.max(dagreWidth, 1), 3.0); // Increased max scale
         const baseScaleY = Math.min(availableHeight / Math.max(dagreHeight, 1), 2.0);
         
         // Apply user spacing preferences as multipliers to the base scale
         const userSampleMultiplier = sampleSpacing / 20; // Normalize to default
         const userTemporalMultiplier = temporalSpacing / 12; // Normalize to default
         
-        // Final scales incorporate user spacing preferences
-        const finalScaleX = baseScaleX;
-        const finalScaleY = baseScaleY;
+        // For X-axis: if we have many samples at the same rank, allow the layout to exceed viewport width
+        // This prevents compression and maintains readability
+        const sampleNodes = combinedNodes.filter(n => n.is_sample || n.is_sample_cluster);
+        const samplesPerRank = Math.max(...Array.from(uniqueTimes).map(time => 
+            sampleNodes.filter(n => n.time === time).length
+        ));
+        
+        // If sample layer is very dense, reduce X scaling to preserve spacing
+        const densityFactor = Math.max(1.0, samplesPerRank / 10); // Reduce scale for dense sample layers
+        
+        // Final scales incorporate user spacing preferences and density
+        const finalScaleX = Math.max(0.5, baseScaleX / densityFactor * userSampleMultiplier);
+        const finalScaleY = baseScaleY * userTemporalMultiplier;
         
         // Apply base scaling first
         const baseScaledWidth = dagreWidth * finalScaleX;

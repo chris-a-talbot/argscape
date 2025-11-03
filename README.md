@@ -4,7 +4,7 @@
 
 #
 
-**ARGscape** (v0.4.6) is a comprehensive web application for visualizing and analyzing tree sequences (representing Ancestral Recombination Graphs, or ARGs). Built with React and FastAPI, it aims to provide an intuitive web interface, powerful computational backend, and simple command-line interface for spatiotemporal population genetics research.
+**ARGscape** (v0.4.7) is a comprehensive web application for visualizing and analyzing tree sequences (representing Ancestral Recombination Graphs, or ARGs). Built with React and FastAPI, it aims to provide an intuitive web interface, powerful computational backend, and simple command-line interface for spatiotemporal population genetics research.
 
 🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com) (May be blocked on some networks - working on it!)
 
@@ -192,9 +192,9 @@ Note: The Docker setup mounts your local code directories, so changes to the cod
 
 Interactive API docs are served at `/docs` when running locally, and at the production `/docs` endpoint when hosted. The OpenAPI schema documents endpoints for upload, simulation, inference, visualization data, and session management.
 
-## Command‑line tools (v0.4.6)
+## Command‑line tools (v0.4.7)
 
-ARGscape 0.4.6 includes a set of CLI tools for running the backend and performing inference from the terminal.
+ARGscape 0.4.7 includes a set of CLI tools for running the backend and performing inference from the terminal.
 
 - `argscape` – start the web app (API + UI)
   - Examples:
@@ -232,7 +232,7 @@ ARGscape 0.4.6 includes a set of CLI tools for running the backend and performin
 
 Notes
 - Session storage is keyed per client; the above commands use a stable CLI session so data is available to both the web UI and CLI.
-- In 0.4.6 the visualization snapshot command (`argscape_vis`) is temporarily disabled while it's stabilized.
+- In 0.4.7 the visualization snapshot command (`argscape_vis`) is temporarily disabled while it's stabilized.
 
 ## Development
 

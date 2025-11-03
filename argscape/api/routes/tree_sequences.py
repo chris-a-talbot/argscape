@@ -8,6 +8,7 @@ import tempfile
 import time
 import asyncio
 from datetime import datetime
+from typing import Dict, Any
 
 import numpy as np
 import tskit
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse
 from argscape.api.core.dependencies import get_client_ip
 from argscape.api.services import session_storage
 from argscape.api.tskit_utils import load_tree_sequence_from_file
+from argscape.api.tskit_utils.temporal import compute_temporal_info
 from argscape.api.geo_utils import check_spatial_completeness
 from argscape.api.services import generate_spatial_locations_for_samples
 from argscape.api.models import SimulationRequest, SimplifyTreeSequenceRequest
@@ -78,17 +80,11 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
         
         session_storage.store_tree_sequence(session_id, updated_filename, ts)
         
-        has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
+        # Use optimized temporal computation (uses numpy arrays instead of iterating nodes)
+        temporal_info = compute_temporal_info(ts)
+        has_temporal = temporal_info["has_temporal"]
+        temporal_range = temporal_info["temporal_range"]
         spatial_info = check_spatial_completeness(ts)
-        
-        # Calculate temporal range
-        temporal_range = None
-        if has_temporal:
-            node_times = [node.time for node in ts.nodes()]
-            temporal_range = {
-                "min_time": float(min(node_times)),
-                "max_time": float(max(node_times))
-            }
         
         logger.info(f"Successfully loaded tree sequence: {ts.num_nodes} nodes, {ts.num_edges} edges")
         
@@ -126,17 +122,11 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
         if ts is None:
             raise HTTPException(status_code=404, detail=f"Tree sequence not found")
         
-        has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
+        # Use optimized temporal computation (uses numpy arrays instead of iterating nodes)
+        temporal_info = compute_temporal_info(ts)
+        has_temporal = temporal_info["has_temporal"]
+        temporal_range = temporal_info["temporal_range"]
         spatial_info = check_spatial_completeness(ts)
-        
-        # Calculate temporal range
-        temporal_range = None
-        if has_temporal:
-            node_times = [node.time for node in ts.nodes()]
-            temporal_range = {
-                "min_time": float(min(node_times)),
-                "max_time": float(max(node_times))
-            }
         
         return {
             "filename": filename,
@@ -255,7 +245,12 @@ async def get_graph_data(
     tree_end_idx: int = None,
     temporal_start: float = None,
     temporal_end: float = None,
-    sample_order: str = "consensus_minlex"
+    sample_order: str = "consensus_minlex",
+    # Pagination parameters
+    page: int = None,
+    page_size: int = None,
+    nodes_only: bool = False,
+    edges_only: bool = False
 ):
     """Get graph data for visualization.
     
@@ -264,9 +259,16 @@ async def get_graph_data(
     - Tree index range: tree_start_idx and tree_end_idx (inclusive)
     - Temporal range: temporal_start and temporal_end
     
+    Pagination support:
+    - page: Page number (0-indexed, default: None = return all)
+    - page_size: Number of nodes/edges per page (default: None = no pagination)
+    - nodes_only: Return only nodes (no edges) for metadata queries
+    - edges_only: Return only edges (assumes nodes already fetched)
+    
     Tree index filtering takes precedence if both are provided.
     """
-    logger.info(f"Requesting graph data for file: {filename} with max_samples: {max_samples}")
+    logger.info(f"Requesting graph data for file: {filename} with max_samples: {max_samples}, "
+               f"pagination: page={page}, page_size={page_size}")
     
     # Log filtering parameters
     if tree_start_idx is not None or tree_end_idx is not None:
@@ -456,11 +458,37 @@ async def get_graph_data(
         logger.info(f"Recombination flagging complete: {ts_with_recomb_flags.num_nodes} nodes, {ts_with_recomb_flags.num_edges} edges")
         
         # Pass expected tree count if we filtered by tree indices and sample ordering
+        # Use graph cache with filename as key prefix (disabled on Railway)
+        # Note: Cache key includes pagination params if used
+        cache_key = filename
+        if page is not None or page_size is not None:
+            cache_key = f"{filename}_page{page}_size{page_size}"
+        
         graph_data = convert_to_graph_data(
             ts_with_recomb_flags, 
             expected_tree_count, 
-            sample_order
+            sample_order,
+            use_cache=True,
+            cache_key_prefix=cache_key
         )
+        
+        # Apply pagination if requested
+        if page is not None and page_size is not None:
+            graph_data = _paginate_graph_data(graph_data, page, page_size, nodes_only, edges_only)
+        elif nodes_only:
+            # Return only nodes (for metadata/lightweight queries)
+            graph_data = {
+                'metadata': graph_data['metadata'],
+                'nodes': graph_data['nodes'],
+                'edges': []
+            }
+        elif edges_only:
+            # Return only edges (assumes nodes already fetched)
+            graph_data = {
+                'metadata': graph_data['metadata'],
+                'nodes': [],
+                'edges': graph_data['edges']
+            }
         
         return graph_data
     except Exception as e:
@@ -602,15 +630,10 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
             # Get file size
             file_size_bytes = session_storage.get_file_size_bytes(session_id, filename)
             
-            # Calculate temporal range and spatial info
-            has_temporal = any(node.time != 0 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE == 0)
-            temporal_range = None
-            if has_temporal:
-                node_times = [node.time for node in ts.nodes()]
-                temporal_range = {
-                    "min_time": float(min(node_times)),
-                    "max_time": float(max(node_times))
-                }
+            # Use optimized temporal computation (uses numpy arrays instead of iterating nodes)
+            temporal_info = compute_temporal_info(ts)
+            has_temporal = temporal_info["has_temporal"]
+            temporal_range = temporal_info["temporal_range"]
             spatial_info = check_spatial_completeness(ts)
             
             response = {
@@ -643,5 +666,70 @@ async def simulate_tree_sequence(request: Request, simulation_request: Simulatio
     except Exception as e:
         logger.error(f"Error in simulate_tree_sequence: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to simulate tree sequence: {str(e)}")
+
+
+def _paginate_graph_data(
+    graph_data: Dict[str, Any], 
+    page: int, 
+    page_size: int,
+    nodes_only: bool = False,
+    edges_only: bool = False
+) -> Dict[str, Any]:
+    """
+    Paginate graph data for incremental loading.
+    
+    Args:
+        graph_data: Full graph data dictionary
+        page: Page number (0-indexed)
+        page_size: Number of items per page
+        nodes_only: Return only nodes
+        edges_only: Return only edges
+    
+    Returns:
+        Paginated graph data with pagination metadata
+    """
+    nodes = graph_data.get('nodes', [])
+    edges = graph_data.get('edges', [])
+    metadata = graph_data.get('metadata', {})
+    
+    # Add pagination metadata
+    total_nodes = len(nodes)
+    total_edges = len(edges)
+    
+    # Paginate nodes
+    if not edges_only:
+        node_start = page * page_size
+        node_end = node_start + page_size
+        paginated_nodes = nodes[node_start:node_end]
+    else:
+        paginated_nodes = []
+    
+    # Paginate edges (use same page/page_size)
+    if not nodes_only:
+        edge_start = page * page_size
+        edge_end = edge_start + page_size
+        paginated_edges = edges[edge_start:edge_end]
+    else:
+        paginated_edges = []
+    
+    # Add pagination info to metadata
+    pagination_info = {
+        'page': page,
+        'page_size': page_size,
+        'total_nodes': total_nodes,
+        'total_edges': total_edges,
+        'total_pages_nodes': (total_nodes + page_size - 1) // page_size if page_size > 0 else 0,
+        'total_pages_edges': (total_edges + page_size - 1) // page_size if page_size > 0 else 0,
+        'has_more_nodes': node_end < total_nodes if not edges_only else False,
+        'has_more_edges': edge_end < total_edges if not nodes_only else False,
+    }
+    
+    metadata_with_pagination = {**metadata, 'pagination': pagination_info}
+    
+    return {
+        'nodes': paginated_nodes,
+        'edges': paginated_edges,
+        'metadata': metadata_with_pagination
+    }
 
 

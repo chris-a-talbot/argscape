@@ -10,9 +10,36 @@ from typing import Dict, List
 logger = logging.getLogger(__name__)
 
 def check_spatial_completeness(ts: tskit.TreeSequence) -> Dict[str, bool]:
-    """Check spatial information completeness in tree sequence."""
+    """Check spatial information completeness in tree sequence using spatial index."""
     logger.info(f"Checking spatial info for {ts.num_individuals} individuals, {ts.num_nodes} nodes")
     
+    # Use spatial index for efficient checking
+    try:
+        from argscape.api.geo_utils.spatial_index import get_spatial_index
+        
+        # Get or build spatial index (cached)
+        spatial_index = get_spatial_index(ts, use_cache=True)
+        
+        # Get metadata from index
+        metadata = spatial_index.get_metadata()
+        
+        result = {
+            "has_sample_spatial": metadata.has_sample_spatial,
+            "has_all_spatial": metadata.has_all_spatial,
+            "spatial_status": metadata.spatial_status
+        }
+        
+        logger.info(f"Spatial check completed (indexed): {metadata.spatial_status}")
+        return result
+        
+    except Exception as e:
+        logger.warning(f"Spatial index failed, falling back to direct check: {e}")
+        # Fallback to direct check if spatial index fails
+        return _check_spatial_completeness_direct(ts)
+
+
+def _check_spatial_completeness_direct(ts: tskit.TreeSequence) -> Dict[str, bool]:
+    """Direct spatial completeness check without index (fallback)."""
     # Fast path: if no individuals, then no spatial data
     if ts.num_individuals == 0:
         return {
@@ -71,7 +98,7 @@ def check_spatial_completeness(ts: tskit.TreeSequence) -> Dict[str, bool]:
     
     spatial_status = "all" if all_has_spatial else ("sample_only" if sample_has_spatial else "none")
     
-    logger.info(f"Spatial check completed: {spatial_status}")
+    logger.info(f"Spatial check completed (direct): {spatial_status}")
     
     return {
         "has_sample_spatial": sample_has_spatial,

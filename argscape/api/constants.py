@@ -51,7 +51,7 @@ LARGE_TREE_SEQUENCE_NODE_THRESHOLD = 10000
 SPATIAL_CHECK_NODE_LIMIT = 100
 
 # HTTP Status and Error Handling
-DEFAULT_MAX_SAMPLES_FOR_GRAPH = 25
+DEFAULT_MAX_SAMPLES_FOR_GRAPH = 15  # Reduced from 25 for better performance with large tree sequences
 RECOMBINATION_RATE_HIGH = 100.0
 
 # Rate Limiting (requests per minute)

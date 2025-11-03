@@ -13,6 +13,15 @@ from argscape.api.geo_utils import check_spatial_completeness
 
 logger = logging.getLogger(__name__)
 
+# Import graph cache
+try:
+    from argscape.api.services.graph_cache import graph_cache
+    GRAPH_CACHE_AVAILABLE = True
+except ImportError:
+    graph_cache = None
+    GRAPH_CACHE_AVAILABLE = False
+    logger.warning("Graph cache not available")
+
 
 def get_tree_intervals(ts: tskit.TreeSequence) -> List[Tuple[int, float, float]]:
     """Get tree intervals as (tree_index, left, right) tuples."""
@@ -318,14 +327,35 @@ def detect_edges_with_mutations(ts: tskit.TreeSequence) -> set:
     return edges_with_mutations
 
 
-def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = None, sample_order: str = "consensus_minlex") -> Dict[str, Any]:
+def convert_to_graph_data(
+    ts: tskit.TreeSequence, 
+    expected_tree_count: int = None, 
+    sample_order: str = "consensus_minlex",
+    use_cache: bool = True,
+    cache_key_prefix: str = ""
+) -> Dict[str, Any]:
     """Convert a tskit.TreeSequence to graph data format for D3 visualization.
     
     Args:
         ts: The tree sequence to convert
         expected_tree_count: If provided, the expected number of trees (used when filtering by tree indices)
         sample_order: Method for ordering samples ("numeric", "first_minlex", "center_minlex", "consensus_minlex", "ancestral", "coalescence", "dagre")
+        use_cache: Whether to use graph cache (default: True)
+        cache_key_prefix: Optional prefix for cache key (e.g., filename)
     """
+    # Try to get from cache first
+    if use_cache and GRAPH_CACHE_AVAILABLE and graph_cache and graph_cache.enabled:
+        cache_options = {
+            "num_nodes": ts.num_nodes,
+            "num_edges": ts.num_edges,
+            "expected_tree_count": expected_tree_count,
+            "sample_order": sample_order
+        }
+        cached_data = graph_cache.get(cache_key_prefix, cache_options)
+        if cached_data:
+            logger.info(f"Using cached graph data for {cache_key_prefix}")
+            return cached_data
+    
     logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
     
     # Detect edges with mutations
@@ -473,11 +503,23 @@ def convert_to_graph_data(ts: tskit.TreeSequence, expected_tree_count: int = Non
         }
         metadata['suggested_geographic_mode'] = "unit_grid"
     
-    return {
+    result = {
         'nodes': nodes,
         'edges': edges,
         'metadata': metadata
     }
+    
+    # Cache the result if caching is enabled
+    if use_cache and GRAPH_CACHE_AVAILABLE and graph_cache and graph_cache.enabled and cache_key_prefix:
+        cache_options = {
+            "num_nodes": ts.num_nodes,
+            "num_edges": ts.num_edges,
+            "expected_tree_count": expected_tree_count,
+            "sample_order": sample_order
+        }
+        graph_cache.set(cache_key_prefix, cache_options, result)
+    
+    return result
 
 
 def convert_tree_sequence_to_graph_data(
