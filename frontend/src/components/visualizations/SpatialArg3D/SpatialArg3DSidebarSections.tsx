@@ -394,8 +394,8 @@ interface ViewControlsSectionProps {
   layerRevealEnabled: boolean;
   layerRevealPlaying: boolean;
   layerRevealRate: number;
-  layerRevealMode: 'hide' | 'glide';
-  onLayerRevealModeChange: (mode: 'hide' | 'glide') => void;
+  layerRevealMode: 'hide' | 'glide' | 'root-to-samples';
+  onLayerRevealModeChange: (mode: 'hide' | 'glide' | 'root-to-samples') => void;
   onLayerRevealStart: () => void;
   onLayerRevealPause: () => void;
   onLayerRevealResume: () => void;
@@ -573,7 +573,7 @@ export const ViewControlsSection: React.FC<ViewControlsSectionProps> = ({
               <span className="text-xs font-semibold" style={{ color: colors.text }}>
                 Layer Reveal
               </span>
-              <Tooltip content="Progressively reveal time layers from oldest to newest" />
+              <Tooltip content={layerRevealMode === 'root-to-samples' ? "Progressively reveal time layers from root (highest time) down to samples" : "Progressively reveal time layers from oldest to newest"} />
             </div>
 
             <div className="space-y-1">
@@ -582,9 +582,10 @@ export const ViewControlsSection: React.FC<ViewControlsSectionProps> = ({
                 options={[
                   { value: 'hide', label: 'Add Layers', tooltip: 'Simply add layers one by one' },
                   { value: 'glide', label: 'Glide', tooltip: 'Dim lower layers and glide shapefile to current layer' },
+                  { value: 'root-to-samples', label: 'Root to Samples', tooltip: 'Reveal from root down to samples' },
                 ]}
                 value={layerRevealMode}
-                onChange={(value) => onLayerRevealModeChange(value as 'hide' | 'glide')}
+                onChange={(value) => onLayerRevealModeChange(value as 'hide' | 'glide' | 'root-to-samples')}
                 disabled={layerRevealEnabled}
               />
             </div>
@@ -593,7 +594,7 @@ export const ViewControlsSection: React.FC<ViewControlsSectionProps> = ({
               label="Reveal Speed"
               value={layerRevealRate}
               min={0.1}
-              max={10}
+              max={25}
               step={0.1}
               onChange={onLayerRevealRateChange}
               unit=" layers/s"

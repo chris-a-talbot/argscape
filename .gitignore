@@ -18,6 +18,7 @@ venv/
 # Testing (exclude local testing scripts/data)
 /testing/
 /test/
+/presentation/
 
 # Node / Vite
 node_modules/

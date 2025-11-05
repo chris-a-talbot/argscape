@@ -78,6 +78,7 @@ class TsdateInferenceRequest(BaseModel):
 class SimplifyTreeSequenceRequest(BaseModel):
     filename: str
     samples: Optional[list] = None  # List of sample node IDs
+    random_sample_count: Optional[int] = None  # If provided, randomly select this many samples
     map_nodes: bool = False
     reduce_to_site_topology: bool = False
     filter_populations: Optional[bool] = None

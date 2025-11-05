@@ -41,7 +41,7 @@ export const GRAPH_CONSTANTS = {
         CHARGE: -20,
         X_POSITION: 0.15,
         ALPHA_START: 0.8,
-        ALPHA_DECAY: 0.05,
+        ALPHA_DECAY: 0.01, // Reduced from 0.05 to allow simulation to run longer before settling
         VELOCITY_DECAY: 0.7
     },
     ZOOM: {

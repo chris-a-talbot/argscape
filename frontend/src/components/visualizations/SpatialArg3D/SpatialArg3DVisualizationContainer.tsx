@@ -223,6 +223,7 @@ const getViewTitle = (
 // Simplified wrapper component
 const Spatial3DWrapper: React.FC<{
   data: GraphData | null;
+  originalData?: GraphData | null; // Original unfiltered data for coordinate transform in unit grid mode
   onNodeClick: (node: GraphNode) => void;
   onNodeRightClick: (node: GraphNode) => void;
   selectedNode: GraphNode | null;
@@ -247,6 +248,7 @@ const Spatial3DWrapper: React.FC<{
   viewState?: any;
 }> = ({ 
   data, 
+  originalData,
   onNodeClick, 
   onNodeRightClick, 
   selectedNode, 
@@ -305,6 +307,7 @@ const Spatial3DWrapper: React.FC<{
     <div ref={containerRef} className="w-full h-full">
       <SpatialArg3DVisualization
         data={data}
+        originalData={originalData}
         width={dimensions.width}
         height={dimensions.height}
         onNodeClick={onNodeClick}
@@ -416,7 +419,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     isPlaying: false,
     rate: 1.0, // nodes per second (based on unique time layers)
     currentProgress: 0, // 0 to 1, tracks how far through the animation we are
-    mode: 'glide' as 'hide' | 'glide', // 'hide' = just add layers, 'glide' = dim below and glide shapefile
+    mode: 'glide' as 'hide' | 'glide' | 'root-to-samples', // 'hide' = just add layers, 'glide' = dim below and glide shapefile, 'root-to-samples' = reveal from root down
     initialZoom: 1.8, // Store initial zoom level for dynamic zoom calculation
     initialTarget: [0, 0, 0] as [number, number, number] // Store initial camera target
   });
@@ -657,8 +660,22 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     const uniqueTimes = Array.from(new Set(data.nodes.map(node => node.time))).sort((a, b) => a - b);
     const numLayers = uniqueTimes.length;
     
+    const isRootToSamples = layerReveal.mode === 'root-to-samples';
+    
+    // For root-to-samples mode: reverse the times array (start from root/highest time)
+    const orderedTimes = isRootToSamples ? [...uniqueTimes].reverse() : uniqueTimes;
+    const minTime = uniqueTimes[0];
+    const maxTime = uniqueTimes[numLayers - 1];
+    
     // Calculate animation duration based on rate (layers per second)
-    const totalDuration = numLayers / layerReveal.rate; // seconds
+    // Add a delay at the start to hold at the initial layer
+    // Hold duration: at least 1 second at slow rates, scales down at higher rates with minimum 0.5 seconds
+    const timeForOneLayer = 1 / layerReveal.rate;
+    const INITIAL_HOLD_DURATION = layerReveal.rate <= 1.0 
+      ? Math.max(1.0, timeForOneLayer) // At slow rates: at least 1 second, or time for one layer if longer
+      : Math.max(0.5, timeForOneLayer); // At higher rates: scale down but minimum 0.5 seconds
+    const totalDuration = (numLayers / layerReveal.rate) + INITIAL_HOLD_DURATION;
+    
     const startTime = Date.now() - (layerReveal.currentProgress * totalDuration * 1000);
 
     // Calculate spatial extent for zoom adjustment
@@ -675,68 +692,85 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 
     const reveal = () => {
       const elapsedTime = (Date.now() - startTime) / 1000; // seconds
-      const newProgress = Math.min(elapsedTime / totalDuration, 1);
       
-      // Calculate which layer we should be showing up to
+      // Hold at the start for INITIAL_HOLD_DURATION seconds, then progress through layers
+      const timeForOneLayer = 1 / layerReveal.rate;
+      const INITIAL_HOLD_DURATION = layerReveal.rate <= 1.0 
+        ? Math.max(1.0, timeForOneLayer)
+        : Math.max(0.5, timeForOneLayer);
+      const effectiveElapsedTime = Math.max(0, elapsedTime - INITIAL_HOLD_DURATION);
+      const animationDuration = totalDuration - INITIAL_HOLD_DURATION;
+      
+      // Calculate progress (0 to 1) after the initial hold
+      const newProgress = animationDuration > 0 
+        ? Math.min(effectiveElapsedTime / animationDuration, 1)
+        : 0;
+      
+      // Calculate current layer index (0 = first layer, stays at 0 during hold)
       const currentLayerIndex = Math.floor(newProgress * numLayers);
-      const maxTimeToShow = uniqueTimes[Math.min(currentLayerIndex, numLayers - 1)];
       
-      // Update temporal range to reveal up to this layer
-      const minTime = uniqueTimes[0];
+      // Get the time value for the current layer
+      const currentTime = orderedTimes[Math.min(currentLayerIndex, numLayers - 1)];
       
-      // For 'glide' mode: use 'planes' temporal mode to dim lower layers and glide shapefile
-      // The range [minTime, maxTimeToShow] means:
-      // - Nodes from minTime to maxTimeToShow are shown
-      // - In 'planes' mode, nodes below maxTimeToShow are dimmed
-      // - Shapefile glides to maxTimeToShow position
-      // - Nodes above maxTimeToShow are hidden (not yet revealed)
-      setTemporalState(prev => ({
-        ...prev,
-        range: [minTime, maxTimeToShow]
-      }));
-      
-      // Calculate Z position of current layer
-      const currentLayerZ = currentLayerIndex * visualSettings.temporalSpacing;
-      
-      // Position camera to show current layer near the top of view (not center)
-      // Offset the target Z downwards so current layer appears higher in frame
-      // This prevents older layers from immediately going off the bottom
-      const verticalOffset = currentLayerZ * 0.35; // Current layer at ~35% from top
-      const targetZ = currentLayerZ - verticalOffset;
-      
-      // Calculate dynamic zoom to fit revealed structure
-      // Only zoom out when structure gets larger than initial view
-      const currentHeight = currentLayerZ;
-      
-      // Calculate what zoom would be needed to fit everything
-      // More sophisticated calculation: consider both spatial and temporal extents
-      const combinedExtent = Math.sqrt(spatialExtent * spatialExtent + currentHeight * currentHeight);
-      const initialExtent = spatialExtent;
-      
-      // Only start zooming out when we significantly exceed the initial extent
-      let targetZoom = layerReveal.initialZoom;
-      if (combinedExtent > initialExtent * 1.5) {
-        // Zoom out proportionally, but with an even gentler curve
-        // Using 0.8 power makes zoom-out less aggressive
-        const zoomFactor = Math.pow(initialExtent / combinedExtent, 0.8);
-        targetZoom = Math.max(MIN_ZOOM, layerReveal.initialZoom * zoomFactor);
+      if (isRootToSamples) {
+        // Root-to-samples mode: start showing only root nodes [maxTime, maxTime]
+        // Then expand downward in time (toward present/time=0) toward [minTime, maxTime]
+        // As currentTime moves from maxTime down to minTime, more layers are revealed
+        // Start at maxTime (root only) and expand to minTime (all nodes)
+        const minTimeToShow = currentTime; // This starts at maxTime and moves down to minTime
+        setTemporalState(prev => ({
+          ...prev,
+          mode: 'hide',
+          range: [minTimeToShow, maxTime]
+        }));
+        
+        // No automatic zoom/pan adjustments - maintain current view state
+        // Don't update viewState for root-to-samples mode
+      } else {
+        // Standard mode: reveal from oldest to newest
+        const maxTimeToShow = orderedTimes[Math.min(currentLayerIndex, numLayers - 1)];
+        
+        // For 'glide' mode: use 'planes' temporal mode to dim lower layers and glide shapefile
+        // For 'hide' mode: just hide nodes above maxTimeToShow
+        setTemporalState(prev => ({
+          ...prev,
+          range: [minTime, maxTimeToShow]
+        }));
+        
+        // Calculate Z position of current layer
+        const currentLayerZ = currentLayerIndex * visualSettings.temporalSpacing;
+        
+        // Position camera to show current layer near the top of view (not center)
+        const verticalOffset = currentLayerZ * 0.35;
+        const targetZ = currentLayerZ - verticalOffset;
+        
+        // Calculate dynamic zoom to fit revealed structure
+        const currentHeight = currentLayerZ;
+        const combinedExtent = Math.sqrt(spatialExtent * spatialExtent + currentHeight * currentHeight);
+        const initialExtent = spatialExtent;
+        
+        let targetZoom = layerReveal.initialZoom;
+        if (combinedExtent > initialExtent * 1.5) {
+          const zoomFactor = Math.pow(initialExtent / combinedExtent, 0.8);
+          targetZoom = Math.max(MIN_ZOOM, layerReveal.initialZoom * zoomFactor);
+        }
+        
+        setViewState(prev => ({
+          ...prev,
+          target: [initialX, initialY, targetZ] as [number, number, number],
+          zoom: targetZoom
+        }));
       }
       
-      // Smoothly update camera target and zoom
-      setViewState(prev => ({
-        ...prev,
-        target: [initialX, initialY, targetZ] as [number, number, number],
-        zoom: targetZoom
-      }));
-      
-      // Update progress
+      // Update progress (include the hold period in total progress for state tracking)
+      const totalProgress = Math.min(elapsedTime / totalDuration, 1);
       setLayerReveal(prev => ({
         ...prev,
-        currentProgress: newProgress
+        currentProgress: totalProgress
       }));
       
       // Continue animation if not complete
-      if (newProgress < 1) {
+      if (totalProgress < 1) {
         animationFrameId = requestAnimationFrame(reveal);
       } else {
         // Animation complete
@@ -761,7 +795,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         cancelAnimationFrame(animationFrameId);
       }
     };
-  }, [layerReveal.isPlaying, layerReveal.rate, layerReveal.currentProgress, data, temporalState.isActive, visualSettings.temporalSpacing]);
+  }, [layerReveal.isPlaying, layerReveal.rate, layerReveal.currentProgress, layerReveal.mode, data, temporalState.isActive, visualSettings.temporalSpacing]);
 
   const getFilteredData = (): GraphData | null => {
     if (!data) return data;
@@ -1279,7 +1313,22 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span className="font-mono font-bold text-lg">
-                  t = {temporalState.range[1].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}
+                  {(() => {
+                    const isRootToSamples = layerReveal.mode === 'root-to-samples';
+                    const displayTime = isRootToSamples ? temporalState.range[0] : temporalState.range[1];
+                    const isAtMinTime = Math.abs(displayTime - temporalState.minTime) < 0.0001;
+                    const isAtMaxTime = Math.abs(displayTime - temporalState.maxTime) < 0.0001;
+                    
+                    let label = `t = ${displayTime.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}`;
+                    
+                    if (isAtMinTime) {
+                      label += ' (present)';
+                    } else if (isAtMaxTime) {
+                      label += ' (MRCA)';
+                    }
+                    
+                    return label;
+                  })()}
                 </span>
                 {layerReveal.isPlaying && (
                   <span className="text-xs opacity-75">Playing</span>
@@ -1289,6 +1338,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           )}
           <Spatial3DWrapper
             data={filteredData}
+            originalData={data}
             onNodeClick={handleNodeClick}
             onNodeRightClick={handleNodeRightClick}
             selectedNode={selectedNode}
@@ -1381,17 +1431,31 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   layerRevealPlaying={layerReveal.isPlaying}
                   layerRevealRate={layerReveal.rate}
                   layerRevealMode={layerReveal.mode}
-                  onLayerRevealModeChange={(mode: 'hide' | 'glide') => setLayerReveal(prev => ({ ...prev, mode }))}
+                  onLayerRevealModeChange={(mode: 'hide' | 'glide' | 'root-to-samples') => setLayerReveal(prev => ({ ...prev, mode }))}
                   onLayerRevealStart={() => {
                     if (data) {
                       const uniqueTimes = Array.from(new Set(data.nodes.map(node => node.time))).sort((a, b) => a - b);
                       const minTime = uniqueTimes[0];
-                      setTemporalState(prev => ({ 
-                        ...prev, 
-                        isActive: true, 
-                        mode: layerReveal.mode === 'glide' ? 'hybrid' : 'hide', 
-                        range: [minTime, minTime] 
-                      }));
+                      const maxTime = uniqueTimes[uniqueTimes.length - 1];
+                      
+                      if (layerReveal.mode === 'root-to-samples') {
+                        // Start from root (maxTime) and reveal down
+                        setTemporalState(prev => ({ 
+                          ...prev, 
+                          isActive: true, 
+                          mode: 'hide',
+                          range: [maxTime, maxTime] 
+                        }));
+                      } else {
+                        // Start from samples (minTime) and reveal up
+                        setTemporalState(prev => ({ 
+                          ...prev, 
+                          isActive: true, 
+                          mode: layerReveal.mode === 'glide' ? 'hybrid' : 'hide', 
+                          range: [minTime, minTime] 
+                        }));
+                      }
+                      
                       setLayerReveal(prev => ({ 
                         ...prev, 
                         enabled: true, 

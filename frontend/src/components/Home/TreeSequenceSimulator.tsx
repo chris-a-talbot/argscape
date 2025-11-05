@@ -29,7 +29,7 @@ export const DEFAULT_PARAMS: SimulationParams = {
   max_time: 100,  // 100 generations
   model: "dtwf",  // Discrete Time Wright-Fisher model
   filename_prefix: "simulated",
-  crs: "EPSG:4326",  // WGS84
+  crs: "unit_grid",  // Unit Grid (0-1)
   ploidy: 2,  // Diploid
   mutation_rate: 1e-8,  // Per base pair per generation
   recombination_rate: 1e-8  // Per base pair per generation
@@ -122,7 +122,7 @@ const formatDateShort = (date: Date): string => {
 // Helper function to generate auto filename
 const generateAutoFilename = (params: SimulationParams, customSeed?: number, includeTimestamp = false): string => {
   const modelAbbr = getModelAbbreviation(params.model || 'dtwf');
-  const crsAbbr = getCRSAbbreviation(params.crs || 'EPSG:4326');
+  const crsAbbr = getCRSAbbreviation(params.crs || 'unit_grid');
   
   // Generate a 3-digit random seed if not provided
   const seed = customSeed ?? Math.floor(Math.random() * 1000);
@@ -866,7 +866,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
               </div>
             </label>
             <select
-              value={params.crs || 'EPSG:4326'}
+              value={params.crs || 'unit_grid'}
               onChange={(e) => updateParam('crs', e.target.value)}
               onKeyDown={handleKeyDown}
               className="px-3 py-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green focus:border-transparent transition-all duration-200 text-sm"
@@ -1186,7 +1186,7 @@ export default function TreeSequenceSimulator({ onSimulationComplete, setLoading
                 <div><span className="font-bold text-sp-pale-green">t{params.sequence_length}</span> - Sequence Length ({formatSequenceLength(params.sequence_length)})</div>
                 <div><span className="font-bold text-sp-pale-green">g{params.max_time}</span> - Max generations (1-1000)</div>
                 <div><span className="font-bold text-sp-pale-green">p{params.ploidy ?? 2}</span> - Ploidy (1-4)</div>
-                <div><span className="font-bold text-sp-pale-green">c{getCRSAbbreviation(params.crs || 'EPSG:4326')}</span> - Coordinate system</div>
+                <div><span className="font-bold text-sp-pale-green">c{getCRSAbbreviation(params.crs || 'unit_grid')}</span> - Coordinate system</div>
                 <div><span className="font-bold text-sp-pale-green">r###</span> - Random seed (0-999)</div>
                 <div><span className="font-bold text-sp-pale-green">d##########</span> - Timestamp (MMDDYYHHMM)</div>
               </div>

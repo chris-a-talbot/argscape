@@ -6,6 +6,7 @@ import logging
 import os
 import asyncio
 
+import numpy as np
 import tskit
 from fastapi import APIRouter, HTTPException, UploadFile, File, Request
 
@@ -756,17 +757,31 @@ async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTre
     
     try:
         # Prepare samples list - if not provided, use all samples
-        samples = simplify_request.samples
-        if samples is None:
-            samples = ts.samples()
-        else:
-            # Convert to numpy array and validate
-            samples = np.array(samples, dtype=np.int32)
+        # Priority: random_sample_count > samples list > all samples
+        if simplify_request.random_sample_count is not None:
+            # Randomly select samples
+            if simplify_request.random_sample_count < 1:
+                raise HTTPException(status_code=400, detail="random_sample_count must be at least 1")
+            if simplify_request.random_sample_count > ts.num_samples:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"random_sample_count ({simplify_request.random_sample_count}) cannot exceed total samples ({ts.num_samples})"
+                )
+            all_samples = ts.samples()
+            samples = np.random.choice(all_samples, size=simplify_request.random_sample_count, replace=False)
+            samples = np.sort(samples)  # Sort for consistency
+            logger.info(f"Randomly selected {len(samples)} samples from {ts.num_samples} total samples")
+        elif simplify_request.samples is not None:
+            # Use provided samples list
+            samples = np.array(simplify_request.samples, dtype=np.int32)
             # Validate that all samples are valid node IDs
             if not all(0 <= s < ts.num_nodes for s in samples):
                 raise HTTPException(status_code=400, detail="Invalid sample node IDs provided")
-        
-        logger.info(f"Simplifying with {len(samples)} samples")
+            logger.info(f"Using provided {len(samples)} samples")
+        else:
+            # Use all samples
+            samples = ts.samples()
+            logger.info(f"Using all {len(samples)} samples")
         
         # Run simplification
         new_ts = ts.simplify(
@@ -790,14 +805,19 @@ async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTre
         has_all_spatial = spatial_info["has_all_spatial"]
         spatial_status = spatial_info["spatial_status"]
         
-        # Generate new filename
+        # Generate new filename with sample and tree counts
         base_filename = simplify_request.filename
+        num_samples = int(new_ts.num_samples)
+        num_trees = int(new_ts.num_trees)
+        
         if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_simplified.trees'
+            base_name = base_filename[:-6]
+            new_filename = f"{base_name}_simplified_s{num_samples}_t{num_trees}.trees"
         elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_simplified.tsz'
+            base_name = base_filename[:-4]
+            new_filename = f"{base_name}_simplified_s{num_samples}_t{num_trees}.tsz"
         else:
-            new_filename = base_filename + '_simplified.trees'
+            new_filename = f"{base_filename}_simplified_s{num_samples}_t{num_trees}.trees"
         
         # Store the simplified tree sequence
         session_storage.store_tree_sequence(session_id, new_filename, new_ts)

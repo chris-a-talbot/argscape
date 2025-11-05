@@ -437,6 +437,7 @@ class ApiService {
   async simplifyTreeSequence(params: {
     filename: string;
     samples?: number[];
+    random_sample_count?: number;
     map_nodes?: boolean;
     reduce_to_site_topology?: boolean;
     filter_populations?: boolean;

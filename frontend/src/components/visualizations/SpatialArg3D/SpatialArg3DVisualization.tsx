@@ -40,6 +40,7 @@ import { LINE_WIDTHS } from './SpatialArg3D.constants';
 
 interface SpatialArg3DProps {
   data: GraphData | null;
+  originalData?: GraphData | null; // Original unfiltered data for coordinate transform in unit grid mode
   width: number;
   height: number;
   onNodeClick?: (node: GraphNode) => void;
@@ -81,6 +82,7 @@ interface SpatialArg3DProps {
 
 const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DProps>(({
   data,
+  originalData,
   width,
   height,
   onNodeClick,
@@ -183,34 +185,53 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   }, [externalViewState]);
 
   // First do spatial combining, then calculate coordinate transform using combined nodes
-  const { combinedNodesForTransform, combinedEdgesForTransform } = useMemo(() => {
-    if (!data || !data.nodes.length) return { combinedNodesForTransform: [], combinedEdgesForTransform: [] };
+  // In unit grid mode, use original unfiltered data for coordinate transform to maintain consistent bounds
+  const { combinedNodesForTransform, combinedEdgesForTransform, combinedNodesForCoordinateTransform } = useMemo(() => {
+    if (!data || !data.nodes.length) return { combinedNodesForTransform: [], combinedEdgesForTransform: [], combinedNodesForCoordinateTransform: [] };
     
     // Apply spatial combining once at the top level
     const { nodes: combinedNodes, edges: combinedEdges } = combineSpatiallyColocatedNodes(data.nodes, data.edges);
-    return { combinedNodesForTransform: combinedNodes, combinedEdgesForTransform: combinedEdges };
-  }, [data]);
+    
+    // For unit grid mode, use original unfiltered data for coordinate transform
+    // Otherwise use the filtered data
+    let nodesForCoordinateTransform = combinedNodes;
+    if (geographicMode === 'unit_grid' && originalData && originalData.nodes.length > 0) {
+      const { nodes: originalCombinedNodes } = combineSpatiallyColocatedNodes(originalData.nodes, originalData.edges);
+      nodesForCoordinateTransform = originalCombinedNodes;
+    }
+    
+    return { 
+      combinedNodesForTransform: combinedNodes, 
+      combinedEdgesForTransform: combinedEdges,
+      combinedNodesForCoordinateTransform: nodesForCoordinateTransform
+    };
+  }, [data, originalData, geographicMode]);
 
   const coordinateTransform = useMemo(() => {
-    if (!combinedNodesForTransform.length) return null;
-    return calculateCoordinateTransform(combinedNodesForTransform, geographicMode, geographicShape);
-  }, [combinedNodesForTransform, geographicMode, geographicShape?.bounds]);
+    if (!combinedNodesForCoordinateTransform.length) return null;
+    return calculateCoordinateTransform(combinedNodesForCoordinateTransform, geographicMode, geographicShape);
+  }, [combinedNodesForCoordinateTransform, geographicMode, geographicShape?.bounds]);
 
   const { nodes3D: allNodes3D, edges3D, bounds } = useMemo(() => {
     if (!coordinateTransform || !combinedNodesForTransform.length) {
       return { nodes3D: [], edges3D: [], bounds: null };
     }
 
-    // Use the already-combined nodes and edges from the top level
+    // Use the already-combined nodes and edges from the top level (filtered data)
     const combinedNodes = combinedNodesForTransform;
     const combinedEdges = combinedEdgesForTransform;
+    
+    // Filter to only spatial nodes from the filtered data
+    const spatialNodes = combinedNodes.filter(node => 
+      node.location?.x !== undefined && node.location?.y !== undefined
+    );
     
     // Get unique times for z-position calculation
     const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
     
     const transformedNodes = transformNodesToThreeD(
-      coordinateTransform.spatialNodes,
-      coordinateTransform,
+      spatialNodes, // Use filtered nodes, not coordinateTransform.spatialNodes
+      coordinateTransform, // But use coordinate transform from original data for consistent bounds
       temporalSpacing,
       spatialSpacing,
       colors,

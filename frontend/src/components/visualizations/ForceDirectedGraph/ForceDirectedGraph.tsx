@@ -206,10 +206,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         // Nudge simulation to apply changes with higher alpha for initial settling
         sim.alpha(0.5).alphaTarget(0.1).restart();
-        // Drop target after settling
+        // Drop target after settling - increased delay to allow more time for simulation
         setTimeout(() => {
             sim.alphaTarget(0);
-        }, 300);
+        }, 2000);
     }, [tuning, sampleOrder, data]); // Add data dependency to trigger on initial load
 
     // Full simulation reset while retaining sample order and positions
@@ -239,45 +239,56 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         // Debug logging only in development
         if (process.env.NODE_ENV === 'development') {
-          console.log('Reset trigger fired - recalculating sample-level node spacing');
+          console.log('Reset trigger fired - recalculating horizontal and vertical spacing');
         }
         
-        // Recalculate horizontal spacing for sample-level nodes
-        // This is needed when clustering settings change
         const containerRect = svg.node()?.getBoundingClientRect();
-        if (containerRect) {
-            const actualWidth = width || containerRect.width || 800;
-            
-            // Get all sample-level nodes (samples and sample clusters)
-            const sampleLevelNodes = nodes.filter(n => n.is_sample || n.is_sample_cluster);
-            
-            // Sort them by their current order (using order_position if available, else x position)
-            sampleLevelNodes.sort((a, b) => {
-                if (a.order_position !== undefined && b.order_position !== undefined) {
-                    return a.order_position - b.order_position;
-                }
-                // If no order_position, maintain current x order
-                if (a.x !== undefined && b.x !== undefined) {
-                    return a.x - b.x;
-                }
-                return a.id - b.id;
-            });
-                
-            // Recalculate horizontal spacing
-            const totalWidth = (sampleLevelNodes.length - 1) * sampleSpacing;
-            const centerOffset = (actualWidth - totalWidth) / 2;
-            
-            // Reposition all sample-level nodes with correct spacing
-            sampleLevelNodes.forEach((node, index) => {
-                node.x = centerOffset + (index * sampleSpacing);
-                node.fx = node.x;
-                // Y position (fy) should already be set correctly
-            });
-            
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log(`Repositioned ${sampleLevelNodes.length} sample-level nodes with spacing ${sampleSpacing}`);
+        if (!containerRect) return;
+        
+        const actualWidth = width || containerRect.width || 800;
+        const actualHeight = height || containerRect.height || 600;
+        const availableHeight = actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
+        
+        // Recalculate vertical spacing (temporal layers) - treat as new graph
+        // This is critical for subARG/parent ARG where unique times change
+        const uniqueTimes = Array.from(new Set(nodes.map(n => n.time))).sort((a, b) => a - b);
+        nodes.forEach((n) => {
+            const y = calculateYPosition(n.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+            n.y = y;
+            n.fy = y; // Pin y position to maintain temporal layer
+            n.vy = 0; // Reset velocity
+        });
+        
+        // Recalculate horizontal spacing for sample-level nodes
+        // This is needed when clustering settings change or subARG/parent ARG loads
+        const sampleLevelNodes = nodes.filter(n => n.is_sample || n.is_sample_cluster);
+        
+        // Sort them by their current order (using order_position if available, else x position)
+        sampleLevelNodes.sort((a, b) => {
+            if (a.order_position !== undefined && b.order_position !== undefined) {
+                return a.order_position - b.order_position;
             }
+            // If no order_position, maintain current x order
+            if (a.x !== undefined && b.x !== undefined) {
+                return a.x - b.x;
+            }
+            return a.id - b.id;
+        });
+            
+        // Recalculate horizontal spacing
+        const totalWidth = (sampleLevelNodes.length - 1) * sampleSpacing;
+        const centerOffset = (actualWidth - totalWidth) / 2;
+        
+        // Reposition all sample-level nodes with correct spacing
+        sampleLevelNodes.forEach((node, index) => {
+            node.x = centerOffset + (index * sampleSpacing);
+            node.fx = node.x;
+            node.vx = 0; // Reset velocity
+        });
+        
+        // Debug logging only in development
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`Repositioned ${sampleLevelNodes.length} sample-level nodes with spacing ${sampleSpacing}, ${uniqueTimes.length} temporal layers`);
         }
         
         // Reset velocities and unpin only NON-SAMPLE nodes; samples keep fx and fy
@@ -285,7 +296,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             n.vx = 0;
             n.vy = 0;
             if (!n.is_sample && !n.is_sample_cluster) {
-                n.fx = null;
+                n.fx = null; // Allow x movement but keep fy pinned (y positions)
             }
         });
         
@@ -322,8 +333,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         // Restart the simulation with the updated positions
         sim.alpha(0.9).alphaTarget(0.3).restart();
-        setTimeout(() => sim.alphaTarget(0), 200);
-    }, [resetTrigger, width, sampleSpacing, sampleOrder]);
+        setTimeout(() => sim.alphaTarget(0), 2000); // Increased from 200ms to allow more settling time
+    }, [resetTrigger, width, height, sampleSpacing, temporalSpacingMode, temporalSpacing, sampleOrder]);
 
     // Keep y pinned to layer when spacing/mode/height/temporalRange changes
     useEffect(() => {
@@ -349,7 +360,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             }
         });
         sim.alphaTarget(0.15).restart();
-        setTimeout(() => sim.alphaTarget(0), 120);
+        setTimeout(() => sim.alphaTarget(0), 1500); // Increased from 120ms to allow more settling time
     }, [temporalSpacingMode, temporalSpacing, height, temporalRange]);
 
     // Memoize data key to prevent unnecessary simulation restarts
@@ -2178,6 +2189,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             console.log('Force simulation paused - non-sample nodes pinned at current positions');
         } else {
             // Unpin nodes that were auto-pinned (not manually dragged or samples)
+            // CRITICAL: Only unpin x-positions (fx), keep y-positions (fy) pinned to maintain temporal layers
             nodes.forEach(node => {
                 // Never unpin sample nodes
                 if (node.is_sample) return;
@@ -2186,8 +2198,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     node.fx = null;
                     delete (node as any).__autoPinnedX;
                 }
+                // DO NOT unpin fy - nodes should maintain their y positions based on time/rank
+                // Keep fy pinned even if it was auto-pinned, to preserve temporal layer structure
                 if ((node as any).__autoPinnedY) {
-                    node.fy = null;
+                    // Keep fy pinned - don't unpin y positions
                     delete (node as any).__autoPinnedY;
                 }
             });
@@ -2205,14 +2219,39 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const simulation = visualStateRef.current.simulation;
         const nodes = simulation.nodes() as GraphNode[];
         
+        // Skip Y recalculation for dagre - positions are rank-based, not time-based
+        if (sampleOrder !== 'dagre') {
+            // Recalculate y positions based on time to ensure proper temporal layering
+            const targetHeight = (visualStateRef.current.svg?.node()?.getBoundingClientRect().height ?? 0) * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO);
+            const uniqueTimes = Array.from(new Set(nodes.map(n => n.time))).sort((a, b) => a - b);
+            
+            nodes.forEach(node => {
+                // Skip sample nodes - they should always keep their fx/fy
+                if (node.is_sample) return;
+                
+                // Recalculate y position based on time to ensure proper temporal layer
+                const y = calculateYPosition(node.time, uniqueTimes, targetHeight, temporalSpacingMode, temporalSpacing);
+                node.y = y;
+                node.fy = y; // Pin y position to maintain temporal layer
+                node.vy = 0; // Reset velocity
+            });
+        }
+        
         // Unpin all NON-SAMPLE nodes (both manually and auto-pinned)
         // Sample nodes should NEVER be unpinned - they maintain their spacing
+        // CRITICAL: Only unpin x-positions (fx), keep y-positions (fy) pinned to maintain temporal layers
         nodes.forEach(node => {
             // Skip sample nodes - they should always keep their fx/fy
             if (node.is_sample) return;
             
+            // Unpin x position to allow horizontal movement
             node.fx = null;
-            node.fy = null;
+            
+            // For dagre mode, preserve current y position by keeping fy pinned
+            if (sampleOrder === 'dagre' && node.y !== undefined && (node.fy === null || node.fy === undefined)) {
+                node.fy = node.y;
+            }
+            
             // Clean up any pinning markers
             delete (node as any).__autoPinnedX;
             delete (node as any).__autoPinnedY;
@@ -2233,7 +2272,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         simulation.alpha(0.1).alphaTarget(0).restart();
         
         console.log('All non-sample nodes unpinned - simulation continues from current positions');
-    }, [unpinTrigger]);
+    }, [unpinTrigger, sampleOrder, temporalSpacingMode, temporalSpacing, height]);
 
     // Effect to update opacities when temporal, genomic, or tree range changes (without restarting simulation)
     useEffect(() => {

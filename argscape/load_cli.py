@@ -6,13 +6,16 @@ Commands:
 - list: List stored tree sequences (safe if none exist)
 - rm:   Remove one stored tree sequence by name
 - clear: Remove all stored tree sequences for the CLI session
+- available: List all available .trees and .tsz files in a directory
 """
 
 import argparse
 from pathlib import Path
 import sys
 import csv
-from typing import Dict, Tuple
+import threading
+from typing import Dict, Tuple, Optional
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 
 try:
     import tskit  # type: ignore
@@ -52,6 +55,83 @@ def cmd_load(args: argparse.Namespace) -> int:
     except Exception as e:
         print(f"Failed to load: {e}", file=sys.stderr)
         return 1
+
+
+def _load_with_timeout(file_path: Path, ext: str, timeout: float = 1.0) -> Optional[Tuple[Path, str, Optional[int], Optional[int]]]:
+    """Load a tree sequence file with a timeout. Returns None if timeout or error."""
+    def _load():
+        if ext == ".trees":
+            return tskit.load(str(file_path))  # type: ignore
+        else:  # .tsz
+            import tszip
+            return tszip.load(str(file_path))
+    
+    try:
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_load)
+            ts = future.result(timeout=timeout)
+            return (file_path, ext, ts.num_samples, ts.num_nodes)
+    except FutureTimeoutError:
+        # Timeout - return with unknown size
+        return (file_path, ext, None, None)
+    except Exception:
+        # Other errors - skip this file
+        return None
+
+
+def cmd_available(args: argparse.Namespace) -> int:
+    """List all available .trees and .tsz files in the specified directory."""
+    if _TSKIT_IMPORT_ERROR is not None:
+        print(f"Error: tskit not available: {_TSKIT_IMPORT_ERROR}", file=sys.stderr)
+        return 1
+    
+    dir_path = Path(args.dir).expanduser().resolve()
+    if not dir_path.exists():
+        print(f"Error: directory not found: {dir_path}", file=sys.stderr)
+        return 2
+    
+    if not dir_path.is_dir():
+        print(f"Error: path is not a directory: {dir_path}", file=sys.stderr)
+        return 2
+    
+    # Find all .trees and .tsz files
+    trees_files = sorted(dir_path.glob("*.trees"))
+    tsz_files = sorted(dir_path.glob("*.tsz"))
+    
+    all_files = []
+    
+    # Check .trees files
+    for file_path in trees_files:
+        if file_path.is_file():
+            result = _load_with_timeout(file_path, ".trees", timeout=1.0)
+            if result is not None:
+                all_files.append(result)
+    
+    # Check .tsz files
+    try:
+        import tszip  # type: ignore
+    except ImportError:
+        print("Warning: tszip not available, skipping .tsz files", file=sys.stderr)
+    else:
+        for file_path in tsz_files:
+            if file_path.is_file():
+                result = _load_with_timeout(file_path, ".tsz", timeout=1.0)
+                if result is not None:
+                    all_files.append(result)
+    
+    if not all_files:
+        print(f"No loadable .trees or .tsz files found in {dir_path}")
+        return 0
+    
+    print(f"Available tree sequence files in {dir_path}:")
+    for i, (file_path, ext, num_samples, num_nodes) in enumerate(all_files, 1):
+        rel_path = file_path.relative_to(dir_path)
+        if num_samples is None or num_nodes is None:
+            print(f"  {i}. {rel_path} ({ext}) - unknown size (timeout loading)")
+        else:
+            print(f"  {i}. {rel_path} ({ext}) - {num_samples} samples, {num_nodes} nodes")
+    
+    return 0
 
 
 def cmd_list(_: argparse.Namespace) -> int:
@@ -95,6 +175,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="List stored tree sequences")
     p_list.set_defaults(func=cmd_list)
+
+    p_available = sub.add_parser("available", help="List all available .trees and .tsz files in a directory")
+    p_available.add_argument("--dir", required=True, help="Directory to scan for tree sequence files")
+    p_available.set_defaults(func=cmd_available)
 
     def cmd_rm(args: argparse.Namespace) -> int:
         try:

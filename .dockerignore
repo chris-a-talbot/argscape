@@ -32,6 +32,7 @@ dist/
 dev_storage/
 test/
 testing/
+presentation/
 
 # Frontend build artifacts (development only - production uses pre-built frontend)
 frontend/node_modules/

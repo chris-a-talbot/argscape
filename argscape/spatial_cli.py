@@ -12,13 +12,14 @@ Usage examples:
   argscape_infer list
   argscape_infer run --input /path/data.trees --method midpoint --output /tmp/outdir
   argscape_infer run --name mydata --method gaia-quadratic --output /tmp/outdir
-  argscape_infer run --name mydata --method tsdate --output /tmp/outdir
+  argscape_infer run --name mydata --method fastgaia --output /tmp/outdir
   argscape_infer  # interactive mode
 """
 
 import argparse
 import os
 import sys
+import threading
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -39,52 +40,95 @@ except Exception as e:  # pragma: no cover
 else:
     _SESSION_IMPORT_ERROR = None
 
-# Spatial inference implementations and availability flags
-try:
-    from argscape.api.inference import (
-        run_fastgaia_inference,
-        run_gaia_quadratic_inference,
-        run_gaia_linear_inference,
-        run_midpoint_inference,
-        FASTGAIA_AVAILABLE,
-        GEOANCESTRY_AVAILABLE,
-        MIDPOINT_AVAILABLE,
-    )
-except Exception:  # pragma: no cover
-    run_fastgaia_inference = None  # type: ignore
-    run_gaia_quadratic_inference = None  # type: ignore
-    run_gaia_linear_inference = None  # type: ignore
-    run_midpoint_inference = None  # type: ignore
-    FASTGAIA_AVAILABLE = False  # type: ignore
-    GEOANCESTRY_AVAILABLE = False  # type: ignore
-    MIDPOINT_AVAILABLE = False  # type: ignore
+# Inference modules are imported lazily per-method to avoid slow startup
+# Only load the specific method needed when actually running inference
+_check_spatial_completeness_cache = None
+_preload_started = False
+_preload_lock = threading.Lock()
 
-try:
-    from argscape.api.inference import (
-        run_sparg_inference,
-        SPARG_AVAILABLE,
-    )
-except Exception:  # pragma: no cover
-    run_sparg_inference = None  # type: ignore
-    SPARG_AVAILABLE = False  # type: ignore
+# Cache for inference functions (populated by background preload or on-demand)
+_inference_cache = {
+    "run_midpoint_inference": None,
+    "run_fastgaia_inference": None,
+    "run_gaia_quadratic_inference": None,
+    "run_gaia_linear_inference": None,
+    "run_sparg_inference": None,
+    "MIDPOINT_AVAILABLE": None,
+    "FASTGAIA_AVAILABLE": None,
+    "GEOANCESTRY_AVAILABLE": None,
+    "SPARG_AVAILABLE": None,
+}
+_inference_cache_lock = threading.Lock()
 
-try:
-    from argscape.api.geo_utils.tree_sequence import (
-        check_spatial_completeness,
-    )
-except Exception:  # pragma: no cover
-    def check_spatial_completeness(ts):  # type: ignore
-        return {"has_sample_spatial": False, "has_all_spatial": False, "spatial_status": "none"}
 
-# Temporal inference (tsdate)
-try:
-    from argscape.api.inference import (
-        run_tsdate_inference,
-        TSDATE_AVAILABLE,
-    )
-except Exception:  # pragma: no cover
-    run_tsdate_inference = None  # type: ignore
-    TSDATE_AVAILABLE = False  # type: ignore
+def _load_check_spatial_completeness():
+    """Lazy load spatial completeness check function (lightweight, used by multiple methods)."""
+    global _check_spatial_completeness_cache
+    if _check_spatial_completeness_cache is None:
+        try:
+            from argscape.api.geo_utils.tree_sequence import (
+                check_spatial_completeness,
+            )
+            _check_spatial_completeness_cache = check_spatial_completeness
+        except Exception:  # pragma: no cover
+            def check_spatial_completeness(ts):  # type: ignore
+                return {"has_sample_spatial": False, "has_all_spatial": False, "spatial_status": "none"}
+            _check_spatial_completeness_cache = check_spatial_completeness
+    return _check_spatial_completeness_cache
+
+
+def _background_preload_inference_modules():
+    """Preload all inference modules in the background to reduce latency when methods are selected."""
+    global _preload_started, _inference_cache
+    with _preload_lock:
+        if _preload_started:
+            return
+        _preload_started = True
+    
+    def _preload():
+        """Actually perform the preloading and cache the results."""
+        try:
+            # Try to import all inference modules and cache them
+            # Even if some fail, we'll have the available ones loaded
+            try:
+                from argscape.api.inference import (
+                    run_fastgaia_inference,
+                    run_gaia_quadratic_inference,
+                    run_gaia_linear_inference,
+                    run_midpoint_inference,
+                    run_sparg_inference,
+                    FASTGAIA_AVAILABLE,
+                    GEOANCESTRY_AVAILABLE,
+                    MIDPOINT_AVAILABLE,
+                    SPARG_AVAILABLE,
+                )
+                # Cache the imported functions and flags
+                with _inference_cache_lock:
+                    _inference_cache["run_fastgaia_inference"] = run_fastgaia_inference
+                    _inference_cache["run_gaia_quadratic_inference"] = run_gaia_quadratic_inference
+                    _inference_cache["run_gaia_linear_inference"] = run_gaia_linear_inference
+                    _inference_cache["run_midpoint_inference"] = run_midpoint_inference
+                    _inference_cache["run_sparg_inference"] = run_sparg_inference
+                    _inference_cache["FASTGAIA_AVAILABLE"] = FASTGAIA_AVAILABLE
+                    _inference_cache["GEOANCESTRY_AVAILABLE"] = GEOANCESTRY_AVAILABLE
+                    _inference_cache["MIDPOINT_AVAILABLE"] = MIDPOINT_AVAILABLE
+                    _inference_cache["SPARG_AVAILABLE"] = SPARG_AVAILABLE
+            except Exception:
+                pass  # Some modules may not be available, that's fine
+            
+            # Also preload spatial completeness check
+            try:
+                _load_check_spatial_completeness()
+            except Exception:
+                pass
+        
+        except Exception:
+            pass  # Silently fail - if preloading fails, we'll just load on-demand
+    
+    # Start preloading in a daemon thread (won't block program exit)
+    thread = threading.Thread(target=_preload, daemon=True)
+    thread.start()
+
 
 CLI_SESSION_IP = "cli"  # stable pseudo-IP for CLI persistent storage
 
@@ -147,7 +191,9 @@ def _list_loaded() -> Tuple[str, Tuple[str, ...]]:
 
 
 def _require_sample_spatial(ts: "tskit.TreeSequence", method_label: str) -> None:
-    spatial = check_spatial_completeness(ts)
+    """Check that tree sequence has sample spatial locations."""
+    check_spatial = _load_check_spatial_completeness()
+    spatial = check_spatial(ts)
     if not spatial.get("has_sample_spatial", False):
         raise RuntimeError(
             f"{method_label} requires sample nodes to have spatial locations. "
@@ -156,43 +202,122 @@ def _require_sample_spatial(ts: "tskit.TreeSequence", method_label: str) -> None
 
 
 def _run_inference(ts: "tskit.TreeSequence", method: str, weight_span: bool, weight_branch_length: bool) -> Tuple["tskit.TreeSequence", Dict, str]:  # type: ignore
+    """Run inference with a specific method, using cached imports when available."""
+    global _inference_cache
     method_key = method.lower()
+    
     if method_key in {"midpoint"}:
-        if not MIDPOINT_AVAILABLE:
+        # Check cache first, then import if needed
+        with _inference_cache_lock:
+            run_fn = _inference_cache["run_midpoint_inference"]
+            available = _inference_cache["MIDPOINT_AVAILABLE"]
+        
+        if run_fn is None or available is None:
+            try:
+                from argscape.api.inference import run_midpoint_inference, MIDPOINT_AVAILABLE
+                with _inference_cache_lock:
+                    _inference_cache["run_midpoint_inference"] = run_midpoint_inference
+                    _inference_cache["MIDPOINT_AVAILABLE"] = MIDPOINT_AVAILABLE
+                run_fn = run_midpoint_inference
+                available = MIDPOINT_AVAILABLE
+            except ImportError:
+                raise RuntimeError("Midpoint inference not available. Ensure dependencies are installed.")
+        
+        if not available:
             raise RuntimeError("Midpoint inference not available. Ensure dependencies are installed.")
         _require_sample_spatial(ts, "Midpoint inference")
-        ts_out, info = run_midpoint_inference(ts)  # type: ignore[misc]
+        ts_out, info = run_fn(ts)  # type: ignore[misc]
         return ts_out, info, "midpoint"
+    
     if method_key in {"fastgaia", "fast"}:
-        if not FASTGAIA_AVAILABLE:
+        with _inference_cache_lock:
+            run_fn = _inference_cache["run_fastgaia_inference"]
+            available = _inference_cache["FASTGAIA_AVAILABLE"]
+        
+        if run_fn is None or available is None:
+            try:
+                from argscape.api.inference import run_fastgaia_inference, FASTGAIA_AVAILABLE
+                with _inference_cache_lock:
+                    _inference_cache["run_fastgaia_inference"] = run_fastgaia_inference
+                    _inference_cache["FASTGAIA_AVAILABLE"] = FASTGAIA_AVAILABLE
+                run_fn = run_fastgaia_inference
+                available = FASTGAIA_AVAILABLE
+            except ImportError:
+                raise RuntimeError("fastgaia not available. Install fastgaia.")
+        
+        if not available:
             raise RuntimeError("fastgaia not available. Install fastgaia.")
-        ts_out, info = run_fastgaia_inference(ts, weight_span=weight_span, weight_branch_length=weight_branch_length)  # type: ignore[misc]
+        ts_out, info = run_fn(ts, weight_span=weight_span, weight_branch_length=weight_branch_length)  # type: ignore[misc]
         return ts_out, info, "fastgaia"
+    
     if method_key in {"gaia-quadratic", "gaia_quad", "gaia-quad", "gaiaq"}:
-        if not GEOANCESTRY_AVAILABLE:
+        with _inference_cache_lock:
+            run_fn = _inference_cache["run_gaia_quadratic_inference"]
+            available = _inference_cache["GEOANCESTRY_AVAILABLE"]
+        
+        if run_fn is None or available is None:
+            try:
+                from argscape.api.inference import run_gaia_quadratic_inference, GEOANCESTRY_AVAILABLE
+                with _inference_cache_lock:
+                    _inference_cache["run_gaia_quadratic_inference"] = run_gaia_quadratic_inference
+                    _inference_cache["GEOANCESTRY_AVAILABLE"] = GEOANCESTRY_AVAILABLE
+                run_fn = run_gaia_quadratic_inference
+                available = GEOANCESTRY_AVAILABLE
+            except ImportError:
+                raise RuntimeError("GAIA (gaiapy) not available. Install geoancestry/gaiapy.")
+        
+        if not available:
             raise RuntimeError("GAIA (gaiapy) not available. Install geoancestry/gaiapy.")
         _require_sample_spatial(ts, "GAIA quadratic")
-        ts_out, info = run_gaia_quadratic_inference(ts)  # type: ignore[misc]
+        ts_out, info = run_fn(ts)  # type: ignore[misc]
         return ts_out, info, "gaia_quad"
+    
     if method_key in {"gaia-linear", "gaia_lin", "gaial"}:
-        if not GEOANCESTRY_AVAILABLE:
+        with _inference_cache_lock:
+            run_fn = _inference_cache["run_gaia_linear_inference"]
+            available = _inference_cache["GEOANCESTRY_AVAILABLE"]
+        
+        if run_fn is None or available is None:
+            try:
+                from argscape.api.inference import run_gaia_linear_inference, GEOANCESTRY_AVAILABLE
+                with _inference_cache_lock:
+                    _inference_cache["run_gaia_linear_inference"] = run_gaia_linear_inference
+                    _inference_cache["GEOANCESTRY_AVAILABLE"] = GEOANCESTRY_AVAILABLE
+                run_fn = run_gaia_linear_inference
+                available = GEOANCESTRY_AVAILABLE
+            except ImportError:
+                raise RuntimeError("GAIA (gaiapy) not available. Install geoancestry/gaiapy.")
+        
+        if not available:
             raise RuntimeError("GAIA (gaiapy) not available. Install geoancestry/gaiapy.")
         _require_sample_spatial(ts, "GAIA linear")
-        ts_out, info = run_gaia_linear_inference(ts)  # type: ignore[misc]
+        ts_out, info = run_fn(ts)  # type: ignore[misc]
         return ts_out, info, "gaia_lin"
+    
     if method_key in {"sparg"}:
-        if not SPARG_AVAILABLE:
+        with _inference_cache_lock:
+            run_fn = _inference_cache["run_sparg_inference"]
+            available = _inference_cache["SPARG_AVAILABLE"]
+        
+        if run_fn is None or available is None:
+            try:
+                from argscape.api.inference import run_sparg_inference, SPARG_AVAILABLE
+                with _inference_cache_lock:
+                    _inference_cache["run_sparg_inference"] = run_sparg_inference
+                    _inference_cache["SPARG_AVAILABLE"] = SPARG_AVAILABLE
+                run_fn = run_sparg_inference
+                available = SPARG_AVAILABLE
+            except ImportError:
+                raise RuntimeError("sparg not available. Install argscape.sparg dependencies.")
+        
+        if not available:
             raise RuntimeError("sparg not available. Install argscape.sparg dependencies.")
         _require_sample_spatial(ts, "SPARG")
-        ts_out, info = run_sparg_inference(ts)  # type: ignore[misc]
+        ts_out, info = run_fn(ts)  # type: ignore[misc]
         return ts_out, info, "sparg"
-    if method_key in {"tsdate", "temporal"}:
-        if not TSDATE_AVAILABLE:
-            raise RuntimeError("tsdate not available or disabled. Install tsdate and ensure DISABLE_TSDATE is not set.")
-        ts_out, info = run_tsdate_inference(ts)  # type: ignore[misc]
-        return ts_out, info, "tsdate"
+    
     raise ValueError(
-        "Unknown method. Choose from: midpoint, fastgaia, gaia-quadratic, gaia-linear, sparg, tsdate"
+        "Unknown method. Choose from: midpoint, fastgaia, gaia-quadratic, gaia-linear, sparg"
     )
 
 
@@ -240,6 +365,9 @@ def cmd_list(_: argparse.Namespace) -> int:
 
 def cmd_run(args: argparse.Namespace) -> int:
     _require_tskit()
+    # Start background preloading immediately - might finish before we need it
+    _background_preload_inference_modules()
+    
     try:
         if args.input and args.name:
             print("Error: specify either --input or --name, not both", file=sys.stderr)
@@ -301,6 +429,9 @@ def _interactive_choose(prompt: str, options: Tuple[str, ...]) -> Optional[str]:
 
 def cmd_interactive(_: argparse.Namespace) -> int:
     _require_tskit()
+    # Start background preloading immediately - by the time user selects a method, modules will be ready
+    _background_preload_inference_modules()
+    
     # Ensure we have session
     if session_storage is None:
         print(f"Session storage unavailable: {_SESSION_IMPORT_ERROR}", file=sys.stderr)
@@ -323,20 +454,15 @@ def cmd_interactive(_: argparse.Namespace) -> int:
     if selected_name is None:
         return 0
 
-    # Determine available methods
-    method_options = []
-    if MIDPOINT_AVAILABLE:
-        method_options.append("midpoint")
-    if FASTGAIA_AVAILABLE:
-        method_options.append("fastgaia")
-    if GEOANCESTRY_AVAILABLE:
-        method_options.extend(["gaia-quadratic", "gaia-linear"])
-    if SPARG_AVAILABLE:
-        method_options.append("sparg")
+    # Show all available methods (hardcoded list - availability checked when actually used)
+    method_options = [
+        "midpoint",
+        "fastgaia",
+        "gaia-quadratic",
+        "gaia-linear",
+        "sparg",
+    ]
     method_options = tuple(method_options)
-    if not method_options:
-        print("No spatial inference methods available. Install optional dependencies.", file=sys.stderr)
-        return 1
 
     selected_method = _interactive_choose("Select a spatial inference method:", method_options)
     if selected_method is None:
@@ -391,7 +517,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "--method",
         required=True,
-        help="Inference method: midpoint | fastgaia | gaia-quadratic | gaia-linear | sparg | tsdate",
+        help="Inference method: midpoint | fastgaia | gaia-quadratic | gaia-linear | sparg",
     )
     p_run.add_argument("--output", required=True, help="Output directory to save result")
     p_run.add_argument("--output-filename", required=False, help="Optional exact output filename")

@@ -1,5 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { useTreeSequence } from '../../context/TreeSequenceContext';
 import { useRef, useEffect, useState } from 'react';
 import { export3DVisualizationAsImage, exportCanvasAsImage } from '../../lib/imageExport';
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
@@ -12,6 +13,7 @@ export default function SpatialArgDiffVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
     const { colors, setCurrentVisualizationType } = useColorTheme();
+    const { maxSamples } = useTreeSequence();
     const containerRef = useRef<HTMLDivElement>(null);
     const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
     const [selectedTreeSequenceToChange, setSelectedTreeSequenceToChange] = useState<'first' | 'second' | null>(null);
@@ -407,6 +409,7 @@ export default function SpatialArgDiffVisualizationPage() {
                     <SpatialArgDiffVisualizationContainer 
                         firstFilename={decodedFilename}
                         secondFilename={secondFilename}
+                        max_samples={maxSamples}
                         initialHeatmapMode={heatmapMode}
                     />
                 </div>

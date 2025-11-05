@@ -39,11 +39,14 @@ export function calculateCoordinateTransform(
   const spatialNodes = nodes.filter(node => 
     node.location?.x !== undefined && node.location?.y !== undefined
   );
+  const spatialSecondNodes = secondNodes.filter(node => 
+    node.location?.x !== undefined && node.location?.y !== undefined
+  );
 
   if (spatialNodes.length === 0) return null;
 
-  const allXCoords = [...spatialNodes.map(node => node.location!.x), ...secondNodes.map(node => node.location!.x)];
-  const allYCoords = [...spatialNodes.map(node => node.location!.y), ...secondNodes.map(node => node.location!.y)];
+  const allXCoords = [...spatialNodes.map(node => node.location!.x), ...spatialSecondNodes.map(node => node.location!.x)];
+  const allYCoords = [...spatialNodes.map(node => node.location!.y), ...spatialSecondNodes.map(node => node.location!.y)];
   
   const minX = Math.min(...allXCoords);
   const maxX = Math.max(...allXCoords);

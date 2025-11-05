@@ -113,6 +113,7 @@ function LocationInferenceDropdown({
   const [openUpward, setOpenUpward] = useState(false);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const tooltipRefs = React.useRef<Map<string, HTMLDivElement>>(new Map());
+  const mouseLeaveTimeoutRef = React.useRef<number | null>(null);
 
   // Filter and sort methods
   const availableMethods = locationInferenceMethods
@@ -139,6 +140,26 @@ function LocationInferenceDropdown({
     }
   };
 
+  // Cleanup timeout on unmount or when dropdown closes
+  React.useEffect(() => {
+    return () => {
+      if (mouseLeaveTimeoutRef.current) {
+        clearTimeout(mouseLeaveTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Reset tooltip when dropdown closes
+  React.useEffect(() => {
+    if (!isOpen) {
+      setTooltipMethod(null);
+      if (mouseLeaveTimeoutRef.current) {
+        clearTimeout(mouseLeaveTimeoutRef.current);
+        mouseLeaveTimeoutRef.current = null;
+      }
+    }
+  }, [isOpen]);
+
   // Calculate tooltip position with bounds checking
   React.useLayoutEffect(() => {
     if (!tooltipMethod || !isOpen) {
@@ -147,21 +168,21 @@ function LocationInferenceDropdown({
     }
 
     // Use requestAnimationFrame to ensure DOM is ready
-    requestAnimationFrame(() => {
+    const rafId = requestAnimationFrame(() => {
       const tooltipElement = tooltipRefs.current.get(tooltipMethod.id);
       const parentElement = tooltipElement?.parentElement;
       
-      if (!tooltipElement || !parentElement) return;
+      if (!tooltipElement || !parentElement) {
+        // If we can't find the elements, use default positioning (to the left)
+        setTooltipPosition({
+          right: '100%',
+          marginRight: '8px'
+        });
+        return;
+      }
 
-      // Force a layout calculation
-      const originalDisplay = tooltipElement.style.display;
-      const originalVisibility = tooltipElement.style.visibility;
-      tooltipElement.style.visibility = 'hidden';
-      tooltipElement.style.display = 'block';
       const tooltipRect = tooltipElement.getBoundingClientRect();
       const parentRect = parentElement.getBoundingClientRect();
-      tooltipElement.style.display = originalDisplay;
-      tooltipElement.style.visibility = originalVisibility;
       
       const margin = 8;
       const gap = 8;
@@ -185,6 +206,8 @@ function LocationInferenceDropdown({
         });
       }
     });
+
+    return () => cancelAnimationFrame(rafId);
   }, [tooltipMethod, isOpen]);
 
   return (
@@ -233,10 +256,17 @@ function LocationInferenceDropdown({
               <div
                 key={method.id}
                 className="relative group"
-                onMouseEnter={() => setTooltipMethod(method)}
+                onMouseEnter={() => {
+                  // Clear any pending hide timeout
+                  if (mouseLeaveTimeoutRef.current) {
+                    clearTimeout(mouseLeaveTimeoutRef.current);
+                    mouseLeaveTimeoutRef.current = null;
+                  }
+                  setTooltipMethod(method);
+                }}
                 onMouseLeave={() => {
                   // Small delay to allow moving to tooltip
-                  setTimeout(() => {
+                  mouseLeaveTimeoutRef.current = window.setTimeout(() => {
                     const tooltip = tooltipRefs.current.get(method.id);
                     if (tooltip && !tooltip.matches(':hover')) {
                       setTooltipMethod(null);
@@ -294,14 +324,24 @@ function LocationInferenceDropdown({
                       data-tooltip-id={method.id}
                       className="absolute z-[9999] w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl pointer-events-auto"
                       style={{
-                        ...tooltipPosition,
+                        right: tooltipPosition.right || '100%',
+                        left: tooltipPosition.left,
                         ...verticalPositioning,
                         transform: finalTransform,
-                        marginRight: tooltipPosition.marginRight,
+                        marginRight: tooltipPosition.marginRight || '8px',
                         marginLeft: tooltipPosition.marginLeft
                       }}
-                      onMouseEnter={() => setTooltipMethod(method)}
-                      onMouseLeave={() => setTooltipMethod(null)}
+                      onMouseEnter={() => {
+                        // Clear any pending hide timeout
+                        if (mouseLeaveTimeoutRef.current) {
+                          clearTimeout(mouseLeaveTimeoutRef.current);
+                          mouseLeaveTimeoutRef.current = null;
+                        }
+                        setTooltipMethod(method);
+                      }}
+                      onMouseLeave={() => {
+                        setTooltipMethod(null);
+                      }}
                     >
                     <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
                     <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
@@ -417,6 +457,7 @@ function AdvancedSubsettingModal({
   onConfirm: (params: {
     filename: string;
     samples?: number[];
+    random_sample_count?: number;
     map_nodes?: boolean;
     reduce_to_site_topology?: boolean;
     filter_populations?: boolean;
@@ -432,9 +473,10 @@ function AdvancedSubsettingModal({
   totalSamples: number;
 }) {
   const [sampleInput, setSampleInput] = useState('');
-  const [sampleInputType, setSampleInputType] = useState<'comma' | 'range' | 'file'>('comma');
+  const [sampleInputType, setSampleInputType] = useState<'comma' | 'range' | 'file' | 'random'>('comma');
   const [rangeStart, setRangeStart] = useState('0');
   const [rangeEnd, setRangeEnd] = useState(totalSamples.toString());
+  const [randomSampleCount, setRandomSampleCount] = useState('');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [mapNodes, setMapNodes] = useState(false);
   const [reduceToSiteTopology, setReduceToSiteTopology] = useState(false);
@@ -476,6 +518,10 @@ function AdvancedSubsettingModal({
         }
         return samples;
       
+      case 'random':
+        // For random, we don't parse samples here - backend handles it
+        return [];
+      
       default:
         return [];
     }
@@ -491,28 +537,55 @@ function AdvancedSubsettingModal({
   };
 
   useEffect(() => {
-    updatePreview();
+    if (sampleInputType !== 'random') {
+      updatePreview();
+    } else {
+      setSamplePreviews([]);
+    }
   }, [sampleInput, sampleInputType, rangeStart, rangeEnd, uploadedFile]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const samples = await parseSamples();
-      onConfirm({
-        filename: '', // Will be set by the calling component
-        samples: samples.length > 0 ? samples : undefined,
-        map_nodes: mapNodes,
-        reduce_to_site_topology: reduceToSiteTopology,
-        filter_populations: filterPopulations || undefined,
-        filter_individuals: filterIndividuals || undefined,
-        filter_sites: filterSites || undefined,
-        filter_nodes: filterNodes || undefined,
-        update_sample_flags: updateSampleFlags || undefined,
-        keep_unary: keepUnary,
-        keep_unary_in_individuals: keepUnaryInIndividuals || undefined,
-        keep_input_roots: keepInputRoots,
-        record_provenance: recordProvenance
-      });
+      if (sampleInputType === 'random') {
+        const count = parseInt(randomSampleCount);
+        if (isNaN(count) || count < 1 || count > totalSamples) {
+          alert(`Please enter a valid number between 1 and ${totalSamples}`);
+          return;
+        }
+        onConfirm({
+          filename: '', // Will be set by the calling component
+          random_sample_count: count,
+          map_nodes: mapNodes,
+          reduce_to_site_topology: reduceToSiteTopology,
+          filter_populations: filterPopulations || undefined,
+          filter_individuals: filterIndividuals || undefined,
+          filter_sites: filterSites || undefined,
+          filter_nodes: filterNodes || undefined,
+          update_sample_flags: updateSampleFlags || undefined,
+          keep_unary: keepUnary,
+          keep_unary_in_individuals: keepUnaryInIndividuals || undefined,
+          keep_input_roots: keepInputRoots,
+          record_provenance: recordProvenance
+        });
+      } else {
+        const samples = await parseSamples();
+        onConfirm({
+          filename: '', // Will be set by the calling component
+          samples: samples.length > 0 ? samples : undefined,
+          map_nodes: mapNodes,
+          reduce_to_site_topology: reduceToSiteTopology,
+          filter_populations: filterPopulations || undefined,
+          filter_individuals: filterIndividuals || undefined,
+          filter_sites: filterSites || undefined,
+          filter_nodes: filterNodes || undefined,
+          update_sample_flags: updateSampleFlags || undefined,
+          keep_unary: keepUnary,
+          keep_unary_in_individuals: keepUnaryInIndividuals || undefined,
+          keep_input_roots: keepInputRoots,
+          record_provenance: recordProvenance
+        });
+      }
     } catch (error) {
       console.error('Error parsing samples:', error);
     }
@@ -540,12 +613,13 @@ function AdvancedSubsettingModal({
             </label>
             <select
               value={sampleInputType}
-              onChange={(e) => setSampleInputType(e.target.value as 'comma' | 'range' | 'file')}
+              onChange={(e) => setSampleInputType(e.target.value as 'comma' | 'range' | 'file' | 'random')}
               className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
             >
               <option value="comma">Comma-separated list</option>
               <option value="range">Range</option>
               <option value="file">Upload file</option>
+              <option value="random">Random selection</option>
             </select>
           </div>
 
@@ -609,6 +683,26 @@ function AdvancedSubsettingModal({
               />
               <p className="text-xs text-sp-white/60 mt-1">
                 Upload a CSV or TSV file with sample IDs in a single column or row
+              </p>
+            </div>
+          )}
+
+          {sampleInputType === 'random' && (
+            <div>
+              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                Number of Samples to Randomly Select
+              </label>
+              <input
+                type="number"
+                value={randomSampleCount}
+                onChange={(e) => setRandomSampleCount(e.target.value)}
+                min="1"
+                max={totalSamples}
+                placeholder={`Enter number between 1 and ${totalSamples}`}
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+              />
+              <p className="text-xs text-sp-white/60 mt-1">
+                Randomly select this many samples from the tree sequence
               </p>
             </div>
           )}
@@ -1804,7 +1898,9 @@ export default function ResultPage() {
     try {
       log.user.action('advanced-subsetting-start', { 
         filename: data.filename,
-        numSamples: params.samples?.length || 'all',
+        numSamples: params.random_sample_count 
+          ? `random: ${params.random_sample_count}` 
+          : params.samples?.length || 'all',
         options: params
       }, 'ResultPage');
 

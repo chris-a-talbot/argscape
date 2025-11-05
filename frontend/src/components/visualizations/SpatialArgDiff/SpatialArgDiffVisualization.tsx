@@ -34,6 +34,8 @@ import { LINE_WIDTHS } from './SpatialArgDiff.constants';
 interface SpatialArgDiffProps {
   firstData: GraphData;
   secondData: GraphData;
+  originalFirstData?: GraphData; // Original unfiltered data for coordinate transform in unit grid mode
+  originalSecondData?: GraphData; // Original unfiltered data for coordinate transform in unit grid mode
   temporalSpacing?: number;
   temporalSpacingMode?: TemporalSpacingMode;
   spatialSpacing?: number;
@@ -112,6 +114,8 @@ const DEFAULT_VISUAL_SETTINGS = {
 export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   firstData,
   secondData,
+  originalFirstData,
+  originalSecondData,
   temporalSpacing = DEFAULT_VISUAL_SETTINGS.temporalSpacing,
   temporalSpacingMode = DEFAULT_VISUAL_SETTINGS.temporalSpacingMode,
   spatialSpacing = DEFAULT_VISUAL_SETTINGS.spatialSpacing,
@@ -189,14 +193,38 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   }, [firstData, secondData]);
 
   // Transform nodes to 3D
+  // In unit grid mode, use original unfiltered data for coordinate transform to maintain consistent bounds
   const { nodes3D, diffEdges } = useMemo<TransformResult>(() => {
-    const coordinateTransform = calculateCoordinateTransform(firstData.nodes, secondData.nodes, geographicMode, geographicShape);
+    // For unit grid mode, use original unfiltered data for coordinate transform
+    // Otherwise use the filtered data
+    const nodesForCoordinateTransform = geographicMode === 'unit_grid' && originalFirstData && originalSecondData
+      ? originalFirstData.nodes
+      : firstData.nodes;
+    const secondNodesForCoordinateTransform = geographicMode === 'unit_grid' && originalFirstData && originalSecondData
+      ? originalSecondData.nodes
+      : secondData.nodes;
+    
+    const coordinateTransform = calculateCoordinateTransform(
+      nodesForCoordinateTransform, 
+      secondNodesForCoordinateTransform, 
+      geographicMode, 
+      geographicShape
+    );
     if (!coordinateTransform) return { nodes3D: [], diffEdges: [] };
 
+    // Filter to only spatial nodes from the filtered data
+    const spatialFirstNodes = firstData.nodes.filter(node => 
+      node.location?.x !== undefined && node.location?.y !== undefined
+    );
+    const spatialSecondNodes = secondData.nodes.filter(node => 
+      node.location?.x !== undefined && node.location?.y !== undefined
+    );
+
+    // Use filtered nodes for transformation, but coordinate transform from original data for consistent bounds
     const result = transformNodesToThreeD(
-      firstData.nodes,
-      secondData.nodes,
-      coordinateTransform,
+      spatialFirstNodes, // Use filtered spatial nodes only
+      spatialSecondNodes, // Use filtered spatial nodes only
+      coordinateTransform, // But use coordinate transform from original data
       temporalSpacing,
       temporalSpacingMode,
       spatialSpacing,
@@ -213,7 +241,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       nodes3D: result.nodes,
       diffEdges: result.diffEdges
     };
-  }, [firstData, secondData, temporalSpacing, temporalSpacingMode, spatialSpacing, colors, geographicMode, geographicShape, diffEdgeWidth, nodeSizes, viewMode, showErrorBars]);
+  }, [firstData, secondData, originalFirstData, originalSecondData, geographicMode, geographicShape, temporalSpacing, temporalSpacingMode, spatialSpacing, colors, diffEdgeWidth, nodeSizes, viewMode, showErrorBars]);
 
   // Transform edges to 3D
   const edges3D = useMemo(() => {
@@ -251,15 +279,25 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   }, [nodes3D, firstData.edges, edgeMutationSettings]);
 
   // Calculate coordinate transform for heatmap
+  // In unit grid mode, use original unfiltered data for coordinate transform to maintain consistent bounds
   const coordinateTransform = useMemo(() => {
-    const spatialNodes = firstData.nodes.filter(node => 
+    // For unit grid mode, use original unfiltered data for coordinate transform
+    // Otherwise use the filtered data
+    const nodesForCoordinateTransform = geographicMode === 'unit_grid' && originalFirstData && originalSecondData
+      ? originalFirstData.nodes
+      : firstData.nodes;
+    const secondNodesForCoordinateTransform = geographicMode === 'unit_grid' && originalFirstData && originalSecondData
+      ? originalSecondData.nodes
+      : secondData.nodes;
+    
+    const spatialNodes = nodesForCoordinateTransform.filter(node => 
       node.location?.x !== undefined && node.location?.y !== undefined
     );
 
     if (spatialNodes.length === 0) return null;
 
-    const allXCoords = [...firstData.nodes.map(node => node.location?.x || 0), ...secondData.nodes.map(node => node.location?.x || 0)];
-    const allYCoords = [...firstData.nodes.map(node => node.location?.y || 0), ...secondData.nodes.map(node => node.location?.y || 0)];
+    const allXCoords = [...nodesForCoordinateTransform.map(node => node.location?.x || 0), ...secondNodesForCoordinateTransform.map(node => node.location?.x || 0)];
+    const allYCoords = [...nodesForCoordinateTransform.map(node => node.location?.y || 0), ...secondNodesForCoordinateTransform.map(node => node.location?.y || 0)];
     
     const minX = Math.min(...allXCoords);
     const maxX = Math.max(...allXCoords);
@@ -288,7 +326,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       maxScale,
       dataBounds: { minX, maxX, minY, maxY }
     };
-  }, [firstData.nodes, secondData.nodes, geographicMode, geographicShape]);
+  }, [firstData.nodes, secondData.nodes, originalFirstData, originalSecondData, geographicMode, geographicShape]);
 
   // Create ancestry density heatmap
   const ancestryHeatmap = useMemo(() => {

@@ -55,11 +55,11 @@ export const useGeographicState = (): UseGeographicStateReturn => {
       try {
         setState(prev => ({ ...prev, isLoading: true }));
         
-        // Load default shape (unit grid)
-        const defaultShapeResponse = await api.getShapeData('unit_grid');
+        // Load default shape (unit grid) - create it locally
+        const gridShape = createUnitGridShape(10);
         setState(prev => ({ 
           ...prev, 
-          currentShape: defaultShapeResponse.data as GeographicShape,
+          currentShape: gridShape,
           isLoading: false 
         }));
       } catch (error) {

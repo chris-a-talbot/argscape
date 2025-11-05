@@ -301,7 +301,7 @@ export function ViewControlsSection({
               label="Reveal Speed"
               value={layerRevealRate}
               min={0.1}
-              max={10}
+              max={25}
               step={0.1}
               onChange={onLayerRevealRateChange}
               unit=" layers/s"

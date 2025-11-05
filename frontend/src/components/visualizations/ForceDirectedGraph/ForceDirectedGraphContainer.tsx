@@ -1135,6 +1135,69 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         // Add your edge click handling logic here
     }, []);
 
+    // Effect to trigger simulation reset when viewMode or selectedNode changes (subARG/parent ARG loaded)
+    // This ensures horizontal spacing is recalculated for the new graph subset
+    const prevViewModeRef = useRef<ViewMode>('full');
+    const prevSelectedNodeIdRef = useRef<number | null>(null);
+    useEffect(() => {
+        // Only trigger if viewMode or selectedNode actually changed (not on initial mount)
+        const viewModeChanged = prevViewModeRef.current !== viewMode;
+        const selectedNodeChanged = prevSelectedNodeIdRef.current !== (selectedNode?.id ?? null);
+        
+        // Skip if nothing changed (initial mount)
+        if (!viewModeChanged && !selectedNodeChanged) {
+            // Update refs for next comparison
+            prevViewModeRef.current = viewMode;
+            prevSelectedNodeIdRef.current = selectedNode?.id ?? null;
+            return;
+        }
+        
+        // Skip if returning to initial state (full view with no selected node)
+        const wasInitialState = prevViewModeRef.current === 'full' && !prevSelectedNodeIdRef.current;
+        const isInitialState = viewMode === 'full' && !selectedNode;
+        if (wasInitialState && isInitialState) {
+            // Update refs for next comparison
+            prevViewModeRef.current = viewMode;
+            prevSelectedNodeIdRef.current = null; // selectedNode is null when isInitialState is true
+            return;
+        }
+        
+        // Update refs for next comparison
+        prevViewModeRef.current = viewMode;
+        prevSelectedNodeIdRef.current = selectedNode?.id ?? null;
+        
+        // Trigger reset to recalculate horizontal spacing and re-initialize simulation
+        // Small delay to let the filteredData update first
+        const timeoutId = setTimeout(() => {
+            setResetTrigger(prev => prev + 1);
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+    }, [viewMode, selectedNode?.id]);
+
+    // Effect to trigger simulation reset when sampleSpacing changes
+    // This ensures horizontal spacing is recalculated and simulation re-initialized
+    const prevSampleSpacingRef = useRef<number | undefined>(undefined);
+    useEffect(() => {
+        // Only trigger if sampleSpacing actually changed (not on initial mount)
+        if (prevSampleSpacingRef.current === undefined) {
+            prevSampleSpacingRef.current = visualSampleSpacing;
+            return;
+        }
+        
+        if (prevSampleSpacingRef.current === visualSampleSpacing) return;
+        
+        // Update ref for next comparison
+        prevSampleSpacingRef.current = visualSampleSpacing;
+        
+        // Trigger reset to recalculate horizontal spacing and re-initialize simulation
+        const timeoutId = setTimeout(() => {
+            setResetTrigger(prev => prev + 1);
+        }, 100);
+        
+        return () => clearTimeout(timeoutId);
+    }, [visualSampleSpacing]);
+
     const handleReturnToFull = useCallback(() => {
         // Restore clustering state when returning to full view
         restoreClusteringStateIfNeeded();
