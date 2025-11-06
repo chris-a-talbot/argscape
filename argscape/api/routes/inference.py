@@ -20,6 +20,7 @@ from argscape.api.inference import (
     run_midpoint_inference,
     run_tsdate_inference,
     run_sparg_inference,
+    run_spacetrees_inference,
 )
 from argscape.api.models import (
     FastLocationInferenceRequest,
@@ -28,6 +29,7 @@ from argscape.api.models import (
     GAIALinearInferenceRequest,
     MidpointInferenceRequest,
     SpargInferenceRequest,
+    SpacetreesInferenceRequest,
     TsdateInferenceRequest,
     CustomLocationRequest,
     SimplifyTreeSequenceRequest,
@@ -47,16 +49,18 @@ FASTGAIA_AVAILABLE = False
 GEOANCESTRY_AVAILABLE = False
 MIDPOINT_AVAILABLE = False
 SPARG_AVAILABLE = False
+SPACETREES_AVAILABLE = False
 TSDATE_AVAILABLE = False
 DISABLE_TSDATE = False
 
-def set_availability_flags(fastgaia, geoancestry, midpoint, sparg, tsdate, disable_tsdate):
+def set_availability_flags(fastgaia, geoancestry, midpoint, sparg, spacetrees, tsdate, disable_tsdate):
     """Set availability flags from main app initialization."""
-    global FASTGAIA_AVAILABLE, GEOANCESTRY_AVAILABLE, MIDPOINT_AVAILABLE, SPARG_AVAILABLE, TSDATE_AVAILABLE, DISABLE_TSDATE
+    global FASTGAIA_AVAILABLE, GEOANCESTRY_AVAILABLE, MIDPOINT_AVAILABLE, SPARG_AVAILABLE, SPACETREES_AVAILABLE, TSDATE_AVAILABLE, DISABLE_TSDATE
     FASTGAIA_AVAILABLE = fastgaia
     GEOANCESTRY_AVAILABLE = geoancestry
     MIDPOINT_AVAILABLE = midpoint
     SPARG_AVAILABLE = sparg
+    SPACETREES_AVAILABLE = spacetrees
     TSDATE_AVAILABLE = tsdate
     DISABLE_TSDATE = disable_tsdate
 
@@ -677,6 +681,107 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         raise
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/infer-locations-spacetrees")
+async def infer_locations_spacetrees(request: Request, inference_request: SpacetreesInferenceRequest):
+    """Infer locations using the spacetrees package."""
+    if not SPACETREES_AVAILABLE:
+        raise HTTPException(status_code=503, detail="spacetrees not available")
+    
+    logger.info(f"Received spacetrees location inference request for file: {inference_request.filename}")
+    
+    client_ip = get_client_ip(request)
+    session_id = session_storage.get_or_create_session(client_ip)
+    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+    if ts is None:
+        raise HTTPException(status_code=404, detail="File not found")
+    
+    # Check if tree sequence has sample locations
+    spatial_info = check_spatial_completeness(ts)
+    if not spatial_info.get("has_sample_spatial", False):
+        raise HTTPException(
+            status_code=400, 
+            detail="spacetrees requires tree sequences with location data for all sample nodes"
+        )
+    
+    # Check if running on Railway
+    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
+    is_railway = (
+        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
+        os.getenv("RAILWAY_PROJECT_ID") is not None or
+        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
+    )
+    
+    async def run_inference():
+        """Run inference in executor for timeout handling."""
+        loop = asyncio.get_event_loop()
+        def _run():
+            return run_spacetrees_inference(
+                ts,
+                time_cutoff=inference_request.time_cutoff,
+                ancestor_times=inference_request.ancestor_times,
+                use_importance_sampling=inference_request.use_importance_sampling,
+                require_common_ancestor=inference_request.require_common_ancestor,
+                use_blup=inference_request.use_blup,
+                blup_var=inference_request.blup_var,
+                Ne=inference_request.ne,
+                Ne_epochs=inference_request.ne_epochs,
+                Nes=inference_request.nes,
+                num_loci=inference_request.num_loci,
+                locus_size=inference_request.locus_size,
+                quiet=False
+            )
+        return await loop.run_in_executor(None, _run)
+    
+    try:
+        # Run spacetrees inference with timeout on Railway
+        if is_railway:
+            try:
+                ts_with_locations, inference_info = await asyncio.wait_for(
+                    run_inference(),
+                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"spacetrees inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+                raise HTTPException(
+                    status_code=504,
+                    detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
+                )
+        else:
+            ts_with_locations, inference_info = await run_inference()
+        
+        # Generate new filename
+        base_filename = inference_request.filename
+        if base_filename.endswith('.trees'):
+            new_filename = base_filename[:-6] + '_spacetrees.trees'
+        elif base_filename.endswith('.tsz'):
+            new_filename = base_filename[:-4] + '_spacetrees.tsz'
+        else:
+            new_filename = base_filename + '_spacetrees.trees'
+        
+        # Store the result
+        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Update spatial info for the new tree sequence
+        updated_spatial_info = check_spatial_completeness(ts_with_locations)
+        
+        logger.info(f"spacetrees inference completed successfully: {new_filename}")
+        
+        return {
+            "status": "success",
+            "message": "spacetrees location inference completed successfully",
+            "new_filename": new_filename,
+            **inference_info,
+            **updated_spatial_info
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error during spacetrees inference: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

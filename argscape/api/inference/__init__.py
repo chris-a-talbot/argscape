@@ -11,6 +11,7 @@ from .location_inference import (
 )
 from .midpoint_inference import run_midpoint_inference, MIDPOINT_AVAILABLE
 from .sparg_inference import run_sparg_inference, SPARG_AVAILABLE
+from .spacetrees_inference import run_spacetrees_inference, SPACETREES_AVAILABLE
 from .temporal_inference import run_tsdate_inference, TSDATE_AVAILABLE
 
 __all__ = [
@@ -19,11 +20,13 @@ __all__ = [
     "run_gaia_linear_inference",
     "run_midpoint_inference",
     "run_sparg_inference",
+    "run_spacetrees_inference",
     "run_tsdate_inference",
     "FASTGAIA_AVAILABLE",
     "GEOANCESTRY_AVAILABLE",
     "MIDPOINT_AVAILABLE",
     "SPARG_AVAILABLE",
+    "SPACETREES_AVAILABLE",
     "TSDATE_AVAILABLE",
 ]
 

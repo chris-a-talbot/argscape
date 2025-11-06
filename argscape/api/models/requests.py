@@ -2,7 +2,7 @@
 Pydantic request models for API endpoints.
 """
 
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pydantic import BaseModel
 
 
@@ -61,6 +61,22 @@ class MidpointInferenceRequest(BaseModel):
 
 class SpargInferenceRequest(BaseModel):
     filename: str
+
+
+class SpacetreesInferenceRequest(BaseModel):
+    filename: str
+    time_cutoff: Optional[float] = None
+    ancestor_times: Optional[list] = None
+    use_importance_sampling: bool = True
+    require_common_ancestor: bool = True
+    # New fields
+    use_blup: bool = False
+    blup_var: bool = False
+    ne: Optional[float] = None  # Constant Ne
+    ne_epochs: Optional[List[float]] = None  # Epoch boundaries
+    nes: Optional[List[float]] = None  # Effective population sizes
+    num_loci: Optional[int] = None  # Number of loci
+    locus_size: Optional[float] = None  # Size of each locus in bp
 
 
 class TsdateInferenceRequest(BaseModel):

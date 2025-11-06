@@ -39,6 +39,11 @@ except ImportError:
     SPARG_AVAILABLE = False
 
 try:
+    from argscape.api.inference import SPACETREES_AVAILABLE
+except ImportError:
+    SPACETREES_AVAILABLE = False
+
+try:
     import gaiapy as gp
     GEOANCESTRY_AVAILABLE = True
 except ImportError:
@@ -86,6 +91,7 @@ inference.set_availability_flags(
     GEOANCESTRY_AVAILABLE,
     MIDPOINT_AVAILABLE,
     SPARG_AVAILABLE,
+    SPACETREES_AVAILABLE,
     TSDATE_AVAILABLE,
     DISABLE_TSDATE
 )

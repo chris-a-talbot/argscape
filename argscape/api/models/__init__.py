@@ -13,6 +13,7 @@ from .requests import (
     CustomLocationRequest,
     MidpointInferenceRequest,
     SpargInferenceRequest,
+    SpacetreesInferenceRequest,
     TsdateInferenceRequest,
     SimplifyTreeSequenceRequest,
 )
@@ -28,6 +29,7 @@ __all__ = [
     "CustomLocationRequest",
     "MidpointInferenceRequest",
     "SpargInferenceRequest",
+    "SpacetreesInferenceRequest",
     "TsdateInferenceRequest",
     "SimplifyTreeSequenceRequest",
 ]

@@ -44,12 +44,12 @@ const locationInferenceMethods: LocationInferenceMethod[] = [
   {
     id: 'spacetrees',
     name: 'spacetrees',
-    description: 'Spatial inference using genome-wide genealogies. Coming Soon!',
+    description: 'Spatial inference using genome-wide genealogies. Estimates dispersal rates and locates genetic ancestors. Configurable parameters available.',
     reference: 'https://elifesciences.org/articles/72177',
     github: 'https://github.com/osmond-lab/spacetrees',
     github2: '',
     speed: 2,
-    enabled: false
+    enabled: true
   },
   {
     id: 'gaia_quadratic',
@@ -1000,7 +1000,393 @@ function AdvancedSubsettingModal({
   );
 }
 
-// Add mutation rate modal component
+// Add Spacetrees configuration modal component
+function SpacetreesConfigModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  sequenceLength
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    require_common_ancestor: boolean;
+    use_importance_sampling: boolean;
+    use_blup: boolean;
+    blup_var: boolean;
+    num_loci?: number;
+    locus_size?: number;
+    ne?: number;
+    ne_epochs?: number[];
+    nes?: number[];
+    time_cutoff?: number;
+    ancestor_times?: number[];
+  }) => void;
+  sequenceLength: number;
+}) {
+  const [requireCommonAncestor, setRequireCommonAncestor] = useState(true);
+  const [useImportanceSampling, setUseImportanceSampling] = useState(true);
+  const [useBlup, setUseBlup] = useState(false);
+  const [blupVar, setBlupVar] = useState(false);
+  const [locusGroupingType, setLocusGroupingType] = useState<'none' | 'num_loci' | 'locus_size'>('none');
+  const [numLoci, setNumLoci] = useState<string>('10');
+  const [locusSize, setLocusSize] = useState<string>('');
+  const [neType, setNeType] = useState<'default' | 'constant' | 'time_varying'>('default');
+  const [neConstant, setNeConstant] = useState<string>('');
+  const [neEpochs, setNeEpochs] = useState<string>('');
+  const [nes, setNes] = useState<string>('');
+  const [timeCutoff, setTimeCutoff] = useState<string>('');
+  const [ancestorTimes, setAncestorTimes] = useState<string>('');
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    const params: any = {
+      require_common_ancestor: requireCommonAncestor,
+      use_importance_sampling: useImportanceSampling,
+      use_blup: useBlup,
+      blup_var: blupVar && useBlup,
+    };
+    
+    // Locus grouping
+    if (locusGroupingType === 'num_loci') {
+      const num = parseInt(numLoci);
+      if (!isNaN(num) && num > 0) {
+        params.num_loci = num;
+      }
+    } else if (locusGroupingType === 'locus_size') {
+      const size = parseFloat(locusSize);
+      if (!isNaN(size) && size > 0) {
+        params.locus_size = size;
+      }
+    }
+    
+    // Ne configuration
+    if (neType === 'constant') {
+      const ne = parseFloat(neConstant);
+      if (!isNaN(ne) && ne > 0) {
+        params.ne = ne;
+      }
+    } else if (neType === 'time_varying') {
+      const epochs = neEpochs.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+      const nesArray = nes.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+      if (epochs.length > 0 && nesArray.length > 0 && epochs.length === nesArray.length + 1) {
+        params.ne_epochs = epochs;
+        params.nes = nesArray;
+      }
+    }
+    
+    // Time cutoff
+    if (timeCutoff.trim()) {
+      const cutoff = parseFloat(timeCutoff);
+      if (!isNaN(cutoff) && cutoff > 0) {
+        params.time_cutoff = cutoff;
+      }
+    }
+    
+    // Ancestor times
+    if (ancestorTimes.trim()) {
+      const times = ancestorTimes.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+      if (times.length > 0) {
+        params.ancestor_times = times;
+      }
+    }
+    
+    onConfirm(params);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">Spacetrees Configuration</h3>
+        
+        {/* Warning Banner */}
+        <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+          <div className="flex items-start">
+            <svg className="w-5 h-5 text-yellow-500 mt-0.5 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+            </svg>
+            <div className="text-sm text-yellow-200">
+              <p className="font-semibold mb-1">Implementation Differences</p>
+              <p className="text-yellow-300/90">
+                Results may differ from standalone spacetrees due to implementation differences and parameter variations. 
+                This implementation adapts spacetrees to work directly with tskit tree sequences and includes additional features 
+                not present in the original method. See documentation for details.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Basic Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Basic Options</h4>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="require-common-ancestor"
+                  checked={requireCommonAncestor}
+                  onChange={(e) => setRequireCommonAncestor(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="require-common-ancestor" className="ml-2 text-sm text-sp-white/80">
+                  Require common ancestor
+                </label>
+              </div>
+              <Tooltip content="If enabled, only trees where all samples share a common ancestor are used. This maintains statistical compatibility with the original spacetrees method. If disabled, trees with multiple roots are allowed (less statistically correct but uses more data)." />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="use-importance-sampling"
+                  checked={useImportanceSampling}
+                  onChange={(e) => setUseImportanceSampling(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="use-importance-sampling" className="ml-2 text-sm text-sp-white/80">
+                  Use importance sampling
+                </label>
+              </div>
+              <Tooltip content="Weight trees by the likelihood ratio of branching times under a pure birth process versus coalescence times under the standard coalescent model. This improves statistical accuracy by accounting for the difference between the sampling distribution and the true distribution. Recommended for most analyses." />
+            </div>
+          </div>
+          
+          {/* Inference Method */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Inference Method</h4>
+            
+            <div className="flex items-center justify-between">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="use-blup"
+                  checked={useBlup}
+                  onChange={(e) => {
+                    setUseBlup(e.target.checked);
+                    if (!e.target.checked) setBlupVar(false);
+                  }}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="use-blup" className="ml-2 text-sm text-sp-white/80">
+                  Use BLUP (Best Linear Unbiased Predictor)
+                </label>
+              </div>
+              <Tooltip content="Use BLUP instead of Maximum Likelihood Estimation (MLE) for ancestor location. BLUP provides a weighted average of MLEs across trees at each locus, which can be more stable than optimizing the combined likelihood. Default is MLE, which maximizes the likelihood across all trees." />
+            </div>
+            
+            {useBlup && (
+              <div className="ml-6 flex items-center justify-between">
+                <div className="flex items-center flex-1">
+                  <input
+                    type="checkbox"
+                    id="blup-var"
+                    checked={blupVar}
+                    onChange={(e) => setBlupVar(e.target.checked)}
+                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  />
+                  <label htmlFor="blup-var" className="ml-2 text-sm text-sp-white/80">
+                    Include variance estimates
+                  </label>
+                </div>
+                <Tooltip content="Include uncertainty estimates (variance) in BLUP results. This provides information about the confidence in the estimated ancestor locations." />
+              </div>
+            )}
+          </div>
+          
+          {/* Locus Grouping */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-sp-white/80">Locus Grouping</h4>
+              <Tooltip content="In the original spacetrees method, multiple trees (representing genomic regions) are grouped into a single 'locus' for joint inference. This reflects the biological reality that trees at nearby genomic positions share ancestry. By default, each tree is treated as a separate locus, but grouping can improve statistical power and match the original method more closely." />
+            </div>
+            
+            <select
+              value={locusGroupingType}
+              onChange={(e) => setLocusGroupingType(e.target.value as 'none' | 'num_loci' | 'locus_size')}
+              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+            >
+              <option value="none">None (each tree is a separate locus)</option>
+              <option value="num_loci">Group by number of loci</option>
+              <option value="locus_size">Group by locus size (bp)</option>
+            </select>
+            
+            {locusGroupingType === 'num_loci' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-sp-white/80">
+                    Number of loci
+                  </label>
+                  <Tooltip content="Divide the genome into this many loci. Trees are assigned to loci based on their genomic position. Each locus will contain approximately sequence_length / num_loci base pairs. This matches the original spacetrees approach where specific loci are analyzed." />
+                </div>
+                <input
+                  type="number"
+                  value={numLoci}
+                  onChange={(e) => setNumLoci(e.target.value)}
+                  min="1"
+                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                />
+              </div>
+            )}
+            
+            {locusGroupingType === 'locus_size' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-sp-white/80">
+                    Locus size (base pairs)
+                  </label>
+                  <Tooltip content="Group trees into loci of this size (in base pairs). Trees spanning multiple loci are assigned to the locus containing their midpoint. This creates loci of approximately equal genomic size, which can be useful when you want to control the physical size of each locus." />
+                </div>
+                <input
+                  type="number"
+                  value={locusSize}
+                  onChange={(e) => setLocusSize(e.target.value)}
+                  min="1"
+                  max={sequenceLength}
+                  placeholder={`Max: ${sequenceLength.toLocaleString()}`}
+                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                />
+              </div>
+            )}
+          </div>
+          
+          {/* Effective Population Size */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-sp-white/80">Effective Population Size (Ne)</h4>
+              <Tooltip content="The effective population size affects the probability of coalescence times under the standard coalescent model, which is used in importance sampling. The original spacetrees method uses time-varying Ne from Relate's EstimatePopulationSize output. You can specify a constant Ne or provide time-varying Ne with epoch boundaries." />
+            </div>
+            
+            <select
+              value={neType}
+              onChange={(e) => setNeType(e.target.value as 'default' | 'constant' | 'time_varying')}
+              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+            >
+              <option value="default">Default (Ne = num_samples)</option>
+              <option value="constant">Constant Ne</option>
+              <option value="time_varying">Time-varying Ne</option>
+            </select>
+            
+            {neType === 'constant' && (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-sp-white/80">
+                    Constant Ne
+                  </label>
+                  <Tooltip content="Use a constant effective population size throughout time. This is a simplification but may be appropriate if population size has been relatively stable." />
+                </div>
+                <input
+                  type="number"
+                  value={neConstant}
+                  onChange={(e) => setNeConstant(e.target.value)}
+                  min="1"
+                  step="0.1"
+                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                />
+              </div>
+            )}
+            
+            {neType === 'time_varying' && (
+              <div className="space-y-3">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-sp-white/80">
+                      Epoch boundaries (comma-separated)
+                    </label>
+                    <Tooltip content="Time points defining epoch boundaries. Must have one more value than Nes (e.g., if you have 3 epochs, provide 4 boundaries: start, end1, end2, end3). Times should be in the same units as your tree sequence." />
+                  </div>
+                  <input
+                    type="text"
+                    value={neEpochs}
+                    onChange={(e) => setNeEpochs(e.target.value)}
+                    placeholder="0, 100, 1000, 10000"
+                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  />
+                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-sp-white/80">
+                      Effective population sizes (comma-separated)
+                    </label>
+                    <Tooltip content="Effective population size for each epoch. One value per epoch. The first value applies from epoch[0] to epoch[1], the second from epoch[1] to epoch[2], etc. This matches the format used by Relate's EstimatePopulationSize." />
+                  </div>
+                  <input
+                    type="text"
+                    value={nes}
+                    onChange={(e) => setNes(e.target.value)}
+                    placeholder="1000, 5000, 10000"
+                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {/* Advanced Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Advanced Options</h4>
+            
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-sp-white/80">
+                  Time cutoff (optional)
+                </label>
+                <Tooltip content="Ignore genealogical history beyond this time point. This 'chops' the shared times matrices to exclude information from the distant past, which can be useful if you want to focus on recent history or if ancient history is unreliable. Times should be in the same units as your tree sequence." />
+              </div>
+              <input
+                type="number"
+                value={timeCutoff}
+                onChange={(e) => setTimeCutoff(e.target.value)}
+                min="0"
+                step="0.1"
+                placeholder="Ignore history beyond this time"
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              />
+            </div>
+            
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-sp-white/80">
+                  Ancestor times (optional, comma-separated)
+                </label>
+                <Tooltip content="Specific times in the past to locate ancestors at (e.g., '10, 100, 1000'). If empty, ancestors will be located at all unique node times in the tree sequence, ensuring complete location inference for all nodes. Specifying times can speed up inference but will only provide locations at those time points. Times should be in the same units as your tree sequence." />
+              </div>
+              <input
+                type="text"
+                value={ancestorTimes}
+                onChange={(e) => setAncestorTimes(e.target.value)}
+                placeholder="Leave empty to locate ALL ancestors"
+                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run Spacetrees
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
 function MutationRateModal({
   isOpen,
   onClose,
@@ -1243,6 +1629,8 @@ export default function ResultPage() {
   const [isInferringLocationsGaiaLinear, setIsInferringLocationsGaiaLinear] = useState(false);
   const [isInferringLocationsMidpoint, setIsInferringLocationsMidpoint] = useState(false);
   const [isInferringLocationsSparg, setIsInferringLocationsSparg] = useState(false);
+  const [isInferringLocationsSpacetrees, setIsInferringLocationsSpacetrees] = useState(false);
+  const [showSpacetreesConfigModal, setShowSpacetreesConfigModal] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
@@ -1679,6 +2067,10 @@ export default function ResultPage() {
           setIsInferringLocationsSparg(false);
         }
         break;
+      case 'spacetrees':
+        // Open configuration modal instead of running directly
+        setShowSpacetreesConfigModal(true);
+        break;
       case 'midpoint':
         if (isInferringLocationsMidpoint) return;
         setIsInferringLocationsMidpoint(true);
@@ -1751,12 +2143,102 @@ export default function ResultPage() {
     }
   };
 
-  // Update isInferring check in LocationInferenceDropdown
+  // Handle spacetrees inference with configuration
+  const handleSpacetreesInference = async (params: {
+    require_common_ancestor: boolean;
+    use_importance_sampling: boolean;
+    use_blup: boolean;
+    blup_var: boolean;
+    num_loci?: number;
+    locus_size?: number;
+    ne?: number;
+    ne_epochs?: number[];
+    nes?: number[];
+    time_cutoff?: number;
+    ancestor_times?: number[];
+  }) => {
+    if (!data?.filename || isInferringLocationsSpacetrees) return;
+    
+    setIsInferringLocationsSpacetrees(true);
+    setShowSpacetreesConfigModal(false);
+    
+    try {
+      log.user.action('spacetrees-inference-start', { filename: data.filename, params }, 'ResultPage');
+      
+      const result = await api.inferLocationsSpacetrees({
+        filename: data.filename,
+        require_common_ancestor: params.require_common_ancestor,
+        use_importance_sampling: params.use_importance_sampling,
+        use_blup: params.use_blup,
+        blup_var: params.blup_var,
+        num_loci: params.num_loci,
+        locus_size: params.locus_size,
+        ne: params.ne,
+        ne_epochs: params.ne_epochs,
+        nes: params.nes,
+        time_cutoff: params.time_cutoff,
+        ancestor_times: params.ancestor_times,
+      });
+      
+      log.info('spacetrees inference completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+      
+      // Update the tree sequence context with the new filename and spatial info
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data,
+        filename: resultData.new_filename,
+        has_sample_spatial: resultData.has_sample_spatial,
+        has_all_spatial: resultData.has_all_spatial,
+        spatial_status: resultData.spatial_status,
+      };
+      
+      setTreeSequence(updatedData);
+      
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `spacetrees inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+    } catch (error) {
+      log.error('spacetrees inference failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      setAlertModal({
+        isOpen: true,
+        title: isTimeout ? 'Inference Timeout' : 'Error',
+        message: isTimeout 
+          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+          : `spacetrees inference failed: ${errorMessage}`,
+        type: 'error',
+        buttonText: isTimeout ? 'Install Locally' : undefined,
+        secondaryButtonText: isTimeout ? 'Close' : undefined,
+        onClose: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+          navigate('/install');
+        } : undefined,
+        onSecondaryAction: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+        } : undefined
+      });
+    } finally {
+      setIsInferringLocationsSpacetrees(false);
+    }
+  };
   const isInferring = isInferringLocationsFast || 
                      isInferringLocationsGaiaQuadratic || 
                      isInferringLocationsGaiaLinear ||
                      isInferringLocationsMidpoint || 
-                     isInferringLocationsSparg;
+                     isInferringLocationsSparg ||
+                     isInferringLocationsSpacetrees;
 
   // Add tsdate inference handler
   const handleTsdateInference = async (
@@ -2515,6 +2997,14 @@ export default function ResultPage() {
             isOpen={showMutationRateModal}
             onClose={() => setShowMutationRateModal(false)}
             onConfirm={handleTsdateInference}
+          />
+
+          {/* Spacetrees Configuration Modal */}
+          <SpacetreesConfigModal
+            isOpen={showSpacetreesConfigModal}
+            onClose={() => setShowSpacetreesConfigModal(false)}
+            onConfirm={handleSpacetreesInference}
+            sequenceLength={data?.sequence_length || 1000000}
           />
 
           {/* Advanced Subsetting Modal */}
