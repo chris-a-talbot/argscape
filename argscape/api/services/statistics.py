@@ -6,6 +6,7 @@ import logging
 import numpy as np
 import tskit
 from typing import Dict, Optional, Any, List, Tuple
+from itertools import combinations
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +33,12 @@ def compute_population_genetics_statistics(
     try:
         # Nucleotide diversity (π) - can be computed from branch lengths even without mutations
         # tskit.diversity() uses branch lengths by default (mode="branch")
+        # We need to normalize by sequence length to get per-site values
         try:
-            pi = ts.diversity()
+            pi = ts.diversity(mode="branch")
+            # Normalize by sequence length to get per-site diversity
+            if ts.sequence_length > 0:
+                pi = pi / ts.sequence_length
             stats['nucleotide_diversity'] = float(pi) if not np.isnan(pi) else None
         except Exception as e:
             logger.debug(f"Could not compute nucleotide diversity: {e}")
@@ -389,12 +394,27 @@ def compute_population_genetics_statistics(
                         
                         # Compute Fst (F-statistics) - measures population differentiation
                         # Fst ranges from 0 (no differentiation) to 1 (complete differentiation)
+                        # 
+                        # For multiple populations (e.g., 6 populations):
+                        # - We compute a GLOBAL Fst across all populations (single value)
+                        # - This represents overall differentiation: Fst = (D_bt - D_wt) / D_bt
+                        #   where D_bt = average between-population divergence (across all pairs)
+                        #   and D_wt = average within-population diversity
+                        # - For 6 populations, this averages across all 15 pairwise comparisons
+                        #
+                        # Note: tskit's native Fst method may not be available in all versions
+                        # or may fail for certain data conditions (e.g., insufficient samples, edge cases)
                         try:
                             if hasattr(ts, 'Fst'):
+                                logger.debug(f"Using tskit.Fst() method for {len(sample_sets)} populations "
+                                           f"(computing global Fst across all {len(sample_sets)} populations)")
                                 fst_result = ts.Fst(sample_sets)
                             elif hasattr(ts, 'fst'):
+                                logger.debug(f"Using tskit.fst() method for {len(sample_sets)} populations "
+                                           f"(computing global Fst across all {len(sample_sets)} populations)")
                                 fst_result = ts.fst(sample_sets)
                             else:
+                                logger.debug(f"tskit native Fst method not available, computing manually")
                                 # Manual Fst computation using diversity and divergence
                                 # Fst = (D_bt - D_wt) / D_bt
                                 # where D_bt = between-population divergence, D_wt = within-population diversity
@@ -403,28 +423,69 @@ def compute_population_genetics_statistics(
                                 for idx, samples in enumerate(sample_sets):
                                     if len(samples) >= 2:
                                         logger.debug(f"Computing diversity for population {idx+1}/{len(sample_sets)} ({len(samples)} samples)")
-                                        pi_pop = ts.diversity(samples)
+                                        # Normalize by sequence length to get per-site diversity
+                                        pi_pop = ts.diversity(samples, mode="branch")
+                                        if ts.sequence_length > 0:
+                                            pi_pop = pi_pop / ts.sequence_length
                                         pi_within.append(float(pi_pop) if not np.isnan(pi_pop) else 0.0)
                                 
                                 # Between-population divergence (average pairwise divergence)
-                                logger.debug(f"Computing pairwise divergence for {len(sample_sets)} populations")
-                                pi_between = []
+                                # For 6 populations, this computes all 15 pairwise divergences (6 choose 2)
+                                # and then averages them to get D_bt (between-population divergence)
+                                # Use tskit's batch divergence method for efficiency
                                 num_pairs = len(sample_sets) * (len(sample_sets) - 1) // 2
-                                pair_idx = 0
-                                for i in range(len(sample_sets)):
-                                    for j in range(i + 1, len(sample_sets)):
-                                        pair_idx += 1
-                                        if pair_idx % 10 == 0 or pair_idx == num_pairs:
-                                            logger.debug(f"Computing divergence for pair {pair_idx}/{num_pairs}")
-                                        div = ts.divergence([sample_sets[i], sample_sets[j]], mode="branch", span_normalise=True)
-                                        pi_between.append(float(div) if not np.isnan(div) else 0.0)
+                                logger.debug(f"Computing pairwise divergence for {len(sample_sets)} populations "
+                                           f"({num_pairs} pairs) using batch method")
+                                index_pairs = np.array(list(combinations(range(len(sample_sets)), 2)), dtype=np.int32)
+                                try:
+                                    divergences = ts.divergence(sample_sets, indexes=index_pairs, mode="branch", span_normalise=True)
+                                    if isinstance(divergences, np.ndarray):
+                                        pi_between = [float(d) if not np.isnan(d) else 0.0 for d in divergences]
+                                    else:
+                                        pi_between = [float(divergences)] if not np.isnan(divergences) else []
+                                except Exception as e:
+                                    logger.debug(f"Batch divergence failed in Fst computation, falling back to loop: {e}")
+                                    # Fallback to loop-based computation
+                                    pi_between = []
+                                    for i, j in index_pairs:
+                                        try:
+                                            div = ts.divergence([sample_sets[i], sample_sets[j]], mode="branch", span_normalise=True)
+                                            pi_between.append(float(div) if not np.isnan(div) else 0.0)
+                                        except Exception:
+                                            pi_between.append(0.0)
                                 
                                 if pi_within and pi_between:
+                                    # Check if divergence values need normalization
+                                    # If span_normalise=True didn't work, values will be > 1.0
+                                    if ts.sequence_length > 0 and len(pi_between) > 0:
+                                        mean_pi_between = np.mean(pi_between)
+                                        if mean_pi_between > 1.0:
+                                            logger.warning(f"Divergence values seem unusually high (mean={mean_pi_between:.6e}). "
+                                                         f"Expected per-site values around 1e-5. "
+                                                         f"Normalizing by sequence length ({ts.sequence_length:.0f} bp)...")
+                                            # Normalize by sequence length
+                                            pi_between = [d / ts.sequence_length for d in pi_between]
+                                    
                                     d_wt = np.mean(pi_within)  # Average within-population diversity
                                     d_bt = np.mean(pi_between)  # Average between-population divergence
+                                    
+                                    # Diagnostic logging
+                                    logger.info(f"Fst computation: D_wt (within)={d_wt:.6e}, D_bt (between)={d_bt:.6e}, "
+                                               f"sequence_length={ts.sequence_length:.0f}, "
+                                               f"num_pi_within={len(pi_within)}, num_pi_between={len(pi_between)}")
+                                    
                                     if d_bt > 0:
                                         fst_result = (d_bt - d_wt) / d_bt
+                                        logger.info(f"Fst calculation: ({d_bt:.6e} - {d_wt:.6e}) / {d_bt:.6e} = {fst_result:.6f}")
+                                        # Additional validation: Fst should be reasonable
+                                        if fst_result > 0.5:
+                                            logger.warning(f"Fst value ({fst_result:.4f}) is very high. "
+                                                         f"This may indicate calculation issues or extreme population structure.")
+                                        elif abs(fst_result) < 1e-6:
+                                            logger.warning(f"Fst value ({fst_result:.6f}) is very close to zero. "
+                                                         f"This may indicate calculation issues or populations are nearly identical.")
                                     else:
+                                        logger.warning(f"d_bt is zero or negative ({d_bt:.6e}), cannot compute Fst")
                                         fst_result = 0.0
                                 else:
                                     fst_result = None
@@ -450,39 +511,137 @@ def compute_population_genetics_statistics(
                             stats['fst'] = fst_result
                             stats['num_populations'] = len(valid_populations)
                         except Exception as e:
-                            logger.debug(f"Could not compute Fst: {e}")
+                            # Fst computation can fail for various reasons:
+                            # 1. Method doesn't exist in this tskit version
+                            # 2. Insufficient samples per population
+                            # 3. Edge cases (e.g., all populations identical, numerical issues)
+                            # 4. Data structure issues (e.g., no mutations, invalid tree structure)
+                            logger.debug(f"Could not compute Fst using native method: {e}")
+                            logger.debug(f"Will attempt to compute Fst from divergence values if available")
                             stats['fst'] = None
                             stats['num_populations'] = len(valid_populations)
                             # Set pi_between to None so divergence computation doesn't try to reuse it
                             pi_between = None
                     
                     # Compute pairwise divergence between populations
+                    # For 6 populations, this computes all 15 pairwise divergences (6 choose 2 = 15)
+                    # The statistics (mean, median, min, max) are computed across these 15 values
                     # Reuse divergence values from Fst computation if available
                     try:
                         # If we computed pi_between for Fst, reuse it
                         if 'pi_between' in locals() and pi_between is not None and len(pi_between) > 0:
                             divergence_values = pi_between
-                            logger.debug(f"Reusing divergence values from Fst computation: {len(divergence_values)} pairs")
+                            num_pairs = len(divergence_values)
+                            logger.debug(f"Reusing divergence values from Fst computation: {num_pairs} pairs")
                         else:
-                            # Otherwise compute divergence separately
-                            logger.debug(f"Computing pairwise divergence for {len(sample_sets)} populations")
-                            divergence_values = []
+                            # Otherwise compute divergence separately using tskit's batch method
+                            # This is more efficient than calling divergence() in a loop
                             num_pairs = len(sample_sets) * (len(sample_sets) - 1) // 2
-                            pair_idx = 0
-                            for i in range(len(sample_sets)):
-                                for j in range(i + 1, len(sample_sets)):
-                                    pair_idx += 1
-                                    if pair_idx % 10 == 0 or pair_idx == num_pairs:
-                                        logger.debug(f"Computing divergence for pair {pair_idx}/{num_pairs}")
-                                    div = ts.divergence([sample_sets[i], sample_sets[j]], mode="branch", span_normalise=True)
-                                    if not np.isnan(div):
-                                        divergence_values.append(float(div))
+                            logger.debug(f"Computing pairwise divergence for {len(sample_sets)} populations "
+                                       f"({num_pairs} pairs) using batch method")
+                            
+                            # Generate index pairs for all population pairs
+                            index_pairs = np.array(list(combinations(range(len(sample_sets)), 2)), dtype=np.int32)
+                            
+                            # Use tskit's native batch divergence method (more efficient)
+                            # span_normalise=True should give per-site values (normalized by sequence length)
+                            try:
+                                divergences = ts.divergence(sample_sets, indexes=index_pairs, mode="branch", span_normalise=True)
+                                # Handle both scalar and array returns
+                                if isinstance(divergences, np.ndarray):
+                                    divergence_values = [float(d) for d in divergences if not np.isnan(d)]
+                                else:
+                                    divergence_values = [float(divergences)] if not np.isnan(divergences) else []
+                                
+                                # Diagnostic: check if values seem reasonable
+                                # If span_normalise=True is working, values should be per-site (around 1e-5 for humans)
+                                # If values are > 1.0, they might be in absolute branch length units instead
+                                if divergence_values and ts.sequence_length > 0:
+                                    mean_div = np.mean(divergence_values)
+                                    if mean_div > 1.0:
+                                        logger.warning(f"Divergence values seem unusually high (mean={mean_div:.6e}). "
+                                                     f"Expected per-site values around 1e-5 for humans. "
+                                                     f"Sequence length: {ts.sequence_length:.0f} bp. "
+                                                     f"Attempting to normalize by sequence length...")
+                                        # Try manual normalization: divide by sequence length
+                                        # This assumes values are in absolute branch length units
+                                        divergence_values = [d / ts.sequence_length for d in divergence_values]
+                                        mean_div_normalized = np.mean(divergence_values)
+                                        logger.info(f"After manual normalization: mean divergence = {mean_div_normalized:.6e}")
+                                        if mean_div_normalized > 1e-3:
+                                            logger.warning(f"Normalized divergence still seems high. "
+                                                         f"Original values may be in unexpected units.")
+                            except Exception as e:
+                                logger.debug(f"Batch divergence computation failed, falling back to loop: {e}")
+                                # Fallback to loop-based computation if batch method fails
+                                divergence_values = []
+                                for i, j in index_pairs:
+                                    try:
+                                        div = ts.divergence([sample_sets[i], sample_sets[j]], mode="branch", span_normalise=True)
+                                        if not np.isnan(div):
+                                            divergence_values.append(float(div))
+                                    except Exception as e2:
+                                        logger.debug(f"Could not compute divergence for pair ({i}, {j}): {e2}")
+                                        continue
                         
                         if divergence_values:
                             stats['mean_divergence'] = float(np.mean(divergence_values))
                             stats['median_divergence'] = float(np.median(divergence_values))
                             stats['min_divergence'] = float(np.min(divergence_values))
                             stats['max_divergence'] = float(np.max(divergence_values))
+                            
+                            # If Fst wasn't computed successfully but we have divergence values,
+                            # try to compute Fst using the divergence values we just computed
+                            if stats.get('fst') is None:
+                                try:
+                                    logger.debug("Fst was not computed, attempting to compute from divergence values")
+                                    # Compute within-population diversity
+                                    # Normalize by sequence length to get per-site diversity
+                                    pi_within = []
+                                    for samples in sample_sets:
+                                        if len(samples) >= 2:
+                                            pi_pop = ts.diversity(samples, mode="branch")
+                                            if ts.sequence_length > 0:
+                                                pi_pop = pi_pop / ts.sequence_length
+                                            if not np.isnan(pi_pop):
+                                                pi_within.append(float(pi_pop))
+                                    
+                                    if pi_within and divergence_values:
+                                        # Check if divergence values need normalization
+                                        if ts.sequence_length > 0 and len(divergence_values) > 0:
+                                            mean_div = np.mean(divergence_values)
+                                            if mean_div > 1.0:
+                                                logger.warning(f"Divergence values seem unusually high (mean={mean_div:.6e}). "
+                                                             f"Expected per-site values around 1e-5. "
+                                                             f"Normalizing by sequence length ({ts.sequence_length:.0f} bp)...")
+                                                # Normalize by sequence length
+                                                divergence_values = [d / ts.sequence_length for d in divergence_values]
+                                        
+                                        d_wt = np.mean(pi_within)  # Average within-population diversity
+                                        d_bt = np.mean(divergence_values)  # Average between-population divergence
+                                        
+                                        # Diagnostic logging
+                                        logger.debug(f"Fst computation (fallback): D_wt (within)={d_wt:.6e}, "
+                                                   f"D_bt (between)={d_bt:.6e}, sequence_length={ts.sequence_length:.0f}")
+                                        
+                                        if d_bt > 0:
+                                            fst_result = (d_bt - d_wt) / d_bt
+                                            # Additional validation
+                                            if fst_result > 0.5:
+                                                logger.warning(f"Fst value ({fst_result:.4f}) is very high. "
+                                                             f"This may indicate calculation issues or extreme population structure.")
+                                            # Clamp to [0, 1] range
+                                            if fst_result < 0:
+                                                logger.debug(f"Fst value ({fst_result}) is negative, clamping to 0")
+                                                fst_result = 0.0
+                                            elif fst_result > 1:
+                                                logger.debug(f"Fst value ({fst_result}) is greater than 1, clamping to 1")
+                                                fst_result = 1.0
+                                            stats['fst'] = float(fst_result)
+                                            logger.info(f"Computed Fst from divergence values: {fst_result} "
+                                                      f"(D_bt={d_bt:.6e}, D_wt={d_wt:.6e})")
+                                except Exception as e:
+                                    logger.debug(f"Could not compute Fst from divergence values: {e}")
                         else:
                             stats['mean_divergence'] = None
                             stats['median_divergence'] = None
