@@ -57,6 +57,8 @@ class CustomLocationRequest(BaseModel):
 
 class MidpointInferenceRequest(BaseModel):
     filename: str
+    weight_by_span: bool = True  # If True, weight by edge spans (genomic length). Default True.
+    weight_branch_length: bool = False  # If True, weight by branch lengths (temporal). If both are True, weights are multiplied.
 
 
 class SpargInferenceRequest(BaseModel):

@@ -10,6 +10,7 @@ import { SampleOrderType } from '../../ui/sample-order-control';
 import { ArgStatsData } from '../../ui/arg-stats-display';
 import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
 import AlertModal from '../../ui/AlertModal';
+import { CompactStatistics } from '../shared/CompactStatistics';
 import { api } from '../../../lib/api';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { useTreeSequence } from '../../../context/TreeSequenceContext';
@@ -1514,136 +1515,152 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                 </div>
             </div>
             
-            {/* Filter Controls Section - only show when filters are active */}
-            {(isFilterActive || temporalState.isActive) && (
-                <div 
-                    className="flex-shrink-0 border-b"
-                    style={{ 
-                        backgroundColor: colors.background,
-                        borderBottomColor: colors.border 
-                    }}
-                >
-                    {!isFilterSectionCollapsed && (
-                        <div className="px-4 py-3">
-                            <div className="flex items-start justify-between gap-6">
-                                <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
-                                    {/* Genomic Filter mode selection */}
-                                    {isFilterActive && treeIntervals.length > 0 && (
+            {/* Filter Controls Section - always show statistics bar */}
+            <div 
+                className="flex-shrink-0 border-b"
+                style={{ 
+                    backgroundColor: colors.background,
+                    borderBottomColor: colors.border 
+                }}
+            >
+                {/* Always show statistics bar when collapsed or when filters are not active */}
+                {(isFilterSectionCollapsed || (!isFilterActive && !temporalState.isActive)) && (
+                    <div className="px-4 py-2">
+                        <div className="flex items-center justify-end gap-4">
+                            <CompactStatistics
+                                filename={filename}
+                                genomicRange={isFilterActive && filterMode === 'genomic' ? genomicRange : null}
+                                temporalRange={temporalState.isActive ? temporalState.range : null}
+                                treeRange={isFilterActive && filterMode === 'tree' ? treeRange : null}
+                                isActive={true} // Always active to show full sequence stats when filters are off
+                                sequenceLength={sequenceLength}
+                            />
+                        </div>
+                    </div>
+                )}
+                
+                {/* Show full filter controls when not collapsed and filters are active */}
+                {(isFilterActive || temporalState.isActive) && !isFilterSectionCollapsed && (
+                    <div className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-6">
+                            <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
+                                {/* Genomic Filter mode selection */}
+                                {isFilterActive && treeIntervals.length > 0 && (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
+                                            Filter Mode:
+                                        </span>
+                                        <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
+                                            <button
+                                                onClick={() => handleFilterModeChange('genomic')}
+                                                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                    filterMode === 'genomic' 
+                                                        ? '' 
+                                                        : 'hover:opacity-80'
+                                                }`}
+                                                style={{
+                                                    backgroundColor: filterMode === 'genomic' ? colors.accentPrimary : colors.containerBackground,
+                                                    color: filterMode === 'genomic' ? colors.background : colors.text
+                                                }}
+                                            >
+                                                Genomic
+                                            </button>
+                                            <button
+                                                onClick={() => handleFilterModeChange('tree')}
+                                                className={`px-3 py-1 text-xs font-medium transition-colors ${
+                                                    filterMode === 'tree' 
+                                                        ? '' 
+                                                        : 'hover:opacity-80'
+                                                }`}
+                                                style={{
+                                                    backgroundColor: filterMode === 'tree' ? colors.accentPrimary : colors.containerBackground,
+                                                    color: filterMode === 'tree' ? colors.background : colors.text
+                                                }}
+                                            >
+                                                Tree Index
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+                                {/* Filter behavior mode selection */}
+                                {isFilterActive && (
+                                    <>
                                         <div className="flex items-center gap-2">
                                             <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
-                                                Filter Mode:
+                                                Behavior:
                                             </span>
                                             <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
                                                 <button
-                                                    onClick={() => handleFilterModeChange('genomic')}
+                                                    onClick={() => {
+                                                        if (filterMode === 'genomic') {
+                                                            setGenomicFilterMode('subset');
+                                                        } else {
+                                                            setTreeFilterMode('subset');
+                                                        }
+                                                    }}
                                                     className={`px-3 py-1 text-xs font-medium transition-colors ${
-                                                        filterMode === 'genomic' 
+                                                        (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' 
                                                             ? '' 
                                                             : 'hover:opacity-80'
                                                     }`}
                                                     style={{
-                                                        backgroundColor: filterMode === 'genomic' ? colors.accentPrimary : colors.containerBackground,
-                                                        color: filterMode === 'genomic' ? colors.background : colors.text
+                                                        backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.accentPrimary : colors.containerBackground,
+                                                        color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.background : colors.text
                                                     }}
                                                 >
-                                                    Genomic
+                                                    Hide Others
                                                 </button>
                                                 <button
-                                                    onClick={() => handleFilterModeChange('tree')}
+                                                    onClick={() => {
+                                                        if (filterMode === 'genomic') {
+                                                            setGenomicFilterMode('dim');
+                                                        } else {
+                                                            setTreeFilterMode('dim');
+                                                        }
+                                                    }}
                                                     className={`px-3 py-1 text-xs font-medium transition-colors ${
-                                                        filterMode === 'tree' 
+                                                        (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' 
                                                             ? '' 
                                                             : 'hover:opacity-80'
                                                     }`}
                                                     style={{
-                                                        backgroundColor: filterMode === 'tree' ? colors.accentPrimary : colors.containerBackground,
-                                                        color: filterMode === 'tree' ? colors.background : colors.text
+                                                        backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.accentPrimary : colors.containerBackground,
+                                                        color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.background : colors.text
                                                     }}
                                                 >
-                                                    Tree Index
+                                                    Dim Others
                                                 </button>
                                             </div>
                                         </div>
-                                    )}
-                                    {/* Filter behavior mode selection */}
-                                    {isFilterActive && (
-                                        <>
+                                        {(filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' && (
                                             <div className="flex items-center gap-2">
                                                 <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
-                                                    Behavior:
+                                                    Dim Opacity:
                                                 </span>
-                                                <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (filterMode === 'genomic') {
-                                                                setGenomicFilterMode('subset');
-                                                            } else {
-                                                                setTreeFilterMode('subset');
-                                                            }
-                                                        }}
-                                                        className={`px-3 py-1 text-xs font-medium transition-colors ${
-                                                            (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' 
-                                                                ? '' 
-                                                                : 'hover:opacity-80'
-                                                        }`}
-                                                        style={{
-                                                            backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.accentPrimary : colors.containerBackground,
-                                                            color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'subset' ? colors.background : colors.text
-                                                        }}
-                                                    >
-                                                        Hide Others
-                                                    </button>
-                                                    <button
-                                                        onClick={() => {
-                                                            if (filterMode === 'genomic') {
-                                                                setGenomicFilterMode('dim');
-                                                            } else {
-                                                                setTreeFilterMode('dim');
-                                                            }
-                                                        }}
-                                                        className={`px-3 py-1 text-xs font-medium transition-colors ${
-                                                            (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' 
-                                                                ? '' 
-                                                                : 'hover:opacity-80'
-                                                        }`}
-                                                        style={{
-                                                            backgroundColor: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.accentPrimary : colors.containerBackground,
-                                                            color: (filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' ? colors.background : colors.text
-                                                        }}
-                                                    >
-                                                        Dim Others
-                                                    </button>
-                                                </div>
+                                                <input
+                                                    type="range"
+                                                    min="0"
+                                                    max="0.99"
+                                                    step="0.01"
+                                                    value={filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity}
+                                                    onChange={(e) => {
+                                                        const value = Math.max(0, Math.min(0.99, parseFloat(e.target.value)));
+                                                        if (filterMode === 'genomic') {
+                                                            setGenomicDimOpacity(value);
+                                                        } else {
+                                                            setTreeDimOpacity(value);
+                                                        }
+                                                    }}
+                                                    className="flex-1"
+                                                    style={{ maxWidth: '150px' }}
+                                                />
+                                                <span className="text-xs whitespace-nowrap" style={{ color: colors.text, minWidth: '40px' }}>
+                                                    {Math.round((filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity) * 100)}%
+                                                </span>
                                             </div>
-                                            {(filterMode === 'genomic' ? genomicFilterMode : treeFilterMode) === 'dim' && (
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>
-                                                        Dim Opacity:
-                                                    </span>
-                                                    <input
-                                                        type="range"
-                                                        min="0"
-                                                        max="0.99"
-                                                        step="0.01"
-                                                        value={filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity}
-                                                        onChange={(e) => {
-                                                            const value = Math.max(0, Math.min(0.99, parseFloat(e.target.value)));
-                                                            if (filterMode === 'genomic') {
-                                                                setGenomicDimOpacity(value);
-                                                            } else {
-                                                                setTreeDimOpacity(value);
-                                                            }
-                                                        }}
-                                                        className="flex-1"
-                                                        style={{ maxWidth: '150px' }}
-                                                    />
-                                                    <span className="text-xs whitespace-nowrap" style={{ color: colors.text, minWidth: '40px' }}>
-                                                        {Math.round((filterMode === 'genomic' ? genomicDimOpacity : treeDimOpacity) * 100)}%
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </>
-                                    )}
+                                        )}
+                                    </>
+                                )}
                                 </div>
 
                                 {isFilterActive && (
@@ -1669,15 +1686,39 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                             ) : null}
                                         </div>
                                         
+                                        {/* Compact statistics display */}
+                                        <CompactStatistics
+                                            filename={filename}
+                                            genomicRange={filterMode === 'genomic' ? genomicRange : null}
+                                            temporalRange={temporalState.isActive ? temporalState.range : null}
+                                            treeRange={filterMode === 'tree' ? treeRange : null}
+                                            isActive={true} // Always active to show full sequence stats when filters are off
+                                            sequenceLength={sequenceLength}
+                                        />
+                                        
                                         {/* Inline filter info */}
                                         <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
                                             {filterMode === 'genomic' ? (
                                                 <span>
                                                     {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
                                                     ({((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}%)
-                                                    {data?.metadata.num_local_trees !== undefined && (
-                                                        <> • {data.metadata.num_local_trees} trees</>
-                                                    )}
+                                                    {(() => {
+                                                        // Calculate number of trees that overlap with the genomic range
+                                                        if (treeIntervals.length > 0 && genomicRange) {
+                                                            const [genomicStart, genomicEnd] = genomicRange;
+                                                            const treesInRange = treeIntervals.filter(interval => 
+                                                                interval.left < genomicEnd && interval.right > genomicStart
+                                                            ).length;
+                                                            return treesInRange > 0 ? (
+                                                                <> • {treesInRange} {treesInRange === 1 ? 'tree' : 'trees'}</>
+                                                            ) : null;
+                                                        }
+                                                        // Fallback to total if treeIntervals not available
+                                                        if (data?.metadata.num_local_trees !== undefined) {
+                                                            return <> • {data.metadata.num_local_trees} trees</>;
+                                                        }
+                                                        return null;
+                                                    })()}
                                                 </span>
                                             ) : filterMode === 'tree' && treeIntervals.length > 0 ? (
                                                 <span>
@@ -1720,7 +1761,6 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                         </div>
                     )}
                 </div>
-            )}
 
             {/* Main Content Area with Sidebar */}
             <div className="flex-1 overflow-hidden flex min-h-0 min-w-0">
@@ -1993,6 +2033,15 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     genomicRange={isFilterActive ? genomicRange : undefined}
                                     sequenceLength={sequenceLength}
                                     isFiltered={isFilterActive}
+                                    fullNumSamples={treeSequence?.num_samples}
+                                    fullNumSites={treeSequence?.num_sites}
+                                    fullNumTrees={treeSequence?.num_trees}
+                                    fullNumMutations={treeSequence?.num_mutations}
+                                    subargNumSamples={data?.metadata?.num_samples}
+                                    subargNumSites={undefined}
+                                    subargNumTrees={data?.metadata?.num_local_trees}
+                                    subargNumMutations={undefined}
+                                    statistics={treeSequence?.statistics}
                                 />
                             ),
                             defaultOpen: false

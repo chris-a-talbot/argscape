@@ -1000,6 +1000,122 @@ function AdvancedSubsettingModal({
   );
 }
 
+// Add Midpoint configuration modal component
+function MidpointConfigModal({
+  isOpen,
+  onClose,
+  onConfirm
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    weight_by_span: boolean;
+    weight_branch_length: boolean;
+  }) => void;
+}) {
+  const [weightBySpan, setWeightBySpan] = useState(true);
+  const [weightBranchLength, setWeightBranchLength] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm({
+      weight_by_span: weightBySpan,
+      weight_branch_length: weightBranchLength
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">Midpoint Inference Configuration</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Weighting Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Weighting Options</h4>
+            <p className="text-xs text-sp-white/60 mb-3">
+              Choose how to weight child locations when calculating parent node locations. 
+              You can use edge spans (genomic length), branch lengths (temporal), both (multiplied), or neither (equal weights).
+            </p>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="weight-by-span"
+                  checked={weightBySpan}
+                  onChange={(e) => setWeightBySpan(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="weight-by-span" className="ml-2 text-sm text-sp-white/80">
+                  Weight by edge spans (genomic length)
+                </label>
+              </div>
+              <Tooltip content="Weight child locations by the total genomic length (edge spans) inherited from each child. This reflects how much of the genome is contributed by each child. When a parent has multiple edges to the same child (common in ARGs with recombination), spans are summed. This is the default option and matches the approach used in average_population_ancestors_geography." />
+            </div>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="weight-branch-length"
+                  checked={weightBranchLength}
+                  onChange={(e) => setWeightBranchLength(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="weight-branch-length" className="ml-2 text-sm text-sp-white/80">
+                  Weight by branch lengths (temporal)
+                </label>
+              </div>
+              <Tooltip content="Weight child locations by the temporal difference (branch length) between parent and child nodes. Longer branches suggest more evolutionary time, which may reflect more opportunity for geographic movement. This matches the original Wohns et al. 2022 approach." />
+            </div>
+            
+            {/* Info about combined weighting */}
+            {weightBySpan && weightBranchLength && (
+              <div className="ml-6 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
+                <p className="text-xs text-sp-pale-green">
+                  <strong>Combined weighting:</strong> When both options are enabled, weights are multiplied together 
+                  (edge_span × branch_length). This gives more weight to children that contribute both more genomic 
+                  material and have longer evolutionary branches.
+                </p>
+              </div>
+            )}
+            
+            {/* Info about equal weighting */}
+            {!weightBySpan && !weightBranchLength && (
+              <div className="ml-6 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                <p className="text-xs text-yellow-200">
+                  <strong>Equal weighting:</strong> When neither option is enabled, all children are weighted equally. 
+                  This gives a simple unweighted average of child locations.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run Midpoint Inference
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Add Spacetrees configuration modal component
 function SpacetreesConfigModal({
   isOpen,
@@ -1631,6 +1747,7 @@ export default function ResultPage() {
   const [isInferringLocationsSparg, setIsInferringLocationsSparg] = useState(false);
   const [isInferringLocationsSpacetrees, setIsInferringLocationsSpacetrees] = useState(false);
   const [showSpacetreesConfigModal, setShowSpacetreesConfigModal] = useState(false);
+  const [showMidpointConfigModal, setShowMidpointConfigModal] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
@@ -1728,6 +1845,31 @@ export default function ResultPage() {
       setTotalSamples(data.num_samples);
     }
   }, [data]);
+
+  // Fetch statistics if they're missing
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      if (data?.filename && !data.statistics) {
+        try {
+          const response = await api.getTreeSequenceMetadata(data.filename);
+          const metadata = response.data as any;
+          if (metadata.statistics) {
+            setTreeSequence({
+              ...data,
+              statistics: metadata.statistics
+            });
+          }
+        } catch (error) {
+          log.debug('Could not fetch statistics', {
+            component: 'ResultPage',
+            error: error instanceof Error ? error : new Error(String(error))
+          });
+        }
+      }
+    };
+    fetchStatistics();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.filename]);
 
   // Sync input value with maxSamples changes
   useEffect(() => {
@@ -2072,66 +2214,8 @@ export default function ResultPage() {
         setShowSpacetreesConfigModal(true);
         break;
       case 'midpoint':
-        if (isInferringLocationsMidpoint) return;
-        setIsInferringLocationsMidpoint(true);
-        try {
-          log.user.action('midpoint-inference-start', { filename: data.filename }, 'ResultPage');
-
-          const result = await api.inferLocationsMidpoint({
-            filename: data.filename,
-          });
-
-          log.info('Midpoint inference completed successfully', {
-            component: 'ResultPage',
-            data: { filename: data.filename, result: result.data }
-          });
-
-          // Update the tree sequence context with the new filename and spatial info
-          const resultData = result.data as any;
-          const updatedData = {
-            ...data,
-            filename: resultData.new_filename,
-            has_sample_spatial: resultData.has_sample_spatial,
-            has_all_spatial: resultData.has_all_spatial,
-            spatial_status: resultData.spatial_status,
-          };
-
-          setTreeSequence(updatedData);
-
-          setAlertModal({
-            isOpen: true,
-            title: 'Success!',
-            message: `Midpoint inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
-            type: 'success'
-          });
-        } catch (error) {
-          log.error('Midpoint inference failed', {
-            component: 'ResultPage',
-            error: error instanceof Error ? error : new Error(String(error)),
-            data: { filename: data.filename }
-          });
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
-          setAlertModal({
-            isOpen: true,
-            title: isTimeout ? 'Inference Timeout' : 'Error',
-            message: isTimeout 
-              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-              : `Midpoint inference failed: ${errorMessage}`,
-            type: 'error',
-            buttonText: isTimeout ? 'Install Locally' : undefined,
-            secondaryButtonText: isTimeout ? 'Close' : undefined,
-            onClose: isTimeout ? () => {
-              setAlertModal({ ...alertModal, isOpen: false });
-              navigate('/install');
-            } : undefined,
-            onSecondaryAction: isTimeout ? () => {
-              setAlertModal({ ...alertModal, isOpen: false });
-            } : undefined
-          });
-        } finally {
-          setIsInferringLocationsMidpoint(false);
-        }
+        // Open configuration modal instead of running directly
+        setShowMidpointConfigModal(true);
         break;
       default:
         setAlertModal({
@@ -2140,6 +2224,79 @@ export default function ResultPage() {
           message: `The ${method.name} inference method is not yet implemented.`,
           type: 'info'
         });
+    }
+  };
+
+  // Handle midpoint inference with configuration
+  const handleMidpointInference = async (params: {
+    weight_by_span: boolean;
+    weight_branch_length: boolean;
+  }) => {
+    if (!data?.filename || isInferringLocationsMidpoint) return;
+    
+    setIsInferringLocationsMidpoint(true);
+    setShowMidpointConfigModal(false);
+    
+    try {
+      log.user.action('midpoint-inference-start', { filename: data.filename, params }, 'ResultPage');
+
+      const result = await api.inferLocationsMidpoint({
+        filename: data.filename,
+        weight_by_span: params.weight_by_span,
+        weight_branch_length: params.weight_branch_length,
+      });
+
+      log.info('Midpoint inference completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+
+      // Update the tree sequence context with the new filename and spatial info
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data,
+        filename: resultData.new_filename,
+        has_sample_spatial: resultData.has_sample_spatial,
+        has_all_spatial: resultData.has_all_spatial,
+        spatial_status: resultData.spatial_status,
+      };
+
+      setTreeSequence(updatedData);
+
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `Midpoint inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+    } catch (error) {
+      log.error('Midpoint inference failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      setAlertModal({
+        isOpen: true,
+        title: isTimeout ? 'Inference Timeout' : 'Error',
+        message: isTimeout 
+          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+          : `Midpoint inference failed: ${errorMessage}`,
+        type: 'error',
+        buttonText: isTimeout ? 'Install Locally' : undefined,
+        secondaryButtonText: isTimeout ? 'Close' : undefined,
+        onClose: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+          navigate('/install');
+        } : undefined,
+        onSecondaryAction: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+        } : undefined
+      });
+    } finally {
+      setIsInferringLocationsMidpoint(false);
     }
   };
 
@@ -2548,6 +2705,216 @@ export default function ResultPage() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Population Genetics Statistics */}
+                  {data.statistics && (
+                    <div className="mt-6">
+                      <CollapsibleSection
+                      title="Population Genetics Statistics"
+                      icon={
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                      }
+                      subtitle="Diversity, tree topology, and demographic statistics"
+                      defaultOpen={false}
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
+                        {/* Diversity Statistics */}
+                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
+                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                            </svg>
+                            Diversity
+                          </h5>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Nucleotide diversity (π):</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.nucleotide_diversity !== null && data.statistics.nucleotide_diversity !== undefined
+                                  ? data.statistics.nucleotide_diversity.toExponential(3)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Watterson's θ:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.wattersons_theta !== null && data.statistics.wattersons_theta !== undefined
+                                  ? data.statistics.wattersons_theta.toExponential(3)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Tajima's D:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.tajimas_d !== null && data.statistics.tajimas_d !== undefined
+                                  ? data.statistics.tajimas_d.toFixed(3)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            {data.statistics.segregating_sites !== null && data.statistics.segregating_sites !== undefined && (
+                              <div className="flex justify-between">
+                                <span className="text-sp-white/70">Segregating sites:</span>
+                                <span className="font-mono text-sp-white">{data.statistics.segregating_sites.toLocaleString()}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Tree Topology Statistics */}
+                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
+                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Tree Topology
+                          </h5>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Mean tree height:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.mean_tree_height !== null && data.statistics.mean_tree_height !== undefined
+                                  ? data.statistics.mean_tree_height.toFixed(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Median tree height:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.median_tree_height !== null && data.statistics.median_tree_height !== undefined
+                                  ? data.statistics.median_tree_height.toFixed(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Mean tree length:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.mean_tree_length !== null && data.statistics.mean_tree_length !== undefined
+                                  ? data.statistics.mean_tree_length.toFixed(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Median tree length:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.median_tree_length !== null && data.statistics.median_tree_length !== undefined
+                                  ? data.statistics.median_tree_length.toFixed(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">TMRCA:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.tmrca !== null && data.statistics.tmrca !== undefined
+                                  ? data.statistics.tmrca.toFixed(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Demographic & Recombination Statistics */}
+                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
+                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                            </svg>
+                            Demographics & Recombination
+                          </h5>
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Ne (Watterson):</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.ne_watterson !== null && data.statistics.ne_watterson !== undefined
+                                  ? data.statistics.ne_watterson.toExponential(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Ne (π):</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.ne_pi !== null && data.statistics.ne_pi !== undefined
+                                  ? data.statistics.ne_pi.toExponential(2)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-sp-white/70">Est. recomb. rate:</span>
+                              <span className="font-mono text-sp-white">
+                                {data.statistics.estimated_recombination_rate !== null && data.statistics.estimated_recombination_rate !== undefined
+                                  ? data.statistics.estimated_recombination_rate.toExponential(3)
+                                  : 'N/A'}
+                              </span>
+                            </div>
+                            {data.statistics.mean_ld_r2 !== null && data.statistics.mean_ld_r2 !== undefined && (
+                              <>
+                                <div className="flex justify-between">
+                                  <span className="text-sp-white/70">Mean LD (r²):</span>
+                                  <span className="font-mono text-sp-white">{data.statistics.mean_ld_r2.toFixed(4)}</span>
+                                </div>
+                                {data.statistics.median_ld_r2 !== null && data.statistics.median_ld_r2 !== undefined && (
+                                  <div className="flex justify-between">
+                                    <span className="text-sp-white/70">Median LD (r²):</span>
+                                    <span className="font-mono text-sp-white">{data.statistics.median_ld_r2.toFixed(4)}</span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Population Structure Statistics */}
+                        {(data.statistics?.fst !== null && data.statistics?.fst !== undefined) || 
+                         (data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined) ? (
+                          <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
+                            <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              Population Structure
+                            </h5>
+                            <div className="space-y-1.5 text-xs">
+                              {data.statistics?.num_populations !== null && data.statistics?.num_populations !== undefined && data.statistics.num_populations > 0 && (
+                                <div className="flex justify-between">
+                                  <span className="text-sp-white/70">Populations:</span>
+                                  <span className="font-mono text-sp-white">{data.statistics.num_populations}</span>
+                                </div>
+                              )}
+                              {data.statistics?.fst !== null && data.statistics?.fst !== undefined && (
+                                <div className="flex justify-between">
+                                  <span className="text-sp-white/70">Fst:</span>
+                                  <span className="font-mono text-sp-white" title="Fixation index: measures population differentiation (0=no differentiation, 1=complete differentiation)">
+                                    {data.statistics.fst.toFixed(4)}
+                                  </span>
+                                </div>
+                              )}
+                              {data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined && (
+                                <>
+                                  <div className="flex justify-between">
+                                    <span className="text-sp-white/70">Mean divergence:</span>
+                                    <span className="font-mono text-sp-white">
+                                      {data.statistics.mean_divergence.toExponential(3)}
+                                    </span>
+                                  </div>
+                                  {data.statistics?.median_divergence !== null && data.statistics?.median_divergence !== undefined && (
+                                    <div className="flex justify-between">
+                                      <span className="text-sp-white/70">Median divergence:</span>
+                                      <span className="font-mono text-sp-white">
+                                        {data.statistics.median_divergence.toExponential(3)}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    </CollapsibleSection>
+                    </div>
+                  )}
                 </div>
 
                 {/* Large Tree Sequence Warning */}
@@ -2997,6 +3364,13 @@ export default function ResultPage() {
             isOpen={showMutationRateModal}
             onClose={() => setShowMutationRateModal(false)}
             onConfirm={handleTsdateInference}
+          />
+
+          {/* Midpoint Configuration Modal */}
+          <MidpointConfigModal
+            isOpen={showMidpointConfigModal}
+            onClose={() => setShowMidpointConfigModal(false)}
+            onConfirm={handleMidpointInference}
           />
 
           {/* Spacetrees Configuration Modal */}

@@ -4,7 +4,7 @@ import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
 import { GraphData, GraphNode, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
-import { convertShapeToLines, createShapeLines } from '../SpatialArgUtils/GeographicUtils';
+import { convertShapeToLines, createShapeLines, GeographicLine3D } from '../SpatialArgUtils/GeographicUtils';
 import { isRootNode } from '../../../utils/graphTraversal';
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
   EdgeMutationSettings, AncestryHeatmapSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
@@ -261,6 +261,12 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     })) as EdgeDiff3D[];
   }, [firstData.edges, nodes3D, colors, temporalRange, temporalFilterMode, edgeOpacity, edgeThickness]);
 
+  // Memoize unique times from firstData nodes (more stable than nodes3D which changes with filtering)
+  const allUniqueTimes = useMemo(() => {
+    if (!firstData.nodes.length) return [];
+    return Array.from(new Set(firstData.nodes.map(n => n.time))).sort((a, b) => a - b);
+  }, [firstData.nodes]);
+
   // Create node labels
   const nodeLabels = useMemo(() => {
     return createNodeLabels(nodes3D, nodeIdSettings, firstData.nodes, firstData.edges, nodeSizes, colors, minTime);
@@ -432,7 +438,8 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     return polygons;
   }, [
     heatmapSettings,
-    temporalRange,
+    temporalRange?.[0],
+    temporalRange?.[1],
     temporalFilterMode,
     nodes3D,
     coordinateTransform,
@@ -440,7 +447,8 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     firstData.edges,
     temporalSpacing,
     temporalSpacingMode,
-    spatialSpacing
+    spatialSpacing,
+    showTemporalPlanes
   ]);
 
   // Determine the geographic shape to use
@@ -450,63 +458,60 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
 
   // Convert geographic shape to lines
   const shapeLines = useMemo(() => {
-    if (!shape && !nodes3D.length) return [];
+    if (!shape || !nodes3D.length || !allUniqueTimes.length) return [];
+
+    const baseLines = convertShapeToLines(shape, spatialSpacing);
+    const isTemporalPlanesActive = showTemporalPlanes && (temporalFilterMode === 'hide' || temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid');
     
-    const isTemporalPlanesActive = false; // Since diff visualizer doesn't have temporal planes
     const baseGeographicOpacity = geographicShapeOpacity ?? 70;
-    const geographicOpacity = baseGeographicOpacity > 0 ? 
-      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * VISUALIZATION_CONSTANTS_DIFF.GEOGRAPHIC_REDUCED_OPACITY, 8) : baseGeographicOpacity * VISUALIZATION_CONSTANTS_DIFF.GEOGRAPHIC_OPACITY_SCALE) : 0;
-    const geographicLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.GEOGRAPHIC_ACTIVE : LINE_WIDTHS.GEOGRAPHIC_NORMAL;
-    const geographicColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], geographicOpacity] as [number, number, number, number];
+    
+    // Create ground shape (dimmed when temporal planes are active)
+    const groundOpacity = baseGeographicOpacity > 0 ? 
+      (isTemporalPlanesActive ? Math.max(baseGeographicOpacity * 0.15, 8) : baseGeographicOpacity) : 0;
+    const groundColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], groundOpacity] as [number, number, number, number];
+    const groundShapeLines = createShapeLines(baseLines, 0, groundColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL);
 
-    const lines = [];
-
-    // Add geographic shape lines if shape exists
-    if (shape) {
-      const baseLines = convertShapeToLines(shape, spatialSpacing);
+    // Create elevated shape if temporal filtering is active
+    let elevatedShapeLines: GeographicLine3D[] = [];
+    if (showTemporalPlanes && temporalRange && (temporalFilterMode === 'hide' || temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid') && allUniqueTimes.length > 0) {
       
-      // Ground shape lines (always present)
-      lines.push(...createShapeLines(
-        baseLines,
-        0,
-        geographicColor,
-        geographicLineWidth
-      ));
-      
-      // Elevated shape lines (when temporal planes are active and we have a temporal range)
-      if (showTemporalPlanes && temporalRange) {
-        const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
-        
-        // For hybrid mode: use max time (top of range)
-        // For planes mode: use center time (middle of range)
-        const targetTime = temporalFilterMode === 'hybrid' ? temporalRange[1] : (temporalRange[0] + temporalRange[1]) / 2;
-        
-        // Calculate z position based on temporal spacing mode
-        let z: number;
-        if (temporalSpacingMode === 'equal') {
-          const timeToZIndex = new Map(allUniqueTimes.map((time, index) => [time, index]));
-          const zIndex = timeToZIndex.get(targetTime) ?? allUniqueTimes.findIndex(t => t >= targetTime);
-          z = zIndex * temporalSpacing + 0.1;
-        } else {
-          const minTime = allUniqueTimes[0];
-          const maxTime = allUniqueTimes[allUniqueTimes.length - 1];
-          const normalizedTime = (targetTime - minTime) / (maxTime - minTime);
-          z = normalizedTime * (allUniqueTimes.length - 1) * temporalSpacing + 0.1;
-        }
-        
-        // In hybrid mode, place shapefile slightly below the nodes so nodes appear on top
-        // Nodes are at z + BASE_ELEVATION (0.1), so subtract 0.08 to place shapefile below
-        if (temporalFilterMode === 'hybrid') {
-          z -= 0.6;
-        }
-        
-        // Create elevated shape with enhanced visibility
-        const elevatedOpacity = baseGeographicOpacity * 2.5;
-        const elevatedColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], elevatedOpacity] as [number, number, number, number];
-        lines.push(...createShapeLines(baseLines, z, elevatedColor, geographicLineWidth));
+      // Determine target time based on filter mode:
+      // - hybrid mode: use max time (top of range, highest displayed)
+      // - hide mode: use min time (bottom of range, minimum displayed)
+      // - planes mode: use center time (middle of range)
+      let targetTime: number;
+      if (temporalFilterMode === 'hybrid') {
+        targetTime = temporalRange[1]; // Max (highest)
+      } else if (temporalFilterMode === 'hide') {
+        targetTime = temporalRange[0]; // Min (lowest)
+      } else {
+        // planes mode
+        targetTime = (temporalRange[0] + temporalRange[1]) / 2; // Center
       }
+      
+      // Clamp targetTime to be within the bounds of allUniqueTimes
+      const minTime = allUniqueTimes[0];
+      const maxTime = allUniqueTimes[allUniqueTimes.length - 1];
+      targetTime = Math.max(minTime, Math.min(maxTime, targetTime));
+      
+      let z = calculateZPosition(targetTime, allUniqueTimes, temporalSpacing, temporalSpacingMode);
+      
+      // In hybrid mode, place shapefile slightly below the nodes so nodes appear on top
+      if (temporalFilterMode === 'hybrid') {
+        z -= 0.6;
+      }
+      
+      // Ensure z doesn't go too far below ground level (allow slight negative for hybrid mode offset)
+      z = Math.max(-0.5, z);
+      
+      const elevatedOpacity = baseGeographicOpacity * 2.5;
+      const elevatedColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], elevatedOpacity] as [number, number, number, number];
+      elevatedShapeLines = createShapeLines(baseLines, z, elevatedColor, LINE_WIDTHS.GEOGRAPHIC_NORMAL);
     }
 
+    // Combine ground and elevated shapes
+    const lines = [...groundShapeLines, ...elevatedShapeLines];
+    
     // Calculate bounds for temporal grid lines
     const bounds = {
       minX: Math.min(...nodes3D.map(n => n.position[0])),
@@ -518,38 +523,33 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     };
 
     // Add temporal grid lines
-    const uniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
-    const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
-    
-    const baseOpacity = temporalGridOpacity ?? 30;
-    const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * VISUALIZATION_CONSTANTS_DIFF.TEMPORAL_OPACITY_SCALE, 8) : baseOpacity;
-    const timeSliceLineWidth = isTemporalPlanesActive ? LINE_WIDTHS.TIME_SLICE_ACTIVE : LINE_WIDTHS.TIME_SLICE_NORMAL;
-    const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
+    if (temporalGridOpacity > 0 && allUniqueTimes.length > 0) {
+      const baseOpacity = temporalGridOpacity ?? 30;
+      const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * 0.3, 8) : baseOpacity;
+      const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
 
-    if (timeSliceOpacity > 0) {
-      uniqueTimes.forEach(time => {
-        const zIndex = timeToZIndex.get(time) || 0;
-        const z = zIndex * temporalSpacing;
+      allUniqueTimes.forEach(time => {
+        const z = calculateZPosition(time, allUniqueTimes, temporalSpacing, temporalSpacingMode);
         
         if (z !== 0) {
           lines.push({
             source: [bounds.minX - VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, 0, z],
             target: [bounds.maxX + VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, 0, z],
             color: timeSliceColor,
-            width: timeSliceLineWidth
+            width: LINE_WIDTHS.TIME_SLICE_NORMAL
           });
           lines.push({
             source: [0, bounds.minY - VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, z],
             target: [0, bounds.maxY + VISUALIZATION_CONSTANTS_DIFF.GRID_EXTENSION, z],
             color: timeSliceColor,
-            width: timeSliceLineWidth
+            width: LINE_WIDTHS.TIME_SLICE_NORMAL
           });
         }
       });
     }
 
     return lines;
-  }, [shape, spatialSpacing, geographicShapeOpacity, temporalGridOpacity, colors.geographicGrid, colors.temporalGrid, nodes3D, temporalSpacing]);
+  }, [shape, spatialSpacing, geographicShapeOpacity, temporalGridOpacity, colors.geographicGrid, colors.temporalGrid, nodes3D.length, allUniqueTimes, temporalSpacing, temporalSpacingMode, showTemporalPlanes, temporalFilterMode, temporalRange]);
 
   // Create layers
   const layers = useMemo(() => {
@@ -773,7 +773,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
     );
 
     return layers;
-  }, [ancestryHeatmap, shapeLines, edges3D, diffEdges, nodes3D, nodeSizes, colors, temporalRange, temporalFilterMode, minTime, nodeLabels, edgeLabels, mutationMarkers, nodeIdSettings, edgeLabelSettings, edgeMutationSettings, heatmapSettings]);
+  }, [ancestryHeatmap, shapeLines, edges3D, diffEdges, nodes3D, nodeSizes, colors, temporalRange?.[0], temporalRange?.[1], temporalFilterMode, minTime, nodeLabels, edgeLabels, mutationMarkers, nodeIdSettings, edgeLabelSettings, edgeMutationSettings, heatmapSettings]);
 
   // View state management
   const [viewState, setViewState] = useState({

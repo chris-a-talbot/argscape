@@ -232,6 +232,27 @@ export default function Footer() {
           >
             sparg
           </a>
+          <span 
+            className={!isVisualizationPage ? "text-sp-white/50" : ""}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.text,
+              opacity: 0.5
+            } : {}}
+          >
+            •
+          </span>
+          <a 
+            href="https://github.com/osmond-lab/spacetrees" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
+            style={isVisualizationPage && themeColors ? {
+              color: themeColors.accentPrimary,
+              opacity: 0.9
+            } : {}}
+          >
+            spacetrees
+          </a>
         </div>
       </div>
     </footer>

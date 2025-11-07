@@ -11,6 +11,8 @@ import { useTreeSequence } from '../../../context/TreeSequenceContext';
 import { TemporalSpacingMode, NodeIdSettings, EdgeMutationSettings, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
 import { VisualizationSection, ViewControlsSection, ElementsSection, InformationSection } from './SpatialArg3DSidebarSections';
+import { StatisticsPanel } from '../shared/StatisticsPanel';
+import { CompactStatistics } from '../shared/CompactStatistics';
 import { getDescendants, getAncestors, isRootNode } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { calculatePercentage, convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
@@ -1110,16 +1112,32 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         </div>
       </div>
       
-      {/* Filter Controls Section - only show when filters are active */}
-      {(filterState.isActive || temporalState.isActive) && (
-        <div 
-          className="flex-shrink-0 border-b"
-          style={{ 
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border 
-          }}
-        >
-          {!visualSettings.isFilterSectionCollapsed && (
+      {/* Filter Controls Section - always show statistics bar */}
+      <div 
+        className="flex-shrink-0 border-b"
+        style={{ 
+          backgroundColor: colors.background,
+          borderBottomColor: colors.border 
+        }}
+      >
+        {/* Always show statistics bar when collapsed or when no filters are active */}
+        {(visualSettings.isFilterSectionCollapsed || (!filterState.isActive && !temporalState.isActive)) && (
+          <div className="px-4 py-2">
+            <div className="flex items-center justify-end gap-4">
+              <CompactStatistics
+                filename={filename}
+                genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                temporalRange={temporalState.isActive ? temporalState.range : null}
+                treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
+                isActive={true} // Always active to show full sequence stats when filters are off
+                sequenceLength={metadata.sequenceLength}
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Show full filter controls when not collapsed and filters are active */}
+        {(filterState.isActive || temporalState.isActive) && !visualSettings.isFilterSectionCollapsed && (
             <div className="px-4 py-3">
               <div className="flex items-start justify-between gap-6">
                 <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
@@ -1215,6 +1233,16 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                       ) : null}
                     </div>
                     
+                    {/* Compact statistics display */}
+                    <CompactStatistics
+                      filename={filename}
+                      genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                      temporalRange={temporalState.isActive ? temporalState.range : null}
+                      treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
+                      isActive={true} // Always active to show full sequence stats when filters are off
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                    
                     {/* Inline filter info */}
                     <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
                       {filterState.mode === 'genomic' ? (
@@ -1245,6 +1273,20 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                     </div>
                   </div>
                 )}
+                
+                {/* Show statistics when only temporal filter is active */}
+                {!filterState.isActive && temporalState.isActive && (
+                  <div className="flex items-center gap-4 flex-1 min-w-0 justify-end">
+                    <CompactStatistics
+                      filename={filename}
+                      genomicRange={null}
+                      temporalRange={temporalState.range}
+                      treeRange={null}
+                      isActive={true}
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                  </div>
+                )}
               </div>
               
               {temporalState.isActive && (
@@ -1267,10 +1309,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
             </div>
           )}
         </div>
-      )}
 
       <div className="flex-1 overflow-hidden flex">
-        {temporalState.isActive && !visualSettings.isFilterSectionCollapsed && (
+        {temporalState.isActive && (
           <div 
             className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center"
             style={{ 
@@ -1519,6 +1560,18 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   subargEdgeCount={stats?.subArgEdges}
                   displayedNodeCount={stats?.displayedNodes}
                   displayedEdgeCount={stats?.displayedEdges}
+                  genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : undefined}
+                  sequenceLength={metadata.sequenceLength}
+                  isFiltered={filterState.isActive}
+                  fullNumSamples={treeSequence?.num_samples}
+                  fullNumSites={treeSequence?.num_sites}
+                  fullNumTrees={treeSequence?.num_trees}
+                  fullNumMutations={treeSequence?.num_mutations}
+                  subargNumSamples={data?.metadata?.num_samples}
+                  subargNumSites={undefined}
+                  subargNumTrees={data?.metadata?.num_local_trees}
+                  subargNumMutations={undefined}
+                  statistics={treeSequence?.statistics}
                   crsDetection={data?.metadata.coordinate_system_detection ? {
                     crs: data.metadata.coordinate_system_detection.likely_crs,
                     confidence: data.metadata.coordinate_system_detection.confidence,
@@ -1526,6 +1579,28 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                     description: data.metadata.coordinate_system_detection.reasoning
                   } : undefined}
                 />
+              ),
+            },
+            {
+              id: 'statistics',
+              title: 'Statistics',
+              icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              ),
+              defaultOpen: false,
+              content: (
+                <div className="p-2">
+                  <StatisticsPanel
+                    filename={filename}
+                    genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                    temporalRange={temporalState.isActive ? temporalState.range : null}
+                    treeRange={filterState.isActive && filterState.mode === 'tree' ? filterState.treeRange : null}
+                    isActive={filterState.isActive || temporalState.isActive}
+                    sequenceLength={metadata.sequenceLength}
+                  />
+                </div>
               ),
             },
           ]}

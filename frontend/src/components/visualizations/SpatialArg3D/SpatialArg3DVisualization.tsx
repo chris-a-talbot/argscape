@@ -281,6 +281,12 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   // Keep all nodes for calculations, but we'll control visibility in the layer
   const nodes3D = allNodes3D;
 
+  // Memoize unique times from combined nodes (more stable than nodes3D which changes with filtering)
+  const allUniqueTimes = useMemo(() => {
+    if (!combinedNodesForTransform.length) return [];
+    return Array.from(new Set(combinedNodesForTransform.map(n => n.time))).sort((a, b) => a - b);
+  }, [combinedNodesForTransform]);
+
   // Update view state with dynamic zoom limits when bounds change
   React.useEffect(() => {
     if (bounds) {
@@ -297,14 +303,14 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   // No auto-center logic here - the container handles it
 
   const geographicLines = useMemo(() => {
-    if (!bounds || !nodes3D.length) return [];
+    if (!bounds || !nodes3D.length || !allUniqueTimes.length) return [];
 
     const shapeToRender = determineGeographicShape(geographicShape, geographicMode, spatialSpacing);
     if (!shapeToRender) return [];
 
     // Convert shape to 2D lines once
     const baseLines = convertShapeToLines(shapeToRender, spatialSpacing);
-    const isTemporalPlanesActive = showTemporalPlanes && (temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid');
+    const isTemporalPlanesActive = showTemporalPlanes && (temporalFilterMode === 'hide' || temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid');
     
     const baseGeographicOpacity = geographicShapeOpacity ?? 70;
     
@@ -316,19 +322,36 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
 
     // Create elevated shape if temporal filtering is active
     let elevatedShapeLines: GeographicLine3D[] = [];
-    if (isTemporalPlanesActive && temporalRange) {
-      const allUniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
+    if (showTemporalPlanes && temporalRange && (temporalFilterMode === 'hide' || temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid') && allUniqueTimes.length > 0) {
       
-      // For hybrid mode: use max time (top of range)
-      // For planes mode: use center time (middle of range)
-      const targetTime = temporalFilterMode === 'hybrid' ? temporalRange[1] : (temporalRange[0] + temporalRange[1]) / 2;
+      // Determine target time based on filter mode:
+      // - hybrid mode: use max time (top of range, highest displayed)
+      // - hide mode: use min time (bottom of range, minimum displayed)
+      // - planes mode: use center time (middle of range)
+      let targetTime: number;
+      if (temporalFilterMode === 'hybrid') {
+        targetTime = temporalRange[1]; // Max (highest)
+      } else if (temporalFilterMode === 'hide') {
+        targetTime = temporalRange[0]; // Min (lowest)
+      } else {
+        // planes mode
+        targetTime = (temporalRange[0] + temporalRange[1]) / 2; // Center
+      }
+      
+      // Clamp targetTime to be within the bounds of allUniqueTimes
+      const minTime = allUniqueTimes[0];
+      const maxTime = allUniqueTimes[allUniqueTimes.length - 1];
+      targetTime = Math.max(minTime, Math.min(maxTime, targetTime));
+      
       let z = calculateZPosition(targetTime, allUniqueTimes, temporalSpacing, temporalSpacingMode);
       
       // In hybrid mode, place shapefile slightly below the nodes so nodes appear on top
-      // Nodes are at z + BASE_ELEVATION (0.1), so subtract 0.08 to place shapefile below
       if (temporalFilterMode === 'hybrid') {
         z -= 0.6;
       }
+      
+      // Ensure z doesn't go too far below ground level (allow slight negative for hybrid mode offset)
+      z = Math.max(-0.5, z);
       
       const elevatedOpacity = baseGeographicOpacity * 2.5;
       const elevatedColor = [colors.geographicGrid[0], colors.geographicGrid[1], colors.geographicGrid[2], elevatedOpacity] as [number, number, number, number];
@@ -339,17 +362,13 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const lines = [...groundShapeLines, ...elevatedShapeLines];
     
     // Add temporal grid lines
-    if (temporalGridOpacity > 0) {
-      const uniqueTimes = Array.from(new Set(nodes3D.map(node => node.time))).sort((a, b) => a - b);
-      const timeToZIndex = new Map(uniqueTimes.map((time, index) => [time, index]));
-      
+    if (temporalGridOpacity > 0 && allUniqueTimes.length > 0) {
       const baseOpacity = temporalGridOpacity;
       const timeSliceOpacity = isTemporalPlanesActive ? Math.min(baseOpacity * 0.3, 8) : baseOpacity;
       const timeSliceColor = [colors.temporalGrid[0], colors.temporalGrid[1], colors.temporalGrid[2], timeSliceOpacity] as [number, number, number, number];
 
-      uniqueTimes.forEach(time => {
-        const zIndex = timeToZIndex.get(time) || 0;
-        const z = zIndex * temporalSpacing;
+      allUniqueTimes.forEach(time => {
+        const z = calculateZPosition(time, allUniqueTimes, temporalSpacing, temporalSpacingMode);
         
         if (z !== 0) {
           lines.push({
@@ -369,7 +388,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     }
 
     return lines;
-  }, [bounds, colors.geographicGrid, colors.temporalGrid, nodes3D, temporalSpacing, temporalSpacingMode, spatialSpacing, showTemporalPlanes, temporalFilterMode, temporalGridOpacity, geographicShapeOpacity, geographicShape, geographicMode, temporalRange]);
+  }, [bounds, colors.geographicGrid, colors.temporalGrid, nodes3D.length, allUniqueTimes, temporalSpacing, temporalSpacingMode, spatialSpacing, showTemporalPlanes, temporalFilterMode, temporalGridOpacity, geographicShapeOpacity, geographicShape, geographicMode, temporalRange]);
 
   // Create node labels and connecting lines
   const { nodeLabels, labelConnectingLines } = useMemo(() => {
@@ -526,7 +545,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     return polygons;
   }, [
     heatmapSettings,
-    temporalRange,
+    temporalRange?.[0],
+    temporalRange?.[1],
     temporalFilterMode,
     allNodes3D,
     coordinateTransform,
@@ -534,7 +554,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     combinedEdgesForTransform,
     temporalSpacing,
     temporalSpacingMode,
-    spatialSpacing
+    spatialSpacing,
+    showTemporalPlanes
   ]);
 
   // Memoize layers array to prevent unnecessary recreation and memory leaks
@@ -860,7 +881,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     edgeLabels,
     mutationMarkers,
     heatmapSettings,
-    temporalRange,
+    temporalRange?.[0],
+    temporalRange?.[1],
     temporalFilterMode,
     nodeIdSettings,
     colors,

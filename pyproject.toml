@@ -9,12 +9,12 @@ description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [{ name = "Chris Talbot", email = "cat267@cornell.edu" }]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 keywords = ["ARG", "ancestral recombination graph", "tree sequence", "population genetics", "visualization", "spatial inference", "temporal inference"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",

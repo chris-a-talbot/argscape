@@ -779,6 +779,38 @@ interface InformationSectionProps {
   genomicRange?: [number, number];
   sequenceLength?: number;
   isFiltered?: boolean;
+  // Full tree sequence metadata
+  fullNumSamples?: number;
+  fullNumSites?: number;
+  fullNumTrees?: number;
+  fullNumMutations?: number;
+  // Subarg metadata
+  subargNumSamples?: number;
+  subargNumSites?: number;
+  subargNumTrees?: number;
+  subargNumMutations?: number;
+  statistics?: {
+    nucleotide_diversity?: number | null;
+    wattersons_theta?: number | null;
+    tajimas_d?: number | null;
+    segregating_sites?: number | null;
+    mean_tree_height?: number | null;
+    median_tree_height?: number | null;
+    mean_tree_length?: number | null;
+    median_tree_length?: number | null;
+    tmrca?: number | null;
+    mean_tmrca?: number | null;
+    median_tmrca?: number | null;
+    ne_watterson?: number | null;
+    ne_pi?: number | null;
+    estimated_recombination_rate?: number | null;
+    mean_ld_r2?: number | null;
+    median_ld_r2?: number | null;
+    fst?: number | null;
+    num_populations?: number | null;
+    mean_divergence?: number | null;
+    median_divergence?: number | null;
+  };
 }
 
 export function InformationSection({
@@ -790,7 +822,16 @@ export function InformationSection({
   displayedEdgeCount,
   genomicRange,
   sequenceLength,
-  isFiltered = false
+  isFiltered = false,
+  fullNumSamples,
+  fullNumSites,
+  fullNumTrees,
+  fullNumMutations,
+  subargNumSamples,
+  subargNumSites,
+  subargNumTrees,
+  subargNumMutations,
+  statistics
 }: InformationSectionProps) {
   const { colors } = useColorTheme();
 
@@ -804,6 +845,126 @@ export function InformationSection({
 
   return (
     <div className="space-y-4">
+      {/* Full Tree Sequence Information */}
+      {(fullNumSamples !== undefined || fullNumSites !== undefined || fullNumTrees !== undefined || fullNumMutations !== undefined || sequenceLength) && (
+        <SidebarSubsection title="Full Tree Sequence">
+          <div className="space-y-2 text-xs">
+            {fullNumSamples !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Samples:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumSamples.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumTrees !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Trees:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumTrees.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumSites !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sites:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumSites.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumMutations !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Mutations:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumMutations.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {sequenceLength && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sequence length:</span>
+                <span style={{ color: colors.text }}>
+                  {formatGenomicPosition(sequenceLength)}
+                </span>
+              </div>
+            )}
+            {originalNodeCount && originalEdgeCount && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Nodes:</span>
+                <span style={{ color: colors.text }}>
+                  {originalNodeCount.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {originalNodeCount && originalEdgeCount && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Edges:</span>
+                <span style={{ color: colors.text }}>
+                  {originalEdgeCount.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        </SidebarSubsection>
+      )}
+
+      {/* SubARG Information */}
+      {(subargNumSamples !== undefined || subargNumSites !== undefined || subargNumTrees !== undefined || subargNumMutations !== undefined || subargNodeCount) && (
+        <SidebarSubsection title="Current SubARG">
+          <div className="space-y-2 text-xs">
+            {subargNumSamples !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Samples:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumSamples.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumTrees !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Trees:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumTrees.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumSites !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sites:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumSites.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumMutations !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Mutations:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumMutations.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNodeCount && subargEdgeCount && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Nodes:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNodeCount.toLocaleString()} ({nodePercentage}%)
+                </span>
+              </div>
+            )}
+            {subargNodeCount && subargEdgeCount && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Edges:</span>
+                <span style={{ color: colors.text }}>
+                  {subargEdgeCount.toLocaleString()} ({edgePercentage}%)
+                </span>
+              </div>
+            )}
+          </div>
+        </SidebarSubsection>
+      )}
+
       {/* Graph Statistics */}
       {(originalNodeCount || subargNodeCount || displayedNodeCount) && (
         <SidebarSubsection title="Graph Statistics">
@@ -871,6 +1032,104 @@ export function InformationSection({
                 {((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}% of sequence
               </span>
             </div>
+          </div>
+        </SidebarSubsection>
+      )}
+
+      {/* Population Genetics Statistics */}
+      {statistics && (
+        <SidebarSubsection title="Population Genetics Statistics">
+          <div className="space-y-2 text-xs">
+            {(statistics.nucleotide_diversity !== null && statistics.nucleotide_diversity !== undefined) ||
+             (statistics.wattersons_theta !== null && statistics.wattersons_theta !== undefined) ||
+             (statistics.tajimas_d !== null && statistics.tajimas_d !== undefined) ? (
+              <>
+                {statistics.nucleotide_diversity !== null && statistics.nucleotide_diversity !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Nucleotide diversity (π):</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.nucleotide_diversity.toExponential(3)}
+                    </span>
+                  </div>
+                )}
+                {statistics.wattersons_theta !== null && statistics.wattersons_theta !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Watterson's θ:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.wattersons_theta.toExponential(3)}
+                    </span>
+                  </div>
+                )}
+                {statistics.tajimas_d !== null && statistics.tajimas_d !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Tajima's D:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.tajimas_d.toFixed(3)}
+                    </span>
+                  </div>
+                )}
+                {statistics.segregating_sites !== null && statistics.segregating_sites !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Segregating sites:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.segregating_sites.toLocaleString()}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : null}
+            
+            {(statistics.mean_tree_height !== null && statistics.mean_tree_height !== undefined) ||
+             (statistics.tmrca !== null && statistics.tmrca !== undefined) ? (
+              <>
+                {statistics.mean_tree_height !== null && statistics.mean_tree_height !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Mean tree height:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.mean_tree_height.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {statistics.tmrca !== null && statistics.tmrca !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>TMRCA:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.tmrca.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                {statistics.mean_tree_length !== null && statistics.mean_tree_length !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Mean tree length:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.mean_tree_length.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : null}
+            
+            {(statistics.fst !== null && statistics.fst !== undefined) ||
+             (statistics.mean_divergence !== null && statistics.mean_divergence !== undefined) ? (
+              <>
+                {statistics.fst !== null && statistics.fst !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Fst:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.fst.toFixed(4)}
+                    </span>
+                  </div>
+                )}
+                {statistics.mean_divergence !== null && statistics.mean_divergence !== undefined && (
+                  <div className="flex justify-between">
+                    <span style={{ color: colors.accentPrimary }}>Mean divergence:</span>
+                    <span style={{ color: colors.text }}>
+                      {statistics.mean_divergence.toExponential(3)}
+                    </span>
+                  </div>
+                )}
+              </>
+            ) : null}
           </div>
         </SidebarSubsection>
       )}

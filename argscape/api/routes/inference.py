@@ -42,6 +42,48 @@ from argscape.api.constants import (
 
 logger = logging.getLogger(__name__)
 
+def generate_unique_filename(session_id: str, base_filename: str, suffix: str) -> str:
+    """
+    Generate a unique filename by appending suffix and checking for collisions.
+    If the filename already exists, appends _{num} starting at _2.
+    
+    Args:
+        session_id: Session ID to check for existing files
+        base_filename: Base filename (may include .trees or .tsz extension)
+        suffix: Suffix to append before extension (e.g., '_midpoint', '_tsdate')
+        
+    Returns:
+        Unique filename that doesn't exist in the session
+    """
+    # Get session to check existing filenames
+    session = session_storage.get_session(session_id)
+    
+    # Determine extension
+    if base_filename.endswith('.trees'):
+        base_name = base_filename[:-6]
+        extension = '.trees'
+    elif base_filename.endswith('.tsz'):
+        base_name = base_filename[:-4]
+        extension = '.tsz'
+    else:
+        base_name = base_filename
+        extension = '.trees'
+    
+    # Generate initial filename
+    candidate_filename = f"{base_name}{suffix}{extension}"
+    
+    # Check if it exists and find unique name
+    if session and session.tree_sequences and candidate_filename in session.tree_sequences:
+        # Try _2, _3, etc. until we find a unique name
+        counter = 2
+        while True:
+            candidate_filename = f"{base_name}{suffix}_{counter}{extension}"
+            if candidate_filename not in session.tree_sequences:
+                break
+            counter += 1
+    
+    return candidate_filename
+
 router = APIRouter()
 
 # Availability flags (will be set by main app)
@@ -117,7 +159,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
             ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
-        new_filename = f"{inference_request.filename.rsplit('.', 1)[0]}_fastgaia.trees"
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_fastgaia')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -244,13 +286,7 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
             ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
-        base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_gaia_quad.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_gaia_quad.tsz'
-        else:
-            new_filename = base_filename + '_gaia_quad.trees'
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_gaia_quad')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -329,13 +365,7 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
             ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
-        base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_gaia_linear.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_gaia_linear.tsz'
-        else:
-            new_filename = base_filename + '_gaia_linear.trees'
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_gaia_linear')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -394,7 +424,14 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
     async def run_inference():
         """Run inference in executor for timeout handling."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: run_midpoint_inference(ts))
+        return await loop.run_in_executor(
+            None, 
+            lambda: run_midpoint_inference(
+                ts, 
+                weight_by_span=inference_request.weight_by_span,
+                weight_branch_length=inference_request.weight_branch_length
+            )
+        )
     
     try:
         # Run midpoint inference with timeout on Railway
@@ -413,14 +450,18 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
         else:
             ts_with_locations, inference_info = await run_inference()
         
-        # Generate new filename
+        # Generate new filename based on weighting options
         base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_midpoint.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_midpoint.tsz'
-        else:
-            new_filename = base_filename + '_midpoint.trees'
+        if not inference_request.weight_by_span and not inference_request.weight_branch_length:
+            suffix = '_midpoint'
+        elif inference_request.weight_by_span and inference_request.weight_branch_length:
+            suffix = '_midpoint_weighted'
+        elif inference_request.weight_by_span:
+            suffix = '_midpoint_edge'
+        else:  # only weight_branch_length
+            suffix = '_midpoint_branch'
+        
+        new_filename = generate_unique_filename(session_id, base_filename, suffix)
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -525,13 +566,7 @@ async def update_tree_sequence_locations(request: Request, location_request: Cus
             raise HTTPException(status_code=400, detail=str(e))
         
         # Generate new filename with suffix
-        base_filename = location_request.tree_sequence_filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_custom_xy.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_custom_xy.tsz'
-        else:
-            new_filename = base_filename + '_custom_xy.trees'
+        new_filename = generate_unique_filename(session_id, location_request.tree_sequence_filename, '_custom_xy')
         
         # Calculate response data before cleanup
         non_sample_node_ids = set(node.id for node in ts.nodes() if not node.is_sample())
@@ -653,13 +688,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
             ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
-        base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_sparg.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_sparg.tsz'
-        else:
-            new_filename = base_filename + '_sparg.trees'
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_sparg')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -754,13 +783,7 @@ async def infer_locations_spacetrees(request: Request, inference_request: Spacet
             ts_with_locations, inference_info = await run_inference()
         
         # Generate new filename
-        base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_spacetrees.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_spacetrees.tsz'
-        else:
-            new_filename = base_filename + '_spacetrees.trees'
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_spacetrees')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
@@ -818,13 +841,7 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
         )
         
         # Generate new filename
-        base_filename = inference_request.filename
-        if base_filename.endswith('.trees'):
-            new_filename = base_filename[:-6] + '_tsdate.trees'
-        elif base_filename.endswith('.tsz'):
-            new_filename = base_filename[:-4] + '_tsdate.tsz'
-        else:
-            new_filename = base_filename + '_tsdate.trees'
+        new_filename = generate_unique_filename(session_id, inference_request.filename, '_tsdate')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_times)
@@ -915,14 +932,22 @@ async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTre
         num_samples = int(new_ts.num_samples)
         num_trees = int(new_ts.num_trees)
         
+        # Determine base name and extension
         if base_filename.endswith('.trees'):
             base_name = base_filename[:-6]
-            new_filename = f"{base_name}_simplified_s{num_samples}_t{num_trees}.trees"
+            extension = '.trees'
         elif base_filename.endswith('.tsz'):
             base_name = base_filename[:-4]
-            new_filename = f"{base_name}_simplified_s{num_samples}_t{num_trees}.tsz"
+            extension = '.tsz'
         else:
-            new_filename = f"{base_filename}_simplified_s{num_samples}_t{num_trees}.trees"
+            base_name = base_filename
+            extension = '.trees'
+        
+        # Generate suffix with counts
+        suffix = f'_simplified_s{num_samples}_t{num_trees}'
+        
+        # Use unique filename generator
+        new_filename = generate_unique_filename(session_id, base_filename, suffix)
         
         # Store the simplified tree sequence
         session_storage.store_tree_sequence(session_id, new_filename, new_ts)

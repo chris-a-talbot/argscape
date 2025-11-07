@@ -10,6 +10,7 @@ import {
 import { GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { Tooltip } from '../../ui/tooltip';
+import { formatGenomicPosition } from '../../../utils/colorUtils';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 

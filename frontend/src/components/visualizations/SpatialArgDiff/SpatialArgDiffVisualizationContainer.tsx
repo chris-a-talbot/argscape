@@ -12,6 +12,9 @@ import { TemporalRangeSlider } from '../../ui/temporal-range-slider';
 import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
 import { VisualizationSection, ViewControlsSection, ElementsSection, InformationSection } from '../SpatialArg3D/SpatialArg3DSidebarSections';
 import { DiffControlsSection, DiffStatisticsSection, DiffViewMode } from './SpatialArgDiffSidebarSections';
+import { StatisticsPanel } from '../shared/StatisticsPanel';
+import { CompactStatistics } from '../shared/CompactStatistics';
+import { CompactDiffStatistics } from './CompactDiffStatistics';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { calculatePercentage, convertTreeIntervals, validateSpatialData } from '../../../utils/dataHelpers';
 import { isRootNode, getDescendants, getAncestors } from '../../../utils/graphTraversal';
@@ -106,8 +109,6 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
   const [diffViewMode, setDiffViewMode] = useState<DiffViewMode>('diff');
   const [showErrorBars, setShowErrorBars] = useState(true);
   const [statsTimeRange, setStatsTimeRange] = useState<[number, number]>([0, 1]);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [selectedTreeSequenceToChange, setSelectedTreeSequenceToChange] = useState<'first' | 'second' | null>(null);
   const [isFilterSectionCollapsed, setIsFilterSectionCollapsed] = useState(true);
   
   // View mode state for subgraph/ancestors functionality
@@ -394,15 +395,11 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
         const firstCrsDetection = firstData.metadata?.coordinate_system_detection;
         const secondCrsDetection = secondData.metadata?.coordinate_system_detection;
 
-        // Determine suggested mode based on CRS detections
-        let suggestedMode: GeographicMode = 'unit_grid';
-        if (firstCrsDetection && secondCrsDetection) {
-          if (firstCrsDetection.likely_crs === 'EPSG:4326' && secondCrsDetection.likely_crs === 'EPSG:4326') {
-            suggestedMode = 'eastern_hemisphere';
-          }
-        }
+        // Always default to unit_grid - never automatically switch to eastern_hemisphere
+        // The user can manually change it if needed
+        const suggestedMode: GeographicMode = 'unit_grid';
 
-        // Update geographic state based on CRS detection
+        // Update geographic state based on CRS detection (will show warnings but won't change mode since suggestedMode is unit_grid)
         updateFromCrsDetection(firstCrsDetection, secondCrsDetection, suggestedMode);
 
         setLoading(false);
@@ -1035,16 +1032,39 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
         </div>
       </div>
       
-      {/* Filter Controls Section */}
-      {(filterState.isActive || temporalState.isActive) && (
-        <div 
-          className="flex-shrink-0 border-b"
-          style={{ 
-            backgroundColor: colors.background,
-            borderBottomColor: colors.border 
-          }}
-        >
-          {!isFilterSectionCollapsed && (
+      {/* Filter Controls Section - always show statistics bar */}
+      <div 
+        className="flex-shrink-0 border-b"
+        style={{ 
+          backgroundColor: colors.background,
+          borderBottomColor: colors.border 
+        }}
+      >
+        {/* Always show statistics bar when collapsed or when no filters are active */}
+        {(isFilterSectionCollapsed || (!filterState.isActive && !temporalState.isActive)) && (
+          <div className="px-4 py-2">
+            <div className="flex items-center justify-end gap-4">
+              <CompactStatistics
+                filename={firstFilename}
+                genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                temporalRange={temporalState.isActive ? temporalState.range : null}
+                treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
+                isActive={true} // Always active to show full sequence stats when filters are off
+                sequenceLength={metadata.sequenceLength}
+              />
+              <CompactDiffStatistics
+                firstData={filteredFirstData}
+                secondData={filteredSecondData}
+                temporalRange={temporalState.isActive ? temporalState.range : null}
+                genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                isActive={true} // Always active to show diff stats
+              />
+            </div>
+          </div>
+        )}
+        
+        {/* Show full filter controls when not collapsed and filters are active */}
+        {(filterState.isActive || temporalState.isActive) && !isFilterSectionCollapsed && (
             <div className="px-4 py-3">
               <div className="flex items-start justify-between gap-6">
                 <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
@@ -1140,6 +1160,25 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
                       ) : null}
                     </div>
                     
+                    {/* Compact statistics display - show for first dataset */}
+                    <CompactStatistics
+                      filename={firstFilename}
+                      genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                      temporalRange={temporalState.isActive ? temporalState.range : null}
+                      treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
+                      isActive={true} // Always active to show full sequence stats when filters are off
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                    
+                    {/* Compact diff statistics */}
+                    <CompactDiffStatistics
+                      firstData={filteredFirstData}
+                      secondData={filteredSecondData}
+                      temporalRange={temporalState.isActive ? temporalState.range : null}
+                      genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                      isActive={true} // Always active to show diff stats
+                    />
+                    
                     <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
                       {filterState.mode === 'genomic' ? (
                         <span>
@@ -1152,6 +1191,27 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
                         </span>
                       ) : null}
                     </div>
+                  </div>
+                )}
+                
+                {/* Show statistics when only temporal filter is active */}
+                {!filterState.isActive && temporalState.isActive && (
+                  <div className="flex items-center gap-4 flex-1 min-w-0 justify-end">
+                    <CompactStatistics
+                      filename={firstFilename}
+                      genomicRange={null}
+                      temporalRange={temporalState.range}
+                      treeRange={null}
+                      isActive={true}
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                    <CompactDiffStatistics
+                      firstData={filteredFirstData}
+                      secondData={filteredSecondData}
+                      temporalRange={temporalState.range}
+                      genomicRange={null}
+                      isActive={true}
+                    />
                   </div>
                 )}
               </div>
@@ -1170,10 +1230,9 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
             </div>
           )}
         </div>
-      )}
 
       <div className="flex-1 overflow-hidden flex">
-        {temporalState.isActive && !isFilterSectionCollapsed && (
+        {temporalState.isActive && (
           <div 
             className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center"
             style={{ 
@@ -1318,6 +1377,46 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
                   statsTimeRange={statsTimeRange}
                   onStatsTimeRangeChange={setStatsTimeRange}
                 />
+              ),
+            },
+            {
+              id: 'population-statistics',
+              title: 'Population Genetics',
+              icon: (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              ),
+              defaultOpen: false,
+              content: (
+                <div className="space-y-4 p-2">
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2" style={{ color: colors.text }}>
+                      First Dataset
+                    </h4>
+                    <StatisticsPanel
+                      filename={firstFilename}
+                      genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                      temporalRange={temporalState.isActive ? temporalState.range : null}
+                      treeRange={filterState.isActive && filterState.mode === 'tree' ? filterState.treeRange : null}
+                      isActive={filterState.isActive || temporalState.isActive}
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold mb-2" style={{ color: colors.text }}>
+                      Second Dataset
+                    </h4>
+                    <StatisticsPanel
+                      filename={secondFilename}
+                      genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
+                      temporalRange={temporalState.isActive ? temporalState.range : null}
+                      treeRange={filterState.isActive && filterState.mode === 'tree' ? filterState.treeRange : null}
+                      isActive={filterState.isActive || temporalState.isActive}
+                      sequenceLength={metadata.sequenceLength}
+                    />
+                  </div>
+                </div>
               ),
             },
             {

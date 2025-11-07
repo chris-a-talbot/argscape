@@ -302,6 +302,49 @@ class ApiService {
     return this.request(endpoint);
   }
 
+  // Statistics endpoints
+  async getStatisticsForRange(
+    filename: string,
+    options: {
+      genomicStart?: number;
+      genomicEnd?: number;
+      temporalStart?: number;
+      temporalEnd?: number;
+      treeStartIdx?: number;
+      treeEndIdx?: number;
+      mutationRate?: number;
+    } = {}
+  ) {
+    const params = new URLSearchParams();
+    if (options.genomicStart !== undefined) params.append('genomic_start', options.genomicStart.toString());
+    if (options.genomicEnd !== undefined) params.append('genomic_end', options.genomicEnd.toString());
+    if (options.temporalStart !== undefined) params.append('temporal_start', options.temporalStart.toString());
+    if (options.temporalEnd !== undefined) params.append('temporal_end', options.temporalEnd.toString());
+    if (options.treeStartIdx !== undefined) params.append('tree_start_idx', options.treeStartIdx.toString());
+    if (options.treeEndIdx !== undefined) params.append('tree_end_idx', options.treeEndIdx.toString());
+    if (options.mutationRate !== undefined) params.append('mutation_rate', options.mutationRate.toString());
+    
+    const endpoint = `/statistics/range/${encodeURIComponent(filename)}?${params}`;
+    return this.request(endpoint);
+  }
+
+  async getWindowedStatistics(
+    filename: string,
+    options: {
+      windowSize: number;
+      windowStep?: number;
+      mutationRate?: number;
+    }
+  ) {
+    const params = new URLSearchParams();
+    params.append('window_size', options.windowSize.toString());
+    if (options.windowStep !== undefined) params.append('window_step', options.windowStep.toString());
+    if (options.mutationRate !== undefined) params.append('mutation_rate', options.mutationRate.toString());
+    
+    const endpoint = `/statistics/windowed/${encodeURIComponent(filename)}?${params}`;
+    return this.request(endpoint);
+  }
+
   // Location inference
   async inferLocationsFast(params: {
     filename: string;
@@ -370,6 +413,8 @@ class ApiService {
 
   async inferLocationsMidpoint(params: {
     filename: string;
+    weight_by_span?: boolean;
+    weight_branch_length?: boolean;
   }) {
     const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_MIDPOINT, {
@@ -527,6 +572,12 @@ export const api = {
   // Data retrieval
   getGraphData: (filename: string, options?: Parameters<typeof apiService.getGraphData>[1]) => 
     apiService.getGraphData(filename, options),
+  
+  // Statistics
+  getStatisticsForRange: (filename: string, options?: Parameters<typeof apiService.getStatisticsForRange>[1]) =>
+    apiService.getStatisticsForRange(filename, options),
+  getWindowedStatistics: (filename: string, options: Parameters<typeof apiService.getWindowedStatistics>[1]) =>
+    apiService.getWindowedStatistics(filename, options),
   
   // Location inference
   inferLocationsFast: (params: Parameters<typeof apiService.inferLocationsFast>[0]) => 

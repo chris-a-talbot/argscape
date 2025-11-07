@@ -14,7 +14,26 @@ export function calculateZPosition(
   
     switch (temporalSpacingMode) {
       case 'equal':
-        const timeIndex = uniqueTimes.indexOf(time);
+        // Find the closest time index, or exact match if found
+        let timeIndex = uniqueTimes.indexOf(time);
+        if (timeIndex === -1) {
+          // Find the closest time by finding where this time would fit
+          // Find the first time that is >= targetTime
+          timeIndex = uniqueTimes.findIndex(t => t >= time);
+          if (timeIndex === -1) {
+            // All times are less than targetTime, use the last index
+            timeIndex = uniqueTimes.length - 1;
+          } else if (timeIndex > 0) {
+            // Check if previous time is closer
+            const prevTime = uniqueTimes[timeIndex - 1];
+            const nextTime = uniqueTimes[timeIndex];
+            const distToPrev = Math.abs(time - prevTime);
+            const distToNext = Math.abs(time - nextTime);
+            if (distToPrev < distToNext) {
+              timeIndex = timeIndex - 1;
+            }
+          }
+        }
         return timeIndex * temporalSpacing;
       
       case 'log':

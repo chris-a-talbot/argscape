@@ -23,6 +23,33 @@ interface TreeSequenceData {
   has_all_spatial: boolean;
   spatial_status: string;
   is_simulated?: boolean;  // Optional - indicates if the tree sequence was generated through simulation
+  statistics?: {
+    nucleotide_diversity?: number | null;
+    wattersons_theta?: number | null;
+    tajimas_d?: number | null;
+    segregating_sites?: number | null;
+    mean_tree_height?: number | null;
+    median_tree_height?: number | null;
+    mean_tree_length?: number | null;
+    median_tree_length?: number | null;
+    tmrca?: number | null;
+    mean_tmrca?: number | null;
+    median_tmrca?: number | null;
+    ne_watterson?: number | null;
+    ne_pi?: number | null;
+    estimated_recombination_rate?: number | null;
+    mean_ld_r2?: number | null;
+    median_ld_r2?: number | null;
+    min_ld_r2?: number | null;
+    max_ld_r2?: number | null;
+    // Population structure statistics
+    fst?: number | null;
+    num_populations?: number | null;
+    mean_divergence?: number | null;
+    median_divergence?: number | null;
+    min_divergence?: number | null;
+    max_divergence?: number | null;
+  };
 }
 
 interface TreeSequenceContextType {

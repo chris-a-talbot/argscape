@@ -23,6 +23,12 @@ from argscape.api.tskit_utils import load_tree_sequence_from_file
 from argscape.api.tskit_utils.temporal import compute_temporal_info
 from argscape.api.geo_utils import check_spatial_completeness
 from argscape.api.services import generate_spatial_locations_for_samples
+from argscape.api.services.statistics import (
+    compute_population_genetics_statistics,
+    compute_statistics_for_range,
+    compute_windowed_statistics,
+    STANDARD_MUTATION_RATE
+)
 from argscape.api.models import SimulationRequest, SimplifyTreeSequenceRequest
 from argscape.api.constants import (
     FILENAME_TIMESTAMP_PRECISION_MICROSECONDS,
@@ -128,6 +134,13 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
         temporal_range = temporal_info["temporal_range"]
         spatial_info = check_spatial_completeness(ts)
         
+        # Compute population genetics statistics
+        try:
+            statistics = compute_population_genetics_statistics(ts)
+        except Exception as e:
+            logger.warning(f"Could not compute statistics for {filename}: {e}")
+            statistics = {}
+        
         return {
             "filename": filename,
             "num_nodes": ts.num_nodes,
@@ -138,6 +151,7 @@ async def get_tree_sequence_metadata(request: Request, filename: str):
             "sequence_length": ts.sequence_length,
             "has_temporal": has_temporal,
             "temporal_range": temporal_range,
+            "statistics": statistics,
             **spatial_info
         }
     except Exception as e:
@@ -731,5 +745,134 @@ def _paginate_graph_data(
         'edges': paginated_edges,
         'metadata': metadata_with_pagination
     }
+
+
+@router.get("/statistics/range/{filename}")
+async def get_statistics_for_range(
+    request: Request,
+    filename: str,
+    genomic_start: float = Query(None, description="Start position for genomic filtering"),
+    genomic_end: float = Query(None, description="End position for genomic filtering"),
+    temporal_start: float = Query(None, description="Start time for temporal filtering"),
+    temporal_end: float = Query(None, description="End time for temporal filtering"),
+    tree_start_idx: int = Query(None, description="Start tree index for filtering"),
+    tree_end_idx: int = Query(None, description="End tree index for filtering"),
+    mutation_rate: float = Query(STANDARD_MUTATION_RATE, description="Mutation rate per base pair per generation")
+):
+    """Get population genetics statistics for a filtered genomic and/or temporal range."""
+    try:
+        client_ip = get_client_ip(request)
+        session_id = session_storage.get_or_create_session(client_ip)
+        
+        ts = session_storage.get_tree_sequence(session_id, filename)
+        if ts is None:
+            raise HTTPException(status_code=404, detail=f"Tree sequence not found")
+        
+        # Validate parameters
+        if genomic_start is not None and genomic_end is not None:
+            if genomic_start >= genomic_end:
+                raise HTTPException(status_code=400, detail="genomic_start must be less than genomic_end")
+            if genomic_start < 0 or genomic_end > ts.sequence_length:
+                raise HTTPException(status_code=400, detail="Genomic range must be within sequence bounds")
+        
+        if temporal_start is not None and temporal_end is not None:
+            if temporal_start >= temporal_end:
+                raise HTTPException(status_code=400, detail="temporal_start must be less than temporal_end")
+        
+        if tree_start_idx is not None and tree_end_idx is not None:
+            if tree_start_idx < 0 or tree_end_idx >= ts.num_trees:
+                raise HTTPException(status_code=400, detail="Tree indices must be within valid range")
+            if tree_start_idx >= tree_end_idx:
+                raise HTTPException(status_code=400, detail="tree_start_idx must be less than tree_end_idx")
+        
+        # Compute statistics for the filtered range
+        try:
+            result = compute_statistics_for_range(
+                ts,
+                genomic_start=genomic_start,
+                genomic_end=genomic_end,
+                temporal_start=temporal_start,
+                temporal_end=temporal_end,
+                tree_start_idx=tree_start_idx,
+                tree_end_idx=tree_end_idx,
+                mutation_rate=mutation_rate
+            )
+            return result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"Error computing statistics for range: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to compute statistics: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting statistics for range: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+
+
+@router.get("/statistics/windowed/{filename}")
+async def get_windowed_statistics(
+    request: Request,
+    filename: str,
+    window_size: float = Query(..., description="Size of each window in base pairs"),
+    window_step: float = Query(None, description="Step size between windows (default: window_size)"),
+    mutation_rate: float = Query(STANDARD_MUTATION_RATE, description="Mutation rate per base pair per generation")
+):
+    """Get windowed population genetics statistics across the sequence."""
+    try:
+        client_ip = get_client_ip(request)
+        session_id = session_storage.get_or_create_session(client_ip)
+        
+        ts = session_storage.get_tree_sequence(session_id, filename)
+        if ts is None:
+            raise HTTPException(status_code=404, detail=f"Tree sequence not found")
+        
+        # Validate parameters
+        if window_size <= 0:
+            raise HTTPException(status_code=400, detail="window_size must be positive")
+        if window_step is not None and window_step <= 0:
+            raise HTTPException(status_code=400, detail="window_step must be positive")
+        
+        # Limit number of windows to prevent excessive computation
+        # Estimate number of windows
+        if window_step is None:
+            window_step = window_size
+        estimated_windows = int((ts.sequence_length + window_step - 1) / window_step)
+        max_windows = 100  # Limit to 100 windows for performance
+        
+        if estimated_windows > max_windows:
+            # Adjust window_size to stay within limit
+            adjusted_window_size = ts.sequence_length / max_windows
+            logger.warning(f"Requested windowing would create {estimated_windows} windows, "
+                         f"adjusting window_size to {adjusted_window_size:.0f} bp to limit to {max_windows} windows")
+            window_size = adjusted_window_size
+            window_step = window_size
+        
+        # Compute windowed statistics
+        try:
+            windows = compute_windowed_statistics(
+                ts,
+                window_size=window_size,
+                window_step=window_step,
+                mutation_rate=mutation_rate
+            )
+            return {
+                "windows": windows,
+                "window_size": window_size,
+                "window_step": window_step,
+                "num_windows": len(windows)
+            }
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            logger.error(f"Error computing windowed statistics: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to compute windowed statistics: {str(e)}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting windowed statistics: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get windowed statistics: {str(e)}")
 
 
