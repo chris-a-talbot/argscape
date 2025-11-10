@@ -107,14 +107,15 @@ def create_full_ancestors_dataframe(ts: tskit.TreeSequence) -> pd.DataFrame:
     
     return df
 
-def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dict]:
+def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dict, Dict]:
     """Run sparg inference on a tree sequence.
     
     Args:
         ts: Input tree sequence
         
     Returns:
-        Tuple of (tree sequence with inferred locations, inference info dict)
+        Tuple of (tree sequence with inferred locations, inference info dict, intermediate data dict)
+        Intermediate data dict contains: spatial_arg, ancestor_locations
     """
     if not SPARG_AVAILABLE:
         raise RuntimeError("sparg package not available")
@@ -289,7 +290,13 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
             }
         }
         
-        return ts_with_locations, inference_info
+        # Return intermediate data: spatial_arg and ancestor_locations DataFrame
+        intermediate_data = {
+            "spatial_arg": spatial_arg,
+            "ancestor_locations": ancestor_locations
+        }
+        
+        return ts_with_locations, inference_info, intermediate_data
         
     
     except Exception as e:

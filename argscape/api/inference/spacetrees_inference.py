@@ -8,6 +8,7 @@ import logging
 from typing import Dict, Tuple, List, Optional
 
 import numpy as np
+import pandas as pd
 import tskit
 
 # Import spacetrees functions
@@ -307,7 +308,7 @@ def run_spacetrees_inference(
     locus_size: Optional[float] = None,  # Size of each locus in bp
     use_blup: bool = False,  # If True, use BLUP instead of MLE
     blup_var: bool = False,  # If True, also return variance estimates (only if use_blup=True)
-) -> Tuple[tskit.TreeSequence, Dict]:
+) -> Tuple[tskit.TreeSequence, Dict, Dict]:
     """
     Run spacetrees inference on a tree sequence.
     
@@ -329,7 +330,8 @@ def run_spacetrees_inference(
         blup_var: If True, also return variance estimates (only if use_blup=True)
         
     Returns:
-        Tuple of (tree sequence with inferred locations, inference info dict)
+        Tuple of (tree sequence with inferred locations, inference info dict, intermediate data dict)
+        Intermediate data dict contains: dispersal_params, ancestor_locations
     """
     if not SPACETREES_AVAILABLE:
         raise RuntimeError("spacetrees package not available")
@@ -801,7 +803,17 @@ def run_spacetrees_inference(
             }
         }
         
-        return ts_with_locations, inference_info
+        # Prepare intermediate data for storage
+        # Convert ancestor_locations list to DataFrame for easier download
+        ancestor_locations_df = pd.DataFrame(ancestor_locations, columns=['sample_idx', 'time', 'x', 'y'] + (['variance'] if blup_var else []))
+        
+        # Return intermediate data: dispersal_params and ancestor_locations DataFrame
+        intermediate_data = {
+            "dispersal_params": dispersal_params,
+            "ancestor_locations": ancestor_locations_df
+        }
+        
+        return ts_with_locations, inference_info, intermediate_data
         
     except Exception as e:
         logger.error("Error during spacetrees inference", exc_info=True)

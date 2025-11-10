@@ -6,7 +6,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import { exportSVGAsImage } from '../../lib/imageExport';
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import ClickableLogo from '../ui/ClickableLogo';
-import { ComprehensiveDownloadDropdown } from '../ui/ComprehensiveDownloadDropdown';
+import { DownloadDropdown } from '../ui/DownloadDropdown';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
 import { log } from '../../lib/logger';
 
@@ -194,9 +194,10 @@ export default function ArgVisualizationPage() {
                             
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <ColorThemeDropdown />
-                                <ComprehensiveDownloadDropdown 
+                                <DownloadDropdown 
+                                    filename={decodedFilename}
                                     onDownloadImage={handleDownloadImage}
-                                    treeSequences={decodedFilename ? [{ filename: decodedFilename }] : []}
+                                    useVisualizationStyle={true}
                                 />
                                 <button 
                                     onClick={() => setIsHeaderCollapsed(false)}
@@ -303,9 +304,10 @@ export default function ArgVisualizationPage() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                     <ColorThemeDropdown />
-                                    <ComprehensiveDownloadDropdown 
+                                    <DownloadDropdown 
+                                        filename={decodedFilename}
                                         onDownloadImage={handleDownloadImage}
-                                        treeSequences={decodedFilename ? [{ filename: decodedFilename }] : []}
+                                        useVisualizationStyle={true}
                                     />
                                 </div>
                             </div>

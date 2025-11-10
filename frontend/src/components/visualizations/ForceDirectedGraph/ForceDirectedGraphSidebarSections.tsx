@@ -757,8 +757,8 @@ export function EdgesSection({
           <SidebarSlider
             label="Marker Size"
             value={edgeMutationSettings.markerSize}
-            min={8}
-            max={24}
+            min={4}
+            max={50}
             step={1}
             onChange={(size) => onEdgeMutationSettingsChange({ ...edgeMutationSettings, markerSize: size })}
           />

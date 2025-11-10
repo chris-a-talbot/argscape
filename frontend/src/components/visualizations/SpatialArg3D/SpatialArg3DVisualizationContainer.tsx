@@ -69,7 +69,7 @@ const DEFAULT_VISUAL_SETTINGS = {
   },
   edgeMutationSettings: {
     showMutationMarkers: true,
-    markerSize: 6
+    markerSize: 18
   },
   edgeThickness: 1.0,
   edgeOpacity: 60,

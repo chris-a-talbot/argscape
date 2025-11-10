@@ -105,7 +105,7 @@ const DEFAULT_VISUAL_SETTINGS = {
   },
   edgeMutationSettings: {
     showMutationMarkers: true,
-    markerSize: 6
+    markerSize: 18
   },
   diffEdgeWidth: 3,
   temporalSpacingMode: 'equal' as TemporalSpacingMode

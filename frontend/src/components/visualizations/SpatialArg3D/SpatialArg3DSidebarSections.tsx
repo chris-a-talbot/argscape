@@ -794,8 +794,8 @@ export const ElementsSection: React.FC<ElementsSectionProps> = ({
             <SidebarSlider
               label="Marker Size"
               value={edgeMutationSettings.markerSize}
-              min={8}
-              max={30}
+              min={4}
+              max={50}
               step={1}
               onChange={(value) => onEdgeMutationSettingsChange({ ...edgeMutationSettings, markerSize: value })}
               unit="px"

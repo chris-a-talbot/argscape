@@ -6,7 +6,7 @@ Handles various location inference methods.
 import logging
 import os
 import tempfile
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple, Optional, Any
 
 import numpy as np
 import tskit
@@ -145,14 +145,15 @@ def extract_sample_locations(ts: tskit.TreeSequence) -> np.ndarray:
     
     return np.array(sample_locations)
 
-def run_gaia_quadratic_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dict]:
+def run_gaia_quadratic_inference(ts: tskit.TreeSequence, use_branch_lengths: bool = False) -> Tuple[tskit.TreeSequence, Dict, Any]:
     """Run GAIA quadratic inference on a tree sequence.
     
     Args:
         ts: Input tree sequence
+        use_branch_lengths: If True, use branch lengths in parsimony calculation
         
     Returns:
-        Tuple of (tree sequence with inferred locations, inference info dict)
+        Tuple of (tree sequence with inferred locations, inference info dict, mpr_result object)
     """
     if not GEOANCESTRY_AVAILABLE:
         raise RuntimeError("gaiapy package not available")
@@ -163,8 +164,8 @@ def run_gaia_quadratic_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequ
     logger.info(f"Extracted {len(sample_locations)} sample locations with shape {sample_locations.shape}")
     
     # Run quadratic MPR
-    logger.info("Computing quadratic MPR...")
-    mpr_quad = gp.quadratic_mpr(ts, sample_locations)
+    logger.info(f"Computing quadratic MPR (use_branch_lengths={use_branch_lengths})...")
+    mpr_quad = gp.quadratic_mpr(ts, sample_locations, use_branch_lengths=use_branch_lengths)
     logger.info("Successfully computed quadratic MPR")
     
     # Minimize to find optimal locations
@@ -183,19 +184,21 @@ def run_gaia_quadratic_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequ
     
     inference_info = {
         "num_inferred_locations": num_inferred_locations,
-        "total_nodes": locations.shape[0]
+        "total_nodes": locations.shape[0],
+        "use_branch_lengths": use_branch_lengths
     }
     
-    return ts_with_locations, inference_info
+    return ts_with_locations, inference_info, mpr_quad
 
-def run_gaia_linear_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dict]:
+def run_gaia_linear_inference(ts: tskit.TreeSequence, use_branch_lengths: bool = False) -> Tuple[tskit.TreeSequence, Dict, Any]:
     """Run GAIA linear inference on a tree sequence.
     
     Args:
         ts: Input tree sequence
+        use_branch_lengths: If True, use branch lengths in parsimony calculation
         
     Returns:
-        Tuple of (tree sequence with inferred locations, inference info dict)
+        Tuple of (tree sequence with inferred locations, inference info dict, mpr_result object)
     """
     if not GEOANCESTRY_AVAILABLE:
         raise RuntimeError("gaiapy package not available")
@@ -206,8 +209,8 @@ def run_gaia_linear_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequenc
     logger.info(f"Extracted {len(sample_locations)} sample locations with shape {sample_locations.shape}")
     
     # Run linear MPR
-    logger.info("Computing linear MPR...")
-    mpr_linear = gp.linear_mpr(ts, sample_locations)
+    logger.info(f"Computing linear MPR (use_branch_lengths={use_branch_lengths})...")
+    mpr_linear = gp.linear_mpr(ts, sample_locations, use_branch_lengths=use_branch_lengths)
     logger.info("Successfully computed linear MPR")
     
     # Minimize to find optimal locations
@@ -226,7 +229,8 @@ def run_gaia_linear_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequenc
     
     inference_info = {
         "num_inferred_locations": num_inferred_locations,
-        "total_nodes": locations.shape[0]
+        "total_nodes": locations.shape[0],
+        "use_branch_lengths": use_branch_lengths
     }
     
-    return ts_with_locations, inference_info 
+    return ts_with_locations, inference_info, mpr_linear 

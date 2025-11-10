@@ -76,6 +76,7 @@ from argscape.api.routes import (
     inference_router,
     geographic_router,
 )
+from argscape.api.routes.downloads import router as downloads_router
 
 # Set availability flags in route modules that need them
 from argscape.api.routes import utils, inference
@@ -146,6 +147,7 @@ app.include_router(sessions_router, prefix="/api", tags=["sessions"])
 app.include_router(tree_sequences_router, prefix="/api", tags=["tree_sequences"])
 app.include_router(inference_router, prefix="/api", tags=["inference"])
 app.include_router(geographic_router, prefix="/api", tags=["geographic"])
+app.include_router(downloads_router, prefix="/api", tags=["downloads"])
 
 # Serve environment.yml as a static file (before static file mount to take precedence)
 @app.get("/environment.yml")

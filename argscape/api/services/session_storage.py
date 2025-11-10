@@ -13,7 +13,7 @@ import shutil
 import pickle
 import json
 import base64
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Any
 from datetime import datetime, timedelta
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,6 +52,7 @@ class UserSession:
     client_ip: str
     uploaded_files: Dict[str, bytes] = field(default_factory=dict)
     tree_sequences: Dict[str, tskit.TreeSequence] = field(default_factory=dict)
+    intermediate_data: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # filename -> {data_type -> data}
     temp_dir: Optional[str] = None
     
     def update_access_time(self):
@@ -542,6 +543,10 @@ class PersistentSessionStorage:
             session.uploaded_files.pop(filename, None)
             session.tree_sequences.pop(filename, None)
             
+            # Delete intermediate data from memory
+            if filename in session.intermediate_data:
+                del session.intermediate_data[filename]
+            
             # Delete files from disk
             session_dir = self._get_session_dir(session_id)
             try:
@@ -550,11 +555,19 @@ class PersistentSessionStorage:
                 else:
                     (session_dir / f"{filename}.trees").unlink(missing_ok=True)
                 (session_dir / f"{filename}.data").unlink(missing_ok=True)
+                
+                # Delete all intermediate data files for this filename
+                for intermediate_file in session_dir.glob(f"{filename}.intermediate_*.pkl"):
+                    try:
+                        intermediate_file.unlink(missing_ok=True)
+                        logger.debug(f"Deleted intermediate data file: {intermediate_file.name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to delete intermediate data file {intermediate_file.name}: {e}")
             except Exception as e:
                 logger.warning(f"Failed to delete disk files for {filename}: {e}")
             
             self._save_session_metadata(session)
-            logger.info(f"Deleted file {filename} from persistent session {session_id}")
+            logger.info(f"Deleted file {filename} and associated intermediate data from persistent session {session_id}")
         
         return True
     
@@ -664,6 +677,140 @@ class PersistentSessionStorage:
                 logger.error(f"Failed to generate file data from tree sequence for {filename}: {e}")
         
         return None
+    
+    def store_intermediate_data(self, session_id: str, filename: str, data_type: str, data: Any) -> bool:
+        """Store intermediate inference data for a tree sequence.
+        
+        Args:
+            session_id: Session ID
+            filename: Tree sequence filename (the one created by inference)
+            data_type: Type of data (e.g., "mpr_result", "spatial_arg", "dispersal_params", "ancestor_locations")
+            data: The data object to store
+        """
+        session = self.get_session(session_id)
+        if not session:
+            raise ValueError("Invalid or expired session")
+        
+        with self._lock:
+            if filename not in session.intermediate_data:
+                session.intermediate_data[filename] = {}
+            session.intermediate_data[filename][data_type] = data
+            
+            # Save to disk with encryption
+            session_dir = self._get_session_dir(session_id)
+            intermediate_file = session_dir / f"{filename}.intermediate_{data_type}.pkl"
+            
+            # Serialize to pickle
+            temp_fd, temp_path = tempfile.mkstemp(suffix=".pkl")
+            os.close(temp_fd)
+            
+            try:
+                with open(temp_path, 'wb') as f:
+                    pickle.dump(data, f)
+                
+                # Read the unencrypted data
+                with open(temp_path, 'rb') as f:
+                    pickle_data = f.read()
+                
+                # Encrypt and write to final location
+                encrypted_data = self._encrypt_data(pickle_data, session.client_ip)
+                with open(intermediate_file, 'wb') as f:
+                    f.write(encrypted_data)
+                
+                enc_status = "encrypted" if self.encryption_enabled else "unencrypted"
+                logger.info(f"Stored {enc_status} intermediate data '{data_type}' for {filename} in session {session_id}")
+            except Exception as e:
+                logger.error(f"Failed to store intermediate data to disk: {e}")
+                # Still keep in memory even if disk write fails
+            finally:
+                # Clean up temp file
+                try:
+                    os.unlink(temp_path)
+                except Exception as cleanup_error:
+                    logger.warning(f"Failed to clean up temp file {temp_path}: {cleanup_error}")
+            
+            self._save_session_metadata(session)
+        
+        return True
+    
+    def get_intermediate_data(self, session_id: str, filename: str, data_type: str) -> Optional[Any]:
+        """Get intermediate inference data for a tree sequence.
+        
+        Args:
+            session_id: Session ID
+            filename: Tree sequence filename
+            data_type: Type of data to retrieve
+            
+        Returns:
+            The stored data object, or None if not found
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return None
+        
+        # Try to get from memory first
+        data = session.intermediate_data.get(filename, {}).get(data_type)
+        if data is not None:
+            return data
+        
+        # If not in memory, try to load from disk (encrypted)
+        session_dir = self._get_session_dir(session_id)
+        intermediate_file = session_dir / f"{filename}.intermediate_{data_type}.pkl"
+        
+        if intermediate_file.exists():
+            try:
+                # Read encrypted data
+                with open(intermediate_file, 'rb') as f:
+                    encrypted_data = f.read()
+                
+                # Decrypt the data
+                decrypted_data = self._decrypt_data(encrypted_data, session.client_ip)
+                
+                # Deserialize from pickle
+                data = pickle.loads(decrypted_data)
+                
+                # Cache in memory for future access
+                if filename not in session.intermediate_data:
+                    session.intermediate_data[filename] = {}
+                session.intermediate_data[filename][data_type] = data
+                
+                logger.info(f"Loaded intermediate data '{data_type}' for {filename} from disk")
+                return data
+            except Exception as e:
+                logger.error(f"Failed to load intermediate data from disk for {filename} ({data_type}): {e}")
+        
+        return None
+    
+    def list_intermediate_data(self, session_id: str, filename: str) -> List[str]:
+        """List available intermediate data types for a tree sequence.
+        
+        Args:
+            session_id: Session ID
+            filename: Tree sequence filename
+            
+        Returns:
+            List of available data type names
+        """
+        session = self.get_session(session_id)
+        if not session:
+            return []
+        
+        # Get data types from memory
+        memory_types = set(session.intermediate_data.get(filename, {}).keys())
+        
+        # Also check disk for intermediate data files
+        session_dir = self._get_session_dir(session_id)
+        disk_types = set()
+        pattern = f"{filename}.intermediate_*.pkl"
+        for intermediate_file in session_dir.glob(pattern):
+            # Extract data_type from filename: "{filename}.intermediate_{data_type}.pkl"
+            file_stem = intermediate_file.stem  # e.g., "file.intermediate_mpr_result"
+            if file_stem.startswith(f"{filename}.intermediate_"):
+                data_type = file_stem[len(f"{filename}.intermediate_"):]
+                disk_types.add(data_type)
+        
+        # Return union of memory and disk types
+        return sorted(list(memory_types | disk_types))
     
     def get_session_stats(self, session_id: str) -> Optional[Dict]:
         """Get session statistics."""

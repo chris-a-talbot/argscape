@@ -1130,7 +1130,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .data(edgesWithMutations)
                 .join("text")
                 .text("×") // Use multiplication sign for a clean "x" appearance
-                .attr("font-size", `${edgeMutationSettings.markerSize || 14}px`)
+                .attr("font-size", `${edgeMutationSettings.markerSize || 40}px`)
                 .attr("fill", "#dc2626") // Red color for mutation markers
                 .attr("opacity", d => getEdgeOpacity(d))
                 .attr("stroke", colors.background) // Background stroke for visibility
@@ -2640,7 +2640,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update mutation marker visibility and size
         svg.selectAll(".mutation-markers text")
             .style("display", edgeMutationSettings?.showMutationMarkers ? "block" : "none")
-            .attr("font-size", `${edgeMutationSettings?.markerSize || 14}px`);
+            .attr("font-size", `${edgeMutationSettings?.markerSize || 40}px`);
 
     }, [edgeMutationSettings, ref]);
 

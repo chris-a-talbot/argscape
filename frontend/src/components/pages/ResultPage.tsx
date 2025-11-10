@@ -7,6 +7,7 @@ import { SAMPLE_LIMITS } from '../../config/constants';
 import AlertModal from '../ui/AlertModal';
 import { DownloadDropdown } from '../ui/DownloadDropdown';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
+import { SpatialDiffTreeSequenceSelectorModal } from '../ui/SpatialDiffTreeSequenceSelectorModal';
 import Navbar from '../layout/Navbar';
 import ParticleBackground from '../ui/ParticleBackground';
 import Footer from '../layout/Footer';
@@ -1116,6 +1117,272 @@ function MidpointConfigModal({
   );
 }
 
+// Add GAIA Quadratic configuration modal component
+function GAIAQuadraticConfigModal({
+  isOpen,
+  onClose,
+  onConfirm
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    use_branch_lengths: boolean;
+  }) => void;
+}) {
+  const [useBranchLengths, setUseBranchLengths] = useState(true);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm({
+      use_branch_lengths: useBranchLengths
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">GAIA Quadratic Inference Configuration</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Branch Length Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Parsimony Options</h4>
+            <p className="text-xs text-sp-white/60 mb-3">
+              Choose whether to use branch lengths (temporal distances) in the quadratic parsimony calculation.
+            </p>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="use-branch-lengths-gaia-quad"
+                  checked={useBranchLengths}
+                  onChange={(e) => setUseBranchLengths(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="use-branch-lengths-gaia-quad" className="ml-2 text-sm text-sp-white/80">
+                  Use branch lengths in parsimony calculation
+                </label>
+              </div>
+              <Tooltip content="When enabled, the quadratic parsimony algorithm uses temporal branch lengths (time differences between nodes) in the cost calculation. This accounts for the evolutionary time available for geographic movement along each branch. When disabled, the algorithm treats all branches equally regardless of their temporal length." />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run GAIA Quadratic Inference
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add GAIA Linear configuration modal component
+function GAIALinearConfigModal({
+  isOpen,
+  onClose,
+  onConfirm
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    use_branch_lengths: boolean;
+  }) => void;
+}) {
+  const [useBranchLengths, setUseBranchLengths] = useState(true);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm({
+      use_branch_lengths: useBranchLengths
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">GAIA Linear Inference Configuration</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Branch Length Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Parsimony Options</h4>
+            <p className="text-xs text-sp-white/60 mb-3">
+              Choose whether to use branch lengths (temporal distances) in the linear parsimony calculation.
+            </p>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="use-branch-lengths-gaia-linear"
+                  checked={useBranchLengths}
+                  onChange={(e) => setUseBranchLengths(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="use-branch-lengths-gaia-linear" className="ml-2 text-sm text-sp-white/80">
+                  Use branch lengths in parsimony calculation
+                </label>
+              </div>
+              <Tooltip content="When enabled, the linear parsimony algorithm uses temporal branch lengths (time differences between nodes) in the cost calculation. This accounts for the evolutionary time available for geographic movement along each branch. When disabled, the algorithm treats all branches equally regardless of their temporal length." />
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run GAIA Linear Inference
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Add FastGAIA configuration modal component
+function FastGAIAConfigModal({
+  isOpen,
+  onClose,
+  onConfirm
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  onConfirm: (params: {
+    weight_span: boolean;
+    weight_branch_length: boolean;
+  }) => void;
+}) {
+  const [weightSpan, setWeightSpan] = useState(true);
+  const [weightBranchLength, setWeightBranchLength] = useState(true);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onConfirm({
+      weight_span: weightSpan,
+      weight_branch_length: weightBranchLength
+    });
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h3 className="text-xl font-bold text-sp-white mb-4">FastGAIA Inference Configuration</h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* Weighting Options */}
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-sp-white/80">Weighting Options</h4>
+            <p className="text-xs text-sp-white/60 mb-3">
+              Choose how to weight child locations when calculating parent node locations. 
+              You can use edge spans (genomic length), branch lengths (temporal), both (multiplied), or neither (equal weights).
+            </p>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="weight-span-fastgaia"
+                  checked={weightSpan}
+                  onChange={(e) => setWeightSpan(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="weight-span-fastgaia" className="ml-2 text-sm text-sp-white/80">
+                  Weight by edge spans (genomic length)
+                </label>
+              </div>
+              <Tooltip content="Weight child locations by the total genomic length (edge spans) inherited from each child. This reflects how much of the genome is contributed by each child. When a parent has multiple edges to the same child (common in ARGs with recombination), spans are summed." />
+            </div>
+            
+            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  id="weight-branch-length-fastgaia"
+                  checked={weightBranchLength}
+                  onChange={(e) => setWeightBranchLength(e.target.checked)}
+                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                />
+                <label htmlFor="weight-branch-length-fastgaia" className="ml-2 text-sm text-sp-white/80">
+                  Weight by inverse branch lengths (temporal)
+                </label>
+              </div>
+              <Tooltip content="Weight child locations by the inverse of the temporal difference (branch length) between parent and child nodes. Shorter branches (more recent ancestors) are given more weight. This is the default behavior in fastgaia." />
+            </div>
+            
+            {/* Info about combined weighting */}
+            {weightSpan && weightBranchLength && (
+              <div className="ml-6 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
+                <p className="text-xs text-sp-pale-green">
+                  <strong>Combined weighting:</strong> When both options are enabled, weights are multiplied together 
+                  (edge_span × inverse_branch_length). This gives more weight to children that contribute both more genomic 
+                  material and are more recent ancestors.
+                </p>
+              </div>
+            )}
+            
+            {/* Info about equal weighting */}
+            {!weightSpan && !weightBranchLength && (
+              <div className="ml-6 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
+                <p className="text-xs text-yellow-200">
+                  <strong>Equal weighting:</strong> When neither option is enabled, all children are weighted equally. 
+                  This gives a simple unweighted average of child locations.
+                </p>
+              </div>
+            )}
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+            >
+              Run FastGAIA Inference
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // Add Spacetrees configuration modal component
 function SpacetreesConfigModal({
   isOpen,
@@ -1748,6 +2015,9 @@ export default function ResultPage() {
   const [isInferringLocationsSpacetrees, setIsInferringLocationsSpacetrees] = useState(false);
   const [showSpacetreesConfigModal, setShowSpacetreesConfigModal] = useState(false);
   const [showMidpointConfigModal, setShowMidpointConfigModal] = useState(false);
+  const [showGAIAQuadraticConfigModal, setShowGAIAQuadraticConfigModal] = useState(false);
+  const [showGAIALinearConfigModal, setShowGAIALinearConfigModal] = useState(false);
+  const [showFastGAIAConfigModal, setShowFastGAIAConfigModal] = useState(false);
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
@@ -1913,18 +2183,23 @@ export default function ResultPage() {
   // Add mutation data status check
   const hasMutations = data?.num_mutations !== undefined && data.num_mutations > 0;
 
-  const handleFastLocationInference = async () => {
+  // Handle FastGAIA inference with configuration
+  const handleFastGAIAInference = async (params: {
+    weight_span: boolean;
+    weight_branch_length: boolean;
+  }) => {
     if (!data?.filename || isInferringLocationsFast) return;
 
     setIsInferringLocationsFast(true);
+    setShowFastGAIAConfigModal(false);
 
     try {
-      log.user.action('fast-location-inference-start', { filename: data.filename }, 'ResultPage');
+      log.user.action('fast-location-inference-start', { filename: data.filename, params }, 'ResultPage');
 
       const result = await api.inferLocationsFast({
         filename: data.filename,
-        weight_span: true,
-        weight_branch_length: true,
+        weight_span: params.weight_span,
+        weight_branch_length: params.weight_branch_length,
       });
 
       log.info('Fast location inference completed successfully', {
@@ -1982,16 +2257,21 @@ export default function ResultPage() {
     }
   };
 
-  const handleGaiaQuadraticInference = async () => {
+  // Handle GAIA Quadratic inference with configuration
+  const handleGaiaQuadraticInference = async (params: {
+    use_branch_lengths: boolean;
+  }) => {
     if (!data?.filename || isInferringLocationsGaiaQuadratic) return;
 
     setIsInferringLocationsGaiaQuadratic(true);
+    setShowGAIAQuadraticConfigModal(false);
 
     try {
-      log.user.action('gaia-quadratic-inference-start', { filename: data.filename }, 'ResultPage');
+      log.user.action('gaia-quadratic-inference-start', { filename: data.filename, params }, 'ResultPage');
 
       const result = await api.inferLocationsGaiaQuadratic({
         filename: data.filename,
+        use_branch_lengths: params.use_branch_lengths,
       });
 
       log.info('GAIA quadratic inference completed successfully', {
@@ -2080,72 +2360,16 @@ export default function ResultPage() {
 
     switch (method.id) {
       case 'fastgaia':
-        await handleFastLocationInference();
+        // Open configuration modal instead of running directly
+        setShowFastGAIAConfigModal(true);
         break;
       case 'gaia_quadratic':
-        await handleGaiaQuadraticInference();
+        // Open configuration modal instead of running directly
+        setShowGAIAQuadraticConfigModal(true);
         break;
       case 'gaia_linear':
-        if (isInferringLocationsGaiaLinear) return;
-        setIsInferringLocationsGaiaLinear(true);
-        try {
-          log.user.action('gaia-linear-inference-start', { filename: data.filename }, 'ResultPage');
-
-          const result = await api.inferLocationsGaiaLinear({
-            filename: data.filename,
-          });
-
-          log.info('GAIA linear inference completed successfully', {
-            component: 'ResultPage',
-            data: { filename: data.filename, result: result.data }
-          });
-
-          // Update the tree sequence context with the new filename and spatial info
-          const resultData = result.data as any;
-          const updatedData = {
-            ...data,
-            filename: resultData.new_filename,
-            has_sample_spatial: resultData.has_sample_spatial,
-            has_all_spatial: resultData.has_all_spatial,
-            spatial_status: resultData.spatial_status,
-          };
-
-          setTreeSequence(updatedData);
-
-          setAlertModal({
-            isOpen: true,
-            title: 'Success!',
-            message: `GAIA linear inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
-            type: 'success'
-          });
-        } catch (error) {
-          log.error('GAIA linear inference failed', {
-            component: 'ResultPage',
-            error: error instanceof Error ? error : new Error(String(error)),
-            data: { filename: data.filename }
-          });
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
-          setAlertModal({
-            isOpen: true,
-            title: isTimeout ? 'Inference Timeout' : 'Error',
-            message: isTimeout 
-              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-              : `GAIA linear inference failed: ${errorMessage}`,
-            type: 'error',
-            buttonText: isTimeout ? 'Install Locally' : undefined,
-            secondaryButtonText: isTimeout ? 'Close' : undefined,
-            onClose: isTimeout ? () => {
-              setAlertModal({ ...alertModal, isOpen: false });
-              navigate('/install');
-            } : undefined,
-            onSecondaryAction: isTimeout ? () => {
-              setAlertModal({ ...alertModal, isOpen: false });
-            } : undefined
-          });
-        } finally {
-          setIsInferringLocationsGaiaLinear(false);
-        }
+        // Open configuration modal instead of running directly
+        setShowGAIALinearConfigModal(true);
         break;
       case 'sparg':
         if (isInferringLocationsSparg) return;
@@ -2224,6 +2448,77 @@ export default function ResultPage() {
           message: `The ${method.name} inference method is not yet implemented.`,
           type: 'info'
         });
+    }
+  };
+
+  // Handle GAIA Linear inference with configuration
+  const handleGAIALinearInference = async (params: {
+    use_branch_lengths: boolean;
+  }) => {
+    if (!data?.filename || isInferringLocationsGaiaLinear) return;
+
+    setIsInferringLocationsGaiaLinear(true);
+    setShowGAIALinearConfigModal(false);
+
+    try {
+      log.user.action('gaia-linear-inference-start', { filename: data.filename, params }, 'ResultPage');
+
+      const result = await api.inferLocationsGaiaLinear({
+        filename: data.filename,
+        use_branch_lengths: params.use_branch_lengths,
+      });
+
+      log.info('GAIA linear inference completed successfully', {
+        component: 'ResultPage',
+        data: { filename: data.filename, result: result.data }
+      });
+
+      // Update the tree sequence context with the new filename and spatial info
+      const resultData = result.data as any;
+      const updatedData = {
+        ...data,
+        filename: resultData.new_filename,
+        has_sample_spatial: resultData.has_sample_spatial,
+        has_all_spatial: resultData.has_all_spatial,
+        spatial_status: resultData.spatial_status,
+      };
+
+      setTreeSequence(updatedData);
+
+      setAlertModal({
+        isOpen: true,
+        title: 'Success!',
+        message: `GAIA linear inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        type: 'success'
+      });
+    } catch (error) {
+      log.error('GAIA linear inference failed', {
+        component: 'ResultPage',
+        error: error instanceof Error ? error : new Error(String(error)),
+        data: { filename: data.filename }
+      });
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const lowerErrorMessage = errorMessage.toLowerCase();
+      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      setAlertModal({
+        isOpen: true,
+        title: isTimeout ? 'Inference Timeout' : 'Error',
+        message: isTimeout 
+          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
+          : `GAIA linear inference failed: ${errorMessage}`,
+        type: 'error',
+        buttonText: isTimeout ? 'Install Locally' : undefined,
+        secondaryButtonText: isTimeout ? 'Close' : undefined,
+        onClose: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+          navigate('/install');
+        } : undefined,
+        onSecondaryAction: isTimeout ? () => {
+          setAlertModal({ ...alertModal, isOpen: false });
+        } : undefined
+      });
+    } finally {
+      setIsInferringLocationsGaiaLinear(false);
     }
   };
 
@@ -3381,6 +3676,27 @@ export default function ResultPage() {
             sequenceLength={data?.sequence_length || 1000000}
           />
 
+          {/* GAIA Quadratic Configuration Modal */}
+          <GAIAQuadraticConfigModal
+            isOpen={showGAIAQuadraticConfigModal}
+            onClose={() => setShowGAIAQuadraticConfigModal(false)}
+            onConfirm={handleGaiaQuadraticInference}
+          />
+
+          {/* GAIA Linear Configuration Modal */}
+          <GAIALinearConfigModal
+            isOpen={showGAIALinearConfigModal}
+            onClose={() => setShowGAIALinearConfigModal(false)}
+            onConfirm={handleGAIALinearInference}
+          />
+
+          {/* FastGAIA Configuration Modal */}
+          <FastGAIAConfigModal
+            isOpen={showFastGAIAConfigModal}
+            onClose={() => setShowFastGAIAConfigModal(false)}
+            onConfirm={handleFastGAIAInference}
+          />
+
           {/* Advanced Subsetting Modal */}
           <AdvancedSubsettingModal
             isOpen={showAdvancedSubsettingModal}
@@ -3414,7 +3730,7 @@ export default function ResultPage() {
 
       {/* Tree Sequence Selector Modal - For Diff */}
       {showSecondTreeSequenceSelector && data && (
-        <TreeSequenceSelectorModal
+        <SpatialDiffTreeSequenceSelectorModal
           isOpen={showSecondTreeSequenceSelector}
           onClose={() => setShowSecondTreeSequenceSelector(false)}
           onSelect={handleSecondTreeSequenceSelect}

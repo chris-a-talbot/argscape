@@ -18,10 +18,12 @@ class FastGAIAInferenceRequest(BaseModel):
 
 class GAIAQuadraticInferenceRequest(BaseModel):
     filename: str
+    use_branch_lengths: bool = True  # If True, use branch lengths in parsimony calculation
 
 
 class GAIALinearInferenceRequest(BaseModel):
     filename: str
+    use_branch_lengths: bool = True  # If True, use branch lengths in parsimony calculation
 
 
 class SimulationRequest(BaseModel):

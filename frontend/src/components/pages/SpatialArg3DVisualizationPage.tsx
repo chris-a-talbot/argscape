@@ -9,7 +9,7 @@ import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import ClickableLogo from '../ui/ClickableLogo';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
 import { log } from '../../lib/logger';
-import { ComprehensiveDownloadDropdown } from '../ui/ComprehensiveDownloadDropdown';
+import { DownloadDropdown } from '../ui/DownloadDropdown';
 
 export default function SpatialArg3DVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
@@ -255,9 +255,10 @@ export default function SpatialArg3DVisualizationPage() {
                             
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <ColorThemeDropdown />
-                                <ComprehensiveDownloadDropdown 
+                                <DownloadDropdown 
+                                    filename={decodedFilename}
                                     onDownloadImage={handleDownloadImage}
-                                    treeSequences={decodedFilename ? [{ filename: decodedFilename }] : []}
+                                    useVisualizationStyle={true}
                                 />
                                 <button 
                                     onClick={() => setIsHeaderCollapsed(false)}
@@ -364,9 +365,10 @@ export default function SpatialArg3DVisualizationPage() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                     <ColorThemeDropdown />
-                                    <ComprehensiveDownloadDropdown 
+                                    <DownloadDropdown 
+                                        filename={decodedFilename}
                                         onDownloadImage={handleDownloadImage}
-                                        treeSequences={decodedFilename ? [{ filename: decodedFilename }] : []}
+                                        useVisualizationStyle={true}
                                     />
                                 </div>
                             </div>

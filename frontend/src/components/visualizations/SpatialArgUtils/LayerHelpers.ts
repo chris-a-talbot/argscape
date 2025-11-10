@@ -89,7 +89,7 @@ export function createMutationMarkers<T extends { id: number; position: [number,
         position,
         text: "×", // Use multiplication sign for clean "x" appearance
         color: [220, 38, 38, 255], // Red color (#dc2626)
-        size: edgeMutationSettings.markerSize || 14,
+        size: edgeMutationSettings.markerSize || 18,
         sourceId: sourceId,
         targetId: targetId
       });

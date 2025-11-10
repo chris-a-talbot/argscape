@@ -6,7 +6,7 @@ import { export3DVisualizationAsImage, exportCanvasAsImage } from '../../lib/ima
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import ClickableLogo from '../ui/ClickableLogo';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
-import { ComprehensiveDownloadDropdown } from '../ui/ComprehensiveDownloadDropdown';
+import { SpatialDiffDownloadDropdown } from '../ui/SpatialDiffDownloadDropdown';
 import SpatialArgDiffVisualizationContainer from '../visualizations/SpatialArgDiff/SpatialArgDiffVisualizationContainer';
 
 export default function SpatialArgDiffVisualizationPage() {
@@ -215,21 +215,10 @@ export default function SpatialArgDiffVisualizationPage() {
                             
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <ColorThemeDropdown />
-                                <ComprehensiveDownloadDropdown 
+                                <SpatialDiffDownloadDropdown 
+                                    firstFilename={decodedFilename}
+                                    secondFilename={secondFilename}
                                     onDownloadImage={handleDownloadImage}
-                                    treeSequences={[
-                                        { 
-                                            filename: decodedFilename, 
-                                            label: 'Tree Sequence #1',
-                                            tooltipLabel: decodedFilename
-                                        },
-                                        { 
-                                            filename: secondFilename, 
-                                            label: 'Tree Sequence #2',
-                                            tooltipLabel: secondFilename
-                                        }
-                                    ]}
-                                    showTooltips={true}
                                 />
                                 <button 
                                     onClick={() => setIsHeaderCollapsed(false)}
@@ -380,21 +369,10 @@ export default function SpatialArgDiffVisualizationPage() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                     <ColorThemeDropdown />
-                                    <ComprehensiveDownloadDropdown 
+                                    <SpatialDiffDownloadDropdown 
+                                        firstFilename={decodedFilename}
+                                        secondFilename={secondFilename}
                                         onDownloadImage={handleDownloadImage}
-                                        treeSequences={[
-                                            { 
-                                                filename: decodedFilename, 
-                                                label: 'Tree Sequence #1',
-                                                tooltipLabel: decodedFilename
-                                            },
-                                            { 
-                                                filename: secondFilename, 
-                                                label: 'Tree Sequence #2',
-                                                tooltipLabel: secondFilename
-                                            }
-                                        ]}
-                                        showTooltips={true}
                                     />
                                 </div>
                             </div>

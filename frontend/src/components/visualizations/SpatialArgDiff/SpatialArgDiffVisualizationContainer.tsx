@@ -66,7 +66,7 @@ const DEFAULT_VISUAL_SETTINGS = {
   },
   edgeMutationSettings: {
     showMutationMarkers: true,
-    markerSize: 6
+    markerSize: 18
   },
   edgeThickness: 1.0,
   edgeOpacity: 60,
@@ -98,7 +98,7 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
   const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
   const [edgeMutationSettings, setEdgeMutationSettings] = useState<EdgeMutationSettings>({
     showMutationMarkers: DEFAULT_VISUAL_SETTINGS.edgeMutationSettings.showMutationMarkers,
-    markerSize: DEFAULT_VISUAL_SETTINGS.edgeMutationSettings.markerSize || 14
+    markerSize: DEFAULT_VISUAL_SETTINGS.edgeMutationSettings.markerSize || 18
   });
   const [heatmapSettings, setHeatmapSettings] = useState<AncestryHeatmapSettings>(() => ({
     ...DEFAULT_VISUAL_SETTINGS.heatmapSettings,

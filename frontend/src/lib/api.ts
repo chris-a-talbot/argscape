@@ -274,6 +274,134 @@ class ApiService {
     }
   }
 
+  async downloadLocationsCSV(
+    filename: string,
+    options: {
+      nodeType?: 'all' | 'samples' | 'internal';
+      includeColumns?: string[];
+    } = {}
+  ): Promise<Blob> {
+    const { nodeType = 'all', includeColumns = [] } = options;
+    const params = new URLSearchParams();
+    params.append('node_type', nodeType);
+    if (includeColumns.length > 0) {
+      params.append('include_columns', includeColumns.join(','));
+    }
+    
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_LOCATIONS_CSV}/${encodeURIComponent(filename)}?${params.toString()}`;
+    
+    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_LOCATIONS_CSV, 'GET', { filename, nodeType, includeColumns });
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(ERROR_MESSAGES.DOWNLOAD_FAILED);
+      }
+      
+      const blob = await response.blob();
+      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_LOCATIONS_CSV, 'GET', { size: blob.size, nodeType });
+      
+      return blob;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.DOWNLOAD_FAILED;
+      log.api.error(API_CONFIG.ENDPOINTS.DOWNLOAD_LOCATIONS_CSV, new Error(errorMsg), 'GET');
+      throw error;
+    }
+  }
+
+  async downloadStatisticsCSV(filename: string): Promise<Blob> {
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_STATISTICS_CSV}/${encodeURIComponent(filename)}`;
+    
+    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_STATISTICS_CSV, 'GET', { filename });
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(ERROR_MESSAGES.DOWNLOAD_FAILED);
+      }
+      
+      const blob = await response.blob();
+      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_STATISTICS_CSV, 'GET', { size: blob.size, filename });
+      
+      return blob;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.DOWNLOAD_FAILED;
+      log.api.error(API_CONFIG.ENDPOINTS.DOWNLOAD_STATISTICS_CSV, new Error(errorMsg), 'GET');
+      throw error;
+    }
+  }
+
+  async downloadDiffStatistics(
+    firstFilename: string,
+    secondFilename: string,
+    format: 'csv' | 'json' = 'csv'
+  ): Promise<Blob> {
+    const params = new URLSearchParams();
+    params.append('second_filename', secondFilename);
+    params.append('format', format);
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_DIFF_STATISTICS}/${encodeURIComponent(firstFilename)}?${params.toString()}`;
+    
+    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_DIFF_STATISTICS, 'GET', { firstFilename, secondFilename, format });
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(ERROR_MESSAGES.DOWNLOAD_FAILED);
+      }
+      
+      const blob = await response.blob();
+      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_DIFF_STATISTICS, 'GET', { size: blob.size, firstFilename, secondFilename, format });
+      
+      return blob;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.DOWNLOAD_FAILED;
+      log.api.error(API_CONFIG.ENDPOINTS.DOWNLOAD_DIFF_STATISTICS, new Error(errorMsg), 'GET');
+      throw error;
+    }
+  }
+
+  async downloadIntermediateData(
+    filename: string,
+    dataType: string,
+    format?: 'pkl' | 'csv' | 'npy' | 'zip'
+  ): Promise<Blob> {
+    const params = new URLSearchParams();
+    params.append('data_type', dataType);
+    if (format) {
+      params.append('format', format);
+    }
+    const url = `${this.baseURL}${API_CONFIG.ENDPOINTS.DOWNLOAD_INTERMEDIATE_DATA}/${encodeURIComponent(filename)}?${params.toString()}`;
+    
+    log.api.call(API_CONFIG.ENDPOINTS.DOWNLOAD_INTERMEDIATE_DATA, 'GET', { filename, dataType, format });
+    
+    try {
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(ERROR_MESSAGES.DOWNLOAD_FAILED);
+      }
+      
+      const blob = await response.blob();
+      log.api.success(API_CONFIG.ENDPOINTS.DOWNLOAD_INTERMEDIATE_DATA, 'GET', { size: blob.size, dataType, format });
+      
+      return blob;
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : ERROR_MESSAGES.DOWNLOAD_FAILED;
+      log.api.error(API_CONFIG.ENDPOINTS.DOWNLOAD_INTERMEDIATE_DATA, new Error(errorMsg), 'GET');
+      throw error;
+    }
+  }
+
+  async listIntermediateData(filename: string): Promise<{ available_data_types: string[] }> {
+    const response = await this.request<{ available_data_types: string[] }>(
+      `${API_CONFIG.ENDPOINTS.LIST_INTERMEDIATE_DATA}/${encodeURIComponent(filename)}`
+    );
+    return response.data;
+  }
+
   // Data retrieval - simplified endpoint
   async getGraphData(
     filename: string,
@@ -391,6 +519,7 @@ class ApiService {
 
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
+    use_branch_lengths?: boolean;
   }) {
     const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request<any>('/infer-locations-gaia-quadratic', {
@@ -402,6 +531,7 @@ class ApiService {
 
   async inferLocationsGaiaLinear(params: {
     filename: string;
+    use_branch_lengths?: boolean;
   }) {
     const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request<any>('/infer-locations-gaia-linear', {
@@ -568,6 +698,16 @@ export const api = {
   deleteTreeSequence: (filename: string) => apiService.deleteTreeSequence(filename),
   downloadTreeSequence: (filename: string, format: 'trees' | 'tsz' = 'trees') =>
     apiService.downloadTreeSequence(filename, format),
+  downloadLocationsCSV: (filename: string, options?: Parameters<typeof apiService.downloadLocationsCSV>[1]) =>
+    apiService.downloadLocationsCSV(filename, options),
+  downloadIntermediateData: (filename: string, dataType: string, format?: 'pkl' | 'csv' | 'npy' | 'zip') =>
+    apiService.downloadIntermediateData(filename, dataType, format),
+  listIntermediateData: (filename: string) =>
+    apiService.listIntermediateData(filename),
+  downloadStatisticsCSV: (filename: string) =>
+    apiService.downloadStatisticsCSV(filename),
+  downloadDiffStatistics: (firstFilename: string, secondFilename: string, format?: 'csv' | 'json') =>
+    apiService.downloadDiffStatistics(firstFilename, secondFilename, format),
   
   // Data retrieval
   getGraphData: (filename: string, options?: Parameters<typeof apiService.getGraphData>[1]) => 

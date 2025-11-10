@@ -266,13 +266,16 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
     async def run_inference():
         """Run inference in executor for timeout handling."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: run_gaia_quadratic_inference(ts))
+        return await loop.run_in_executor(
+            None, 
+            lambda: run_gaia_quadratic_inference(ts, use_branch_lengths=inference_request.use_branch_lengths)
+        )
     
     try:
         # Run GAIA quadratic inference with timeout on Railway
         if is_railway:
             try:
-                ts_with_locations, inference_info = await asyncio.wait_for(
+                ts_with_locations, inference_info, mpr_result = await asyncio.wait_for(
                     run_inference(),
                     timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
                 )
@@ -283,13 +286,19 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
                     detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
                 )
         else:
-            ts_with_locations, inference_info = await run_inference()
+            ts_with_locations, inference_info, mpr_result = await run_inference()
         
         # Generate new filename
         new_filename = generate_unique_filename(session_id, inference_request.filename, '_gaia_quad')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Store intermediate data (MPRResult)
+        try:
+            session_storage.store_intermediate_data(session_id, new_filename, "mpr_result", mpr_result)
+        except Exception as e:
+            logger.warning(f"Failed to store MPRResult intermediate data: {e}")
         
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
@@ -345,13 +354,16 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
     async def run_inference():
         """Run inference in executor for timeout handling."""
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: run_gaia_linear_inference(ts))
+        return await loop.run_in_executor(
+            None, 
+            lambda: run_gaia_linear_inference(ts, use_branch_lengths=inference_request.use_branch_lengths)
+        )
     
     try:
         # Run GAIA linear inference with timeout on Railway
         if is_railway:
             try:
-                ts_with_locations, inference_info = await asyncio.wait_for(
+                ts_with_locations, inference_info, mpr_result = await asyncio.wait_for(
                     run_inference(),
                     timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
                 )
@@ -362,13 +374,19 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
                     detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
                 )
         else:
-            ts_with_locations, inference_info = await run_inference()
+            ts_with_locations, inference_info, mpr_result = await run_inference()
         
         # Generate new filename
         new_filename = generate_unique_filename(session_id, inference_request.filename, '_gaia_linear')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Store intermediate data (MPRResult)
+        try:
+            session_storage.store_intermediate_data(session_id, new_filename, "mpr_result", mpr_result)
+        except Exception as e:
+            logger.warning(f"Failed to store MPRResult intermediate data: {e}")
         
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
@@ -674,7 +692,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         # Run sparg inference with timeout on Railway
         if is_railway:
             try:
-                ts_with_locations, inference_info = await asyncio.wait_for(
+                ts_with_locations, inference_info, intermediate_data = await asyncio.wait_for(
                     run_inference(),
                     timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
                 )
@@ -685,13 +703,20 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
                     detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
                 )
         else:
-            ts_with_locations, inference_info = await run_inference()
+            ts_with_locations, inference_info, intermediate_data = await run_inference()
         
         # Generate new filename
         new_filename = generate_unique_filename(session_id, inference_request.filename, '_sparg')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Store intermediate data
+        try:
+            session_storage.store_intermediate_data(session_id, new_filename, "spatial_arg", intermediate_data["spatial_arg"])
+            session_storage.store_intermediate_data(session_id, new_filename, "ancestor_locations", intermediate_data["ancestor_locations"])
+        except Exception as e:
+            logger.warning(f"Failed to store sparg intermediate data: {e}")
         
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
@@ -769,7 +794,7 @@ async def infer_locations_spacetrees(request: Request, inference_request: Spacet
         # Run spacetrees inference with timeout on Railway
         if is_railway:
             try:
-                ts_with_locations, inference_info = await asyncio.wait_for(
+                ts_with_locations, inference_info, intermediate_data = await asyncio.wait_for(
                     run_inference(),
                     timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
                 )
@@ -780,13 +805,20 @@ async def infer_locations_spacetrees(request: Request, inference_request: Spacet
                     detail=f"Spatial inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds. For larger ARGs, please install ARGscape locally."
                 )
         else:
-            ts_with_locations, inference_info = await run_inference()
+            ts_with_locations, inference_info, intermediate_data = await run_inference()
         
         # Generate new filename
         new_filename = generate_unique_filename(session_id, inference_request.filename, '_spacetrees')
         
         # Store the result
         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+        
+        # Store intermediate data
+        try:
+            session_storage.store_intermediate_data(session_id, new_filename, "dispersal_params", intermediate_data["dispersal_params"])
+            session_storage.store_intermediate_data(session_id, new_filename, "ancestor_locations", intermediate_data["ancestor_locations"])
+        except Exception as e:
+            logger.warning(f"Failed to store spacetrees intermediate data: {e}")
         
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
