@@ -4,7 +4,7 @@ All hard-coded values are defined here with meaningful names.
 """
 
 # API Configuration
-DEFAULT_API_VERSION = "0.4.9"
+DEFAULT_API_VERSION = "0.5.0"
 REQUEST_TIMEOUT_SECONDS = 60
 FILENAME_TIMESTAMP_PRECISION_MICROSECONDS = 1000000
 

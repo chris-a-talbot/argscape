@@ -1071,7 +1071,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("stroke", d => {
                 const { isSampleClusterEdge } = getEdgeClusterInfo(d, combinedNodes);
                 if (isSampleClusterEdge) {
-                    return `rgb(56, 189, 248)`; // Cyan to match sample cluster color
+                    return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
                 } else {
                     return `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`;
                 }
@@ -1131,7 +1131,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .join("text")
                 .text("×") // Use multiplication sign for a clean "x" appearance
                 .attr("font-size", `${edgeMutationSettings.markerSize || 40}px`)
-                .attr("fill", "#dc2626") // Red color for mutation markers
+                .attr("fill", `rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})`)
                 .attr("opacity", d => getEdgeOpacity(d))
                 .attr("stroke", colors.background) // Background stroke for visibility
                 .attr("stroke-width", "2px") // Thicker stroke for better contrast
@@ -1509,12 +1509,12 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .attr("fill", d => {
                 if (d.is_cluster) {
-                    // Sample clusters use cyan/blue color
+                    // Sample clusters use theme color
                     if (d.is_sample_cluster) {
-                        return `rgba(56, 189, 248, 0.7)`; // Cyan with transparency
+                        return `rgba(${colors.nodeClusterSample[0]}, ${colors.nodeClusterSample[1]}, ${colors.nodeClusterSample[2]}, ${colors.nodeClusterSample[3] / 255})`;
                     }
-                    // Regular cluster nodes have a distinct purple/violet color
-                    return `rgba(147, 51, 234, 0.7)`; // Purple with transparency
+                    // Regular cluster nodes use theme color
+                    return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
                 }
                 if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
                 if (d.is_combined) return `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`;
@@ -1524,8 +1524,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("fill-opacity", d => getNodeOpacity(d))
             .attr("stroke", d => {
                 if (d.is_cluster) {
-                    if (d.is_sample_cluster) return `rgb(56, 189, 248)`; // Cyan stroke for sample clusters
-                    return `rgb(147, 51, 234)`; // Purple stroke for regular clusters
+                    if (d.is_sample_cluster) return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
+                    return `rgb(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]})`;
                 }
                 if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`;
                 if (d.is_sample) return colors.background;
@@ -2151,7 +2151,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     // clusteredData depends on combinedData, so only clusteredData is needed in dependencies
         // Update previous sample order after applying layout
         prevSampleOrderRef.current = sampleOrder;
-    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
+    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize, colors, nodeSizes, edgeThickness, edgeOpacity, edgeLabelSettings, edgeMutationSettings, temporalSpacingMode, temporalSpacing, sampleSpacing]);
 
     // Effect to pause/resume simulation based on simulationPaused prop
     useEffect(() => {
@@ -2441,6 +2441,76 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             });
 
     }, [temporalRange, temporalDimOpacity, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity, ref, edgeOpacity]);
+
+    // Effect to update colors when theme changes (without restarting simulation)
+    useEffect(() => {
+        if (!ref || typeof ref === 'function' || !ref.current) return;
+        if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) return;
+
+        const svg = d3.select(ref.current);
+        const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
+
+        // Update node colors
+        svg.selectAll<SVGCircleElement, GraphNode>("circle")
+            .attr("fill", d => {
+                if (d.is_cluster) {
+                    if (d.is_sample_cluster) {
+                        return `rgba(${colors.nodeClusterSample[0]}, ${colors.nodeClusterSample[1]}, ${colors.nodeClusterSample[2]}, ${colors.nodeClusterSample[3] / 255})`;
+                    }
+                    return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
+                }
+                if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
+                if (d.is_combined) return `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`;
+                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`;
+                return `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`;
+            })
+            .attr("stroke", d => {
+                if (d.is_cluster) {
+                    if (d.is_sample_cluster) return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
+                    return `rgb(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]})`;
+                }
+                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`;
+                if (d.is_sample) return colors.background;
+                return "none";
+            });
+
+        // Update edge colors
+        svg.selectAll<SVGLineElement, GraphEdge>("line")
+            .attr("stroke", d => {
+                const { isSampleClusterEdge } = getEdgeClusterInfo(d, combinedNodes);
+                if (isSampleClusterEdge) {
+                    return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
+                } else {
+                    return `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`;
+                }
+            });
+
+        // Update mutation marker colors
+        svg.selectAll(".mutation-markers text")
+            .attr("fill", `rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})`)
+            .attr("stroke", colors.background);
+
+        // Update edge label colors
+        svg.selectAll<SVGTextElement, any>("text")
+            .filter(function(): boolean {
+                const datum = d3.select(this).datum();
+                return !!(datum && typeof datum === 'object' && 'sourceId' in datum && 'targetId' in datum);
+            })
+            .attr("fill", colors.text)
+            .attr("stroke", colors.background);
+
+        // Update node label colors
+        svg.selectAll<SVGTextElement, GraphNode>(".node-labels text")
+            .attr("fill", colors.text)
+            .attr("stroke", colors.background);
+
+        // Update tooltip colors
+        svg.selectAll<HTMLDivElement, unknown>(".tooltip")
+            .style("background-color", colors.tooltipBackground)
+            .style("color", colors.tooltipText)
+            .style("border", `1px solid ${colors.border}`);
+
+    }, [colors, ref]);
 
     // Effect to update node sizes without restarting simulation
     useEffect(() => {

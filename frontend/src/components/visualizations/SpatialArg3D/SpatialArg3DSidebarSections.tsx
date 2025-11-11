@@ -211,7 +211,7 @@ export const VisualizationSection: React.FC<VisualizationSectionProps> = ({
         <SidebarSlider
           label="Temporal Multiplier"
           value={temporalSpacing}
-          min={5}
+          min={0}
           max={50}
           step={1}
           onChange={onTemporalSpacingChange}

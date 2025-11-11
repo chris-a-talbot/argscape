@@ -72,8 +72,13 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     treeStartIdx,
     treeEndIdx
 }, ref: ForwardedRef<SVGSVGElement>) => {
-    const { colors } = useColorTheme();
+    const { colors, setCurrentVisualizationType } = useColorTheme();
     const { treeSequence } = useTreeSequence();
+    
+    // Set visualization type for color theme context
+    useEffect(() => {
+        setCurrentVisualizationType('force-directed');
+    }, [setCurrentVisualizationType]);
     const [searchParams] = useSearchParams();
     const [data, setData] = useState<GraphData | null>(null);
     const [subArgData, setSubArgData] = useState<GraphData | null>(null); // Rename to clarify this is the SubARG

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, getPrimaryColors, getOtherColors } from '../../context/ColorThemeContext';
+import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, getPrimaryColors, getOtherColors, calculateContrastRatio } from '../../context/ColorThemeContext';
 
 interface ColorScheme {
   background: string;
@@ -9,8 +9,12 @@ interface ColorScheme {
   nodeSample: [number, number, number, number];
   nodeCombined: [number, number, number, number];
   nodeSelected: [number, number, number, number];
+  nodeClusterSample: [number, number, number, number];
+  nodeClusterRegular: [number, number, number, number];
   edgeDefault: [number, number, number, number];
   edgeHighlight: [number, number, number, number];
+  edgeClusterSample: [number, number, number, number];
+  mutationMarker: [number, number, number, number];
   text: string;
   textSecondary: string;
   border: string;
@@ -434,6 +438,7 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
   const { saveCustomTheme, updateCustomTheme, currentVisualizationType } = useColorTheme();
   const [themeName, setThemeName] = useState('');
   const [showOtherColors, setShowOtherColors] = useState(false);
+  const [safeThemeEnabled, setSafeThemeEnabled] = useState(true);
   const [colors, setColors] = useState<ColorScheme>(() => {
     // Initialize with auto-linked defaults
     const defaultInternalColor: [number, number, number, number] = [96, 160, 183, 255];
@@ -453,8 +458,12 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
       nodeSample: [20, 226, 168, 255],
       nodeCombined: defaultInternalColor, // Same as internal by default
       nodeSelected: [255, 255, 255, 255],
+      nodeClusterSample: [56, 189, 248, 179], // Cyan with transparency
+      nodeClusterRegular: [147, 51, 234, 179], // Purple with transparency
       edgeDefault: defaultEdgeColor,
       edgeHighlight: brightEdgeColor, // Auto-brightened
+      edgeClusterSample: [56, 189, 248, 255], // Cyan
+      mutationMarker: [220, 38, 38, 255], // Red
       text: '#ffffff',
       textSecondary: '#14E2A8',
       border: '#2a4a5a',
@@ -496,8 +505,12 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
         nodeSample: [20, 226, 168, 255],
         nodeCombined: defaultInternalColor, // Same as internal by default
         nodeSelected: [255, 255, 255, 255],
+        nodeClusterSample: [56, 189, 248, 179], // Cyan with transparency
+        nodeClusterRegular: [147, 51, 234, 179], // Purple with transparency
         edgeDefault: defaultEdgeColor,
         edgeHighlight: brightEdgeColor, // Auto-brightened
+        edgeClusterSample: [56, 189, 248, 255], // Cyan
+        mutationMarker: [220, 38, 38, 255], // Red
         text: '#ffffff',
         textSecondary: '#14E2A8',
         border: '#2a4a5a',
@@ -534,22 +547,65 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  // Apply safe theme adjustments if enabled
+  const applySafeTheme = (colorScheme: ColorScheme): ColorScheme => {
+    if (!safeThemeEnabled) return colorScheme;
+    
+    const adjusted = { ...colorScheme };
+    const bgHex = colorScheme.background;
+    
+    // Ensure text colors have good contrast
+    const textContrast = calculateContrastRatio(colorScheme.text, bgHex);
+    if (textContrast < 4.5) {
+      adjusted.text = getContrastColor(bgHex);
+    }
+    
+    // Ensure header/control panel/button text have good contrast
+    [adjusted.headerText, adjusted.controlPanelText, adjusted.buttonText].forEach((color, idx) => {
+      const contrast = calculateContrastRatio(color, bgHex);
+      if (contrast < 4.5) {
+        const keys: (keyof ColorScheme)[] = ['headerText', 'controlPanelText', 'buttonText'];
+        (adjusted as any)[keys[idx]] = getContrastColor(bgHex);
+      }
+    });
+    
+    // Ensure tooltip text has good contrast with tooltip background
+    const tooltipContrast = calculateContrastRatio(colorScheme.tooltipText, colorScheme.tooltipBackground);
+    if (tooltipContrast < 4.5) {
+      adjusted.tooltipText = getContrastColor(colorScheme.tooltipBackground);
+    }
+    
+    // Ensure mutation marker is visible on background
+    const mutationHex = rgbaArrayToHex(colorScheme.mutationMarker);
+    const mutationContrast = calculateContrastRatio(mutationHex, bgHex);
+    if (mutationContrast < 3.0) {
+      // Use a high-contrast red
+      adjusted.mutationMarker = bgHex === '#ffffff' || bgHex === '#fff' 
+        ? [200, 50, 50, 255] // Dark red for light backgrounds
+        : [255, 100, 100, 255]; // Bright red for dark backgrounds
+    }
+    
+    return adjusted;
+  };
+
   const handleSave = () => {
     if (!themeName.trim()) {
       alert('Please enter a theme name');
       return;
     }
 
+    const finalColors = applySafeTheme(colors);
+
     if (editingTheme) {
-      updateCustomTheme(editingTheme.id, themeName.trim(), colors);
+      updateCustomTheme(editingTheme.id, themeName.trim(), finalColors);
     } else {
-      saveCustomTheme(themeName.trim(), colors);
+      saveCustomTheme(themeName.trim(), finalColors);
     }
     
     onClose();
   };
 
-  const updateNodeColor = (key: keyof Pick<ColorScheme, 'nodeDefault' | 'nodeRoot' | 'nodeSample' | 'nodeCombined' | 'nodeSelected' | 'edgeDefault' | 'edgeHighlight' | 'geographicGrid' | 'temporalGrid'>) => 
+  const updateNodeColor = (key: keyof Pick<ColorScheme, 'nodeDefault' | 'nodeRoot' | 'nodeSample' | 'nodeCombined' | 'nodeSelected' | 'nodeClusterSample' | 'nodeClusterRegular' | 'edgeDefault' | 'edgeHighlight' | 'edgeClusterSample' | 'mutationMarker' | 'geographicGrid' | 'temporalGrid'>) => 
     (value: [number, number, number, number]) => {
       setColors(prev => ({ ...prev, [key]: value }));
     };
@@ -636,8 +692,12 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
       nodeSample: 'Sample Nodes',
       nodeCombined: 'Combined Nodes',
       nodeSelected: 'Selected Nodes',
+      nodeClusterSample: 'Sample Cluster Nodes',
+      nodeClusterRegular: 'Regular Cluster Nodes',
       edgeDefault: 'Edges (highlighted edges will be auto-brightened)',
       edgeHighlight: 'Highlighted Edges',
+      edgeClusterSample: 'Sample Cluster Edges',
+      mutationMarker: 'Mutation Markers',
       text: 'Primary Text',
       textSecondary: 'Secondary Text',
       border: 'Borders',
@@ -718,6 +778,22 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
               placeholder="Enter theme name..."
               maxLength={50}
             />
+          </div>
+
+          {/* Safe Theme Toggle */}
+          <div className="mb-6">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={safeThemeEnabled}
+                onChange={(e) => setSafeThemeEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-sp-pale-green/20 bg-sp-very-dark-blue text-sp-pale-green focus:ring-sp-pale-green focus:ring-2"
+              />
+              <span className="text-sm font-medium text-sp-white">Enable Safe Color Themes</span>
+            </label>
+            <p className="text-xs text-sp-white/70 mt-1 ml-6">
+              Automatically ensures all colors meet minimum contrast ratios for visibility. Recommended for accessibility.
+            </p>
           </div>
 
           {/* Main Colors - Full Width */}
@@ -869,6 +945,37 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
                 }}
               >
                 Sample tooltip text
+              </div>
+
+              {/* Cluster and Mutation Preview */}
+              <div className="flex items-center gap-3 mt-3">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-4 h-4 rounded-full border-2"
+                    style={{ 
+                      backgroundColor: `rgba(${colors.nodeClusterSample[0]}, ${colors.nodeClusterSample[1]}, ${colors.nodeClusterSample[2]}, ${colors.nodeClusterSample[3] / 255})`,
+                      borderColor: `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`
+                    }}
+                  ></div>
+                  <span className="text-xs">Sample Cluster</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="w-4 h-4 rounded-full border-2"
+                    style={{ 
+                      backgroundColor: `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`,
+                      borderColor: `rgb(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]})`
+                    }}
+                  ></div>
+                  <span className="text-xs">Regular Cluster</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span 
+                    className="text-lg font-bold"
+                    style={{ color: `rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})` }}
+                  >×</span>
+                  <span className="text-xs">Mutation</span>
+                </div>
               </div>
             </div>
           </div>

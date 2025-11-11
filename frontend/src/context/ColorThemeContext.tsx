@@ -19,10 +19,16 @@ interface ColorScheme {
   nodeSample: [number, number, number, number];
   nodeCombined: [number, number, number, number];
   nodeSelected: [number, number, number, number];
+  nodeClusterSample: [number, number, number, number]; // Sample cluster nodes
+  nodeClusterRegular: [number, number, number, number]; // Regular cluster nodes
   
   // Edge colors
   edgeDefault: [number, number, number, number];
   edgeHighlight: [number, number, number, number];
+  edgeClusterSample: [number, number, number, number]; // Sample cluster edges
+  
+  // Mutation marker color
+  mutationMarker: [number, number, number, number];
   
   // UI colors
   text: string;
@@ -55,12 +61,16 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     background: '#03303E',
     containerBackground: '#0f1419',
     nodeDefault: [96, 160, 183, 255], // Original light blue for regular internal nodes
-    nodeRoot: [96, 160, 183, 255], // Original light blue for root nodes
+    nodeRoot: [56, 189, 248, 255], // Cyan for root nodes (matches cluster color scheme)
     nodeSample: [20, 226, 168, 255], // Original #14E2A8 pale green for samples
     nodeCombined: [80, 160, 175, 255], // Original light blue-green for combined nodes
     nodeSelected: [255, 255, 255, 255], // White for selected
+    nodeClusterSample: [56, 189, 248, 179], // Cyan with transparency for sample clusters
+    nodeClusterRegular: [147, 51, 234, 179], // Purple with transparency for regular clusters
     edgeDefault: [153, 153, 153, 102], // Original #999 with 0.4 opacity
     edgeHighlight: [255, 255, 255, 200],
+    edgeClusterSample: [56, 189, 248, 255], // Cyan for sample cluster edges
+    mutationMarker: [220, 38, 38, 255], // Red for mutation markers
     text: '#ffffff',
     textSecondary: '#14E2A8', // Classic sp-pale-green
     border: '#2a4a5a',
@@ -83,8 +93,12 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     nodeSample: [70, 70, 70, 255], // Darker gray for samples
     nodeCombined: [120, 120, 120, 255], // Light gray for combined nodes
     nodeSelected: [0, 0, 0, 255], // Black for selected
+    nodeClusterSample: [80, 80, 80, 179], // Dark gray with transparency for sample clusters
+    nodeClusterRegular: [60, 60, 60, 179], // Darker gray with transparency for regular clusters
     edgeDefault: [140, 140, 140, 128], // Light gray edges with transparency
     edgeHighlight: [40, 40, 40, 200], // Dark gray highlighted edges
+    edgeClusterSample: [80, 80, 80, 255], // Dark gray for sample cluster edges
+    mutationMarker: [200, 50, 50, 255], // Dark red for mutation markers (visible on white)
     text: '#212529', // Dark gray text for good contrast on white
     textSecondary: '#6c757d', // Medium gray secondary text
     border: '#dee2e6', // Light gray borders
@@ -290,7 +304,13 @@ export const getPrimaryColors = (visualizationType: VisualizationType): (keyof C
 
   switch (visualizationType) {
     case 'force-directed':
-      return commonColors;
+      return [
+        ...commonColors,
+        'nodeClusterSample',
+        'nodeClusterRegular',
+        'edgeClusterSample',
+        'mutationMarker'
+      ];
       
     case 'spatial-3d':
       return [
@@ -327,8 +347,12 @@ export const getOtherColors = (visualizationType: VisualizationType): (keyof Col
     'nodeSample',
     'nodeCombined',
     'nodeSelected',
+    'nodeClusterSample',
+    'nodeClusterRegular',
     'edgeDefault',
     'edgeHighlight',
+    'edgeClusterSample',
+    'mutationMarker',
     'text',
     'textSecondary',
     'border',
@@ -352,4 +376,74 @@ export const getOtherColors = (visualizationType: VisualizationType): (keyof Col
 // Utility function to convert RGBA array to hex string
 export const rgbaArrayToHex = (rgba: [number, number, number, number]): string => {
   return `#${rgba[0].toString(16).padStart(2, '0')}${rgba[1].toString(16).padStart(2, '0')}${rgba[2].toString(16).padStart(2, '0')}`;
+};
+
+// Calculate contrast ratio between two colors (WCAG standard)
+export const calculateContrastRatio = (color1: string, color2: string): number => {
+  const getLuminance = (color: string): number => {
+    // Handle both #RRGGBB and #RGB formats
+    let hex = color.replace('#', '');
+    if (hex.length === 3) {
+      hex = hex.split('').map(char => char + char).join('');
+    }
+    
+    if (hex.length !== 6) {
+      return 0;
+    }
+    
+    const r = parseInt(hex.substr(0, 2), 16) / 255;
+    const g = parseInt(hex.substr(2, 2), 16) / 255;
+    const b = parseInt(hex.substr(4, 2), 16) / 255;
+    
+    const toLinear = (c: number) => c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    
+    return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+  };
+
+  if (!color1 || !color2) {
+    return 21; // Max contrast if invalid
+  }
+
+  const lum1 = getLuminance(color1);
+  const lum2 = getLuminance(color2);
+  const brightest = Math.max(lum1, lum2);
+  const darkest = Math.min(lum1, lum2);
+  
+  return (brightest + 0.05) / (darkest + 0.05);
+};
+
+// Ensure safe color contrast (minimum 3:1 ratio for UI elements, 4.5:1 for text)
+export const ensureSafeContrast = (
+  foreground: string | [number, number, number, number],
+  background: string,
+  minRatio: number = 3.0
+): string => {
+  const bgHex = background.startsWith('#') ? background : `#${background}`;
+  
+  // Convert foreground to hex if it's an RGBA array
+  let fgHex: string;
+  if (Array.isArray(foreground)) {
+    fgHex = rgbaArrayToHex(foreground);
+  } else {
+    fgHex = foreground.startsWith('#') ? foreground : `#${foreground}`;
+  }
+  
+  const contrast = calculateContrastRatio(fgHex, bgHex);
+  
+  if (contrast >= minRatio) {
+    return Array.isArray(foreground) ? rgbaArrayToHex(foreground) : fgHex;
+  }
+  
+  // Need to adjust - try lighter/darker versions
+  // For now, return a high-contrast version
+  // This is a simplified approach - in production you might want more sophisticated color adjustment
+  const bgLum = calculateContrastRatio(bgHex, '#000000') > 10 ? 1 : 0; // Light or dark background
+  
+  if (bgLum > 0.5) {
+    // Light background - return dark color
+    return '#000000';
+  } else {
+    // Dark background - return light color
+    return '#ffffff';
+  }
 }; 
