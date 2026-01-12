@@ -43,9 +43,9 @@ export const SpatialArg3DLegend: React.FC<SpatialArg3DLegendProps> = ({
       baseItems.push({
         id: 'mutation',
         label: 'Mutation',
-        color: '#ef4444',
-        shape: 'x',
-        size: 10,
+        color: rgbaToString(colors.mutationMarker),
+        shape: 'bar',
+        size: 12,
       });
     }
 

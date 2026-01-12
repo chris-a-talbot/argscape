@@ -15,18 +15,18 @@ export function SpatialDiffTreeSequenceSelectorModal({ isOpen, onClose, onSelect
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[10000] overflow-y-auto">
+    <div className="fixed inset-0 z-[10002] overflow-y-auto">
       {/* Backdrop with consistent blur */}
-      <div 
-        className="fixed inset-0 transition-opacity" 
+      <div
+        className="fixed inset-0 transition-opacity"
         style={modalOverlayStyle}
         onClick={onClose}
       />
 
       {/* Modal panel with proper glass treatment */}
       <div className="flex items-start justify-center min-h-screen pt-8 pb-8 px-4">
-        <div 
-          className="relative max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden flex flex-col z-[10001]"
+        <div
+          className="relative max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden flex flex-col z-[10003]"
           style={modalGlassStyle}
         >
           {/* Header */}

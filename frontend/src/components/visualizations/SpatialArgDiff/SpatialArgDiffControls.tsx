@@ -53,6 +53,7 @@ import type {
   TemporalFilterConfig,
   FilterMode,
   FilterType,
+  TemporalFilterMode,
   DiffViewMode,
   DiffStats,
 } from '@/components/ui/QuickActionsBar/panels';
@@ -101,8 +102,8 @@ export interface SpatialArgDiffControlsProps {
   onFilterModeChange?: (mode: FilterMode) => void;
   dimOpacity?: number;
   onDimOpacityChange?: (opacity: number) => void;
-  temporalFilterMode?: FilterMode;
-  onTemporalFilterModeChange?: (mode: FilterMode) => void;
+  temporalFilterMode?: TemporalFilterMode;
+  onTemporalFilterModeChange?: (mode: TemporalFilterMode) => void;
   temporalDimOpacity?: number;
   onTemporalDimOpacityChange?: (opacity: number) => void;
 
@@ -226,7 +227,7 @@ export const SpatialArgDiffControls: React.FC<SpatialArgDiffControlsProps> = ({
   onFilterModeChange,
   dimOpacity = 0.05,
   onDimOpacityChange,
-  temporalFilterMode = 'highlight',
+  temporalFilterMode = 'planes',
   onTemporalFilterModeChange,
   temporalDimOpacity = 0.05,
   onTemporalDimOpacityChange,
@@ -452,6 +453,7 @@ export const SpatialArgDiffControls: React.FC<SpatialArgDiffControlsProps> = ({
           />
         ),
         defaultHeight: 450,
+        defaultWidth: 340,
       });
     }
 

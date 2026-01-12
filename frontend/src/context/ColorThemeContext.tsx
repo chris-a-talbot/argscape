@@ -141,7 +141,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     edgeDefault: [153, 153, 153, 102], // Original #999 with 0.4 opacity
     edgeHighlight: [255, 255, 255, 200],
     edgeClusterSample: [56, 189, 248, 255], // Cyan for sample cluster edges
-    mutationMarker: [220, 38, 38, 255], // Red for mutation markers
+    mutationMarker: [79, 70, 229, 255], // Indigo for mutation markers
     text: '#ffffff',
     textSecondary: '#14E2A8', // Classic sp-pale-green
     border: '#5a7a8a', // Lighter border for 3:1 contrast
@@ -191,7 +191,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     edgeDefault: [148, 163, 184, 80], // Slate 400 with opacity
     edgeHighlight: [20, 226, 168, 200], // Green highlight
     edgeClusterSample: [20, 226, 168, 200],
-    mutationMarker: [220, 38, 38, 255], // Red
+    mutationMarker: [79, 70, 229, 255], // Indigo - visible on light bg, won't conflict with red diff bars
     text: '#1d1d1f', // Apple's near-black
     textSecondary: '#6e6e73', // Apple's gray
     border: 'rgba(20, 226, 168, 0.15)', // Lighter green-tinted border
@@ -241,7 +241,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     edgeDefault: [140, 140, 140, 128], // Light gray edges with transparency
     edgeHighlight: [40, 40, 40, 200], // Dark gray highlighted edges
     edgeClusterSample: [80, 80, 80, 255], // Dark gray for sample cluster edges
-    mutationMarker: [200, 50, 50, 255], // Dark red for mutation markers (visible on white)
+    mutationMarker: [79, 70, 229, 255], // Indigo - consistent across all themes
     text: '#212529', // Dark gray text for good contrast on white
     textSecondary: '#6c757d', // Medium gray secondary text
     border: '#8b9299', // Darker gray border for 3:1 contrast
@@ -291,7 +291,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     edgeDefault: [120, 120, 120, 128], // Medium gray edges with transparency
     edgeHighlight: [230, 230, 230, 200], // Light highlighted edges
     edgeClusterSample: [200, 200, 200, 255], // Light gray for sample cluster edges
-    mutationMarker: [255, 100, 100, 255], // Light red for mutation markers (visible on dark)
+    mutationMarker: [79, 70, 229, 255], // Indigo for mutation markers
     text: '#f0f0f0', // Near-white text for good contrast on dark
     textSecondary: '#a0a0a0', // Medium gray secondary text
     border: '#4a4a4a', // Medium gray border for contrast

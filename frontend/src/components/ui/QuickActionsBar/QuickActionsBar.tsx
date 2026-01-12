@@ -198,6 +198,7 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
 
   // Max height for scrolling, but panel sizes to content
   const panelMaxHeight = activePanel?.defaultHeight || 400;
+  const panelWidth = activePanel?.defaultWidth;
 
   const panelContainerStyle: React.CSSProperties = floating
     ? {
@@ -205,8 +206,8 @@ export const QuickActionsBar: React.FC<QuickActionsBarProps> = ({
         top: '100%',
         left: 0,
         marginTop: '0.5rem',
-        minWidth: '280px',
-        maxWidth: '400px',
+        minWidth: panelWidth ? `${panelWidth}px` : '280px',
+        maxWidth: panelWidth ? `${panelWidth}px` : '400px',
         overflow: 'hidden',
         transition: 'max-height 0.2s ease-out, opacity 0.15s ease-out',
         maxHeight: isPanelOpen ? `${panelMaxHeight}px` : '0',

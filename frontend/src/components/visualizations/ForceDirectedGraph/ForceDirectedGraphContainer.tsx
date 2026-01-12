@@ -1,22 +1,18 @@
-import { useEffect, useState, useCallback, forwardRef, ForwardedRef, useRef } from 'react';
+import { useEffect, useState, useCallback, forwardRef, ForwardedRef, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
 import { ForceDirectedGraphControls } from './ForceDirectedGraphControls';
-import { LayoutSpacingSection, NodesSection, EdgesSection, InformationSection, ViewControlsSection, ClusteringSection } from './ForceDirectedGraphSidebarSections';
 import { RangeSlider } from '../../ui/range-slider';
 import { TreeRangeSlider } from '../../ui/tree-range-slider';
 import { TemporalRangeSlider } from '../../ui/temporal-range-slider';
 import { SampleOrderType } from '../../ui/sample-order-control';
 import { ArgStatsData } from '../../ui/arg-stats-display';
-import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
 import AlertModal from '../../ui/AlertModal';
 import { AnimationPopout } from '../../ui/QuickActionsBar/panels/AnimationPopout';
-import { CompactStatistics } from '../shared/CompactStatistics';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { useTreeSequence } from '../../../context/TreeSequenceContext';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { useElapsedTime } from '../../../hooks/useElapsedTime';
-import { SECTION_IDS, SECTION_ICONS, SECTION_TITLES, SECTION_DEFAULTS } from '../shared/SidebarSectionConfig';
 import { useFilteringState } from '../../../hooks/useFilteringState';
 import { useClusteringState } from '../../../hooks/useClusteringState';
 import { useGraphData } from '../../../hooks/useGraphData';
@@ -28,7 +24,9 @@ import { useSimulationControls } from '../../../hooks/useSimulationControls';
 import { useForceTuning } from '../../../hooks/useForceTuning';
 import { useSampleOrder } from '../../../hooks/useSampleOrder';
 import { useEdgeCrossings } from '../../../hooks/useEdgeCrossings';
+import { useWindowStats } from '../../../hooks/useWindowStats';
 import { ForceDirectedLoadingState, ErrorState, NoDataState } from '../shared/LoadingStates';
+import { Play, Pause } from 'lucide-react';
 
 interface ForceDirectedGraphContainerProps {
     filename: string;
@@ -51,8 +49,15 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     treeStartIdx,
     treeEndIdx
 }, ref: ForwardedRef<SVGSVGElement>) => {
-    const { colors, setCurrentVisualizationType } = useColorTheme();
-    const { treeSequence } = useTreeSequence();
+    const { colors, theme, setCurrentVisualizationType } = useColorTheme();
+    const {
+        treeSequence,
+        sampleSubsetMode,
+        sampleIds,
+        sampleRange,
+        randomSeed,
+        selectedPopulations
+    } = useTreeSequence();
     const [searchParams] = useSearchParams();
 
     // Set visualization type for color theme context
@@ -123,10 +128,17 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         clusteringRequireDensity: clusteringState.requireDensity,
         clusteringDensityIntensity: clusteringState.densityIntensity,
         clusteringTemporalIntensity: clusteringState.temporalIntensity,
+        // Sample subsetting parameters from TreeSequenceContext
+        sampleSubsetMode,
+        sampleIds,
+        sampleRangeStart: sampleRange?.[0],
+        sampleRangeEnd: sampleRange?.[1],
+        randomSeed: randomSeed ?? undefined,
+        samplePopulations: selectedPopulations,
     });
 
     // Parse initial focus params from URL
-    const initialFocus = (() => {
+    const initialFocus = useMemo(() => {
         const focusRootParam = searchParams.get('focus_root');
         const focusSampleParam = searchParams.get('focus_sample');
         if (focusRootParam) {
@@ -138,7 +150,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             return !isNaN(id) ? { focusSample: id } : undefined;
         }
         return undefined;
-    })();
+    }, [searchParams]);
 
     const viewModeState = useViewModeState(
         graphDataState.data,
@@ -150,6 +162,18 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     );
 
     const edgeCrossingsControls = useEdgeCrossings(graphDataState.data);
+
+    // Window stats for filtered genomic regions
+    const windowStatsResult = useWindowStats({
+        filename: filename || null,
+        isGenomicFilterActive: filteringState.isFilterActive,
+        filterMode: filteringState.filterMode,
+        genomicStart: filteringState.debouncedGenomicRange[0],
+        genomicEnd: filteringState.debouncedGenomicRange[1],
+        treeStartIdx: filteringState.debouncedTreeRange[0],
+        treeEndIdx: filteringState.debouncedTreeRange[1],
+        sequenceLength: sequenceLength,
+    });
 
     // Update sequence length and tree intervals from graph data
     useEffect(() => {
@@ -552,17 +576,23 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 } : undefined}
                                 sequenceStats={treeSequence ? {
                                     samples: treeSequence.num_samples,
-                                    sites: treeSequence.num_sites,
+                                    sites: treeSequence.num_sites || 0,
                                     trees: treeSequence.num_trees,
-                                    mutations: treeSequence.num_mutations,
-                                    populations: treeSequence.num_populations,
-                                    individuals: treeSequence.num_individuals,
+                                    mutations: treeSequence.num_mutations || 0,
+                                    populations: treeSequence.statistics?.num_populations || undefined,
+                                    individuals: undefined,
                                 } : graphDataState.data ? {
                                     samples: graphDataState.data.metadata.num_samples || graphDataState.data.nodes.filter((n: any) => n.is_sample).length,
-                                    sites: graphDataState.data.metadata.num_sites || 0,
-                                    trees: graphDataState.data.metadata.num_trees || 1,
+                                    sites: graphDataState.data.metadata.sequence_length || 0,
+                                    trees: graphDataState.data.metadata.num_local_trees || 1,
                                     mutations: graphDataState.data.metadata.num_mutations || 0,
+                                    populations: graphDataState.data.metadata.populations?.length || undefined,
+                                    individuals: graphDataState.data.metadata.num_individuals || undefined,
                                 } : undefined}
+                                popGenStats={treeSequence?.statistics}
+                                windowPopGenStats={windowStatsResult.windowStats}
+                                windowStatsLoading={windowStatsResult.isLoading}
+                                isGenomicFilterActive={filteringState.isFilterActive && (filteringState.filterMode === 'genomic' || filteringState.filterMode === 'tree')}
                                 // Filter summary
                                 filterSummary={filteringState.isFilterActive ? {
                                     genomicRange: filteringState.filterMode === 'genomic' ? {
@@ -602,19 +632,52 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
 
                             {/* Animation toggle button */}
                             {combinedTemporalState.maxTime > combinedTemporalState.minTime && (
-                                <button
-                                    onClick={() => setAnimationPopoutOpen(!animationPopoutOpen)}
-                                    className="absolute top-2 right-2 px-2 py-1 rounded text-xs font-medium border shadow-sm transition-all"
-                                    style={{
-                                        backgroundColor: animationPopoutOpen ? colors.accentPrimary : `${colors.containerBackground}E6`,
-                                        color: animationPopoutOpen ? colors.buttonText : colors.text,
-                                        borderColor: animationPopoutOpen ? colors.accentPrimary : colors.border,
-                                        backdropFilter: 'blur(2px)',
-                                    }}
-                                    title="Animation controls"
-                                >
-                                    {layerReveal.isPlaying ? '⏸' : '▶'} Animate
-                                </button>
+                                <div style={{
+                                    position: 'absolute',
+                                    bottom: 16,
+                                    left: 16,
+                                    zIndex: 100,
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    alignItems: 'flex-start',
+                                    gap: 8,
+                                }}>
+                                    {/* Play button */}
+                                    <button
+                                        onClick={() => setAnimationPopoutOpen(!animationPopoutOpen)}
+                                        style={{
+                                            width: 40,
+                                            height: 40,
+                                            borderRadius: '50%',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                                            background: theme === 'liquid' ? colors.glassBackground : colors.containerBackground,
+                                            backdropFilter: theme === 'liquid' ? 'blur(20px)' : 'blur(2px)',
+                                            WebkitBackdropFilter: theme === 'liquid' ? 'blur(20px)' : 'blur(2px)',
+                                            boxShadow: theme === 'liquid'
+                                                ? `0 8px 32px ${colors.glassShadowPrimary}, 0 2px 8px ${colors.glassShadowSecondary}`
+                                                : `0 4px 12px rgba(0, 0, 0, 0.15)`,
+                                            border: `1px solid ${theme === 'liquid' ? colors.glassBorder : colors.border}`,
+                                        }}
+                                        onMouseEnter={(e) => {
+                                            e.currentTarget.style.transform = 'scale(1.05)';
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            e.currentTarget.style.transform = 'scale(1)';
+                                        }}
+                                        title="Animation controls"
+                                        aria-label={layerReveal.isPlaying ? 'Pause animation' : 'Play animation'}
+                                    >
+                                        {layerReveal.isPlaying ? (
+                                            <Pause size={18} color={colors.accentPrimary} />
+                                        ) : (
+                                            <Play size={18} color={colors.accentPrimary} />
+                                        )}
+                                    </button>
+                                </div>
                             )}
 
                             {/* Animation popout */}
@@ -633,7 +696,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 onReset={layerReveal.resetReveal}
                                 onRateChange={layerReveal.setRate}
                                 onModeChange={layerReveal.setMode}
-                                position="right"
+                                position="left"
                             />
 
                             {/* Legend Card - minimizable and draggable */}
@@ -696,8 +759,8 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <svg className="w-2.5 h-2.5" viewBox="0 0 10 10" fill="none">
-                                            <line x1="1" y1="1" x2="9" y2="9" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
-                                            <line x1="9" y1="1" x2="1" y2="9" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" />
+                                            <line x1="1" y1="1" x2="9" y2="9" stroke={`rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})`} strokeWidth="2" strokeLinecap="round" />
+                                            <line x1="9" y1="1" x2="1" y2="9" stroke={`rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})`} strokeWidth="2" strokeLinecap="round" />
                                         </svg>
                                         <span className="text-xs" style={{ color: colors.text }}>Mutation</span>
                                     </div>

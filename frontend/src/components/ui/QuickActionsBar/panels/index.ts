@@ -53,6 +53,7 @@ export { NodeEdgeCountDisplay } from './NodeEdgeCountDisplay';
 export { SequenceStatsDisplay } from './SequenceStatsDisplay';
 export { PerformanceStatsDisplay } from './PerformanceStatsDisplay';
 export { FilterSummaryDisplay } from './FilterSummaryDisplay';
+export { PopGenStatsDisplay } from './PopGenStatsDisplay';
 export { DiffStatsPanel } from './DiffStatsPanel';
 export type { DiffStatsPanelProps } from './DiffStatsPanel';
 

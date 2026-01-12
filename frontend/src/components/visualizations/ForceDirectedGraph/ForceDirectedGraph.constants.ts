@@ -1,6 +1,6 @@
 import { NodeSizeSettings, NodeIdSettings, EdgeLabelSettings, GraphNode, GraphEdge, TemporalSpacingMode } from "./ForceDirectedGraph.types";
 import { arrangeSamplesByAncestralPath, arrangeSamplesByCoalescence } from "./ForceDirectedGraph.utils";
-import { calculateYPosition, getOptimalXPosition, getDescendantSampleRange } from "./ForceDirectedGraph.utils";
+import { calculateYPosition, getOptimalXPosition, getDescendantSampleRange, isLikelyParentARG, getChildren } from "./ForceDirectedGraph.utils";
 import * as dagre from 'dagre';
 
 
@@ -280,7 +280,7 @@ export const setupInitialNodePositions = (
         const nodesForTraversal = originalNodes || combinedNodes;
         let sortedAllSamples: GraphNode[];
         switch (sampleOrder) {
-            case 'ancestral':
+            case 'ancestral_path':
                 sortedAllSamples = arrangeSamplesByAncestralPath(
                     allSamplesForSorting,
                     nodesForTraversal,
@@ -328,14 +328,39 @@ export const setupInitialNodePositions = (
             sampleIdToXPosition.set(sample.id, centerOffset + (index * adjustedSampleSpacing));
         });
 
+        // Detect if this is a parent ARG situation for inverted Y positioning
+        const samplesForParentARG = combinedNodes.filter(n => n.is_sample || n.is_sample_cluster);
+        const isParentARG = samplesForParentARG.length <= 2;
+
         // Position regular samples
         regularSamples.forEach(sample => {
-            const xPos = sampleIdToXPosition.get(sample.id);
+            let xPos = sampleIdToXPosition.get(sample.id);
             if (xPos !== undefined) {
+                if (isParentARG) {
+                    // For parent ARGs, position sample at the X midpoint of all ancestor nodes
+                    const ancestorNodes = combinedNodes.filter(n => !n.is_sample && !n.is_sample_cluster);
+                    if (ancestorNodes.length > 0) {
+                        const ancestorXPositions = ancestorNodes.map(n => n.x).filter(x => x !== undefined) as number[];
+                        if (ancestorXPositions.length > 0) {
+                            const minAncestorX = Math.min(...ancestorXPositions);
+                            const maxAncestorX = Math.max(...ancestorXPositions);
+                            xPos = (minAncestorX + maxAncestorX) / 2; // Midpoint of ancestors
+                        }
+                    }
+                }
+
                 sample.x = xPos;
                 sample.fx = sample.x;
-                sample.y = calculateYPosition(sample.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
-                sample.fy = sample.y;
+
+                if (isParentARG) {
+                    // For parent ARGs, invert Y axis
+                    const normalY = calculateYPosition(sample.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    sample.y = availableHeight - normalY;
+                    sample.fy = sample.y;
+                } else {
+                    sample.y = calculateYPosition(sample.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    sample.fy = sample.y;
+                }
             }
         });
 
@@ -344,18 +369,37 @@ export const setupInitialNodePositions = (
         sampleClusters.forEach(cluster => {
             if (!cluster.cluster_nodes || cluster.cluster_nodes.length === 0) {
                 // Fallback: treat as regular sample (shouldn't happen)
-                const xPos = sampleIdToXPosition.get(cluster.id);
-                if (xPos !== undefined) {
-                    cluster.x = xPos;
-                    cluster.fx = cluster.x;
-                } else {
+                let xPos = sampleIdToXPosition.get(cluster.id);
+                if (xPos === undefined) {
                     // Last resort: sequential positioning
                     const index = combinedNodes.filter(n => n.is_sample).indexOf(cluster);
-                    cluster.x = centerOffset + (index * adjustedSampleSpacing);
-                    cluster.fx = cluster.x;
+                    xPos = centerOffset + (index * adjustedSampleSpacing);
                 }
-                cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
-                cluster.fy = cluster.y;
+
+                if (isParentARG) {
+                    // For parent ARGs, position cluster at midpoint of ancestors
+                    const ancestorNodes = combinedNodes.filter(n => !n.is_sample && !n.is_sample_cluster);
+                    if (ancestorNodes.length > 0) {
+                        const ancestorXPositions = ancestorNodes.map(n => n.x).filter(x => x !== undefined) as number[];
+                        if (ancestorXPositions.length > 0) {
+                            const minAncestorX = Math.min(...ancestorXPositions);
+                            const maxAncestorX = Math.max(...ancestorXPositions);
+                            xPos = (minAncestorX + maxAncestorX) / 2;
+                        }
+                    }
+                }
+
+                cluster.x = xPos;
+                cluster.fx = cluster.x;
+                if (isParentARG) {
+                    // For parent ARGs, invert Y axis
+                    const normalY = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.y = availableHeight - normalY;
+                    cluster.fy = cluster.y;
+                } else {
+                    cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.fy = cluster.y;
+                }
                 return;
             }
 
@@ -369,26 +413,80 @@ export const setupInitialNodePositions = (
             }
 
             if (constituentIndices.length > 0) {
-                // Calculate average/consensus index position in the sorted order
-                const avgIndex = Math.round(
-                    constituentIndices.reduce((sum, idx) => sum + idx, 0) / constituentIndices.length
-                );
-                
-                // Ensure the index is within bounds
-                const clusterPositionIndex = Math.max(0, Math.min(avgIndex, totalSamples - 1));
-                
-                // Calculate x-position based on this consensus index
-                cluster.x = centerOffset + (clusterPositionIndex * adjustedSampleSpacing);
+                let clusterX: number;
+                if (isParentARG) {
+                    // For parent ARGs, position cluster at midpoint of ancestors
+                    const ancestorNodes = combinedNodes.filter(n => !n.is_sample && !n.is_sample_cluster);
+                    if (ancestorNodes.length > 0) {
+                        const ancestorXPositions = ancestorNodes.map(n => n.x).filter(x => x !== undefined) as number[];
+                        if (ancestorXPositions.length > 0) {
+                            const minAncestorX = Math.min(...ancestorXPositions);
+                            const maxAncestorX = Math.max(...ancestorXPositions);
+                            clusterX = (minAncestorX + maxAncestorX) / 2;
+                        } else {
+                            clusterX = centerOffset;
+                        }
+                    } else {
+                        clusterX = centerOffset;
+                    }
+                } else {
+                    // Calculate average/consensus index position in the sorted order
+                    const avgIndex = Math.round(
+                        constituentIndices.reduce((sum, idx) => sum + idx, 0) / constituentIndices.length
+                    );
+
+                    // Ensure the index is within bounds
+                    const clusterPositionIndex = Math.max(0, Math.min(avgIndex, totalSamples - 1));
+
+                    // Calculate x-position based on this consensus index
+                    clusterX = centerOffset + (clusterPositionIndex * adjustedSampleSpacing);
+                }
+
+                cluster.x = clusterX;
                 cluster.fx = cluster.x;
-                cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
-                cluster.fy = cluster.y;
+                if (isParentARG) {
+                    // For parent ARGs, invert Y axis
+                    const normalY = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.y = availableHeight - normalY;
+                    cluster.fy = cluster.y;
+                } else {
+                    cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.fy = cluster.y;
+                }
             } else {
                 // Fallback if we can't find constituent positions
-                const index = combinedNodes.filter(n => n.is_sample).indexOf(cluster);
-                cluster.x = centerOffset + (index * adjustedSampleSpacing);
+                let clusterX: number;
+                if (isParentARG) {
+                    // For parent ARGs, position cluster at midpoint of ancestors
+                    const ancestorNodes = combinedNodes.filter(n => !n.is_sample && !n.is_sample_cluster);
+                    if (ancestorNodes.length > 0) {
+                        const ancestorXPositions = ancestorNodes.map(n => n.x).filter(x => x !== undefined) as number[];
+                        if (ancestorXPositions.length > 0) {
+                            const minAncestorX = Math.min(...ancestorXPositions);
+                            const maxAncestorX = Math.max(...ancestorXPositions);
+                            clusterX = (minAncestorX + maxAncestorX) / 2;
+                        } else {
+                            clusterX = centerOffset;
+                        }
+                    } else {
+                        clusterX = centerOffset;
+                    }
+                } else {
+                    const index = combinedNodes.filter(n => n.is_sample).indexOf(cluster);
+                    clusterX = centerOffset + (index * adjustedSampleSpacing);
+                }
+
+                cluster.x = clusterX;
                 cluster.fx = cluster.x;
-                cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
-                cluster.fy = cluster.y;
+                if (isParentARG) {
+                    // For parent ARGs, invert Y axis
+                    const normalY = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.y = availableHeight - normalY;
+                    cluster.fy = cluster.y;
+                } else {
+                    cluster.y = calculateYPosition(cluster.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                    cluster.fy = cluster.y;
+                }
             }
         });
 
@@ -401,18 +499,117 @@ export const setupInitialNodePositions = (
         const nonSampleNodes = combinedNodes.filter(n => !n.is_sample)
             .sort((a, b) => b.timeIndex! - a.timeIndex!); // Sort by time, bottom to top
 
-        // Recalculate internal node positions now that samples are positioned
-        nonSampleNodes.forEach(node => {
-            // Cluster nodes should preserve the root node's y position but recalculate x
-            if (node.is_cluster && !node.is_sample_cluster) {
-                // Recalculate x position based on children (optimal positioning)
+        if (isParentARG) {
+            // For parent ARGs, distribute all ancestor nodes across the full width
+            // Sort nodes by their "breadth" - how many nodes are at their time level
+            const nodesByTime = new Map<number, GraphNode[]>();
+            nonSampleNodes.forEach(node => {
+                if (!node.is_cluster) { // Skip cluster nodes for now
+                    if (!nodesByTime.has(node.time)) {
+                        nodesByTime.set(node.time, []);
+                    }
+                    nodesByTime.get(node.time)!.push(node);
+                }
+            });
+
+            // Calculate positions based on a global distribution rather than per-time-level
+            const regularNodes = nonSampleNodes.filter(n => !n.is_cluster);
+            const sampleX = allSampleLevelNodes[0]?.x || actualWidth / 2;
+
+            // Distribute all regular nodes across 80% of available width
+            const distributionWidth = actualWidth * 0.8;
+            const distributionStart = Math.max(xPadding, sampleX - distributionWidth / 2);
+            const distributionEnd = Math.min(actualWidth - xPadding, sampleX + distributionWidth / 2);
+
+            regularNodes.forEach((node, globalIndex) => {
+                // Use a combination of time-based and index-based positioning
+                const timeIndex = uniqueTimes.indexOf(node.time);
+                const timeFactor = timeIndex / Math.max(1, uniqueTimes.length - 1); // 0 to 1 based on time
+                const indexFactor = globalIndex / Math.max(1, regularNodes.length - 1); // 0 to 1 based on position
+
+                // Blend time and index factors for natural distribution
+                const positionFactor = 0.3 * timeFactor + 0.7 * indexFactor;
+
+                const baseX = distributionStart + positionFactor * (distributionEnd - distributionStart);
+                const randomOffset = (Math.random() - 0.5) * Math.min(distributionWidth * 0.1, 25);
+                node.x = Math.max(xPadding, Math.min(actualWidth - xPadding, baseX + randomOffset));
+
+                // Fix X position to maintain distribution for parent ARGs
+                node.fx = node.x;
+
+                // Invert Y axis for parent ARGs
+                const normalY = calculateYPosition(node.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                node.y = availableHeight - normalY;
+                node.fy = node.y;
+            });
+
+            // Handle cluster nodes specially for parent ARGs
+            nonSampleNodes.filter(n => n.is_cluster && !n.is_sample_cluster).forEach(node => {
+                // For cluster nodes, try to position near their constituent nodes
+                const children = getChildren(node, combinedNodes, combinedEdges);
+                if (children.length > 0) {
+                    const childXPositions = children
+                        .map(child => combinedNodes.find(n => n.id === child.id)?.x)
+                        .filter(x => x !== undefined) as number[];
+
+                    if (childXPositions.length > 0) {
+                        const avgChildX = childXPositions.reduce((sum, x) => sum + x, 0) / childXPositions.length;
+                        node.x = avgChildX + (Math.random() - 0.5) * 30;
+                        node.fx = node.x;
+                    } else {
+                        const sampleX = allSampleLevelNodes[0]?.x || actualWidth / 2;
+                        node.x = sampleX + (Math.random() - 0.5) * 60;
+                        node.fx = node.x;
+                    }
+                } else {
+                    const sampleX = allSampleLevelNodes[0]?.x || actualWidth / 2;
+                    node.x = sampleX + (Math.random() - 0.5) * 60;
+                    node.fx = node.x;
+                }
+                // Y position for cluster nodes is already set
+            });
+        } else {
+            // Normal positioning for regular ARGs
+            nonSampleNodes.forEach(node => {
+                // Cluster nodes should preserve the root node's y position but recalculate x
+                if (node.is_cluster && !node.is_sample_cluster) {
+                    // Recalculate x position based on children (optimal positioning)
+                    const optimalX = getOptimalXPosition(node, combinedNodes, combinedEdges);
+
+                    if (optimalX !== null) {
+                        // Add small random offset to prevent perfect overlap
+                        const offset = (Math.random() - 0.5) * 15; // ±7.5px random offset
+                        node.x = optimalX + offset;
+
+                        // Ensure we stay within descendant range even with offset
+                        const descendantRange = getDescendantSampleRange(node, combinedNodes, combinedEdges);
+                        if (descendantRange) {
+                            node.x = Math.max(descendantRange.min, Math.min(descendantRange.max, node.x));
+                        }
+                    } else {
+                        // Fallback to centered position within sample range
+                        const sampleMinX = Math.min(...allSampleLevelNodes.map((n: GraphNode) => n.x!));
+                        const sampleMaxX = Math.max(...allSampleLevelNodes.map((n: GraphNode) => n.x!));
+                        const centerX = (sampleMinX + sampleMaxX) / 2;
+                        const maxOffset = (sampleMaxX - sampleMinX) * 0.3; // Stay within 30% of sample range
+                        const randomOffset = (Math.random() - 0.5) * maxOffset;
+                        node.x = centerX + randomOffset;
+                    }
+
+                    node.fx = null; // Allow x position to be adjusted by forces
+                    // Preserve y position from root (already set during clustering, don't recalculate)
+                    // node.y and node.fy are already set to root's values, so we don't change them
+                    return;
+                }
+
+                // Use the improved optimal positioning function
                 const optimalX = getOptimalXPosition(node, combinedNodes, combinedEdges);
-                
+
                 if (optimalX !== null) {
                     // Add small random offset to prevent perfect overlap
                     const offset = (Math.random() - 0.5) * 15; // ±7.5px random offset
                     node.x = optimalX + offset;
-                    
+
                     // Ensure we stay within descendant range even with offset
                     const descendantRange = getDescendantSampleRange(node, combinedNodes, combinedEdges);
                     if (descendantRange) {
@@ -427,40 +624,12 @@ export const setupInitialNodePositions = (
                     const randomOffset = (Math.random() - 0.5) * maxOffset;
                     node.x = centerX + randomOffset;
                 }
-                
+
                 node.fx = null; // Allow x position to be adjusted by forces
-                // Preserve y position from root (already set during clustering, don't recalculate)
-                // node.y and node.fy are already set to root's values, so we don't change them
-                return;
-            }
-            
-            // Use the improved optimal positioning function
-            const optimalX = getOptimalXPosition(node, combinedNodes, combinedEdges);
-            
-            if (optimalX !== null) {
-                // Add small random offset to prevent perfect overlap
-                const offset = (Math.random() - 0.5) * 15; // ±7.5px random offset
-                node.x = optimalX + offset;
-                
-                // Ensure we stay within descendant range even with offset
-                const descendantRange = getDescendantSampleRange(node, combinedNodes, combinedEdges);
-                if (descendantRange) {
-                    node.x = Math.max(descendantRange.min, Math.min(descendantRange.max, node.x));
-                }
-            } else {
-                // Fallback to centered position within sample range
-                const sampleMinX = Math.min(...allSampleLevelNodes.map((n: GraphNode) => n.x!));
-                const sampleMaxX = Math.max(...allSampleLevelNodes.map((n: GraphNode) => n.x!));
-                const centerX = (sampleMinX + sampleMaxX) / 2;
-                const maxOffset = (sampleMaxX - sampleMinX) * 0.3; // Stay within 30% of sample range
-                const randomOffset = (Math.random() - 0.5) * maxOffset;
-                node.x = centerX + randomOffset;
-            }
-            
-            node.fx = null; // Allow x position to be adjusted by forces
-            node.y = calculateYPosition(node.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
-            node.fy = node.y;
-        });
+                node.y = calculateYPosition(node.time, uniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
+                node.fy = node.y;
+            });
+        }
     }
 
     return { timeSpacing, uniqueTimes };

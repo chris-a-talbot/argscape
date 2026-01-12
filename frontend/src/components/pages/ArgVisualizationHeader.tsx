@@ -5,6 +5,7 @@ import { useThemeStyles } from '../../hooks/useThemeStyles';
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import ClickableLogo from '../ui/ClickableLogo';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
+import { SwitchVizButton } from '../ui/SwitchVizButton';
 import { log } from '../../lib/logger';
 
 interface ArgVisualizationHeaderProps {
@@ -14,6 +15,10 @@ interface ArgVisualizationHeaderProps {
     currentParams: string;
     /** Whether to show the expand/collapse button. Default false for 2D visualizer. */
     showExpandButton?: boolean;
+    /** Whether the tree sequence has spatial data for 3D visualization */
+    hasSpatialData?: boolean;
+    /** Whether tree sequence data is loaded */
+    hasTreeSequence?: boolean;
 }
 
 export const ArgVisualizationHeader = ({
@@ -21,7 +26,9 @@ export const ArgVisualizationHeader = ({
     decodedFilename,
     onTreeSequenceSelect,
     currentParams: _currentParams,
-    showExpandButton = false
+    showExpandButton = false,
+    hasSpatialData = false,
+    hasTreeSequence = false
 }: ArgVisualizationHeaderProps) => {
     const navigate = useNavigate();
     const { colors } = useColorTheme();
@@ -67,7 +74,7 @@ export const ArgVisualizationHeader = ({
                     backdropFilter: navStyle.backdropFilter,
                     WebkitBackdropFilter: navStyle.WebkitBackdropFilter,
                     position: 'relative',
-                    zIndex: 200,
+                    zIndex: 10001,
                 }}
             >
                 <div className="max-w-7xl mx-auto">
@@ -117,6 +124,14 @@ export const ArgVisualizationHeader = ({
                                     </svg>
                                     <span>Switch File</span>
                                 </button>
+
+                                <SwitchVizButton
+                                    currentViz="2d"
+                                    filename={decodedFilename}
+                                    currentParams={_currentParams}
+                                    hasSpatialData={hasSpatialData}
+                                    hasTreeSequence={hasTreeSequence}
+                                />
 
                                 <div
                                     className="text-sm font-mono truncate relative cursor-default"
@@ -244,6 +259,15 @@ export const ArgVisualizationHeader = ({
                                         </svg>
                                         <span>Switch File</span>
                                     </button>
+
+                                    <SwitchVizButton
+                                        currentViz="2d"
+                                        filename={decodedFilename}
+                                        currentParams={_currentParams}
+                                        hasSpatialData={hasSpatialData}
+                                        hasTreeSequence={hasTreeSequence}
+                                    />
+
                                     <div
                                         className="text-base font-mono break-all min-w-0"
                                         style={{ color: colors.accentPrimary }}

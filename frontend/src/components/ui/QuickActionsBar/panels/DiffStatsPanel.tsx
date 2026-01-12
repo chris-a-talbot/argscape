@@ -11,17 +11,20 @@ import { useColorTheme } from '@/context/ColorThemeContext';
 import { NodeEdgeCountDisplay } from './NodeEdgeCountDisplay';
 import { SequenceStatsDisplay } from './SequenceStatsDisplay';
 import { PerformanceStatsDisplay } from './PerformanceStatsDisplay';
-import type { NodeEdgeStats, SequenceStats, PerformanceStats } from './StatsPanel.types';
+import { PopGenStatsDisplay } from './PopGenStatsDisplay';
+import type { NodeEdgeStats, SequenceStats, PerformanceStats, PopGenStats } from './StatsPanel.types';
 
 export interface DiffStatsPanelProps {
   firstDatasetStats: {
     nodeEdgeStats?: NodeEdgeStats;
     sequenceStats?: SequenceStats;
+    popGenStats?: PopGenStats | null;
     label: string;
   };
   secondDatasetStats: {
     nodeEdgeStats?: NodeEdgeStats;
     sequenceStats?: SequenceStats;
+    popGenStats?: PopGenStats | null;
     label: string;
   };
   performanceStats?: PerformanceStats;
@@ -89,6 +92,9 @@ export const DiffStatsPanel: React.FC<DiffStatsPanelProps> = ({
           {firstDatasetStats.nodeEdgeStats && (
             <NodeEdgeCountDisplay stats={firstDatasetStats.nodeEdgeStats} />
           )}
+          {firstDatasetStats.popGenStats && (
+            <PopGenStatsDisplay fullStats={firstDatasetStats.popGenStats} />
+          )}
         </div>
 
         {/* Second Dataset Section */}
@@ -99,6 +105,9 @@ export const DiffStatsPanel: React.FC<DiffStatsPanelProps> = ({
           )}
           {secondDatasetStats.nodeEdgeStats && (
             <NodeEdgeCountDisplay stats={secondDatasetStats.nodeEdgeStats} />
+          )}
+          {secondDatasetStats.popGenStats && (
+            <PopGenStatsDisplay fullStats={secondDatasetStats.popGenStats} />
           )}
         </div>
 

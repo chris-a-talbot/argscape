@@ -328,7 +328,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   const mutationMarkers = useMemo(() => {
     const nodeMap = new Map<number, NodeDiff3D>();
     nodes3D.forEach(node => nodeMap.set(node.id, node));
-    return createMutationMarkersUtil(firstData.edges, nodeMap, edgeMutationSettings);
+    return createMutationMarkersUtil(firstData.edges, nodeMap, edgeMutationSettings, colors);
   }, [nodes3D, firstData.edges, edgeMutationSettings]);
 
   // Calculate coordinate transform for heatmap
@@ -800,15 +800,16 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
         getPosition: (d: MutationMarker3D) => d.position,
         getText: (d: MutationMarker3D) => d.text,
         getColor: (d: MutationMarker3D) => d.color,
-        getSize: (d: MutationMarker3D) => d.size * 0.9,
+        getSize: (d: MutationMarker3D) => d.size * 1.1, // Slightly larger for better visibility
+        opacity: 1.0, // Full opacity for mutation markers
         getTextAnchor: 'middle' as const,
         getAlignmentBaseline: 'center' as const,
         fontFamily: 'monospace, Arial, sans-serif',
-        fontWeight: 'bold',
+        fontWeight: '900', // Extra bold for thicker stroke visibility
         billboard: true,
-        background: true,
-        backgroundColor: [255, 255, 255, 220],
-        backgroundPadding: [2, 1.5, 2, 1.5],
+        background: true, // Subtle background for 3D visibility
+        backgroundColor: [79, 70, 229, 150], // More opaque indigo background for better visibility
+        backgroundPadding: [1, 1, 1, 1], // Minimal padding
         updateTriggers: {
           getData: [heatmapSettings],
           getPosition: [edgeMutationSettings, mutationMarkers],

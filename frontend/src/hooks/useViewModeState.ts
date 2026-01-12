@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { GraphNode, GraphData } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 import { getDescendants, getAncestors } from '../utils/graphTraversal';
 
@@ -35,6 +36,7 @@ export const useViewModeState = (
     setResetTrigger: (trigger: number) => void,
     initialFocus?: InitialFocusParams
 ): UseViewModeStateResult => {
+    const [searchParams, setSearchParams] = useSearchParams();
     const [viewMode, setViewMode] = useState<ViewMode>('full');
     const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
     const [resetTrigger, setLocalResetTrigger] = useState(0);
@@ -111,6 +113,31 @@ export const useViewModeState = (
 
         return () => clearTimeout(timeoutId);
     }, [viewMode, selectedNode?.id]);
+
+    // Update URL parameters when focal node is selected/deselected
+    useEffect(() => {
+        const newSearchParams = new URLSearchParams(searchParams);
+
+        if (viewMode === 'full' || !selectedNode) {
+            // Remove focus parameters when returning to full view
+            newSearchParams.delete('focus_root');
+            newSearchParams.delete('focus_sample');
+        } else if (selectedNode) {
+            // Add focus parameters when focal node is selected
+            if (selectedNode.is_sample) {
+                newSearchParams.set('focus_sample', selectedNode.id.toString());
+                newSearchParams.delete('focus_root');
+            } else {
+                newSearchParams.set('focus_root', selectedNode.id.toString());
+                newSearchParams.delete('focus_sample');
+            }
+        }
+
+        // Only update if parameters actually changed
+        if (newSearchParams.toString() !== searchParams.toString()) {
+            setSearchParams(newSearchParams, { replace: true });
+        }
+    }, [viewMode, selectedNode, searchParams, setSearchParams]);
 
     // Memoize filtered data to prevent unnecessary re-renders
     const filteredData = useMemo(() => {

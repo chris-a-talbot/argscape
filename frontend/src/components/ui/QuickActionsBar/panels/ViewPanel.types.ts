@@ -21,12 +21,12 @@ export type CameraPreset = 'fit' | 'medium' | 'far' | 'top' | 'side' | 'isometri
 /**
  * Layout preset options for 2D force-directed graph
  */
-export type LayoutPreset = 
+export type LayoutPreset =
   | 'numeric'
   | 'first-tree'
   | 'center-tree'
   | 'consensus'
-  | 'ancestral-path'
+  | 'ancestral_path'
   | 'coalescence'
   | 'dagre';
 
@@ -59,7 +59,7 @@ export type SampleOrderType =
   | 'center_minlex'
   | 'consensus_minlex'
   | 'ancestral_path'
-  | 'coalescence_minlex'
+  | 'coalescence'
   | 'dagre';
 
 /**

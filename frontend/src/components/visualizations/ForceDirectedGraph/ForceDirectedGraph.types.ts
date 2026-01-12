@@ -118,6 +118,9 @@ export interface GraphData {
         // Population metadata
         has_populations?: boolean;
         populations?: number[];
+        // Additional sequence statistics
+        num_mutations?: number;
+        num_individuals?: number;
         // Geographic metadata
         coordinate_system?: string;
         geographic_shape?: GeographicShape;
@@ -160,7 +163,7 @@ export interface EdgeMutationSettings {
 
 export type TemporalSpacingMode = 'equal' | 'log' | 'linear';
 
-export type SampleOrderType = 'ancestral' | 'center_minlex' | 'first_minlex' | 'consensus_minlex' | 'numeric' | 'dagre' | 'coalescence';
+export type SampleOrderType = 'ancestral_path' | 'center_minlex' | 'first_minlex' | 'consensus_minlex' | 'numeric' | 'dagre' | 'coalescence';
 
 export interface ForceTuningSettings {
     chargeScale: number;            // Multiplier for many-body charge strength

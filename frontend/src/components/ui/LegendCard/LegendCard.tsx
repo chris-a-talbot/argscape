@@ -174,6 +174,26 @@ export function LegendCard({
           </svg>
         );
 
+      case 'bar':
+        // Vertical bar representing mutation markers on edges
+        return (
+          <svg
+            width={size}
+            height={size}
+            viewBox={`0 0 ${size} ${size}`}
+            fill="none"
+          >
+            <rect
+              x={halfSize - 1.5}
+              y={1}
+              width={3}
+              height={size - 2}
+              fill={item.color}
+              rx={1}
+            />
+          </svg>
+        );
+
       case 'circle':
       default:
         return (

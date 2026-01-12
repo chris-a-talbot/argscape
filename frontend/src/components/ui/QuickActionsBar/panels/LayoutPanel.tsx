@@ -12,6 +12,7 @@
 import React from 'react';
 import { LayoutPanelProps, SampleOrderType, TemporalSpacingMode } from './LayoutPanel.types';
 import { useColorTheme } from '../../../../context/ColorThemeContext';
+import { Tooltip } from '../../tooltip';
 
 // Sample order options
 const SAMPLE_ORDER_OPTIONS: { value: SampleOrderType; label: string }[] = [
@@ -19,8 +20,8 @@ const SAMPLE_ORDER_OPTIONS: { value: SampleOrderType; label: string }[] = [
   { value: 'first_minlex', label: 'First Tree' },
   { value: 'center_minlex', label: 'Center Tree' },
   { value: 'consensus_minlex', label: 'Consensus' },
-  { value: 'ancestral_path', label: 'Ancestral' },
-  { value: 'coalescence_minlex', label: 'Coalescence' },
+  { value: 'ancestral_path', label: 'Ancestral Path' },
+  { value: 'coalescence', label: 'Coalescence' },
   { value: 'dagre', label: 'Dagre' },
 ];
 
@@ -30,6 +31,41 @@ const SPACING_MODE_OPTIONS: { value: TemporalSpacingMode; label: string }[] = [
   { value: 'linear', label: 'Linear' },
   { value: 'log', label: 'Log' },
 ];
+
+// Tooltip content
+const SAMPLE_ORDER_TOOLTIP = (
+  <div>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Numeric:</strong> Orders by sample ID. Simple and predictable.
+    </p>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>First Tree:</strong> Optimizes for the first tree to minimize crossings.
+    </p>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Center Tree:</strong> Uses the center tree for ordering. Good for balanced views.
+    </p>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Consensus:</strong> Works well across all trees. Best general-purpose choice.
+    </p>
+    <p>
+      <strong>Dagre:</strong> Hierarchical layout algorithm. Best for complex topologies.
+    </p>
+  </div>
+);
+
+const TEMPORAL_SPACING_TOOLTIP = (
+  <div>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Equal:</strong> Spaces generations evenly. Best for understanding structure.
+    </p>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Linear:</strong> Proportional to actual time. Shows true temporal relationships.
+    </p>
+    <p>
+      <strong>Log:</strong> Logarithmic scaling. Best for large time spans with recent clustering.
+    </p>
+  </div>
+);
 
 /**
  * Compact slider component
@@ -234,6 +270,9 @@ export const LayoutPanel: React.FC<LayoutPanelProps> = ({
     textTransform: 'uppercase',
     letterSpacing: '0.05em',
     marginBottom: '0.125rem',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
   };
 
   const infoTextStyle: React.CSSProperties = {
@@ -253,7 +292,10 @@ export const LayoutPanel: React.FC<LayoutPanelProps> = ({
       {/* Arrangement: Sample Order */}
       {hasSampleOrder && (
         <div style={sectionStyle}>
-          <div style={sectionHeaderStyle}>Sample Order</div>
+          <div style={sectionHeaderStyle}>
+            <span>Sample Order</span>
+            <Tooltip content={SAMPLE_ORDER_TOOLTIP} />
+          </div>
           <ButtonGroup
             options={SAMPLE_ORDER_OPTIONS}
             value={sampleOrder}
@@ -270,7 +312,10 @@ export const LayoutPanel: React.FC<LayoutPanelProps> = ({
       {/* Arrangement: Temporal Spacing Mode */}
       {hasSpacingMode && (
         <div style={sectionStyle}>
-          <div style={sectionHeaderStyle}>Temporal Spacing</div>
+          <div style={sectionHeaderStyle}>
+            <span>Temporal Spacing</span>
+            <Tooltip content={TEMPORAL_SPACING_TOOLTIP} />
+          </div>
           <ButtonGroup
             options={SPACING_MODE_OPTIONS}
             value={temporalSpacingMode}

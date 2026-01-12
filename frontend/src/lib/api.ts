@@ -445,7 +445,7 @@ class ApiService {
     if (options.sampleIds?.length) params.append('sample_ids', options.sampleIds.join(','));
     if (options.sampleRangeStart !== undefined) params.append('sample_range_start', options.sampleRangeStart.toString());
     if (options.sampleRangeEnd !== undefined) params.append('sample_range_end', options.sampleRangeEnd.toString());
-    if (options.randomSeed !== undefined) params.append('random_seed', options.randomSeed.toString());
+    if (options.randomSeed !== undefined && options.randomSeed !== null) params.append('random_seed', options.randomSeed.toString());
     if (options.samplePopulations?.length) params.append('sample_populations', options.samplePopulations.join(','));
 
     const endpoint = `${API_CONFIG.ENDPOINTS.GRAPH_DATA}/${encodeURIComponent(filename)}?${params}`;
@@ -490,8 +490,27 @@ class ApiService {
     params.append('window_size', options.windowSize.toString());
     if (options.windowStep !== undefined) params.append('window_step', options.windowStep.toString());
     if (options.mutationRate !== undefined) params.append('mutation_rate', options.mutationRate.toString());
-    
+
     const endpoint = `/statistics/windowed/${encodeURIComponent(filename)}?${params}`;
+    return this.request(endpoint);
+  }
+
+  async getWindowStatistics(
+    filename: string,
+    options: {
+      genomicStart?: number;
+      genomicEnd?: number;
+      treeStartIdx?: number;
+      treeEndIdx?: number;
+    }
+  ) {
+    const params = new URLSearchParams();
+    if (options.genomicStart !== undefined) params.append('start', options.genomicStart.toString());
+    if (options.genomicEnd !== undefined) params.append('end', options.genomicEnd.toString());
+    if (options.treeStartIdx !== undefined) params.append('tree_start_idx', options.treeStartIdx.toString());
+    if (options.treeEndIdx !== undefined) params.append('tree_end_idx', options.treeEndIdx.toString());
+
+    const endpoint = `/statistics/window/${encodeURIComponent(filename)}?${params}`;
     return this.request(endpoint);
   }
 
@@ -740,6 +759,8 @@ export const api = {
     apiService.getStatisticsForRange(filename, options),
   getWindowedStatistics: (filename: string, options: Parameters<typeof apiService.getWindowedStatistics>[1]) =>
     apiService.getWindowedStatistics(filename, options),
+  getWindowStatistics: (filename: string, options: Parameters<typeof apiService.getWindowStatistics>[1]) =>
+    apiService.getWindowStatistics(filename, options),
   
   // Location inference
   inferLocationsFast: (params: Parameters<typeof apiService.inferLocationsFast>[0]) => 

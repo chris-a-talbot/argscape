@@ -477,7 +477,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     const nodeMap = new Map<number, Node3D>();
     nodes3D.forEach(node => nodeMap.set(node.id, node));
     
-    return createMutationMarkersUtil(combinedEdgesForTransform, nodeMap, edgeMutationSettings);
+    return createMutationMarkersUtil(combinedEdgesForTransform, nodeMap, edgeMutationSettings, colors);
   }, [edges3D, combinedEdgesForTransform, nodes3D, edgeMutationSettings, colors]);
 
   // Create ancestry density heatmap
@@ -892,15 +892,16 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       getPosition: (d: MutationMarker3D) => d.position,
       getText: (d: MutationMarker3D) => d.text,
       getColor: (d: MutationMarker3D) => d.color,
-      getSize: (d: MutationMarker3D) => d.size * 0.9, // Adjusted for more compact appearance
+      getSize: (d: MutationMarker3D) => d.size * 1.1, // Slightly larger for better visibility
+      opacity: 1.0, // Full opacity for mutation markers
       getTextAnchor: 'middle' as const,
       getAlignmentBaseline: 'center' as const,
       fontFamily: 'monospace, Arial, sans-serif', // Monospace for better symbol rendering
-      fontWeight: 'bold', // Bold for better visibility
+      fontWeight: '900', // Extra bold for thicker stroke visibility
       billboard: true, // Face camera for better readability in 3D
-      background: true, // Add background for better contrast
-      backgroundColor: [255, 255, 255, 220], // More opaque white background for better contrast
-      backgroundPadding: [2, 1.5, 2, 1.5], // Halved for more compact appearance
+      background: true, // Subtle background for 3D visibility
+      backgroundColor: [79, 70, 229, 150], // More opaque indigo background for better visibility
+      backgroundPadding: [1, 1, 1, 1], // Minimal padding
       updateTriggers: {
         getData: [heatmapSettings],
         getPosition: [edgeMutationSettings, mutationMarkers],

@@ -5,6 +5,7 @@ import { useColorTheme } from '../../context/ColorThemeContext';
 import { useRef, useEffect, useState, useMemo } from 'react';
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
+import { SwitchVizButton } from '../ui/SwitchVizButton';
 import { log } from '../../lib/logger';
 
 import { useThemeStyles } from '../../hooks/useThemeStyles';
@@ -94,13 +95,13 @@ export default function SpatialArg3DVisualizationPage() {
     }
 
     const decodedFilename = decodeURIComponent(filename);
+    const currentParams = searchParams.toString();
 
     const handleTreeSequenceSelect = (treeSequence: any) => {
         log.user.action('switch-tree-sequence-spatial', { treeSequence }, 'SpatialArg3DVisualizationPage');
         setTreeSequence(treeSequence);
         setShowTreeSequenceSelector(false);
         // Navigate to the new tree sequence while maintaining all visualization settings
-        const currentParams = searchParams.toString();
         navigate(`/spatial/${encodeURIComponent(treeSequence.filename)}${currentParams ? `?${currentParams}` : ''}`);
     };
 
@@ -110,13 +111,14 @@ export default function SpatialArg3DVisualizationPage() {
             style={{ backgroundColor: colors.background, color: colors.text }}
         >
             {/* Header */}
-            <header 
-                className="border-b shadow-md flex-shrink-0 transition-colors duration-300"
-                style={{ 
-                    backgroundColor: navStyle.backgroundColor, 
+            <header
+                className="border-b shadow-md flex-shrink-0 transition-colors duration-300 relative"
+                style={{
+                    backgroundColor: navStyle.backgroundColor,
                     borderBottomColor: navStyle.borderBottomColor,
                     backdropFilter: navStyle.backdropFilter,
                     WebkitBackdropFilter: navStyle.WebkitBackdropFilter,
+                    zIndex: 10001,
                 }}
             >
                 <div className="max-w-7xl mx-auto">
@@ -163,7 +165,13 @@ export default function SpatialArg3DVisualizationPage() {
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                 </svg>
                                 <span>Switch File</span>
-                            </button>
+                                </button>
+
+                            <SwitchVizButton
+                                currentViz="3d"
+                                filename={decodedFilename}
+                                currentParams={currentParams}
+                            />
 
                             <div
                                 className="text-sm font-mono truncate"

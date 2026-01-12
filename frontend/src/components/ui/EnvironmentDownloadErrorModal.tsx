@@ -45,7 +45,7 @@ export default function EnvironmentDownloadErrorModal({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10002] p-4">
       <div className="bg-sp-dark-blue border border-sp-pale-green/20 rounded-lg max-w-md w-full p-6">
         <div className="flex items-start space-x-3">
           <div className="flex-shrink-0">

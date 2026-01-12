@@ -65,6 +65,8 @@ export interface PanelConfig {
   maxHeight?: number;
   /** Custom panel header (optional) */
   header?: ReactNode;
+  /** Default width in pixels (for floating panels) */
+  defaultWidth?: number;
 }
 
 /**

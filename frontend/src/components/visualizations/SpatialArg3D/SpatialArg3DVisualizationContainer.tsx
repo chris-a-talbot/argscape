@@ -18,6 +18,7 @@ import { getDescendants, getAncestors, isRootNode } from '../../../utils/graphTr
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
 import { useElapsedTime, formatElapsedTime } from '../../../hooks/useElapsedTime';
+import { useWindowStats } from '../../../hooks/useWindowStats';
 import { isRailway } from '../../../config/constants';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
@@ -106,9 +107,24 @@ const createFilterOptions = (
   metadata: any,
   maxSamples: number,
   genomicFilterMode: 'subset' | 'dim' = 'dim',
-  treeFilterMode: 'subset' | 'dim' = 'dim'
+  treeFilterMode: 'subset' | 'dim' = 'dim',
+  sampleSubsetMode?: string,
+  sampleIds?: number[],
+  sampleRange?: [number, number] | null,
+  randomSeed?: number | null,
+  selectedPopulations?: number[]
 ) => {
   const options: any = { maxSamples };
+
+  // Add sample subsetting parameters
+  if (sampleSubsetMode) options.sampleSubsetMode = sampleSubsetMode;
+  if (sampleIds) options.sampleIds = sampleIds;
+  if (sampleRange) {
+    options.sampleRangeStart = sampleRange[0];
+    options.sampleRangeEnd = sampleRange[1];
+  }
+  if (randomSeed !== undefined) options.randomSeed = randomSeed;
+  if (selectedPopulations) options.samplePopulations = selectedPopulations;
 
   // Only apply API-level filtering when in 'subset' mode
   // In 'dim' mode, we fetch all data and apply opacity changes client-side
@@ -377,8 +393,15 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   initialHeatmapMode = false
 }) => {
   const { colors } = useColorTheme();
-  const { treeSequence } = useTreeSequence();
-  const [searchParams] = useSearchParams();
+  const {
+    treeSequence,
+    sampleSubsetMode,
+    sampleIds,
+    sampleRange,
+    randomSeed,
+    selectedPopulations
+  } = useTreeSequence();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [data, setData] = useState<GraphData | null>(null);
   const [subArgData, setSubArgData] = useState<GraphData | null>(null);
@@ -389,6 +412,33 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const [viewMode, setViewMode] = useState<ViewMode>('full');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
   const [initialFocusApplied, setInitialFocusApplied] = useState(false);
+
+  // Update URL parameters when focal node is selected/deselected
+  useEffect(() => {
+    if (initialFocusApplied) {
+      const newSearchParams = new URLSearchParams(searchParams);
+
+      if (viewMode === 'full' || !selectedNode) {
+        // Remove focus parameters when returning to full view
+        newSearchParams.delete('focus_root');
+        newSearchParams.delete('focus_sample');
+      } else if (selectedNode) {
+        // Add focus parameters when focal node is selected
+        if (selectedNode.is_sample) {
+          newSearchParams.set('focus_sample', selectedNode.id.toString());
+          newSearchParams.delete('focus_root');
+        } else {
+          newSearchParams.set('focus_root', selectedNode.id.toString());
+          newSearchParams.delete('focus_sample');
+        }
+      }
+
+      // Only update if parameters actually changed
+      if (newSearchParams.toString() !== searchParams.toString()) {
+        setSearchParams(newSearchParams, { replace: true });
+      }
+    }
+  }, [viewMode, selectedNode, searchParams, initialFocusApplied]);
 
   // Parse initial focus params from URL
   const initialFocus = useMemo(() => {
@@ -443,7 +493,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     sequenceLength: 0,
     treeIntervals: [] as TreeInterval[]
   });
-  
+
   const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
   const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
   const [edgeMutationSettings, setEdgeMutationSettings] = useState<EdgeMutationSettings>(DEFAULT_VISUAL_SETTINGS.edgeMutationSettings);
@@ -496,6 +546,18 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const [spatialFilterEnabled, setSpatialFilterEnabled] = useState(false);
   const [temporalFilterEnabled, setTemporalFilterEnabled] = useState(false);
 
+  // Window stats for filtered genomic regions
+  const windowStatsResult = useWindowStats({
+    filename: filename || null,
+    isGenomicFilterActive: spatialFilterEnabled && filterState.isActive,
+    filterMode: filterState.mode,
+    genomicStart: filterState.genomicRange[0],
+    genomicEnd: filterState.genomicRange[1],
+    treeStartIdx: filterState.treeRange[0],
+    treeEndIdx: filterState.treeRange[1],
+    sequenceLength: metadata.sequenceLength,
+  });
+
   // Filter modes: 'subset' hides elements, 'dim' shows them with reduced opacity
   const [genomicFilterMode, setGenomicFilterMode] = useState<'subset' | 'dim'>('dim');
   const [treeFilterMode, setTreeFilterMode] = useState<'subset' | 'dim'>('dim');
@@ -537,10 +599,17 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const handleTemporalFilterToggle = useCallback((enabled: boolean) => {
     setTemporalFilterEnabled(enabled);
     if (enabled) {
-      // When enabling, set range to full [minTime, maxTime]
+      // When enabling, set range to full [minTime, maxTime] and mark as active
       setTemporalState(prev => ({
         ...prev,
+        isActive: true,
         range: [prev.minTime, prev.maxTime]
+      }));
+    } else {
+      // When disabling, mark as inactive
+      setTemporalState(prev => ({
+        ...prev,
+        isActive: false
       }));
     }
   }, []);
@@ -586,7 +655,16 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         // Build options including URL parameters
         // Start with 0% unary retention for initial load
         const retentionPercent = unaryRetentionPercent ?? 0;
-        const options: any = { maxSamples: max_samples, unaryRetentionPercent: retentionPercent };
+        const options: any = {
+          maxSamples: max_samples,
+          unaryRetentionPercent: retentionPercent,
+          // Sample subsetting parameters from TreeSequenceContext
+          sampleSubsetMode,
+          sampleIds,
+          ...(sampleRange && { sampleRangeStart: sampleRange[0], sampleRangeEnd: sampleRange[1] }),
+          randomSeed,
+          samplePopulations: selectedPopulations,
+        };
         
         // Add temporal filtering if provided via URL
         if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -692,7 +770,16 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       // Otherwise, fetch with 100% to see total possible nodes
       setIsCalculatingDefault(true);
       try {
-        const options: any = { maxSamples: max_samples, unaryRetentionPercent: 100 };
+        const options: any = {
+          maxSamples: max_samples,
+          unaryRetentionPercent: 100,
+          // Sample subsetting parameters from TreeSequenceContext
+          sampleSubsetMode,
+          sampleIds,
+          ...(sampleRange && { sampleRangeStart: sampleRange[0], sampleRangeEnd: sampleRange[1] }),
+          randomSeed,
+          samplePopulations: selectedPopulations,
+        };
         
         // Include same filters as initial load
         if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -746,7 +833,18 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       try {
         setLoading(true);
 
-        const options = createFilterOptions(filterState, metadata, max_samples, genomicFilterMode, treeFilterMode);
+        const options = createFilterOptions(
+          filterState,
+          metadata,
+          max_samples,
+          genomicFilterMode,
+          treeFilterMode,
+          sampleSubsetMode,
+          sampleIds,
+          sampleRange,
+          randomSeed,
+          selectedPopulations
+        );
         options.unaryRetentionPercent = unaryRetentionPercent ?? 0;
         
         // Always include URL parameters if present
@@ -1315,11 +1413,13 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 onSpatialFilterToggle={handleSpatialFilterToggle}
                 temporalFilterEnabled={temporalFilterEnabled}
                 onTemporalFilterToggle={handleTemporalFilterToggle}
-                temporalFilterMode={temporalState.mode === 'hide' ? 'subset' : temporalState.mode === 'planes' ? 'highlight' : 'subset'}
+                temporalFilterMode={temporalState.mode}
                 onTemporalFilterModeChange={(mode) => setTemporalState(prev => ({
                   ...prev,
-                  mode: mode === 'subset' ? 'hide' : mode === 'highlight' ? 'planes' : 'hybrid'
+                  mode
                 }))}
+                temporalDimOpacity={temporalDimOpacity}
+                onTemporalDimOpacityChange={setTemporalDimOpacity}
 
                 // Nodes props
                 colorBy={colorByPopulation ? 'population' : 'type'}
@@ -1372,6 +1472,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                   trees: data.metadata.num_local_trees || 1,
                   mutations: 0,
                 } : undefined}
+                popGenStats={treeSequence?.statistics}
+                windowPopGenStats={windowStatsResult.windowStats}
+                windowStatsLoading={windowStatsResult.isLoading}
+                isGenomicFilterActive={spatialFilterEnabled && (filterState.mode === 'genomic' || filterState.mode === 'tree')}
 
                 // Export props
                 filename={filename}

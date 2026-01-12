@@ -28,7 +28,7 @@ import type { TabConfig, PanelConfig, QuickActionTab } from '@/components/ui/Qui
 import type { FilterMode } from '@/components/ui/QuickActionsBar/panels/FilterPanel.types';
 import type { ColorByMode, NodeSizeSettings, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings } from '@/components/ui/QuickActionsBar/panels/StylePanel.types';
 import type { TemporalSpacingMode, SampleOrderType, ForceTuningSettings } from '@/components/ui/QuickActionsBar/panels/ViewPanel.types';
-import type { NodeEdgeStats, SequenceStats, PerformanceStats, FilterSummary } from '@/components/ui/QuickActionsBar/panels/StatsPanel.types';
+import type { NodeEdgeStats, SequenceStats, PerformanceStats, FilterSummary, PopGenStats } from '@/components/ui/QuickActionsBar/panels/StatsPanel.types';
 
 export interface ForceDirectedGraphControlsProps {
   // Filtering
@@ -137,6 +137,10 @@ export interface ForceDirectedGraphControlsProps {
   // Stats
   nodeEdgeStats?: NodeEdgeStats;
   sequenceStats?: SequenceStats;
+  popGenStats?: PopGenStats | null;
+  windowPopGenStats?: PopGenStats | null;
+  windowStatsLoading?: boolean;
+  isGenomicFilterActive?: boolean;
   performanceStats?: PerformanceStats;
   filterSummary?: FilterSummary;
 
@@ -238,6 +242,10 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
   // Stats
   nodeEdgeStats,
   sequenceStats,
+  popGenStats,
+  windowPopGenStats,
+  windowStatsLoading = false,
+  isGenomicFilterActive = false,
   performanceStats,
   filterSummary,
 
@@ -505,6 +513,10 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
           <StatsPanel
             nodeEdgeStats={nodeEdgeStats}
             sequenceStats={sequenceStats}
+            popGenStats={popGenStats}
+            windowPopGenStats={windowPopGenStats}
+            windowStatsLoading={windowStatsLoading}
+            isGenomicFilterActive={isGenomicFilterActive}
             performanceStats={performanceStats}
             filterSummary={filterSummary}
             showExport={false}
@@ -515,7 +527,8 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
             Loading statistics...
           </div>
         ),
-      defaultHeight: 350,
+      defaultHeight: 400,
+      defaultWidth: 340,
     },
     {
       tabId: 'export',

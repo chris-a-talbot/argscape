@@ -56,7 +56,7 @@ export const AnimationPopout: React.FC<AnimationPopoutProps> = ({
 
   const panelStyle: React.CSSProperties = {
     position: 'absolute',
-    top: '1rem',
+    bottom: '1rem',
     [position]: '1rem',
     width: '200px',
     padding: '0.75rem',

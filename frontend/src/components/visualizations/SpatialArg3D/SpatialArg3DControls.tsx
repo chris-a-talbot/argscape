@@ -51,6 +51,8 @@ import type {
   TemporalFilterConfig,
   FilterMode,
   FilterType,
+  TemporalFilterMode,
+  PopGenStats,
 } from '@/components/ui/QuickActionsBar/panels';
 
 // Types for node sizes
@@ -88,8 +90,8 @@ export interface SpatialArg3DControlsProps {
   onFilterModeChange?: (mode: FilterMode) => void;
   dimOpacity?: number;
   onDimOpacityChange?: (opacity: number) => void;
-  temporalFilterMode?: FilterMode;
-  onTemporalFilterModeChange?: (mode: FilterMode) => void;
+  temporalFilterMode?: TemporalFilterMode;
+  onTemporalFilterModeChange?: (mode: TemporalFilterMode) => void;
   temporalDimOpacity?: number;
   onTemporalDimOpacityChange?: (opacity: number) => void;
 
@@ -125,6 +127,10 @@ export interface SpatialArg3DControlsProps {
   // Stats props
   nodeEdgeStats?: NodeEdgeStats;
   sequenceStats?: SequenceStats;
+  popGenStats?: PopGenStats | null;
+  windowPopGenStats?: PopGenStats | null;
+  windowStatsLoading?: boolean;
+  isGenomicFilterActive?: boolean;
   performanceStats?: PerformanceStats;
   filterSummary?: FilterSummary;
   onStatsExport?: (format: ExportFormat) => void;
@@ -199,7 +205,7 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
   onFilterModeChange,
   dimOpacity = 0.05,
   onDimOpacityChange,
-  temporalFilterMode = 'highlight',
+  temporalFilterMode = 'planes',
   onTemporalFilterModeChange,
   temporalDimOpacity = 0.05,
   onTemporalDimOpacityChange,
@@ -236,6 +242,10 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
   // Stats props
   nodeEdgeStats,
   sequenceStats,
+  popGenStats,
+  windowPopGenStats,
+  windowStatsLoading = false,
+  isGenomicFilterActive = false,
   performanceStats,
   filterSummary,
   onStatsExport,
@@ -405,6 +415,10 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
           <StatsPanel
             nodeEdgeStats={nodeEdgeStats}
             sequenceStats={sequenceStats}
+            popGenStats={popGenStats}
+            windowPopGenStats={windowPopGenStats}
+            windowStatsLoading={windowStatsLoading}
+            isGenomicFilterActive={isGenomicFilterActive}
             performanceStats={performanceStats}
             filterSummary={filterSummary}
             showExport={!!onStatsExport}
@@ -413,6 +427,7 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
           />
         ),
         defaultHeight: 400,
+        defaultWidth: 340,
       });
     }
 
@@ -533,6 +548,10 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
     // Stats deps
     nodeEdgeStats,
     sequenceStats,
+    popGenStats,
+    windowPopGenStats,
+    windowStatsLoading,
+    isGenomicFilterActive,
     performanceStats,
     filterSummary,
     onStatsExport,

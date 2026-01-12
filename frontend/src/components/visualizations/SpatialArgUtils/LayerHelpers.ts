@@ -2,6 +2,7 @@ import { PolygonLayer } from '@deck.gl/layers';
 import { EdgeMutationSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
 import { MutationMarker3D } from './SpatialArg.types';
 import { GraphEdge } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { ColorScheme } from '@/context/ColorThemeContext';
 
 /**
  * Parse hex color string to RGBA array
@@ -64,7 +65,8 @@ export function calculateMidpoint(
 export function createMutationMarkers<T extends { id: number; time: number; position: [number, number, number] }>(
   edges: GraphEdge[],
   nodeMap: Map<number, T>,
-  edgeMutationSettings: EdgeMutationSettings | undefined
+  edgeMutationSettings: EdgeMutationSettings | undefined,
+  colors: ColorScheme
 ): MutationMarker3D[] {
   if (!edgeMutationSettings?.showMutationMarkers) {
     return [];
@@ -115,8 +117,8 @@ export function createMutationMarkers<T extends { id: number; time: number; posi
       
       markers.push({
         position,
-        text: "×", // Use multiplication sign for clean "x" appearance
-        color: [220, 38, 38, 255], // Red color (#dc2626)
+        text: "✕", // Use heavy multiplication sign for thicker appearance
+        color: colors.mutationMarker, // Use theme mutation marker color
         size: edgeMutationSettings.markerSize || 18,
         sourceId: sourceId,
         targetId: targetId,

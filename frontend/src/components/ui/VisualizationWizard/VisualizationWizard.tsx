@@ -561,19 +561,21 @@ export function VisualizationWizard({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10002]">
       {/* Backdrop */}
       <div
-        className="absolute inset-0"
+        className="fixed inset-0"
         style={modalOverlayStyle}
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div
-        className="relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
-        style={modalGlassStyle}
-      >
+      {/* Modal content container */}
+      <div className="flex items-center justify-center min-h-screen p-4">
+        {/* Modal */}
+        <div
+          className="relative w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden"
+          style={modalGlassStyle}
+        >
         {/* Header */}
         <div
           className="flex items-center justify-between px-6 py-4 border-b"
@@ -696,6 +698,7 @@ export function VisualizationWizard({
                 : 'Launch'
               : 'Continue'}
           </button>
+        </div>
         </div>
       </div>
     </div>

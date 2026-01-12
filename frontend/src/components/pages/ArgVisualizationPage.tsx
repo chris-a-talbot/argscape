@@ -11,7 +11,7 @@ export default function ArgVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const { maxSamples, setTreeSequence } = useTreeSequence();
+    const { maxSamples, setTreeSequence, treeSequence } = useTreeSequence();
     const { colors, setCurrentVisualizationType } = useColorTheme();
     const svgRef = useRef<SVGSVGElement>(null);
 
@@ -65,6 +65,8 @@ export default function ArgVisualizationPage() {
                 decodedFilename={decodedFilename}
                 onTreeSequenceSelect={handleTreeSequenceSelect}
                 currentParams={currentParams}
+                hasSpatialData={treeSequence?.has_all_spatial || false}
+                hasTreeSequence={!!treeSequence}
             />
 
             {/* Main content - Full width and height */}

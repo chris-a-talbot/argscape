@@ -53,13 +53,16 @@ export default function ConfirmModal({
   const confirmButtonHoverColor = isDanger ? semanticColors.errorHover : colors.accentSecondary;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10002]">
       {/* Backdrop with consistent blur */}
-      <div 
-        className="absolute inset-0" 
+      <div
+        className="fixed inset-0"
         style={modalOverlayStyle}
         onClick={onCancel}
       />
+
+      {/* Modal content container */}
+      <div className="flex items-center justify-center min-h-screen p-4">
       
       {/* Modal with proper glass treatment */}
       <div 
@@ -130,6 +133,7 @@ export default function ConfirmModal({
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

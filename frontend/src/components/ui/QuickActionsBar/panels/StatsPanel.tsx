@@ -16,11 +16,16 @@ import { NodeEdgeCountDisplay } from './NodeEdgeCountDisplay';
 import { SequenceStatsDisplay } from './SequenceStatsDisplay';
 import { PerformanceStatsDisplay } from './PerformanceStatsDisplay';
 import { FilterSummaryDisplay } from './FilterSummaryDisplay';
+import { PopGenStatsDisplay } from './PopGenStatsDisplay';
 import type { StatsPanelProps, ExportFormat, ExportData } from './StatsPanel.types';
 
 export const StatsPanel: React.FC<StatsPanelProps> = ({
   nodeEdgeStats,
   sequenceStats,
+  popGenStats,
+  windowPopGenStats,
+  windowStatsLoading = false,
+  isGenomicFilterActive = false,
   performanceStats,
   filterSummary,
   showExport = true,
@@ -272,6 +277,16 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
 
         {/* Sequence Stats Display */}
         <SequenceStatsDisplay stats={sequenceStats} />
+
+        {/* Population Genetics Stats Display */}
+        {popGenStats && (
+          <PopGenStatsDisplay
+            fullStats={popGenStats}
+            windowStats={windowPopGenStats}
+            windowStatsLoading={windowStatsLoading}
+            isGenomicFilterActive={isGenomicFilterActive}
+          />
+        )}
 
         {/* Performance Stats Display */}
         {showPerformance && performanceStats && (

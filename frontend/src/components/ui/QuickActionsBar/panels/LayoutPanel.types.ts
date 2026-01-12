@@ -22,7 +22,7 @@ export type SampleOrderType =
   | 'center_minlex'
   | 'consensus_minlex'
   | 'ancestral_path'
-  | 'coalescence_minlex'
+  | 'coalescence'
   | 'dagre';
 
 /**

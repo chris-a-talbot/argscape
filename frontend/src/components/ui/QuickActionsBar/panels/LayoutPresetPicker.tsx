@@ -44,7 +44,7 @@ export const DEFAULT_LAYOUT_PRESETS: LayoutPresetConfig[] = [
     computeIntensive: true
   },
   {
-    id: 'ancestral-path',
+    id: 'ancestral_path',
     label: 'Ancestral',
     icon: '🧬',
     description: 'Order by ancestral path length',

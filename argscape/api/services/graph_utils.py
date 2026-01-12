@@ -684,7 +684,9 @@ def convert_to_graph_data(
         'sample_order': sample_order,
         'location_dimensions': effective_location_dims,
         'has_populations': has_populations,
-        'populations': populations_list
+        'populations': populations_list,
+        'num_mutations': ts.num_mutations,
+        'num_individuals': ts.num_individuals
     }
     
     # If we have an expected tree count (from tree index filtering), include it

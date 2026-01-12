@@ -75,6 +75,7 @@ from argscape.api.routes import (
     tree_sequences_router,
     inference_router,
     geographic_router,
+    statistics_router,
 )
 from argscape.api.routes.downloads import router as downloads_router
 
@@ -151,6 +152,7 @@ app.include_router(tree_sequences_router, prefix="/api", tags=["tree_sequences"]
 app.include_router(inference_router, prefix="/api", tags=["inference"])
 app.include_router(geographic_router, prefix="/api", tags=["geographic"])
 app.include_router(downloads_router, prefix="/api", tags=["downloads"])
+app.include_router(statistics_router, prefix="/api", tags=["statistics"])
 
 # Serve environment.yml as a static file (before static file mount to take precedence)
 @app.get("/environment.yml")

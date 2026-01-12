@@ -697,19 +697,21 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
   const { colors: currentColors, modalGlassStyle, modalOverlayStyle } = useThemeStyles();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[10002]">
       {/* Backdrop with consistent blur */}
-      <div 
-        className="absolute inset-0" 
+      <div
+        className="fixed inset-0"
         style={modalOverlayStyle}
         onClick={onClose}
       />
-      
-      {/* Modal with proper glass treatment */}
-      <div 
-        className="relative max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden transform transition-all"
-        style={modalGlassStyle}
-      >
+
+      {/* Modal content container */}
+      <div className="flex items-center justify-center min-h-screen p-4">
+        {/* Modal with proper glass treatment */}
+        <div
+          className="relative max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden transform transition-all"
+          style={modalGlassStyle}
+        >
         <div className="p-6 overflow-y-auto max-h-[85vh] overflow-x-hidden">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
@@ -978,6 +980,7 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
               {editingTheme ? 'Update Theme' : 'Save Theme'}
             </button>
           </div>
+        </div>
         </div>
       </div>
     </div>

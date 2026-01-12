@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react';
 import { GraphData } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
+import { LayerRevealMode } from '../components/ui/QuickActionsBar/panels/ViewPanel.types';
 
 export interface LayerRevealState {
     isPlaying: boolean;
     rate: number; // layers per second
-    mode: 'hide' | 'fade';
+    mode: LayerRevealMode;
     currentProgress: number; // 0 to 1
     initialTarget: [number, number]; // Store initial camera position
     simulationPaused: boolean; // Track if simulation should be paused
@@ -13,7 +14,7 @@ export interface LayerRevealState {
 export interface LayerRevealActions {
     setIsPlaying: (playing: boolean) => void;
     setRate: (rate: number) => void;
-    setMode: (mode: 'hide' | 'fade') => void;
+    setMode: (mode: LayerRevealMode) => void;
     setCurrentProgress: (progress: number) => void;
     setInitialTarget: (target: [number, number]) => void;
     setSimulationPaused: (paused: boolean) => void;
@@ -32,7 +33,7 @@ export const useLayerReveal = (
     const [layerReveal, setLayerReveal] = useState<LayerRevealState>({
         isPlaying: false,
         rate: 2.0,
-        mode: 'hide',
+        mode: 'glide',
         currentProgress: 0,
         initialTarget: [0, 0],
         simulationPaused: false
@@ -150,7 +151,7 @@ export const useLayerReveal = (
         // Actions
         setIsPlaying: (playing: boolean) => setLayerReveal(prev => ({ ...prev, isPlaying: playing })),
         setRate: (rate: number) => setLayerReveal(prev => ({ ...prev, rate })),
-        setMode: (mode: 'hide' | 'fade') => setLayerReveal(prev => ({ ...prev, mode })),
+        setMode: (mode: LayerRevealMode) => setLayerReveal(prev => ({ ...prev, mode })),
         setCurrentProgress: (progress: number) => setLayerReveal(prev => ({ ...prev, currentProgress: progress })),
         setInitialTarget: (target: [number, number]) => setLayerReveal(prev => ({ ...prev, initialTarget: target })),
         setSimulationPaused: (paused: boolean) => setLayerReveal(prev => ({ ...prev, simulationPaused: paused })),

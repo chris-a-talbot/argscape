@@ -12,6 +12,14 @@ import { ReactNode } from 'react';
 export type FilterMode = 'subset' | 'highlight';
 
 /**
+ * Temporal filter mode - specific modes for 3D temporal filtering
+ * - 'hide': Removes nodes outside the time range entirely
+ * - 'planes': Shows all nodes; dims those outside range with opacity
+ * - 'hybrid': Hides nodes AND shows temporal plane markers
+ */
+export type TemporalFilterMode = 'hide' | 'planes' | 'hybrid';
+
+/**
  * Tree interval structure for tree range filtering
  */
 export interface TreeInterval {
@@ -105,10 +113,10 @@ export interface FilterPanelProps {
   dimOpacity: number;
   /** Handler for spatial opacity changes */
   onDimOpacityChange: (opacity: number) => void;
-  /** Current temporal filter mode (subset or highlight) */
-  temporalFilterMode?: FilterMode;
+  /** Current temporal filter mode (hide, planes, or hybrid) */
+  temporalFilterMode?: TemporalFilterMode;
   /** Handler for temporal filter mode changes */
-  onTemporalFilterModeChange?: (mode: FilterMode) => void;
+  onTemporalFilterModeChange?: (mode: TemporalFilterMode) => void;
   /** Dim opacity for temporal highlight mode (0-1) */
   temporalDimOpacity?: number;
   /** Handler for temporal opacity changes */

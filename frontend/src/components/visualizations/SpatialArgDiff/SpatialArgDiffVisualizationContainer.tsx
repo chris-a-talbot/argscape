@@ -234,10 +234,17 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
   const handleTemporalFilterToggle = useCallback((enabled: boolean) => {
     setTemporalFilterEnabled(enabled);
     if (enabled) {
-      // When enabling, set range to full [minTime, maxTime]
+      // When enabling, set range to full [minTime, maxTime] and mark as active
       setTemporalState(prev => ({
         ...prev,
+        isActive: true,
         range: [prev.minTime, prev.maxTime]
+      }));
+    } else {
+      // When disabling, mark as inactive
+      setTemporalState(prev => ({
+        ...prev,
+        isActive: false
       }));
     }
   }, []);
@@ -1177,8 +1184,13 @@ export const SpatialArgDiffVisualizationContainer: React.FC<SpatialArgDiffVisual
               onSpatialFilterToggle={handleSpatialFilterToggle}
               temporalFilterEnabled={temporalFilterEnabled}
               onTemporalFilterToggle={handleTemporalFilterToggle}
-              temporalFilterMode={temporalFilterMode === 'subset' ? 'subset' : 'highlight'}
-              onTemporalFilterModeChange={(mode) => setTemporalFilterMode(mode === 'subset' ? 'subset' : 'dim')}
+              temporalFilterMode={temporalState.mode}
+              onTemporalFilterModeChange={(mode) => setTemporalState(prev => ({
+                ...prev,
+                mode
+              }))}
+              temporalDimOpacity={temporalDimOpacity}
+              onTemporalDimOpacityChange={setTemporalDimOpacity}
 
               // Nodes props
               colorBy={colorByPopulation ? 'population' : 'type'}

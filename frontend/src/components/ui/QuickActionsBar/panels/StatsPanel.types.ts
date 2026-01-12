@@ -43,6 +43,52 @@ export interface SequenceStats {
 }
 
 /**
+ * Population genetics statistics
+ */
+export interface PopGenStats {
+  // Core stats (always shown)
+  nucleotide_diversity?: number | null;
+  wattersons_theta?: number | null;
+  tajimas_d?: number | null;
+  segregating_sites?: number | null;
+  tmrca?: number | null;
+
+  // Advanced stats (shown in expandable section)
+  mean_tree_height?: number | null;
+  median_tree_height?: number | null;
+  mean_tree_length?: number | null;
+  median_tree_length?: number | null;
+  mean_tmrca?: number | null;
+  median_tmrca?: number | null;
+  ne_watterson?: number | null;
+  ne_pi?: number | null;
+  estimated_recombination_rate?: number | null;
+  mean_ld_r2?: number | null;
+  median_ld_r2?: number | null;
+
+  // Population structure (only if multiple populations)
+  fst?: number | null;
+  num_populations?: number | null;
+  mean_divergence?: number | null;
+}
+
+/**
+ * Props for PopGenStatsDisplay component
+ */
+export interface PopGenStatsDisplayProps {
+  /** Full sequence population genetics stats */
+  fullStats?: PopGenStats | null;
+  /** Window-specific stats (when genomic filtering is active) */
+  windowStats?: PopGenStats | null;
+  /** Whether window stats are loading */
+  windowStatsLoading?: boolean;
+  /** Whether genomic filtering is currently active */
+  isGenomicFilterActive?: boolean;
+  /** Custom className */
+  className?: string;
+}
+
+/**
  * Performance monitoring statistics
  */
 export interface PerformanceStats {
@@ -116,6 +162,14 @@ export interface StatsPanelProps {
   nodeEdgeStats: NodeEdgeStats;
   /** Sequence statistics */
   sequenceStats: SequenceStats;
+  /** Population genetics statistics (full sequence) */
+  popGenStats?: PopGenStats | null;
+  /** Population genetics statistics (window only, when genomic filtering active) */
+  windowPopGenStats?: PopGenStats | null;
+  /** Whether window stats are loading */
+  windowStatsLoading?: boolean;
+  /** Whether genomic filtering is currently active */
+  isGenomicFilterActive?: boolean;
   /** Performance statistics (optional) */
   performanceStats?: PerformanceStats;
   /** Active filter summary (optional) */

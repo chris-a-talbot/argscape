@@ -13,7 +13,30 @@
 
 import React from 'react';
 import { useColorTheme } from '@/context/ColorThemeContext';
-import type { FilterPanelProps } from './FilterPanel.types';
+import type { FilterPanelProps, TemporalFilterMode } from './FilterPanel.types';
+import { Tooltip } from '../../tooltip';
+
+// Temporal filter mode options
+const TEMPORAL_MODE_OPTIONS: { value: TemporalFilterMode; label: string }[] = [
+  { value: 'hide', label: 'Hide' },
+  { value: 'planes', label: 'Planes' },
+  { value: 'hybrid', label: 'Hybrid' },
+];
+
+// Tooltip content for temporal modes
+const TEMPORAL_MODE_TOOLTIP = (
+  <div>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Hide:</strong> Removes nodes outside the time range entirely.
+    </p>
+    <p style={{ marginBottom: '0.5rem' }}>
+      <strong>Planes:</strong> Shows all nodes; dims those outside range with opacity.
+    </p>
+    <p>
+      <strong>Hybrid:</strong> Hides nodes AND shows temporal plane markers.
+    </p>
+  </div>
+);
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
   genomicFilter,
@@ -25,16 +48,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onSpatialFilterToggle,
   temporalFilterEnabled = false,
   onTemporalFilterToggle,
-  filterMode,
-  onFilterModeChange,
-  dimOpacity,
-  onDimOpacityChange,
-  temporalFilterMode = 'highlight',
+  temporalFilterMode = 'planes',
   onTemporalFilterModeChange,
-  temporalDimOpacity = 0.05,
-  onTemporalDimOpacityChange,
   className = '',
-  showModeToggle = true,
 }) => {
   const { colors, theme } = useColorTheme();
   const isLiquid = theme === 'liquid';
@@ -229,6 +245,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
             <div style={{ fontSize: '0.625rem', color: colors.textSecondary }}>
               {temporalFilter!.min.toFixed(0)} - {temporalFilter!.max.toFixed(0)}
             </div>
+            {/* Temporal Mode Selector - only show when enabled and handler exists */}
+            {temporalFilterEnabled && onTemporalFilterModeChange && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginTop: '0.25rem' }}>
+                  <span style={{ fontSize: '0.625rem', color: colors.textSecondary }}>Mode</span>
+                  <Tooltip content={TEMPORAL_MODE_TOOLTIP} />
+                </div>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  {TEMPORAL_MODE_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => onTemporalFilterModeChange(opt.value)}
+                      style={filterTypeButtonStyle(temporalFilterMode === opt.value)}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

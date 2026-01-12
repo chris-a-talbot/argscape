@@ -263,16 +263,33 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         const collideForce = sim.force("collision") as d3.ForceCollide<GraphNode> | null;
         if (collideForce) {
+            // Check if this is a parent ARG (nodes have fixed X positions)
+            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
+            const collisionStrength = hasFixedXPositions
+                ? Math.max(tuning.collisionStrength, 0.7) // Ensure strong collision for parent ARGs
+                : tuning.collisionStrength;
+
             collideForce
                 .radius((d: GraphNode) => (d.is_sample ? GRAPH_CONSTANTS.COLLISION_RADIUS * 1.8 : GRAPH_CONSTANTS.COLLISION_RADIUS * 1.5) * tuning.collisionRadiusScale)
-                .strength(Math.max(0, Math.min(1, tuning.collisionStrength)));
+                .strength(Math.max(0, Math.min(1, collisionStrength)));
         }
 
         // Reattach custom forces with updated scales (only those still used)
         if (sampleOrder !== 'dagre') {
-            sim.force("descendantRange", createDescendantRangeForce(nodes, edges, () => tuning.descendantRangeScale));
-            sim.force("edgeCrossing", createEdgeCrossingReductionForce(nodes, edges, () => tuning.edgeCrossingScale));
-            sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
+            // Check if this is a parent ARG (nodes have fixed X positions)
+            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
+
+            if (hasFixedXPositions) {
+                // For parent ARGs with fixed X positions, reduce descendant range force and increase collision
+                sim.force("descendantRange", createDescendantRangeForce(nodes, edges, () => tuning.descendantRangeScale * 0.3)); // Reduce constraint
+                sim.force("edgeCrossing", createEdgeCrossingReductionForce(nodes, edges, () => Math.max(tuning.edgeCrossingScale, 0.5))); // Ensure active
+                sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
+            } else {
+                // Normal ARGs
+                sim.force("descendantRange", createDescendantRangeForce(nodes, edges, () => tuning.descendantRangeScale));
+                sim.force("edgeCrossing", createEdgeCrossingReductionForce(nodes, edges, () => tuning.edgeCrossingScale));
+                sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
+            }
         }
 
         // Nudge simulation to apply changes with higher alpha for initial settling
@@ -2619,6 +2636,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Debug logging only in development
         if (process.env.NODE_ENV === 'development') {
         }
+
+        if (!ref || typeof ref === 'function' || !ref.current) return;
 
         const svg = d3.select(ref.current);
         const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
