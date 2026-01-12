@@ -85,6 +85,11 @@ export default function Navbar() {
           ))}
         </div>
 
+        {/* Theme Selector */}
+        <div className="hidden md:block">
+          <ColorThemeDropdown />
+        </div>
+
         {/* Settings Dropdown */}
         <div className="relative" ref={settingsDropdownRef}>
           <button
@@ -115,20 +120,10 @@ export default function Navbar() {
           </button>
 
           {settingsOpen && (
-            <div 
+            <div
               className="absolute right-0 mt-2 py-2 z-50 min-w-[200px]"
               style={dropdownMenuStyle}
             >
-              {/* Theme Selector */}
-              <div className="px-4 py-2">
-                <div className="text-xs font-medium mb-2" style={{ color: navStyle.color }}>
-                  Theme
-                </div>
-                <ColorThemeDropdown />
-              </div>
-              
-              {/* Separator */}
-              <div className="h-px my-2" style={{ backgroundColor: navStyle.borderBottomColor }} />
               
               {/* Background Animation Toggle */}
               <button
@@ -198,6 +193,11 @@ export default function Navbar() {
               </button>
             </div>
           )}
+        </div>
+
+        {/* Theme Selector - Mobile */}
+        <div className="md:hidden">
+          <ColorThemeDropdown />
         </div>
 
         {/* Mobile Menu Button - Shown on small screens */}

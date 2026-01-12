@@ -357,7 +357,7 @@ export const ColorThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   const [customThemes, setCustomThemes] = useState<CustomColorScheme[]>([]);
   const [selectedCustomTheme, setSelectedCustomTheme] = useState<string | null>(null);
   const [currentVisualizationType, setCurrentVisualizationType] = useState<VisualizationType>('any');
-  
+
   // Load saved themes and selections from localStorage
   useEffect(() => {
     try {
@@ -365,18 +365,24 @@ export const ColorThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       if (savedThemes) {
         setCustomThemes(JSON.parse(savedThemes));
       }
-      
+
       const savedTheme = localStorage.getItem(SELECTED_THEME_KEY);
+      // Prioritize saved user preference, but default to 'liquid' (light theme) for new users
       if (savedTheme && (savedTheme === 'tskit' || savedTheme === 'grayscale' || savedTheme === 'grayscaleInverted' || savedTheme === 'liquid' || savedTheme === 'custom')) {
         setThemeState(savedTheme as ColorTheme);
+      } else {
+        // No saved preference - set to light theme by default
+        setThemeState('liquid');
       }
-      
+
       const savedCustomTheme = localStorage.getItem(SELECTED_CUSTOM_THEME_KEY);
       if (savedCustomTheme) {
         setSelectedCustomTheme(savedCustomTheme);
       }
     } catch (error) {
       console.warn('Failed to load saved color themes:', error);
+      // On error, default to light theme
+      setThemeState('liquid');
     }
   }, []);
   
