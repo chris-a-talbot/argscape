@@ -1,4 +1,5 @@
-import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { useSemanticColors } from '../../hooks/useSemanticColors';
 import SpatialDiffTreeSequenceSelector from './SpatialDiffTreeSequenceSelector';
 
 interface SpatialDiffTreeSequenceSelectorModalProps {
@@ -8,27 +9,25 @@ interface SpatialDiffTreeSequenceSelectorModalProps {
 }
 
 export function SpatialDiffTreeSequenceSelectorModal({ isOpen, onClose, onSelect }: SpatialDiffTreeSequenceSelectorModalProps) {
-  const { colors } = useColorTheme();
+  const { colors, modalGlassStyle, modalOverlayStyle } = useThemeStyles();
+  const semanticColors = useSemanticColors();
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[10000] overflow-y-auto">
-      {/* Backdrop */}
+      {/* Backdrop with consistent blur */}
       <div 
         className="fixed inset-0 transition-opacity" 
-        style={{ backgroundColor: `${colors.background}CC` }}
+        style={modalOverlayStyle}
         onClick={onClose}
       />
 
-      {/* Modal panel */}
+      {/* Modal panel with proper glass treatment */}
       <div className="flex items-start justify-center min-h-screen pt-8 pb-8 px-4">
         <div 
-          className="relative rounded-xl shadow-xl max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden border flex flex-col z-[10001]"
-          style={{ 
-            backgroundColor: colors.background,
-            borderColor: colors.border
-          }}
+          className="relative max-w-5xl w-full min-h-[70vh] max-h-[90vh] overflow-hidden flex flex-col z-[10001]"
+          style={modalGlassStyle}
         >
           {/* Header */}
           <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colors.border }}>
@@ -41,14 +40,16 @@ export function SpatialDiffTreeSequenceSelectorModal({ isOpen, onClose, onSelect
               </p>
             </div>
             <button
-              className="rounded-lg p-2 transition-colors"
-              style={{ color: colors.text }}
+              className="rounded-lg p-2 transition-all duration-200"
+              style={{ color: colors.textSecondary }}
               onClick={onClose}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
+                e.currentTarget.style.backgroundColor = semanticColors.hoverOverlay;
+                e.currentTarget.style.color = colors.text;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = 'transparent';
+                e.currentTarget.style.color = colors.textSecondary;
               }}
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

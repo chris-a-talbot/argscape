@@ -81,10 +81,10 @@ export const GRAPH_CONSTANTS = {
 
 // Update setupInitialNodePositions
 export const setupInitialNodePositions = (
-    combinedNodes: GraphNode[], 
-    combinedEdges: GraphEdge[], 
-    actualWidth: number, 
-    actualHeight: number, 
+    combinedNodes: GraphNode[],
+    combinedEdges: GraphEdge[],
+    actualWidth: number,
+    actualHeight: number,
     sampleOrder?: string,
     nodeSizes?: NodeSizeSettings,
     temporalSpacingMode: TemporalSpacingMode = 'equal',
@@ -192,7 +192,7 @@ export const setupInitialNodePositions = (
         const baseScaleX = Math.min(availableWidth / Math.max(dagreWidth, 1), 3.0); // Increased max scale
         const baseScaleY = Math.min(availableHeight / Math.max(dagreHeight, 1), 2.0);
         
-        // Apply user spacing preferences as multipliers to the base scale
+        // Apply effective spacing preferences as multipliers to the base scale
         const userSampleMultiplier = sampleSpacing / 20; // Normalize to default
         const userTemporalMultiplier = temporalSpacing / 12; // Normalize to default
         
@@ -248,7 +248,7 @@ export const setupInitialNodePositions = (
         const regularSamples = combinedNodes.filter(n => n.is_sample && !n.is_sample_cluster);
         const sampleClusters = combinedNodes.filter(n => n.is_sample_cluster);
         
-        // Use sampleSpacing directly as the distance between samples (not as a multiplier)
+        // Use effective sampleSpacing directly as the distance between samples (not as a multiplier)
         // This makes the graph wider for more samples, maintaining constant spacing per sample
         const adjustedSampleSpacing = sampleSpacing;
 

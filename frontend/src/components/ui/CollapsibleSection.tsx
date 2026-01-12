@@ -10,6 +10,8 @@ interface CollapsibleSectionProps {
   className?: string;
   headerClassName?: string;
   contentClassName?: string;
+  /** Callback when section is opened (useful for tracking user interaction) */
+  onOpen?: () => void;
 }
 
 export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
@@ -20,32 +22,41 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   children,
   className = '',
   headerClassName = '',
-  contentClassName = ''
+  contentClassName = '',
+  onOpen
 }) => {
   const { colors } = useColorTheme();
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
+  const handleToggle = () => {
+    const newIsOpen = !isOpen;
+    setIsOpen(newIsOpen);
+    if (newIsOpen && onOpen) {
+      onOpen();
+    }
+  };
+
   return (
-    <div 
+    <div
       className={`rounded-xl border transition-all overflow-visible ${className}`}
-      style={{ 
+      style={{
         backgroundColor: colors.background,
         borderColor: colors.border
       }}
     >
       {/* Header */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-4 transition-all hover:bg-opacity-80 rounded-t-xl ${headerClassName} ${!isOpen ? 'rounded-b-xl' : ''}`}
-        style={{ 
+        onClick={handleToggle}
+        className={`w-full flex items-center justify-between py-2.5 px-4 transition-all hover:bg-opacity-80 rounded-t-xl ${headerClassName} ${!isOpen ? 'rounded-b-xl' : ''}`}
+        style={{
           backgroundColor: isOpen ? colors.containerBackground : 'transparent'
         }}
       >
-        <div className="flex items-center gap-3 flex-1">
+        <div className="flex items-center gap-2.5 flex-1">
           {icon && (
-            <div 
-              className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
-              style={{ 
+            <div
+              className="w-7 h-7 rounded flex items-center justify-center flex-shrink-0"
+              style={{
                 backgroundColor: colors.accentPrimary + '20',
                 color: colors.accentPrimary
               }}
@@ -53,8 +64,8 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
               {icon}
             </div>
           )}
-          <div className="flex flex-col items-start gap-1">
-            <h3 className="text-base font-semibold" style={{ color: colors.text }}>
+          <div className="flex flex-col items-start gap-0.5">
+            <h3 className="text-sm font-semibold" style={{ color: colors.text }}>
               {title}
             </h3>
             {subtitle && (
@@ -79,8 +90,8 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
 
       {/* Content */}
       {isOpen && (
-        <div 
-          className={`p-4 border-t rounded-b-xl ${contentClassName}`}
+        <div
+          className={`p-3 border-t rounded-b-xl ${contentClassName}`}
           style={{ borderColor: colors.border }}
         >
           {children}

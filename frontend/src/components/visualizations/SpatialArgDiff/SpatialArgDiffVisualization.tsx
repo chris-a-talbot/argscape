@@ -4,6 +4,7 @@ import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
 import { GraphData, GraphNode, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
+import { generatePopulationColors } from '../../../utils/colorUtils';
 import { convertShapeToLines, createShapeLines, GeographicLine3D } from '../SpatialArgUtils/GeographicUtils';
 import { isRootNode } from '../../../utils/graphTraversal';
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
@@ -61,6 +62,8 @@ interface SpatialArgDiffProps {
   showTemporalPlanes?: boolean;
   // Heatmap
   heatmapSettings?: AncestryHeatmapSettings;
+  // Population coloring
+  colorByPopulation?: boolean;
   // Node click handlers
   onNodeClick?: (node: GraphNode) => void;
   onNodeRightClick?: (node: GraphNode) => void;
@@ -136,13 +139,56 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
   temporalFilterMode = null,
   showTemporalPlanes = false,
   heatmapSettings,
+  colorByPopulation = false,
   onNodeClick,
   onNodeRightClick,
   selectedNode,
   onViewStateChange,
   externalViewState
 }) => {
-  const { colors } = useColorTheme();
+  const { colors, theme } = useColorTheme();
+
+  // Generate population colors if enabled
+  const populationColors = useMemo(() => {
+    if (!colorByPopulation) {
+      return null;
+    }
+    // Check if either dataset has populations
+    const hasPopulations = firstData?.metadata?.has_populations || secondData?.metadata?.has_populations;
+    if (!hasPopulations) {
+      return null;
+    }
+    // Combine populations from both datasets
+    const populations = new Set<number>();
+    if (firstData?.metadata?.populations) {
+      firstData.metadata.populations.forEach(p => populations.add(p));
+    }
+    if (secondData?.metadata?.populations) {
+      secondData.metadata.populations.forEach(p => populations.add(p));
+    }
+    
+    // Determine if theme is dark - tskit is dark, liquid and grayscale are light
+    // For custom themes, calculate based on background luminance
+    const isDarkTheme = (() => {
+      if (theme === 'tskit') return true;
+      if (theme === 'liquid' || theme === 'grayscale') return false;
+      
+      // For custom themes, calculate luminance of background
+      const bg = colors.background;
+      if (bg.startsWith('#')) {
+        const hex = bg.replace('#', '');
+        const r = parseInt(hex.substr(0, 2), 16);
+        const g = parseInt(hex.substr(2, 2), 16);
+        const b = parseInt(hex.substr(4, 2), 16);
+        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        return luminance <= 0.5;
+      }
+      return false; // Default to light if can't determine
+    })();
+    
+    return generatePopulationColors(Array.from(populations).sort((a, b) => a - b), isDarkTheme);
+  }, [colorByPopulation, firstData?.metadata?.has_populations, firstData?.metadata?.populations, 
+      secondData?.metadata?.has_populations, secondData?.metadata?.populations, theme, colors.background]);
 
   // DeckGL ref for cleanup
   const deckRef = useRef<any>(null);
@@ -234,14 +280,15 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       diffEdgeWidth,
       nodeSizes,
       viewMode,
-      showErrorBars
+      showErrorBars,
+      populationColors
     );
 
     return {
       nodes3D: result.nodes,
       diffEdges: result.diffEdges
     };
-  }, [firstData, secondData, originalFirstData, originalSecondData, geographicMode, geographicShape, temporalSpacing, temporalSpacingMode, spatialSpacing, colors, diffEdgeWidth, nodeSizes, viewMode, showErrorBars]);
+  }, [firstData, secondData, originalFirstData, originalSecondData, geographicMode, geographicShape, temporalSpacing, temporalSpacingMode, spatialSpacing, colors, diffEdgeWidth, nodeSizes, viewMode, showErrorBars, populationColors]);
 
   // Transform edges to 3D
   const edges3D = useMemo(() => {
@@ -747,7 +794,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       new TextLayer<MutationMarker3D>({
         id: 'mutation-markers',
         data: filterDataByHeatmap(mutationMarkers, heatmapSettings),
-        pickable: false,
+        pickable: true,
         sizeUnits: 'meters',
         sizeScale: 1,
         getPosition: (d: MutationMarker3D) => d.position,
@@ -815,8 +862,30 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
       parameters={{
         blend: true
       }}
-      getTooltip={({ object }: any) => {
+      getTooltip={({ object, layer }: any) => {
         if (!object) return null;
+        
+        // For mutation markers, show detailed mutation info
+        if (layer?.id === 'mutation-markers' && object.mutation) {
+          const mut = object.mutation;
+          return {
+            html: `
+              <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
+                <strong>Mutation ${mut.id}</strong><br/>
+                Position: ${Math.round(mut.position)}<br/>
+                Transition: ${mut.previous_state} → ${mut.derived_state}<br/>
+                Ancestral: ${mut.ancestral_state}
+                ${mut.time !== null && mut.time !== undefined ? `<br/>Time: ${mut.time.toFixed(4)}` : ''}
+                ${mut.parent_mutation !== -1 ? `<br/>Parent mutation: ${mut.parent_mutation}` : ''}
+              </div>
+            `,
+            style: {
+              backgroundColor: 'transparent',
+              color: colors.tooltipText
+            }
+          };
+        }
+        
         return createTooltipContent(object as NodeDiff3D, firstData, null, spatialSpacing, colors);
       }}
     />

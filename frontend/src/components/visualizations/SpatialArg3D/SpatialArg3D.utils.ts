@@ -1,4 +1,4 @@
-import { GraphNode, GraphEdge, GraphData, GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphNode, GraphEdge, GraphData, GeographicShape, NodeSizeSettings, TreeInterval } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { isRootNode } from '../../../utils/graphTraversal';
 import { formatCoordinates } from '../../../utils/colorUtils';
 import { GeographicMode } from '../SpatialArgUtils/SpatialArg.types';
@@ -10,6 +10,18 @@ import { NODE_SIZES, LINE_WIDTHS } from './SpatialArg3D.constants';
 import { VISUALIZATION_CONSTANTS_REG } from '../SpatialArgUtils/SpatialArg.constants';
 import { calculateZPosition, createNodeJitter, calculateTemporalOpacity, calculateEdgeOpacity, getContrastColor, calculateNodeColorByType } from '../SpatialArgUtils/SpatialArg.utils';
 import { parseTextColor, calculateMidpoint } from '../SpatialArgUtils/LayerHelpers';
+import { edgeOverlapsGenomicRange, edgeOverlapsTreeRange } from '../../../utils/opacityCalculations';
+
+/**
+ * Interface for spatial filter configuration in dim mode
+ */
+export interface SpatialFilterConfig {
+  genomicRange?: [number, number] | null;
+  genomicDimOpacity?: number;
+  treeRange?: [number, number] | null;
+  treeIntervals?: TreeInterval[];
+  treeDimOpacity?: number;
+}
 
 /**
  * Calculate node size based on node type (using 3D constants)
@@ -79,7 +91,8 @@ export function transformNodesToThreeD(
   combinedNodes: GraphNode[],
   combinedEdges: GraphEdge[],
   uniqueTimes: number[],
-  temporalSpacingMode: TemporalSpacingMode
+  temporalSpacingMode: TemporalSpacingMode,
+  populationColors?: Map<number, [number, number, number]> | null
 ): Node3D[] {
   if (!coordinateTransform) return [];
   
@@ -93,7 +106,7 @@ export function transformNodesToThreeD(
     const normalizedZ = calculateZPosition(node.time, uniqueTimes, temporalSpacing, temporalSpacingMode) + VISUALIZATION_CONSTANTS_REG.BASE_ELEVATION + jitter;
 
     const size = calculateNodeSize(node, combinedNodes, combinedEdges);
-    const color = calculateNodeColorByType(node, combinedNodes, combinedEdges, colors, isRootNode);
+    const color = calculateNodeColorByType(node, combinedNodes, combinedEdges, colors, isRootNode, populationColors);
 
     return {
       ...node,
@@ -113,7 +126,8 @@ export function transformEdgesToThreeD(
   temporalRange: [number, number] | null,
   temporalFilterMode: string | null,
   colors: any,
-  edgeOpacity: number = 85
+  edgeOpacity: number = 85,
+  spatialFilter?: SpatialFilterConfig
 ): Edge3D[] {
   return edges
     .filter(edge => {
@@ -129,13 +143,32 @@ export function transformEdgesToThreeD(
 
       // Convert percentage to 0-255 range for alpha channel
       const baseOpacity = (edgeOpacity / 100) * 255;
-      const finalOpacity = calculateEdgeOpacity(
-        sourceNode, 
-        targetNode, 
-        temporalRange, 
-        temporalFilterMode, 
+
+      // Calculate temporal opacity
+      let finalOpacity = calculateEdgeOpacity(
+        sourceNode,
+        targetNode,
+        temporalRange,
+        temporalFilterMode,
         baseOpacity
       );
+
+      // Apply spatial filter dimming if configured
+      if (spatialFilter) {
+        // Apply genomic range dimming
+        if (spatialFilter.genomicRange && spatialFilter.genomicDimOpacity !== undefined) {
+          if (!edgeOverlapsGenomicRange(edge, spatialFilter.genomicRange)) {
+            finalOpacity = finalOpacity * spatialFilter.genomicDimOpacity;
+          }
+        }
+
+        // Apply tree range dimming
+        if (spatialFilter.treeRange && spatialFilter.treeIntervals && spatialFilter.treeDimOpacity !== undefined) {
+          if (!edgeOverlapsTreeRange(edge, spatialFilter.treeRange, spatialFilter.treeIntervals)) {
+            finalOpacity = finalOpacity * spatialFilter.treeDimOpacity;
+          }
+        }
+      }
 
       return {
         source: sourceNode.position,
@@ -246,12 +279,21 @@ export function createTooltipContent(
     nodeTypeInfo = 'Internal Node';
   }
   
+  let populationInfo = '';
+  if (node.population !== null && node.population !== undefined) {
+    populationInfo = `Population: ${node.population}`;
+    if (node.population_inferred) {
+      populationInfo += ' (inferred)';
+    }
+    populationInfo = `<br/>${populationInfo}`;
+  }
+  
   return {
     html: `
       <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
         <strong>Node ${node.id}</strong><br/>
         Time: ${node.time.toFixed(3)}<br/>
-        ${nodeTypeInfo}<br/>
+        ${nodeTypeInfo}${populationInfo}<br/>
         ${node.location ? `Location: ${formatCoordinates(node.location.x, node.location.y, geographicMode === 'eastern_hemisphere')}` : ''}
       </div>
     `,

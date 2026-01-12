@@ -1,6 +1,6 @@
 import React, { useState, useRef, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 interface TooltipProps {
   content: string | React.ReactNode;
@@ -11,10 +11,11 @@ interface GroupTooltipProps {
   content: string | React.ReactNode;
   className?: string;
   preferredPlacement?: 'top' | 'bottom' | 'left' | 'right';
+  wide?: boolean;
 }
 
 export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => {
-  const { colors } = useColorTheme();
+  const { colors, tooltipStyle } = useThemeStyles();
   const [isVisible, setIsVisible] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const [placement, setPlacement] = useState<'right' | 'left' | 'top' | 'bottom'>('right');
@@ -143,12 +144,12 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
           }}
         >
           <div
-            className="px-3 py-2 text-xs rounded-lg shadow-lg border whitespace-normal"
+            className="px-3 py-2 text-xs whitespace-normal"
             style={{
-              backgroundColor: colors.background,
-              borderColor: colors.border,
-              color: colors.text,
-              boxShadow: `0 4px 6px -1px ${colors.border}40, 0 10px 15px -3px ${colors.border}30`
+              ...tooltipStyle,
+              padding: '0.75rem',
+              fontSize: '0.75rem',
+              lineHeight: '1rem'
             }}
           >
             {content}
@@ -210,12 +211,13 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, className = "" }) => 
 };
 
 // Group hover tooltip component with bounds checking
-export const GroupTooltip: React.FC<GroupTooltipProps> = ({ 
-  content, 
+export const GroupTooltip: React.FC<GroupTooltipProps> = ({
+  content,
   className = "",
-  preferredPlacement = 'bottom'
+  preferredPlacement = 'bottom',
+  wide = false
 }) => {
-  const { colors } = useColorTheme();
+  const { colors, tooltipStyle } = useThemeStyles();
   const tooltipRef = useRef<HTMLDivElement>(null);
   const placeholderRef = useRef<HTMLDivElement>(null);
   const groupRef = useRef<HTMLElement | null>(null);
@@ -498,16 +500,14 @@ export const GroupTooltip: React.FC<GroupTooltipProps> = ({
       {isVisible && typeof document !== 'undefined' && createPortal(
         <div
           ref={tooltipRef}
-          className={`z-[9999] w-72 p-3 rounded-lg shadow-xl pointer-events-none ${className}`}
+          className={`z-[9999] pointer-events-none ${wide ? 'max-w-md' : 'w-72'} ${className}`}
           style={{
             ...position,
-            backgroundColor: colors.background || '#0a0e27',
-            borderColor: colors.border || 'rgba(187, 247, 208, 0.2)',
-            color: colors.text || 'rgba(255, 255, 255, 0.8)',
-            border: `1px solid ${colors.border || 'rgba(187, 247, 208, 0.2)'}`,
+            ...tooltipStyle,
+            padding: '0.75rem'
           }}
         >
-          <div className="text-xs whitespace-normal" style={{ color: colors.text || 'rgba(255, 255, 255, 0.8)' }}>
+          <div className={`text-xs whitespace-normal ${wide ? 'break-all font-mono' : ''}`}>
             {content}
           </div>
         </div>,

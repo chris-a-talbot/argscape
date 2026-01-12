@@ -1,8 +1,8 @@
-name: argscape_local
+name: argscape_local_test
 channels:
   - conda-forge
 dependencies:
-  - python=3.11
+  - python>=3.8
   - pip
   - numpy>=1.24.0,<2.0.0
   - pandas
@@ -19,16 +19,11 @@ dependencies:
   - shapely=2.0.2
   - pyproj=3.6.1
   - fiona=1.9.5
-  - gdal=3.7.2
+  - gdal
   - sympy
   - scipy
   - tqdm
   - pydantic
-  - gsl=2.7
-  - zarr=2.16.1
-  - numcodecs=0.11.0
-  - requests>=2.31.0
-  - conda-pack
   - pip:
       - fastgaia
       - geoancestry

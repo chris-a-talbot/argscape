@@ -1,6 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
 
+type FilterMode = 'subset' | 'highlight';
+
 interface RangeSliderProps {
   min: number;
   max: number;
@@ -10,6 +12,10 @@ interface RangeSliderProps {
   formatValue?: (value: number) => string;
   className?: string;
   label?: string;
+  filterMode?: FilterMode;
+  onFilterModeChange?: (mode: FilterMode) => void;
+  dimOpacity?: number;
+  onDimOpacityChange?: (opacity: number) => void;
 }
 
 export const RangeSlider: React.FC<RangeSliderProps> = ({
@@ -20,7 +26,11 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
   onChange,
   formatValue = (v) => v.toString(),
   className = "",
-  label
+  label,
+  filterMode,
+  onFilterModeChange,
+  dimOpacity,
+  onDimOpacityChange,
 }) => {
   const { colors } = useColorTheme();
   const [isDragging, setIsDragging] = useState<'left' | 'right' | 'range' | null>(null);
@@ -274,87 +284,55 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
     }
   };
 
+  // Mode toggle button style
+  const modeToggleStyle: React.CSSProperties = {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.25rem',
+    padding: '0.125rem 0.375rem',
+    fontSize: '0.625rem',
+    fontWeight: 600,
+    border: `1px solid ${colors.border}`,
+    borderRadius: '0.25rem',
+    background: filterMode === 'subset' ? `${colors.accentPrimary}20` : 'transparent',
+    color: filterMode === 'subset' ? colors.accentPrimary : colors.textSecondary,
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    textTransform: 'uppercase',
+    letterSpacing: '0.02em',
+  };
+
+  // Compact opacity slider style
+  const opacityContainerStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.375rem',
+    fontSize: '0.625rem',
+    color: colors.textSecondary,
+  };
+
+  const opacitySliderStyle: React.CSSProperties = {
+    width: '3.5rem',
+    height: '0.25rem',
+    appearance: 'none',
+    background: colors.border,
+    borderRadius: '0.125rem',
+    cursor: 'pointer',
+  };
+
   return (
     <div className={`relative w-full ${className}`} style={{ userSelect: 'none' }}>
-      {/* Label */}
-      {label && (
-        <div className="mb-2 text-xs font-medium" style={{ color: colors.text }}>
-          {label}
-        </div>
-      )}
-      
-      {/* Value display */}
-      <div className="flex justify-between mb-2 text-sm font-mono" style={{ color: colors.accentPrimary }}>
-        {editingLeft ? (
-          <input
-            ref={leftInputRef}
-            type="number"
-            value={leftInputValue}
-            onChange={handleLeftInputChange}
-            onBlur={handleLeftInputBlur}
-            onKeyDown={handleLeftInputKeyDown}
-            className="w-20 px-2 py-1 rounded border focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: colors.background,
-              borderColor: colors.accentPrimary,
-              color: colors.accentPrimary,
-              fontFamily: 'monospace'
-            }}
-            min={min}
-            max={value[1]}
-            step={step}
-          />
-        ) : (
-          <span 
-            onClick={handleLeftClick}
-            className="cursor-pointer px-2 py-1 rounded hover:bg-opacity-10 hover:bg-white transition-colors"
-            title="Click to edit"
-          >
-            {formatValue(value[0])}
-          </span>
-        )}
-        {editingRight ? (
-          <input
-            ref={rightInputRef}
-            type="number"
-            value={rightInputValue}
-            onChange={handleRightInputChange}
-            onBlur={handleRightInputBlur}
-            onKeyDown={handleRightInputKeyDown}
-            className="w-20 px-2 py-1 rounded border focus:outline-none focus:ring-2"
-            style={{
-              backgroundColor: colors.background,
-              borderColor: colors.accentPrimary,
-              color: colors.accentPrimary,
-              fontFamily: 'monospace',
-              textAlign: 'right'
-            }}
-            min={value[0]}
-            max={max}
-            step={step}
-          />
-        ) : (
-          <span 
-            onClick={handleRightClick}
-            className="cursor-pointer px-2 py-1 rounded hover:bg-opacity-10 hover:bg-white transition-colors"
-            title="Click to edit"
-          >
-            {formatValue(value[1])}
-          </span>
-        )}
-      </div>
-      
-      {/* Slider track */}
-      <div 
+      {/* Slider track at top - closest to graph */}
+      <div
         ref={sliderRef}
-        className="relative h-3 rounded-lg cursor-pointer"
+        className="relative h-1.5 rounded-full cursor-pointer"
         style={{ backgroundColor: colors.border }}
         onMouseDown={(e) => {
           const newValue = getValueFromPosition(e.clientX);
           const [left, right] = value;
           const leftDistance = Math.abs(newValue - left);
           const rightDistance = Math.abs(newValue - right);
-          
+
           // If shift is pressed or handles are very close, prefer range dragging
           if (isShiftPressed || Math.abs(right - left) < step * 2) {
             handleMouseDown(e, 'range');
@@ -366,8 +344,8 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
         }}
       >
         {/* Selected range */}
-        <div 
-          className={`absolute h-full rounded-lg transition-all ${
+        <div
+          className={`absolute h-full rounded-full transition-all ${
             isShiftPressed ? 'cursor-grabbing' : 'cursor-grab'
           } active:cursor-grabbing`}
           style={{
@@ -382,19 +360,20 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
             e.stopPropagation();
             handleMouseDown(e, 'range');
           }}
+          title="Drag to filter. Shift+Drag to move fixed window."
         />
-        
+
         {/* Left handle */}
-        <div 
-          className={`absolute w-5 h-5 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+        <div
+          className={`absolute w-4 h-4 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
             isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
           }`}
-          style={{ 
-            left: `${leftPosition}%`, 
+          style={{
+            left: `${leftPosition}%`,
             top: '50%',
             backgroundColor: colors.background,
             borderColor: isShiftPressed ? colors.accentPrimary : colors.accentPrimary,
-            boxShadow: `0 2px 4px ${colors.background}40`,
+            boxShadow: `0 1px 3px ${colors.background}60`,
             userSelect: 'none'
           }}
           onMouseDown={(e) => {
@@ -402,19 +381,20 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
             e.stopPropagation();
             handleMouseDown(e, 'left');
           }}
+          title="Drag to filter. Shift+Drag to move fixed window."
         />
-        
+
         {/* Right handle */}
-        <div 
-          className={`absolute w-5 h-5 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
+        <div
+          className={`absolute w-4 h-4 border-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 transition-all hover:scale-110 ${
             isShiftPressed ? 'cursor-move' : 'cursor-grab active:cursor-grabbing'
           }`}
-          style={{ 
-            left: `${rightPosition}%`, 
+          style={{
+            left: `${rightPosition}%`,
             top: '50%',
             backgroundColor: colors.background,
             borderColor: isShiftPressed ? colors.accentPrimary : colors.accentPrimary,
-            boxShadow: `0 2px 4px ${colors.background}40`,
+            boxShadow: `0 1px 3px ${colors.background}60`,
             userSelect: 'none'
           }}
           onMouseDown={(e) => {
@@ -422,26 +402,117 @@ export const RangeSlider: React.FC<RangeSliderProps> = ({
             e.stopPropagation();
             handleMouseDown(e, 'right');
           }}
+          title="Drag to filter. Shift+Drag to move fixed window."
         />
       </div>
-      
-      {/* Min/Max labels and shift indicator */}
-      <div className="flex justify-between items-center mt-2 text-xs" style={{ color: colors.textSecondary }}>
-        <span>{formatValue(min)}</span>
-        <div className="flex items-center justify-center min-h-[18px]">
-          {isShiftPressed && (
-            <div className="px-2 py-1 rounded text-xs font-medium flex items-center gap-1" style={{ 
-              backgroundColor: colors.accentPrimary, 
-              color: colors.background,
-              fontSize: '10px'
-            }}>
-              <span>⇄</span>
-              <span>Move Range</span>
+
+      {/* Integrated value display: min | selection | max */}
+      <div className="flex items-center justify-center gap-2 mt-1.5 text-xs font-mono">
+        <span style={{ color: colors.textSecondary }}>{formatValue(min)}</span>
+        <span style={{ color: colors.textSecondary }}>|</span>
+        {editingLeft ? (
+          <input
+            ref={leftInputRef}
+            type="number"
+            value={leftInputValue}
+            onChange={handleLeftInputChange}
+            onBlur={handleLeftInputBlur}
+            onKeyDown={handleLeftInputKeyDown}
+            className="w-16 px-1 py-0.5 rounded border focus:outline-none focus:ring-1 text-xs"
+            style={{
+              backgroundColor: colors.background,
+              borderColor: colors.accentPrimary,
+              color: colors.accentPrimary,
+              fontFamily: 'monospace'
+            }}
+            min={min}
+            max={value[1]}
+            step={step}
+          />
+        ) : (
+          <span
+            onClick={handleLeftClick}
+            className="cursor-pointer px-1 py-0.5 rounded hover:bg-opacity-10 hover:bg-white transition-colors font-semibold"
+            style={{ color: colors.accentPrimary }}
+            title="Click to edit"
+          >
+            {formatValue(value[0])}
+          </span>
+        )}
+        <span style={{ color: colors.accentPrimary }}>-</span>
+        {editingRight ? (
+          <input
+            ref={rightInputRef}
+            type="number"
+            value={rightInputValue}
+            onChange={handleRightInputChange}
+            onBlur={handleRightInputBlur}
+            onKeyDown={handleRightInputKeyDown}
+            className="w-16 px-1 py-0.5 rounded border focus:outline-none focus:ring-1 text-xs"
+            style={{
+              backgroundColor: colors.background,
+              borderColor: colors.accentPrimary,
+              color: colors.accentPrimary,
+              fontFamily: 'monospace',
+              textAlign: 'right'
+            }}
+            min={value[0]}
+            max={max}
+            step={step}
+          />
+        ) : (
+          <span
+            onClick={handleRightClick}
+            className="cursor-pointer px-1 py-0.5 rounded hover:bg-opacity-10 hover:bg-white transition-colors font-semibold"
+            style={{ color: colors.accentPrimary }}
+            title="Click to edit"
+          >
+            {formatValue(value[1])}
+          </span>
+        )}
+        <span style={{ color: colors.textSecondary }}>|</span>
+        <span style={{ color: colors.textSecondary }}>{formatValue(max)}</span>
+      </div>
+
+      {/* Footer row: Label + Mode toggle + Opacity */}
+      {(label || (filterMode !== undefined && onFilterModeChange)) && (
+        <div className="flex items-center justify-between mt-1.5">
+          {label && (
+            <div className="text-xs font-medium" style={{ color: colors.text }}>
+              {label}
             </div>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            {/* Opacity slider - shown when in highlight mode */}
+            {filterMode === 'highlight' && dimOpacity !== undefined && onDimOpacityChange && (
+              <div style={opacityContainerStyle}>
+                <span style={{ opacity: 0.7 }}>Dim:</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  value={dimOpacity}
+                  onChange={(e) => onDimOpacityChange(parseFloat(e.target.value))}
+                  style={opacitySliderStyle}
+                  className="opacity-slider"
+                />
+                <span style={{ minWidth: '1.75rem', textAlign: 'right' }}>{Math.round(dimOpacity * 100)}%</span>
+              </div>
+            )}
+            {filterMode !== undefined && onFilterModeChange && (
+              <button
+                type="button"
+                onClick={() => onFilterModeChange(filterMode === 'subset' ? 'highlight' : 'subset')}
+                style={modeToggleStyle}
+                title={filterMode === 'subset' ? 'Subset: Hide filtered-out nodes' : 'Highlight: Dim filtered-out nodes'}
+              >
+                {filterMode === 'subset' ? 'Subset' : 'Dim'}
+              </button>
+            )}
+          </div>
         </div>
-        <span>{formatValue(max)}</span>
-      </div>
+      )}
     </div>
   );
 }; 

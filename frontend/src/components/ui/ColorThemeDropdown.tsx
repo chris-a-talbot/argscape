@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { ColorTheme, useColorTheme } from '../../context/ColorThemeContext';
 import { CustomColorThemeModal } from './CustomColorThemeModal';
 import ConfirmModal from './ConfirmModal';
+import { useSemanticColors } from '../../hooks/useSemanticColors';
 
 interface ColorThemeOption {
   value: ColorTheme;
@@ -10,8 +11,10 @@ interface ColorThemeOption {
 }
 
 const colorThemeOptions: ColorThemeOption[] = [
-  { value: 'tskit', label: 'tskit', icon: '🎨' },
-  { value: 'grayscale', label: 'B&W', icon: '🌑' },
+  { value: 'liquid', label: 'Light', icon: '☀️' },
+  { value: 'tskit', label: 'Dark', icon: '🌙' },
+  { value: 'grayscale', label: 'Paper', icon: '📄' },
+  { value: 'grayscaleInverted', label: 'Contrast', icon: '◐' },
   { value: 'custom', label: 'Custom', icon: '🎭' },
 ];
 
@@ -25,6 +28,7 @@ export const ColorThemeDropdown: React.FC = () => {
     setSelectedCustomTheme, 
     deleteCustomTheme 
   } = useColorTheme();
+  const semanticColors = useSemanticColors();
   
   const [isOpen, setIsOpen] = useState(false);
   const [showCustomModal, setShowCustomModal] = useState(false);
@@ -163,10 +167,11 @@ export const ColorThemeDropdown: React.FC = () => {
 
         {isOpen && (
           <div
-            className="absolute right-0 mt-1 py-1 rounded-md shadow-lg z-50 min-w-[160px] max-w-[250px]"
+            className="absolute right-0 mt-1 py-1 rounded-md shadow-lg min-w-[160px] max-w-[250px]"
             style={{
               backgroundColor: colors.containerBackground,
-              border: `1px solid ${colors.border}`
+              border: `1px solid ${colors.border}`,
+              zIndex: 10000
             }}
           >
             {/* Built-in themes */}
@@ -276,7 +281,7 @@ export const ColorThemeDropdown: React.FC = () => {
                     <button
                       onClick={() => handleDeleteTheme(customTheme.id)}
                       className="p-1 rounded hover:bg-red-500 hover:bg-opacity-20"
-                      style={{ color: '#ef4444' }}
+                      style={{ color: semanticColors.error }}
                       title="Delete theme"
                     >
                       <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

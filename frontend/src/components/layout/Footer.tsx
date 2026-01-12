@@ -1,5 +1,6 @@
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useLocation } from 'react-router-dom';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 export default function Footer() {
   const location = useLocation();
@@ -7,35 +8,57 @@ export default function Footer() {
   
   // Always call the hook - conditionally use the result
   const { colors, theme } = useColorTheme();
+  const { isLiquid } = useThemeStyles();
+  
   // Use tskit theme colors for footer UI when custom theme is active for visualizations
   const shouldUseTskitColors = isVisualizationPage && theme === 'custom';
   const themeColors = isVisualizationPage && !shouldUseTskitColors ? colors : null;
+  
+  // Link color helpers - always use theme colors as fallback
+  const getLinkStyle = () => {
+    if (isVisualizationPage && themeColors) {
+      return { color: themeColors.accentPrimary };
+    }
+    return { color: colors.accentPrimary };
+  };
+  
+  const getSecondaryTextStyle = () => {
+    if (isVisualizationPage && themeColors) {
+      return { color: themeColors.textSecondary, opacity: 0.7 };
+    }
+    return { color: colors.textSecondary, opacity: 0.7 };
+  };
+  
+  const getSeparatorStyle = () => {
+    if (isVisualizationPage && themeColors) {
+      return { color: themeColors.text, opacity: 0.5 };
+    }
+    return { color: colors.text, opacity: 0.5 };
+  };
 
   return (
     <footer 
-      className={`fixed bottom-0 left-0 right-0 py-4 text-center text-sm backdrop-blur-sm border-t z-50 ${
-        !isVisualizationPage ? 'text-sp-white bg-sp-very-dark-blue/90 border-t-sp-dark-blue/50' : ''
-      }`}
-      style={isVisualizationPage && themeColors ? {
-        color: themeColors.text,
-        backgroundColor: themeColors.background + 'E6', // 90% opacity equivalent
-        borderTopColor: themeColors.border + '80' // 50% opacity equivalent
-      } : {}}
+      className={`fixed bottom-0 left-0 right-0 py-4 text-center text-sm backdrop-blur-sm border-t z-50 transition-colors duration-300`}
+      style={{
+        color: themeColors ? themeColors.text : colors.text,
+        backgroundColor: themeColors ? (themeColors.background + 'E6') : (isLiquid ? colors.containerBackground : (theme === 'tskit' ? 'rgba(3, 48, 62, 0.9)' : colors.background)),
+        borderTopColor: themeColors ? (themeColors.border + '80') : colors.border,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)'
+      }}
     >
       <div className="flex flex-col items-center gap-3">
         {/* Main footer content */}
         <div className="flex items-center gap-4">
           <p>
             © {new Date().getFullYear()}{" "}
-                          <a 
-                href="https://chris-a-talbot.com" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className={!isVisualizationPage ? "text-sp-pale-green hover:text-sp-white transition-colors" : "transition-colors"}
-                style={isVisualizationPage && themeColors ? {
-                  color: themeColors.accentPrimary
-                } : {}}
-              >
+            <a 
+              href="https://chris-a-talbot.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+              style={getLinkStyle()}
+            >
               Chris Talbot
             </a>
             . All rights reserved.
@@ -46,10 +69,8 @@ export default function Footer() {
             href="https://github.com/chris-a-talbot/argscape" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
             title="View source on GitHub"
           >
             <svg 
@@ -64,192 +85,95 @@ export default function Footer() {
         
         {/* Resources section */}
         <div className="flex items-center gap-4 text-xs">
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/70" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.textSecondary,
-              opacity: 0.7
-            } : {}}
-          >
+          <span style={getSecondaryTextStyle()}>
             Resources:
           </span>
           <a 
             href="https://tskit.dev/" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             tskit
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/tskit-dev/tszip" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             tszip
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/tskit-dev/tsdate" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             tsdate
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://tskit.dev/msprime/docs/stable/intro.html" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             msprime
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/blueraleigh/gaia" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             gaia
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/chris-a-talbot/gaiapy" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             gaiapy
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/chris-a-talbot/fastgaia" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             fastgaia
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/osmond-lab/sparg" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             sparg
           </a>
-          <span 
-            className={!isVisualizationPage ? "text-sp-white/50" : ""}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.text,
-              opacity: 0.5
-            } : {}}
-          >
-            •
-          </span>
+          <span style={getSeparatorStyle()}>•</span>
           <a 
             href="https://github.com/osmond-lab/spacetrees" 
             target="_blank" 
             rel="noopener noreferrer"
-            className={!isVisualizationPage ? "text-sp-white/90 hover:text-sp-pale-green transition-colors" : "transition-colors"}
-            style={isVisualizationPage && themeColors ? {
-              color: themeColors.accentPrimary,
-              opacity: 0.9
-            } : {}}
+            className="hover:opacity-80 transition-opacity"
+            style={getLinkStyle()}
           >
             spacetrees
           </a>

@@ -2,8 +2,9 @@ import React, { useMemo, useState, useRef, useCallback, useEffect } from 'react'
 import DeckGL from '@deck.gl/react';
 import { ScatterplotLayer, LineLayer, TextLayer } from '@deck.gl/layers';
 import { OrbitView } from '@deck.gl/core';
-import { GraphData, GraphNode, GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphData, GraphNode, GeographicShape, NodeSizeSettings, TreeInterval } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
+import { generatePopulationColors } from '../../../utils/colorUtils';
 import { convertShapeToLines, createShapeLines, GeographicLine3D } from '../SpatialArgUtils/GeographicUtils';
 import { combineSpatiallyColocatedNodes } from '../../../utils/nodeCombining';
 import { isRootNode } from '../../../utils/graphTraversal';
@@ -31,7 +32,8 @@ import {
   calculateNodeOutlineWidth,
   createTooltipContent,
   createNodeLabels,
-  createEdgeLabels
+  createEdgeLabels,
+  SpatialFilterConfig
 } from './SpatialArg3D.utils';
 import { VISUALIZATION_CONSTANTS_REG } from '../SpatialArgUtils/SpatialArg.constants';
 import { GeographicMode, EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
@@ -77,6 +79,14 @@ interface SpatialArg3DProps {
   edgeLabelSettings?: EdgeLabelSettings;
   edgeMutationSettings?: EdgeMutationSettings;
   heatmapSettings?: AncestryHeatmapSettings;
+  colorByPopulation?: boolean;
+  // Spatial filter props for dim mode
+  genomicRange?: [number, number] | null;
+  genomicDimOpacity?: number;
+  treeRange?: [number, number] | null;
+  treeIntervals?: TreeInterval[];
+  treeDimOpacity?: number;
+  temporalDimOpacity?: number;
 }
 
 
@@ -106,13 +116,30 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   temporalSpacingMode = 'equal',
   edgeLabelSettings,
   edgeMutationSettings,
-  heatmapSettings
+  heatmapSettings,
+  colorByPopulation = false,
+  // Spatial filter props for dim mode
+  genomicRange,
+  genomicDimOpacity = 0.15,
+  treeRange,
+  treeIntervals,
+  treeDimOpacity = 0.15,
+  temporalDimOpacity = 0.15
 }, ref) => {
   // OrbitView zoom behavior: Higher zoom = closer to object, Lower zoom = farther away
   // With maxZoom: 1000, users can now zoom very close to objects for detailed inspection
   // Physical units (meters) ensure consistent object sizes regardless of zoom level
   const deckRef = useRef<any>(null);
   const { colors } = useColorTheme();
+  
+  // Generate population colors if enabled
+  const populationColors = useMemo(() => {
+    if (!colorByPopulation || !data?.metadata?.has_populations || !data?.metadata?.populations) {
+      return null;
+    }
+    const isDarkTheme = colors.background === '#1a1a1a' || colors.background === 'rgb(26, 26, 26)';
+    return generatePopulationColors(data.metadata.populations, isDarkTheme);
+  }, [colorByPopulation, data?.metadata?.has_populations, data?.metadata?.populations, colors.background]);
   
   // State for draggable label positions
   const [customLabelPositions, setCustomLabelPositions] = useState<Map<string, [number, number, number]>>(new Map());
@@ -238,11 +265,21 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       combinedNodes,
       combinedEdges,
       uniqueTimes,
-      temporalSpacingMode
+      temporalSpacingMode,
+      populationColors
     );
 
     const nodeMap = new Map<number, Node3D>();
     transformedNodes.forEach(node => nodeMap.set(node.id, node));
+
+    // Build spatial filter config for dim mode
+    const spatialFilter: SpatialFilterConfig | undefined = (genomicRange || treeRange) ? {
+      genomicRange,
+      genomicDimOpacity,
+      treeRange,
+      treeIntervals,
+      treeDimOpacity
+    } : undefined;
 
     const transformedEdges = transformEdgesToThreeD(
       combinedEdges,
@@ -250,7 +287,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       temporalRange || null,
       temporalFilterMode || null,
       colors,
-      edgeOpacity
+      edgeOpacity,
+      spatialFilter
     );
 
     // Optimize bounds calculation using reduce instead of spread operator for better performance
@@ -276,7 +314,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     } : null;
 
     return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds: finalBounds };
-  }, [coordinateTransform, combinedNodesForTransform, combinedEdgesForTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors, edgeOpacity]);
+  }, [coordinateTransform, combinedNodesForTransform, combinedEdgesForTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors, edgeOpacity, populationColors, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity]);
 
   // Keep all nodes for calculations, but we'll control visibility in the layer
   const nodes3D = allNodes3D;
@@ -848,7 +886,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     new TextLayer<MutationMarker3D>({
       id: 'mutation-markers',
       data: filterDataByHeatmap(mutationMarkers, heatmapSettings),
-      pickable: false,
+      pickable: true,
       sizeUnits: 'meters', // Use same world-space units as other elements
       sizeScale: 1, // Direct scaling 
       getPosition: (d: MutationMarker3D) => d.position,
@@ -980,21 +1018,42 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
             return createTooltipContent(object as Node3D, data, geographicMode, colors);
           }
           
-                     // For sample labels, show a simple tooltip
-           if (layer?.id === 'node-labels' && object.labelId?.startsWith('sample-label-')) {
-             return {
-               html: `
-                 <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
-                   <strong>Sample Label: ${object.text}</strong><br/>
-                   Drag to reposition • Right-click to reset
-                 </div>
-               `,
-               style: {
-                 backgroundColor: 'transparent',
-                 color: colors.tooltipText
-               }
-             };
-           }
+          // For mutation markers, show detailed mutation info
+          if (layer?.id === 'mutation-markers' && object.mutation) {
+            const mut = object.mutation;
+            return {
+              html: `
+                <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
+                  <strong>Mutation ${mut.id}</strong><br/>
+                  Position: ${Math.round(mut.position)}<br/>
+                  Transition: ${mut.previous_state} → ${mut.derived_state}<br/>
+                  Ancestral: ${mut.ancestral_state}
+                  ${mut.time !== null && mut.time !== undefined ? `<br/>Time: ${mut.time.toFixed(4)}` : ''}
+                  ${mut.parent_mutation !== -1 ? `<br/>Parent mutation: ${mut.parent_mutation}` : ''}
+                </div>
+              `,
+              style: {
+                backgroundColor: 'transparent',
+                color: colors.tooltipText
+              }
+            };
+          }
+          
+          // For sample labels, show a simple tooltip
+          if (layer?.id === 'node-labels' && object.labelId?.startsWith('sample-label-')) {
+            return {
+              html: `
+                <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
+                  <strong>Sample Label: ${object.text}</strong><br/>
+                  Drag to reposition • Right-click to reset
+                </div>
+              `,
+              style: {
+                backgroundColor: 'transparent',
+                color: colors.tooltipText
+              }
+            };
+          }
           
           return null;
         }}

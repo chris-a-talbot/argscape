@@ -262,8 +262,7 @@ export async function exportSVGAsImage(
     const allElements = exportSvg.querySelectorAll('*');
     allElements.forEach((element) => {
       const computedStyle = window.getComputedStyle(element as Element);
-      const inlineStyle = element.getAttribute('style') || '';
-      
+
       // Key style properties that should be preserved in export
       const importantProps = ['fill', 'stroke', 'stroke-width', 'stroke-opacity', 'fill-opacity', 'opacity'];
       
@@ -386,7 +385,6 @@ export async function export3DVisualizationAsImage(
 ): Promise<void> {
   const {
     filename,
-    padding = 50,
     maxWidth = 4096,
     maxHeight = 4096,
     backgroundColor = '#03303E',
@@ -546,66 +544,6 @@ export async function export3DVisualizationAsImage(
 
   } catch (error) {
     console.error('Error exporting 3D visualization image:', error);
-    throw error;
-  }
-}
-
-/**
- * Legacy function for basic canvas export (fallback)
- * @deprecated Use export3DVisualizationAsImage for proper 3D export
- */
-export async function exportCanvasAsImage(
-  sourceCanvas: HTMLCanvasElement,
-  options: ExportOptions
-): Promise<void> {
-  const {
-    filename,
-    padding = 50,
-    maxWidth = 4096,
-    maxHeight = 4096,
-    backgroundColor = '#03303E',
-    scale = 2,
-    watermark
-  } = options;
-
-  try {
-    // Wait for next frame to ensure WebGL render is complete
-    await new Promise(resolve => requestAnimationFrame(resolve));
-    
-    // For legacy compatibility, just do a high-quality capture
-    const finalWidth = Math.min(maxWidth, sourceCanvas.width * scale);
-    const finalHeight = Math.min(maxHeight, sourceCanvas.height * scale);
-
-    // Create high-resolution canvas
-    const exportCanvas = document.createElement('canvas');
-    exportCanvas.width = finalWidth;
-    exportCanvas.height = finalHeight;
-    const ctx = exportCanvas.getContext('2d');
-    if (!ctx) throw new Error('Could not get canvas context');
-
-    // Enable high-quality rendering
-    ctx.imageSmoothingEnabled = true;
-    ctx.imageSmoothingQuality = 'high';
-
-    // Fill with background color
-    ctx.fillStyle = backgroundColor;
-    ctx.fillRect(0, 0, finalWidth, finalHeight);
-
-    // Draw the source canvas scaled up
-    ctx.drawImage(sourceCanvas, 0, 0, finalWidth, finalHeight);
-
-    // Add watermark if specified
-    if (watermark) {
-      addWatermark(ctx, finalWidth, finalHeight, watermark);
-    }
-
-    // Convert to PNG and download
-    exportCanvas.toBlob((blob) => {
-      if (!blob) throw new Error('Failed to create image blob');
-      downloadBlob(blob, filename);
-    }, 'image/png', 1.0);
-  } catch (error) {
-    console.error('Error exporting canvas image:', error);
     throw error;
   }
 }

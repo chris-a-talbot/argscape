@@ -462,15 +462,6 @@ export function createFocusFunction(
         const bounds = calculateGraphBounds(positionedNodes, actualHeight, 0);
         const transform = calculateFitTransform(bounds, actualWidth, actualHeight);
 
-        console.log('Focus function - fitting to entire graph:', {
-            focalNode: node ? `node ${node.id}` : 'none',
-            positionedNodes: positionedNodes.length,
-            bounds: {
-                center: [bounds.centerX, bounds.centerY],
-                dimensions: [bounds.width, bounds.height]
-            }
-        });
-
         svg.transition()
             .duration(GRAPH_CONSTANTS.ZOOM.TRANSITION_DURATION)
             .call(zoom.transform, transform);
@@ -512,17 +503,6 @@ export function calculateGraphBounds(nodes: Node[], screenHeight: number, timeSp
     const width = maxX - minX;
     const boundingHeight = maxY - minY;
     
-    // Debug info to ensure we're capturing the full structure
-    console.log('Graph bounds calculation:', {
-        nodeCount: positionedNodes.length,
-        xRange: [minX, maxX],
-        yRange: [minY, maxY],
-        center: [centerX, centerY],
-        dimensions: [width, boundingHeight],
-        sampleNodes: positionedNodes.filter(n => n.is_sample).length,
-        internalNodes: positionedNodes.filter(n => !n.is_sample).length
-    });
-    
     return {
         minX,
         maxX,
@@ -561,17 +541,6 @@ export function calculateFitTransform(bounds: any, screenWidth: number, screenHe
         Math.max(GRAPH_CONSTANTS.ZOOM.GRAPH_FIT_SCALE_MIN, Math.min(scaleX, scaleY)), 
         GRAPH_CONSTANTS.ZOOM.GRAPH_FIT_SCALE_MAX
     );
-
-    console.log('Fit transform calculation:', {
-        graphCenter: [graphCenterX, graphCenterY],
-        graphDimensions: [graphWidth, graphHeight],
-        screenDimensions: [screenWidth, screenHeight],
-        padding: { horizontal: horizontalPadding, vertical: verticalPadding },
-        scale,
-        scaleX,
-        scaleY,
-        effectiveDimensions: [effectiveGraphWidth, effectiveGraphHeight]
-    });
 
     // Create transform that:
     // 1. Moves to screen center

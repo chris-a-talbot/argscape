@@ -1,7 +1,7 @@
 import { GraphNode, GraphEdge, GraphData, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { isRootNode } from '../../../utils/graphTraversal';
 import { GeographicMode } from '../SpatialArgUtils/SpatialArg.types';
-import { DiffViewMode, NodeDiff3D, EdgeDiff3D, DiffEdge, EdgeTransformResult } from './SpatialArgDiff.types';
+import { DiffViewMode, NodeDiff3D, DiffEdge, EdgeTransformResult } from './SpatialArgDiff.types';
 import { NodeIdSettings, EdgeLabelSettings } from '../SpatialArg3D/SpatialArg3DVisualization.types';
 import { EdgeLabel3D } from '../SpatialArgUtils/SpatialArg.types';
 import { NodeLabel3D } from './SpatialArgDiff.types';
@@ -9,8 +9,6 @@ import { groupEdgesByPairs, expandEdgeSpansForCombinedNodes } from '../../../uti
 import { VISUALIZATION_CONSTANTS_DIFF } from '../SpatialArgUtils/SpatialArg.constants';
 import { calculateZPosition, createNodeJitter, calculateTemporalOpacity, calculateEdgeOpacity, getContrastColor, calculateNodeColorByType } from '../SpatialArgUtils/SpatialArg.utils';
 import { parseTextColor, calculateMidpoint } from '../SpatialArgUtils/LayerHelpers';
-import { isRootNode } from '../../../utils/graphTraversal';
-import { LINE_WIDTHS } from './SpatialArgDiff.constants';
 
 /**
  * Calculate node size based on node type and time (diff-specific)
@@ -94,7 +92,8 @@ export function transformNodesToThreeD(
   diffEdgeWidth: number,
   nodeSizes: { sample: number; root: number; other: number },
   viewMode: DiffViewMode,
-  showErrorBars: boolean
+  showErrorBars: boolean,
+  populationColors?: Map<number, [number, number, number]> | null
 ): { nodes: NodeDiff3D[], diffEdges: DiffEdge[] } {
   if (!coordinateTransform) return { nodes: [], diffEdges: [] };
   
@@ -144,7 +143,7 @@ export function transformNodesToThreeD(
 
     const isSampleTime = node.time === minTime;
     const nodeForColor = isSampleTime ? { ...node, is_sample: true } : node;
-    const color = calculateNodeColorByType(nodeForColor, combinedNodes, combinedEdges, colors, isRootNode);
+    const color = calculateNodeColorByType(nodeForColor, combinedNodes, combinedEdges, colors, isRootNode, populationColors);
 
     if (showErrorBars && !isSampleTime) {
       if (viewMode === 'diff') {
@@ -306,6 +305,15 @@ export function createTooltipContent(
     nodeTypeInfo = 'Internal Node';
   }
   
+  let populationInfo = '';
+  if (node.population !== null && node.population !== undefined) {
+    populationInfo = `Population: ${node.population}`;
+    if (node.population_inferred) {
+      populationInfo += ' (inferred)';
+    }
+    populationInfo = `<br/>${populationInfo}`;
+  }
+  
   const firstX = transform ? node.firstPosition[0] * (transform.maxScale / spatialSpacing) + transform.centerX : node.firstPosition[0];
   const firstY = transform ? node.firstPosition[1] * (transform.maxScale / spatialSpacing) + transform.centerY : node.firstPosition[1];
   const secondX = transform ? node.secondPosition[0] * (transform.maxScale / spatialSpacing) + transform.centerX : node.secondPosition[0];
@@ -316,7 +324,7 @@ export function createTooltipContent(
       <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
         <strong>Node ${node.id}</strong><br/>
         Time: ${node.time.toFixed(3)}<br/>
-        ${nodeTypeInfo}<br/>
+        ${nodeTypeInfo}${populationInfo}<br/>
         ${node.is_sample ? 'Sample Node (Fixed Position)' : `
         First Position: (${firstX.toFixed(3)}, ${firstY.toFixed(3)})<br/>
         Second Position: (${secondX.toFixed(3)}, ${secondY.toFixed(3)})<br/>

@@ -1,6 +1,39 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 
-export type ColorTheme = 'tskit' | 'grayscale' | 'custom';
+/**
+ * Convert hex color to HSL format for CSS variables.
+ * @param hex - Hex color string (e.g., "#14E2A8")
+ * @returns HSL string in format "210 40% 98%" (without hsl() wrapper)
+ */
+function hexToHsl(hex: string): string {
+  // Remove # if present
+  const cleanHex = hex.replace('#', '');
+  
+  // Parse hex to RGB
+  const r = parseInt(cleanHex.substr(0, 2), 16) / 255;
+  const g = parseInt(cleanHex.substr(2, 2), 16) / 255;
+  const b = parseInt(cleanHex.substr(4, 2), 16) / 255;
+  
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0, s = 0, l = (max + min) / 2;
+  
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  
+  // Return in format: "210 40% 98%"
+  return `${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(l * 100)}%`;
+}
+
+export type ColorTheme = 'tskit' | 'grayscale' | 'grayscaleInverted' | 'liquid' | 'custom';
 
 export interface CustomColorScheme {
   name: string;
@@ -8,7 +41,7 @@ export interface CustomColorScheme {
   colors: ColorScheme;
 }
 
-interface ColorScheme {
+export interface ColorScheme {
   // Background colors
   background: string;
   containerBackground: string;
@@ -54,6 +87,44 @@ interface ColorScheme {
   headerText: string;
   controlPanelText: string;
   buttonText: string;
+  
+  // Semantic UI colors for interactive states
+  /** Success states, checkmarks, confirmations */
+  success: string;
+  /** Success button hover state */
+  successHover: string;
+  /** Warning states, caution indicators */
+  warning: string;
+  /** Warning button hover state */
+  warningHover: string;
+  /** Error states, delete actions, destructive operations */
+  error: string;
+  /** Error button hover state */
+  errorHover: string;
+  /** Info states, help indicators */
+  info: string;
+  /** Info button hover state */
+  infoHover: string;
+  
+  // Interactive state colors
+  /** Active nav items, selected states, current selections */
+  activeHighlight: string;
+  /** Hover state overlay (typically rgba for transparency) */
+  hoverOverlay: string;
+  /** Focus rings for keyboard navigation accessibility */
+  focusRing: string;
+
+  // Glass effect colors (for Liquid Glass UI)
+  /** Primary glass shadow color - used in box-shadow for glass panels */
+  glassShadowPrimary: string;
+  /** Secondary glass shadow color - softer shadow for tooltips/dropdowns */
+  glassShadowSecondary: string;
+  /** Glass panel background - translucent background for glass effect */
+  glassBackground: string;
+  /** Glass border color - subtle border for glass panels */
+  glassBorder: string;
+  /** Glass shimmer/highlight color - for hover effects and highlights */
+  glassShimmer: string;
 }
 
 const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
@@ -73,7 +144,7 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     mutationMarker: [220, 38, 38, 255], // Red for mutation markers
     text: '#ffffff',
     textSecondary: '#14E2A8', // Classic sp-pale-green
-    border: '#2a4a5a',
+    border: '#5a7a8a', // Lighter border for 3:1 contrast
     exportBackground: '#03303E',
     accentPrimary: '#14E2A8', // Same as textSecondary for consistency
     accentSecondary: '#14E2A8', // Same as textSecondary for consistency
@@ -83,13 +154,85 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     tooltipText: '#ffffff',
     headerText: '#ffffff',
     controlPanelText: '#ffffff',
-    buttonText: '#ffffff'
+    buttonText: '#ffffff',
+    
+    // Semantic colors - maintaining tskit aesthetic
+    success: '#14E2A8',        // Classic pale green
+    successHover: '#1EEBB1',   // Lighter green hover
+    warning: '#f59e0b',        // Amber 500
+    warningHover: '#d97706',   // Amber 600
+    error: '#ef4444',          // Red 500
+    errorHover: '#dc2626',     // Red 600
+    info: '#3b82f6',           // Blue 500
+    infoHover: '#2563eb',      // Blue 600
+    
+    // Interactive states
+    activeHighlight: '#14E2A8',           // Pale green
+    hoverOverlay: 'rgba(255, 255, 255, 0.05)', // Light white overlay
+    focusRing: '#14E2A8',                  // Pale green focus
+
+    // Glass effect colors (dark theme - uses pale green accents)
+    glassShadowPrimary: 'rgba(20, 226, 168, 0.15)',    // Green-tinted shadow
+    glassShadowSecondary: 'rgba(20, 226, 168, 0.08)', // Softer green shadow
+    glassBackground: 'rgba(3, 48, 62, 0.85)',         // Dark translucent
+    glassBorder: 'rgba(20, 226, 168, 0.2)',           // Green-tinted border
+    glassShimmer: 'rgba(20, 226, 168, 0.1)'           // Green shimmer
+  },
+  liquid: {
+    background: '#f5f5f7', // Apple's light gray (not pure white)
+    containerBackground: 'rgba(255, 255, 255, 0.8)', // More translucent glass
+    nodeDefault: [148, 163, 184, 255], // Slate 400
+    nodeRoot: [20, 226, 168, 255], // ARGscape Green
+    nodeSample: [20, 226, 168, 255], // Classic ARGscape Green (#14E2A8)
+    nodeCombined: [100, 116, 139, 255], // Slate 500
+    nodeSelected: [20, 226, 168, 255], // Green for selected
+    nodeClusterSample: [20, 226, 168, 150],
+    nodeClusterRegular: [148, 163, 184, 150],
+    edgeDefault: [148, 163, 184, 80], // Slate 400 with opacity
+    edgeHighlight: [20, 226, 168, 200], // Green highlight
+    edgeClusterSample: [20, 226, 168, 200],
+    mutationMarker: [220, 38, 38, 255], // Red
+    text: '#1d1d1f', // Apple's near-black
+    textSecondary: '#6e6e73', // Apple's gray
+    border: 'rgba(20, 226, 168, 0.15)', // Lighter green-tinted border
+    exportBackground: '#f5f5f7', // Match background
+    accentPrimary: '#0a9d7e', // Darker green for contrast (3.01:1 on light bg)
+    accentSecondary: '#087a62', // Even darker green for hover
+    geographicGrid: [20, 226, 168, 50],
+    temporalGrid: [20, 226, 168, 30],
+    tooltipBackground: 'rgba(255, 255, 255, 0.95)', // White opaque
+    tooltipText: '#1d1d1f', // Match text
+    headerText: '#1d1d1f', // Match text
+    controlPanelText: '#1d1d1f', // Match text
+    buttonText: '#ffffff', // White text for buttons on green background
+    
+    // Semantic colors - Apple-inspired with ARGscape green (adjusted for accessibility)
+    success: '#0a9d7e',        // Darker green for contrast (3.01:1)
+    successHover: '#087a62',   // Even darker green hover
+    warning: '#c87005',        // Darker orange for contrast (3.01:1)
+    warningHover: '#b45309',   // Even darker orange hover
+    error: '#dc2626',          // Darker red (4.55:1)
+    errorHover: '#b91c1c',     // Even darker red hover
+    info: '#0369a1',           // Darker blue for contrast (3.94:1)
+    infoHover: '#075985',      // Even darker blue hover
+    
+    // Interactive states
+    activeHighlight: '#0a9d7e',           // Darker green for active states
+    hoverOverlay: 'rgba(10, 157, 126, 0.08)', // Darker green overlay
+    focusRing: '#0a9d7e',                  // Darker green focus ring
+
+    // Glass effect colors (light theme - Apple-inspired with green accents)
+    glassShadowPrimary: 'rgba(20, 226, 168, 0.12)',    // Green-tinted shadow
+    glassShadowSecondary: 'rgba(10, 157, 126, 0.15)', // Darker green for tooltips
+    glassBackground: 'rgba(255, 255, 255, 0.8)',      // White translucent
+    glassBorder: 'rgba(20, 226, 168, 0.15)',          // Subtle green border
+    glassShimmer: 'rgba(255, 255, 255, 0.6)'          // White shimmer
   },
   grayscale: {
     background: '#ffffff',
     containerBackground: '#f8f9fa',
     nodeDefault: [100, 100, 100, 255], // Medium gray for internal nodes
-    nodeRoot: [50, 50, 50, 255], // Dark gray for root nodes  
+    nodeRoot: [50, 50, 50, 255], // Dark gray for root nodes
     nodeSample: [70, 70, 70, 255], // Darker gray for samples
     nodeCombined: [120, 120, 120, 255], // Light gray for combined nodes
     nodeSelected: [0, 0, 0, 255], // Black for selected
@@ -101,17 +244,89 @@ const colorSchemes: Record<Exclude<ColorTheme, 'custom'>, ColorScheme> = {
     mutationMarker: [200, 50, 50, 255], // Dark red for mutation markers (visible on white)
     text: '#212529', // Dark gray text for good contrast on white
     textSecondary: '#6c757d', // Medium gray secondary text
-    border: '#dee2e6', // Light gray borders
+    border: '#8b9299', // Darker gray border for 3:1 contrast
     exportBackground: '#ffffff',
     accentPrimary: '#085167', // Classic dark blue for "ARGscape" and key branding
     accentSecondary: '#085167', // Classic dark blue for footer links and accents
     geographicGrid: [140, 140, 140, 102], // Gray with transparency
     temporalGrid: [140, 140, 140, 77], // Gray with less transparency
-    tooltipBackground: 'rgba(0, 0, 0, 0.9)',
+    tooltipBackground: 'rgba(33, 37, 41, 0.95)', // Dark gray tooltip background
     tooltipText: '#ffffff',
     headerText: '#212529',
     controlPanelText: '#212529',
-    buttonText: '#212529'
+    buttonText: '#ffffff', // White text for buttons on dark blue background
+
+    // Semantic colors - grayscale only
+    success: '#4a5568',        // Slate 600
+    successHover: '#2d3748',   // Slate 800
+    warning: '#6b7280',        // Gray 500
+    warningHover: '#4b5563',   // Gray 600
+    error: '#1f2937',          // Gray 800
+    errorHover: '#111827',     // Gray 900
+    info: '#6b7280',           // Gray 500
+    infoHover: '#4b5563',      // Gray 600
+
+    // Interactive states
+    activeHighlight: '#085167',           // Classic dark blue for accents
+    hoverOverlay: 'rgba(0, 0, 0, 0.05)',  // Light gray overlay
+    focusRing: '#085167',                  // Dark blue focus
+
+    // Glass effect colors (grayscale - no colored shadows)
+    glassShadowPrimary: 'rgba(0, 0, 0, 0.08)',        // Gray shadow
+    glassShadowSecondary: 'rgba(0, 0, 0, 0.05)',     // Softer gray shadow
+    glassBackground: 'rgba(255, 255, 255, 0.9)',     // Near-white translucent
+    glassBorder: 'rgba(0, 0, 0, 0.1)',               // Gray border
+    glassShimmer: 'rgba(255, 255, 255, 0.8)'         // White shimmer
+  },
+  grayscaleInverted: {
+    background: '#121212', // Near-black background
+    containerBackground: '#1e1e1e', // Dark container
+    nodeDefault: [180, 180, 180, 255], // Light gray for internal nodes
+    nodeRoot: [220, 220, 220, 255], // Near-white for root nodes
+    nodeSample: [200, 200, 200, 255], // Light gray for samples
+    nodeCombined: [160, 160, 160, 255], // Medium gray for combined nodes
+    nodeSelected: [255, 255, 255, 255], // White for selected
+    nodeClusterSample: [200, 200, 200, 179], // Light gray with transparency for sample clusters
+    nodeClusterRegular: [220, 220, 220, 179], // Near-white with transparency for regular clusters
+    edgeDefault: [120, 120, 120, 128], // Medium gray edges with transparency
+    edgeHighlight: [230, 230, 230, 200], // Light highlighted edges
+    edgeClusterSample: [200, 200, 200, 255], // Light gray for sample cluster edges
+    mutationMarker: [255, 100, 100, 255], // Light red for mutation markers (visible on dark)
+    text: '#f0f0f0', // Near-white text for good contrast on dark
+    textSecondary: '#a0a0a0', // Medium gray secondary text
+    border: '#4a4a4a', // Medium gray border for contrast
+    exportBackground: '#121212',
+    accentPrimary: '#14E2A8', // tskit light green for accents
+    accentSecondary: '#14E2A8', // tskit light green for accents
+    geographicGrid: [120, 120, 120, 102], // Gray with transparency
+    temporalGrid: [120, 120, 120, 77], // Gray with less transparency
+    tooltipBackground: 'rgba(240, 240, 240, 0.95)', // Light tooltip background
+    tooltipText: '#121212', // Dark text on light tooltip
+    headerText: '#f0f0f0',
+    controlPanelText: '#f0f0f0',
+    buttonText: '#121212', // Dark text for buttons on light green background
+
+    // Semantic colors - inverted grayscale
+    success: '#a0a0a0',        // Light gray
+    successHover: '#c0c0c0',   // Lighter gray
+    warning: '#909090',        // Medium gray
+    warningHover: '#a8a8a8',   // Lighter gray
+    error: '#d0d0d0',          // Light gray
+    errorHover: '#e8e8e8',     // Near-white
+    info: '#909090',           // Medium gray
+    infoHover: '#a8a8a8',      // Lighter gray
+
+    // Interactive states
+    activeHighlight: '#14E2A8',           // tskit light green for accents
+    hoverOverlay: 'rgba(255, 255, 255, 0.05)',  // Light white overlay
+    focusRing: '#14E2A8',                  // Light green focus
+
+    // Glass effect colors (dark grayscale)
+    glassShadowPrimary: 'rgba(255, 255, 255, 0.08)',   // Light shadow
+    glassShadowSecondary: 'rgba(255, 255, 255, 0.05)', // Softer light shadow
+    glassBackground: 'rgba(30, 30, 30, 0.9)',          // Near-black translucent
+    glassBorder: 'rgba(255, 255, 255, 0.1)',           // Light border
+    glassShimmer: 'rgba(255, 255, 255, 0.15)'          // Light shimmer
   }
 };
 
@@ -138,7 +353,7 @@ const SELECTED_THEME_KEY = 'argscape_selected_theme';
 const SELECTED_CUSTOM_THEME_KEY = 'argscape_selected_custom_theme';
 
 export const ColorThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [theme, setThemeState] = useState<ColorTheme>('tskit');
+  const [theme, setThemeState] = useState<ColorTheme>('liquid');
   const [customThemes, setCustomThemes] = useState<CustomColorScheme[]>([]);
   const [selectedCustomTheme, setSelectedCustomTheme] = useState<string | null>(null);
   const [currentVisualizationType, setCurrentVisualizationType] = useState<VisualizationType>('any');
@@ -152,7 +367,7 @@ export const ColorThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
       }
       
       const savedTheme = localStorage.getItem(SELECTED_THEME_KEY);
-      if (savedTheme && (savedTheme === 'tskit' || savedTheme === 'grayscale' || savedTheme === 'custom')) {
+      if (savedTheme && (savedTheme === 'tskit' || savedTheme === 'grayscale' || savedTheme === 'grayscaleInverted' || savedTheme === 'liquid' || savedTheme === 'custom')) {
         setThemeState(savedTheme as ColorTheme);
       }
       
@@ -235,6 +450,55 @@ export const ColorThemeProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     
     return colorSchemes[theme as Exclude<ColorTheme, 'custom'>] || colorSchemes.tskit;
   }, [theme, selectedCustomTheme, customThemes]);
+  
+  // Sync theme colors to CSS variables for Tailwind/shadcn components
+  useEffect(() => {
+    const root = document.documentElement;
+    
+    // Map theme colors to CSS variables
+    try {
+      // Core colors
+      root.style.setProperty('--background', hexToHsl(colors.background));
+      root.style.setProperty('--foreground', hexToHsl(colors.text));
+      
+      // Primary accent
+      root.style.setProperty('--primary', hexToHsl(colors.accentPrimary));
+      root.style.setProperty('--primary-foreground', hexToHsl(colors.buttonText));
+      
+      // Borders and inputs
+      root.style.setProperty('--border', hexToHsl(colors.border.includes('rgba') ? colors.textSecondary : colors.border));
+      root.style.setProperty('--input', hexToHsl(colors.border.includes('rgba') ? colors.textSecondary : colors.border));
+      
+      // Ring (focus)
+      root.style.setProperty('--ring', hexToHsl(colors.focusRing || colors.accentPrimary));
+      
+      // Card (container)
+      root.style.setProperty('--card', hexToHsl(colors.containerBackground.includes('rgba') ? colors.background : colors.containerBackground));
+      root.style.setProperty('--card-foreground', hexToHsl(colors.text));
+      
+      // Muted
+      root.style.setProperty('--muted', hexToHsl(colors.containerBackground.includes('rgba') ? colors.background : colors.containerBackground));
+      root.style.setProperty('--muted-foreground', hexToHsl(colors.textSecondary));
+      
+      // Accent
+      root.style.setProperty('--accent', hexToHsl(colors.accentSecondary));
+      root.style.setProperty('--accent-foreground', hexToHsl(colors.buttonText));
+      
+      // Destructive
+      root.style.setProperty('--destructive', hexToHsl(colors.error));
+      root.style.setProperty('--destructive-foreground', hexToHsl(colors.buttonText));
+
+      // Slider accent colors (used by index.css slider styling)
+      root.style.setProperty('--slider-accent', colors.accentPrimary);
+      root.style.setProperty('--slider-accent-hover', colors.successHover || colors.accentSecondary);
+      // Extract RGB values for slider shadows
+      const accentRgb = colorStringToRgbaArray(colors.accentPrimary);
+      root.style.setProperty('--slider-accent-rgb', `${accentRgb[0]}, ${accentRgb[1]}, ${accentRgb[2]}`);
+
+    } catch (error) {
+      console.warn('Failed to sync CSS variables:', error);
+    }
+  }, [colors]);
   
   const value = {
     theme,
@@ -365,7 +629,23 @@ export const getOtherColors = (visualizationType: VisualizationType): (keyof Col
     'tooltipText',
     'headerText',
     'controlPanelText',
-    'buttonText'
+    'buttonText',
+    'success',
+    'successHover',
+    'warning',
+    'warningHover',
+    'error',
+    'errorHover',
+    'info',
+    'infoHover',
+    'activeHighlight',
+    'hoverOverlay',
+    'focusRing',
+    'glassShadowPrimary',
+    'glassShadowSecondary',
+    'glassBackground',
+    'glassBorder',
+    'glassShimmer'
   ];
 
   const primaryColors = getPrimaryColors(visualizationType);

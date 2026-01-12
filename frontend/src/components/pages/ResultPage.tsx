@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
+import { parseInferenceError, TIMEOUT_MESSAGE } from '../../lib/inferenceErrors';
 import { SAMPLE_LIMITS } from '../../config/constants';
 import AlertModal from '../ui/AlertModal';
 import { DownloadDropdown } from '../ui/DownloadDropdown';
@@ -12,8 +13,16 @@ import Navbar from '../layout/Navbar';
 import ParticleBackground from '../ui/ParticleBackground';
 import Footer from '../layout/Footer';
 import { CollapsibleSection } from '../ui/CollapsibleSection';
-import { RangeSlider } from '../ui/range-slider';
 import { Tooltip, GroupTooltip } from '../ui/tooltip';
+import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { LiquidButton } from '../ui/LiquidButton';
+import {
+  VisualizationWizard,
+  VisualizationType,
+  WizardSettings,
+  TreeSequenceStats,
+} from '../ui/VisualizationWizard';
 
 // Use the TreeSequenceData type from the context
 type TreeSequence = NonNullable<ReturnType<typeof useTreeSequence>['treeSequence']>;
@@ -108,6 +117,9 @@ function LocationInferenceDropdown({
   isInferring: boolean;
   data: any;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [isOpen, setIsOpen] = useState(false);
   const [tooltipMethod, setTooltipMethod] = useState<LocationInferenceMethod | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState<{left?: string, right?: string, top?: string, bottom?: string, transform?: string, marginLeft?: string, marginRight?: string}>({});
@@ -215,15 +227,30 @@ function LocationInferenceDropdown({
     <div className="relative group">
       <button
         ref={buttonRef}
-        className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 w-full ${
-          disabled && 'opacity-50 cursor-not-allowed hover:transform-none'
-        } ${isInferring && 'opacity-75 cursor-not-allowed hover:transform-none'}`}
+        className={`font-bold py-3 px-4 rounded-xl transition-all duration-200 transform flex items-center justify-center gap-2 w-full ${
+          disabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-105 hover:shadow-lg'
+        } ${isInferring ? 'opacity-75 cursor-not-allowed' : ''}`}
+        style={{
+          backgroundColor: colors.accentPrimary,
+          color: colors.buttonText,
+          border: `1px solid ${colors.border}`
+        }}
+        onMouseEnter={(e) => {
+          if (!disabled && !isInferring) {
+            e.currentTarget.style.backgroundColor = colors.accentSecondary;
+          }
+        }}
+        onMouseLeave={(e) => {
+          if (!disabled && !isInferring) {
+            e.currentTarget.style.backgroundColor = colors.accentPrimary;
+          }
+        }}
         onClick={handleToggle}
         disabled={disabled || isInferring}
         title={disabled ? "Requires sample spatial data" : ""}
       >
         {isInferring && (
-          <div className="animate-spin rounded-full h-4 w-4 border border-sp-pale-green border-t-transparent"></div>
+          <div className="animate-spin rounded-full h-4 w-4 border border-t-transparent" style={{ borderColor: colors.accentPrimary, borderTopColor: 'transparent' }}></div>
         )}
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -248,9 +275,17 @@ function LocationInferenceDropdown({
       {/* Dropdown Menu */}
       {isOpen && (
         <div 
-          className={`absolute z-[500] w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl ${
+          className={`absolute z-[500] w-full ${
             openUpward ? 'bottom-full mb-2' : 'mt-2'
           }`}
+          style={{
+            backgroundColor: colors.containerBackground,
+            border: `1px solid ${colors.border}`,
+            borderRadius: '0.75rem',
+            boxShadow: '0 8px 32px rgba(20, 226, 168, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)'
+          }}
         >
           <div className="py-2">
             {availableMethods.map((method) => (
@@ -276,11 +311,24 @@ function LocationInferenceDropdown({
                 }}
               >
                 <button
-                  className={`w-full px-4 py-2 text-left transition-colors duration-200 ${
-                    !method.enabled ? 'text-sp-white/50 cursor-not-allowed' :
-                    selectedMethod === method.id ? 'bg-sp-pale-green/10 hover:bg-sp-pale-green hover:text-sp-very-dark-blue' :
-                    'hover:bg-sp-pale-green hover:text-sp-very-dark-blue'
-                  }`}
+                  className="w-full px-4 py-2 text-left transition-colors duration-200"
+                  style={{
+                    color: !method.enabled ? colors.textSecondary : colors.text,
+                    backgroundColor: selectedMethod === method.id ? `${colors.accentPrimary}20` : 'transparent',
+                    cursor: !method.enabled ? 'not-allowed' : 'pointer'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (method.enabled) {
+                      e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                      e.currentTarget.style.color = colors.buttonText;
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (method.enabled) {
+                      e.currentTarget.style.backgroundColor = selectedMethod === method.id ? `${colors.accentPrimary}20` : 'transparent';
+                      e.currentTarget.style.color = colors.text;
+                    }
+                  }}
                   onClick={() => {
                     if (method.enabled) {
                       onMethodSelect(method);
@@ -291,7 +339,7 @@ function LocationInferenceDropdown({
                 >
                   <div className="font-medium flex items-center justify-between">
                     <span>{method.name}</span>
-                    {!method.enabled && <span className="text-xs text-sp-pale-green/50">Coming Soon</span>}
+                    {!method.enabled && <span className="text-xs" style={{ color: `${colors.accentPrimary}80` }}>Coming Soon</span>}
                   </div>
                 </button>
                 {/* Tooltip */}
@@ -323,8 +371,10 @@ function LocationInferenceDropdown({
                         }
                       }}
                       data-tooltip-id={method.id}
-                      className="absolute z-[9999] w-72 p-4 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl pointer-events-auto"
+                      className="absolute z-[9999] w-72 p-4 rounded-xl shadow-xl pointer-events-auto"
                       style={{
+                        backgroundColor: colors.tooltipBackground,
+                        border: `1px solid ${colors.border}`,
                         right: tooltipPosition.right || '100%',
                         left: tooltipPosition.left,
                         ...verticalPositioning,
@@ -344,10 +394,10 @@ function LocationInferenceDropdown({
                         setTooltipMethod(null);
                       }}
                     >
-                    <h4 className="font-bold text-sp-pale-green mb-2">{tooltipMethod.name}</h4>
-                    <p className="text-sm text-sp-white/80 mb-2">{tooltipMethod.description}</p>
+                    <h4 className="font-bold mb-2" style={{ color: colors.accentPrimary }}>{tooltipMethod.name}</h4>
+                    <p className="text-sm mb-2" style={{ color: colors.textSecondary }}>{tooltipMethod.description}</p>
                     <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs text-sp-white/80">Speed:</span>
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>Speed:</span>
                       <div className="flex items-center gap-[2px]">
                         {[...Array(5)].map((_, i) => (
                           <div
@@ -375,7 +425,10 @@ function LocationInferenceDropdown({
                           href={tooltipMethod.reference}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          className="text-xs underline"
+                          style={{ color: colors.accentPrimary }}
+                          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                         >
                           View reference
                         </a>
@@ -386,7 +439,10 @@ function LocationInferenceDropdown({
                             href={tooltipMethod.github}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                            className="text-xs underline"
+                            style={{ color: colors.accentPrimary }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             View gaia on GitHub
                           </a>
@@ -394,7 +450,10 @@ function LocationInferenceDropdown({
                             href={tooltipMethod.github2}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                            className="text-xs underline"
+                            style={{ color: colors.accentPrimary }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             View gaiapy on GitHub
                           </a>
@@ -405,7 +464,10 @@ function LocationInferenceDropdown({
                             href={tooltipMethod.github}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                            className="text-xs underline"
+                            style={{ color: colors.accentPrimary }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             View fastgaia on GitHub
                           </a>
@@ -413,7 +475,10 @@ function LocationInferenceDropdown({
                             href={tooltipMethod.github2}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                            className="text-xs underline"
+                            style={{ color: colors.accentPrimary }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             View gaia on GitHub
                           </a>
@@ -423,7 +488,10 @@ function LocationInferenceDropdown({
                           href={tooltipMethod.github}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-sp-pale-green hover:text-sp-pale-green/80 underline"
+                          className="text-xs underline"
+                          style={{ color: colors.accentPrimary }}
+                          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                         >
                           View on GitHub
                         </a>
@@ -473,6 +541,9 @@ function AdvancedSubsettingModal({
   }) => void;
   totalSamples: number;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [sampleInput, setSampleInput] = useState('');
   const [sampleInputType, setSampleInputType] = useState<'comma' | 'range' | 'file' | 'random'>('comma');
   const [rangeStart, setRangeStart] = useState('0');
@@ -603,19 +674,24 @@ function AdvancedSubsettingModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">Advanced Subsetting</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>Advanced Subsetting</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Sample Selection */}
           <div>
-            <label className="block text-sm font-medium text-sp-white/80 mb-2">
+            <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
               Sample Selection Method
             </label>
             <select
               value={sampleInputType}
               onChange={(e) => setSampleInputType(e.target.value as 'comma' | 'range' | 'file' | 'random')}
-              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: colors.containerBackground,
+                border: `1px solid ${colors.border}`,
+                color: colors.text
+              }}
             >
               <option value="comma">Comma-separated list</option>
               <option value="range">Range</option>
@@ -627,14 +703,19 @@ function AdvancedSubsettingModal({
           {/* Sample Input Based on Type */}
           {sampleInputType === 'comma' && (
             <div>
-              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                 Sample IDs (comma-separated)
               </label>
               <textarea
                 value={sampleInput}
                 onChange={(e) => setSampleInput(e.target.value)}
                 placeholder="0, 1, 2, 5, 10, 15"
-                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
                 rows={3}
               />
             </div>
@@ -643,7 +724,7 @@ function AdvancedSubsettingModal({
           {sampleInputType === 'range' && (
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                   Start Sample ID
                 </label>
                 <input
@@ -652,11 +733,16 @@ function AdvancedSubsettingModal({
                   onChange={(e) => setRangeStart(e.target.value)}
                   min="0"
                   max={totalSamples - 1}
-                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                  className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-sp-white/80 mb-2">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                   End Sample ID
                 </label>
                 <input
@@ -665,7 +751,12 @@ function AdvancedSubsettingModal({
                   onChange={(e) => setRangeEnd(e.target.value)}
                   min="0"
                   max={totalSamples - 1}
-                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                  className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
                 />
               </div>
             </div>
@@ -673,16 +764,21 @@ function AdvancedSubsettingModal({
 
           {sampleInputType === 'file' && (
             <div>
-              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                 Upload CSV/TSV File
               </label>
               <input
                 type="file"
                 accept=".csv,.tsv,.txt"
                 onChange={handleFileUpload}
-                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
               />
-              <p className="text-xs text-sp-white/60 mt-1">
+              <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
                 Upload a CSV or TSV file with sample IDs in a single column or row
               </p>
             </div>
@@ -690,7 +786,7 @@ function AdvancedSubsettingModal({
 
           {sampleInputType === 'random' && (
             <div>
-              <label className="block text-sm font-medium text-sp-white/80 mb-2">
+              <label className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
                 Number of Samples to Randomly Select
               </label>
               <input
@@ -700,9 +796,14 @@ function AdvancedSubsettingModal({
                 min="1"
                 max={totalSamples}
                 placeholder={`Enter number between 1 and ${totalSamples}`}
-                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
               />
-              <p className="text-xs text-sp-white/60 mt-1">
+              <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
                 Randomly select this many samples from the tree sequence
               </p>
             </div>
@@ -710,11 +811,11 @@ function AdvancedSubsettingModal({
 
           {/* Sample Preview */}
           {samplePreviews.length > 0 && (
-            <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded p-3">
-              <p className="text-sm text-sp-white/80 mb-2">
+            <div className="rounded p-3" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+              <p className="text-sm mb-2" style={{ color: colors.textSecondary }}>
                 Sample Preview ({samplePreviews.length} samples{samplePreviews.length === 10 ? '+' : ''}):
               </p>
-              <p className="text-xs text-sp-white/60 font-mono">
+              <p className="text-xs font-mono" style={{ color: colors.textSecondary }}>
                 {samplePreviews.join(', ')}{samplePreviews.length === 10 ? '...' : ''}
               </p>
             </div>
@@ -722,7 +823,7 @@ function AdvancedSubsettingModal({
 
           {/* Simplify Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Simplification Options</h4>
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Simplification Options</h4>
             
             <div className="grid grid-cols-1 gap-3">
               <div className="flex items-center justify-between">
@@ -732,17 +833,18 @@ function AdvancedSubsettingModal({
                     id="map-nodes"
                     checked={mapNodes}
                     onChange={(e) => setMapNodes(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="map-nodes" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="map-nodes" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Map nodes
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Return a mapping array showing how node IDs have changed in the simplified tree sequence.
                   </div>
                 </div>
@@ -755,17 +857,18 @@ function AdvancedSubsettingModal({
                     id="reduce-to-site-topology"
                     checked={reduceToSiteTopology}
                     onChange={(e) => setReduceToSiteTopology(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="reduce-to-site-topology" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="reduce-to-site-topology" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Reduce to site topology
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Only keep topology necessary to represent trees containing sites. Removes all trees without sites.
                   </div>
                 </div>
@@ -778,17 +881,18 @@ function AdvancedSubsettingModal({
                     id="filter-populations"
                     checked={filterPopulations}
                     onChange={(e) => setFilterPopulations(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-populations" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="filter-populations" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Filter populations
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Remove populations that are not referenced by any nodes after simplification. Population IDs may change.
                   </div>
                 </div>
@@ -801,17 +905,18 @@ function AdvancedSubsettingModal({
                     id="filter-individuals"
                     checked={filterIndividuals}
                     onChange={(e) => setFilterIndividuals(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-individuals" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="filter-individuals" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Filter individuals
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Remove individuals that are not referenced by any nodes after simplification. Individual IDs may change.
                   </div>
                 </div>
@@ -824,17 +929,18 @@ function AdvancedSubsettingModal({
                     id="filter-sites"
                     checked={filterSites}
                     onChange={(e) => setFilterSites(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-sites" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="filter-sites" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Filter sites
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Remove sites that are not referenced by any mutations after simplification. Site IDs may change.
                   </div>
                 </div>
@@ -847,17 +953,18 @@ function AdvancedSubsettingModal({
                     id="filter-nodes"
                     checked={filterNodes}
                     onChange={(e) => setFilterNodes(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-nodes" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="filter-nodes" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Filter nodes
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Remove nodes that are not referenced by any edges after simplification. This is the standard behavior.
                   </div>
                 </div>
@@ -870,17 +977,18 @@ function AdvancedSubsettingModal({
                     id="update-sample-flags"
                     checked={updateSampleFlags}
                     onChange={(e) => setUpdateSampleFlags(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="update-sample-flags" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="update-sample-flags" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Update sample flags
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Update node flags so that only the specified samples have the IS_SAMPLE flag set.
                   </div>
                 </div>
@@ -893,17 +1001,18 @@ function AdvancedSubsettingModal({
                     id="keep-unary"
                     checked={keepUnary}
                     onChange={(e) => setKeepUnary(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="keep-unary" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="keep-unary" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Keep unary nodes
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Preserve nodes with exactly one child that exist on the path from samples to root.
                   </div>
                 </div>
@@ -916,17 +1025,18 @@ function AdvancedSubsettingModal({
                     id="keep-unary-in-individuals"
                     checked={keepUnaryInIndividuals}
                     onChange={(e) => setKeepUnaryInIndividuals(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="keep-unary-in-individuals" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="keep-unary-in-individuals" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Keep unary in individuals
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Keep unary nodes only if they are associated with an individual in the individuals table.
                   </div>
                 </div>
@@ -939,17 +1049,18 @@ function AdvancedSubsettingModal({
                     id="keep-input-roots"
                     checked={keepInputRoots}
                     onChange={(e) => setKeepInputRoots(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="keep-input-roots" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="keep-input-roots" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Keep input roots
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Retain history ancestral to the MRCA of the samples. Preserves the original tree roots.
                   </div>
                 </div>
@@ -962,17 +1073,18 @@ function AdvancedSubsettingModal({
                     id="record-provenance"
                     checked={recordProvenance}
                     onChange={(e) => setRecordProvenance(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="record-provenance" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="record-provenance" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Record provenance
                   </label>
                 </div>
                 <div className="group relative">
-                  <svg className="w-4 h-4 text-sp-pale-green/60 cursor-help" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 cursor-help" style={{ color: colors.textSecondary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg shadow-xl text-xs text-sp-white/80 z-50">
+                  <div className="hidden group-hover:block absolute right-0 bottom-full mb-2 w-64 p-2 rounded-lg shadow-xl text-xs z-50" style={{ backgroundColor: colors.tooltipBackground, border: `1px solid ${colors.border}`, color: colors.tooltipText }}>
                     Record details of this simplification operation in the tree sequence's provenance information.
                   </div>
                 </div>
@@ -984,15 +1096,21 @@ function AdvancedSubsettingModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
-              Simplify Tree Sequence
+              Simplify
             </button>
           </div>
         </form>
@@ -1014,6 +1132,9 @@ function MidpointConfigModal({
     weight_branch_length: boolean;
   }) => void;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [weightBySpan, setWeightBySpan] = useState(true);
   const [weightBranchLength, setWeightBranchLength] = useState(false);
 
@@ -1029,45 +1150,47 @@ function MidpointConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">Midpoint Inference Configuration</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>Midpoint Inference Configuration</h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Weighting Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Weighting Options</h4>
-            <p className="text-xs text-sp-white/60 mb-3">
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Weighting Options</h4>
+            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
               Choose how to weight child locations when calculating parent node locations. 
               You can use edge spans (genomic length), branch lengths (temporal), both (multiplied), or neither (equal weights).
             </p>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="weight-by-span"
                   checked={weightBySpan}
                   onChange={(e) => setWeightBySpan(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="weight-by-span" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="weight-by-span" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Weight by edge spans (genomic length)
                 </label>
               </div>
               <Tooltip content="Weight child locations by the total genomic length (edge spans) inherited from each child. This reflects how much of the genome is contributed by each child. When a parent has multiple edges to the same child (common in ARGs with recombination), spans are summed. This is the default option and matches the approach used in average_population_ancestors_geography." />
             </div>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="weight-branch-length"
                   checked={weightBranchLength}
                   onChange={(e) => setWeightBranchLength(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="weight-branch-length" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="weight-branch-length" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Weight by branch lengths (temporal)
                 </label>
               </div>
@@ -1076,8 +1199,8 @@ function MidpointConfigModal({
             
             {/* Info about combined weighting */}
             {weightBySpan && weightBranchLength && (
-              <div className="ml-6 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
-                <p className="text-xs text-sp-pale-green">
+              <div className="ml-6 p-3 rounded-lg" style={{ backgroundColor: `${colors.accentPrimary}20`, border: `1px solid ${colors.accentPrimary}` }}>
+                <p className="text-xs" style={{ color: colors.accentPrimary }}>
                   <strong>Combined weighting:</strong> When both options are enabled, weights are multiplied together 
                   (edge_span × branch_length). This gives more weight to children that contribute both more genomic 
                   material and have longer evolutionary branches.
@@ -1087,8 +1210,8 @@ function MidpointConfigModal({
             
             {/* Info about equal weighting */}
             {!weightBySpan && !weightBranchLength && (
-              <div className="ml-6 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
-                <p className="text-xs text-yellow-200">
+              <div className="ml-6 p-3 rounded-lg" style={{ backgroundColor: '#78350f40', border: '1px solid #d97706' }}>
+                <p className="text-xs" style={{ color: '#fef3c7' }}>
                   <strong>Equal weighting:</strong> When neither option is enabled, all children are weighted equally. 
                   This gives a simple unweighted average of child locations.
                 </p>
@@ -1100,13 +1223,19 @@ function MidpointConfigModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
               Run Midpoint Inference
             </button>
@@ -1129,6 +1258,9 @@ function GAIAQuadraticConfigModal({
     use_branch_lengths: boolean;
   }) => void;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [useBranchLengths, setUseBranchLengths] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1142,28 +1274,29 @@ function GAIAQuadraticConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">GAIA Quadratic Inference Configuration</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>GAIA Quadratic Inference Configuration</h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Branch Length Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Parsimony Options</h4>
-            <p className="text-xs text-sp-white/60 mb-3">
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Parsimony Options</h4>
+            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
               Choose whether to use branch lengths (temporal distances) in the quadratic parsimony calculation.
             </p>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="use-branch-lengths-gaia-quad"
                   checked={useBranchLengths}
                   onChange={(e) => setUseBranchLengths(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="use-branch-lengths-gaia-quad" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="use-branch-lengths-gaia-quad" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Use branch lengths in parsimony calculation
                 </label>
               </div>
@@ -1175,13 +1308,19 @@ function GAIAQuadraticConfigModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
               Run GAIA Quadratic Inference
             </button>
@@ -1204,6 +1343,9 @@ function GAIALinearConfigModal({
     use_branch_lengths: boolean;
   }) => void;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [useBranchLengths, setUseBranchLengths] = useState(true);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1217,28 +1359,29 @@ function GAIALinearConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">GAIA Linear Inference Configuration</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>GAIA Linear Inference Configuration</h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Branch Length Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Parsimony Options</h4>
-            <p className="text-xs text-sp-white/60 mb-3">
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Parsimony Options</h4>
+            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
               Choose whether to use branch lengths (temporal distances) in the linear parsimony calculation.
             </p>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="use-branch-lengths-gaia-linear"
                   checked={useBranchLengths}
                   onChange={(e) => setUseBranchLengths(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="use-branch-lengths-gaia-linear" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="use-branch-lengths-gaia-linear" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Use branch lengths in parsimony calculation
                 </label>
               </div>
@@ -1250,13 +1393,19 @@ function GAIALinearConfigModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
               Run GAIA Linear Inference
             </button>
@@ -1280,6 +1429,9 @@ function FastGAIAConfigModal({
     weight_branch_length: boolean;
   }) => void;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [weightSpan, setWeightSpan] = useState(true);
   const [weightBranchLength, setWeightBranchLength] = useState(true);
 
@@ -1295,45 +1447,47 @@ function FastGAIAConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">FastGAIA Inference Configuration</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>FastGAIA Inference Configuration</h3>
         
         <form onSubmit={handleSubmit} className="space-y-4">
           
           {/* Weighting Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Weighting Options</h4>
-            <p className="text-xs text-sp-white/60 mb-3">
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Weighting Options</h4>
+            <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
               Choose how to weight child locations when calculating parent node locations. 
               You can use edge spans (genomic length), branch lengths (temporal), both (multiplied), or neither (equal weights).
             </p>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="weight-span-fastgaia"
                   checked={weightSpan}
                   onChange={(e) => setWeightSpan(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="weight-span-fastgaia" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="weight-span-fastgaia" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Weight by edge spans (genomic length)
                 </label>
               </div>
               <Tooltip content="Weight child locations by the total genomic length (edge spans) inherited from each child. This reflects how much of the genome is contributed by each child. When a parent has multiple edges to the same child (common in ARGs with recombination), spans are summed." />
             </div>
             
-            <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center flex-1">
                 <input
                   type="checkbox"
                   id="weight-branch-length-fastgaia"
                   checked={weightBranchLength}
                   onChange={(e) => setWeightBranchLength(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="weight-branch-length-fastgaia" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="weight-branch-length-fastgaia" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Weight by inverse branch lengths (temporal)
                 </label>
               </div>
@@ -1342,8 +1496,8 @@ function FastGAIAConfigModal({
             
             {/* Info about combined weighting */}
             {weightSpan && weightBranchLength && (
-              <div className="ml-6 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
-                <p className="text-xs text-sp-pale-green">
+              <div className="ml-6 p-3 rounded-lg" style={{ backgroundColor: `${colors.accentPrimary}20`, border: `1px solid ${colors.accentPrimary}` }}>
+                <p className="text-xs" style={{ color: colors.accentPrimary }}>
                   <strong>Combined weighting:</strong> When both options are enabled, weights are multiplied together 
                   (edge_span × inverse_branch_length). This gives more weight to children that contribute both more genomic 
                   material and are more recent ancestors.
@@ -1366,13 +1520,19 @@ function FastGAIAConfigModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
               Run FastGAIA Inference
             </button>
@@ -1407,6 +1567,9 @@ function SpacetreesConfigModal({
   }) => void;
   sequenceLength: number;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [requireCommonAncestor, setRequireCommonAncestor] = useState(true);
   const [useImportanceSampling, setUseImportanceSampling] = useState(true);
   const [useBlup, setUseBlup] = useState(false);
@@ -1482,8 +1645,8 @@ function SpacetreesConfigModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <h3 className="text-xl font-bold text-sp-white mb-4">Spacetrees Configuration</h3>
+      <div className="rounded-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>Spacetrees Configuration</h3>
         
         {/* Warning Banner */}
         <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
@@ -1506,7 +1669,7 @@ function SpacetreesConfigModal({
           
           {/* Basic Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Basic Options</h4>
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Basic Options</h4>
             
             <div className="flex items-center justify-between">
               <div className="flex items-center flex-1">
@@ -1515,9 +1678,10 @@ function SpacetreesConfigModal({
                   id="require-common-ancestor"
                   checked={requireCommonAncestor}
                   onChange={(e) => setRequireCommonAncestor(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="require-common-ancestor" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="require-common-ancestor" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Require common ancestor
                 </label>
               </div>
@@ -1531,9 +1695,10 @@ function SpacetreesConfigModal({
                   id="use-importance-sampling"
                   checked={useImportanceSampling}
                   onChange={(e) => setUseImportanceSampling(e.target.checked)}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="use-importance-sampling" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="use-importance-sampling" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Use importance sampling
                 </label>
               </div>
@@ -1543,7 +1708,7 @@ function SpacetreesConfigModal({
           
           {/* Inference Method */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Inference Method</h4>
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Inference Method</h4>
             
             <div className="flex items-center justify-between">
               <div className="flex items-center flex-1">
@@ -1555,9 +1720,10 @@ function SpacetreesConfigModal({
                     setUseBlup(e.target.checked);
                     if (!e.target.checked) setBlupVar(false);
                   }}
-                  className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                  className="h-4 w-4 rounded"
+                  style={{ accentColor: colors.accentPrimary }}
                 />
-                <label htmlFor="use-blup" className="ml-2 text-sm text-sp-white/80">
+                <label htmlFor="use-blup" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                   Use BLUP (Best Linear Unbiased Predictor)
                 </label>
               </div>
@@ -1572,9 +1738,10 @@ function SpacetreesConfigModal({
                     id="blup-var"
                     checked={blupVar}
                     onChange={(e) => setBlupVar(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="blup-var" className="ml-2 text-sm text-sp-white/80">
+                  <label htmlFor="blup-var" className="ml-2 text-sm" style={{ color: colors.textSecondary }}>
                     Include variance estimates
                   </label>
                 </div>
@@ -1586,14 +1753,19 @@ function SpacetreesConfigModal({
           {/* Locus Grouping */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-sp-white/80">Locus Grouping</h4>
+              <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Locus Grouping</h4>
               <Tooltip content="In the original spacetrees method, multiple trees (representing genomic regions) are grouped into a single 'locus' for joint inference. This reflects the biological reality that trees at nearby genomic positions share ancestry. By default, each tree is treated as a separate locus, but grouping can improve statistical power and match the original method more closely." />
             </div>
             
             <select
               value={locusGroupingType}
               onChange={(e) => setLocusGroupingType(e.target.value as 'none' | 'num_loci' | 'locus_size')}
-              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: colors.containerBackground,
+                border: `1px solid ${colors.border}`,
+                color: colors.text
+              }}
             >
               <option value="none">None (each tree is a separate locus)</option>
               <option value="num_loci">Group by number of loci</option>
@@ -1603,7 +1775,7 @@ function SpacetreesConfigModal({
             {locusGroupingType === 'num_loci' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-sp-white/80">
+                  <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                     Number of loci
                   </label>
                   <Tooltip content="Divide the genome into this many loci. Trees are assigned to loci based on their genomic position. Each locus will contain approximately sequence_length / num_loci base pairs. This matches the original spacetrees approach where specific loci are analyzed." />
@@ -1613,7 +1785,12 @@ function SpacetreesConfigModal({
                   value={numLoci}
                   onChange={(e) => setNumLoci(e.target.value)}
                   min="1"
-                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: colors.containerBackground,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text
+                  }}
                 />
               </div>
             )}
@@ -1621,7 +1798,7 @@ function SpacetreesConfigModal({
             {locusGroupingType === 'locus_size' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-sp-white/80">
+                  <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                     Locus size (base pairs)
                   </label>
                   <Tooltip content="Group trees into loci of this size (in base pairs). Trees spanning multiple loci are assigned to the locus containing their midpoint. This creates loci of approximately equal genomic size, which can be useful when you want to control the physical size of each locus." />
@@ -1633,7 +1810,12 @@ function SpacetreesConfigModal({
                   min="1"
                   max={sequenceLength}
                   placeholder={`Max: ${sequenceLength.toLocaleString()}`}
-                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: colors.containerBackground,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text
+                  }}
                 />
               </div>
             )}
@@ -1642,14 +1824,19 @@ function SpacetreesConfigModal({
           {/* Effective Population Size */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h4 className="text-sm font-medium text-sp-white/80">Effective Population Size (Ne)</h4>
+              <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Effective Population Size (Ne)</h4>
               <Tooltip content="The effective population size affects the probability of coalescence times under the standard coalescent model, which is used in importance sampling. The original spacetrees method uses time-varying Ne from Relate's EstimatePopulationSize output. You can specify a constant Ne or provide time-varying Ne with epoch boundaries." />
             </div>
             
             <select
               value={neType}
               onChange={(e) => setNeType(e.target.value as 'default' | 'constant' | 'time_varying')}
-              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+              style={{
+                backgroundColor: colors.containerBackground,
+                border: `1px solid ${colors.border}`,
+                color: colors.text
+              }}
             >
               <option value="default">Default (Ne = num_samples)</option>
               <option value="constant">Constant Ne</option>
@@ -1659,7 +1846,7 @@ function SpacetreesConfigModal({
             {neType === 'constant' && (
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-sp-white/80">
+                  <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                     Constant Ne
                   </label>
                   <Tooltip content="Use a constant effective population size throughout time. This is a simplification but may be appropriate if population size has been relatively stable." />
@@ -1670,7 +1857,12 @@ function SpacetreesConfigModal({
                   onChange={(e) => setNeConstant(e.target.value)}
                   min="1"
                   step="0.1"
-                  className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                  className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: colors.containerBackground,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text
+                  }}
                 />
               </div>
             )}
@@ -1679,7 +1871,7 @@ function SpacetreesConfigModal({
               <div className="space-y-3">
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-sp-white/80">
+                    <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                       Epoch boundaries (comma-separated)
                     </label>
                     <Tooltip content="Time points defining epoch boundaries. Must have one more value than Nes (e.g., if you have 3 epochs, provide 4 boundaries: start, end1, end2, end3). Times should be in the same units as your tree sequence." />
@@ -1689,12 +1881,17 @@ function SpacetreesConfigModal({
                     value={neEpochs}
                     onChange={(e) => setNeEpochs(e.target.value)}
                     placeholder="0, 100, 1000, 10000"
-                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                    className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: colors.containerBackground,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text
+                  }}
                   />
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-2">
-                    <label className="block text-sm font-medium text-sp-white/80">
+                    <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                       Effective population sizes (comma-separated)
                     </label>
                     <Tooltip content="Effective population size for each epoch. One value per epoch. The first value applies from epoch[0] to epoch[1], the second from epoch[1] to epoch[2], etc. This matches the format used by Relate's EstimatePopulationSize." />
@@ -1704,7 +1901,12 @@ function SpacetreesConfigModal({
                     value={nes}
                     onChange={(e) => setNes(e.target.value)}
                     placeholder="1000, 5000, 10000"
-                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                    className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                  style={{
+                    backgroundColor: colors.containerBackground,
+                    border: `1px solid ${colors.border}`,
+                    color: colors.text
+                  }}
                   />
                 </div>
               </div>
@@ -1713,11 +1915,11 @@ function SpacetreesConfigModal({
           
           {/* Advanced Options */}
           <div className="space-y-3">
-            <h4 className="text-sm font-medium text-sp-white/80">Advanced Options</h4>
+            <h4 className="text-sm font-medium" style={{ color: colors.textSecondary }}>Advanced Options</h4>
             
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-sp-white/80">
+                <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                   Time cutoff (optional)
                 </label>
                 <Tooltip content="Ignore genealogical history beyond this time point. This 'chops' the shared times matrices to exclude information from the distant past, which can be useful if you want to focus on recent history or if ancient history is unreliable. Times should be in the same units as your tree sequence." />
@@ -1729,13 +1931,18 @@ function SpacetreesConfigModal({
                 min="0"
                 step="0.1"
                 placeholder="Ignore history beyond this time"
-                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
               />
             </div>
             
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-sm font-medium text-sp-white/80">
+                <label className="block text-sm font-medium" style={{ color: colors.textSecondary }}>
                   Ancestor times (optional, comma-separated)
                 </label>
                 <Tooltip content="Specific times in the past to locate ancestors at (e.g., '10, 100, 1000'). If empty, ancestors will be located at all unique node times in the tree sequence, ensuring complete location inference for all nodes. Specifying times can speed up inference but will only provide locations at those time points. Times should be in the same units as your tree sequence." />
@@ -1745,7 +1952,12 @@ function SpacetreesConfigModal({
                 value={ancestorTimes}
                 onChange={(e) => setAncestorTimes(e.target.value)}
                 placeholder="Leave empty to locate ALL ancestors"
-                className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
+                className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
               />
             </div>
           </div>
@@ -1754,13 +1966,19 @@ function SpacetreesConfigModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              className="px-4 py-2 transition-colors"
+              style={{ color: colors.textSecondary }}
+              onMouseEnter={(e) => e.currentTarget.style.color = colors.text}
+              onMouseLeave={(e) => e.currentTarget.style.color = colors.textSecondary}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold px-4 py-2 rounded-lg transition-colors"
+              style={{ backgroundColor: colors.accentPrimary, color: colors.buttonText }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = colors.accentSecondary}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = colors.accentPrimary}
             >
               Run Spacetrees
             </button>
@@ -1790,6 +2008,9 @@ function MutationRateModal({
   ) => void;
   defaultRate?: number;
 }) {
+  // Theme hooks
+  const { colors } = useColorTheme();
+  
   const [mutationRate, setMutationRate] = useState(formatScientificNotation(defaultRate));
   const [preprocess, setPreprocess] = useState(true);
   const [removeTelomeres, setRemoveTelomeres] = useState(false);
@@ -1821,11 +2042,11 @@ function MutationRateModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-6 w-full max-w-md">
-        <h3 className="text-xl font-bold text-sp-white mb-4">Set Mutation Rate</h3>
+      <div className="rounded-xl p-6 w-full max-w-md" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+        <h3 className="text-xl font-bold mb-4" style={{ color: colors.headerText }}>Set Mutation Rate</h3>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="mutation-rate" className="block text-sm font-medium text-sp-white/80 mb-2">
+            <label htmlFor="mutation-rate" className="block text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>
               Mutation Rate (per base pair per generation)
             </label>
             <input
@@ -1847,10 +2068,15 @@ function MutationRateModal({
                   setMutationRate(formatScientificNotation(parsed));
                 }
               }}
-              className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+              className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+              style={{
+                backgroundColor: colors.containerBackground,
+                border: `1px solid ${colors.border}`,
+                color: colors.text
+              }}
               placeholder="1e-8"
             />
-            <p className="mt-1 text-xs text-sp-white/60">
+            <p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>
               Default: 1e-8 (0.00000001)
             </p>
           </div>
@@ -1863,9 +2089,10 @@ function MutationRateModal({
                 id="preprocess"
                 checked={preprocess}
                 onChange={(e) => setPreprocess(e.target.checked)}
-                className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                className="h-4 w-4 rounded"
+                style={{ accentColor: colors.accentPrimary }}
               />
-              <label htmlFor="preprocess" className="ml-2 block text-sm text-sp-white/80">
+              <label htmlFor="preprocess" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                 Preprocess tree sequence
               </label>
             </div>
@@ -1879,15 +2106,16 @@ function MutationRateModal({
                     id="remove-telomeres"
                     checked={removeTelomeres}
                     onChange={(e) => setRemoveTelomeres(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="remove-telomeres" className="ml-2 block text-sm text-sp-white/80">
+                  <label htmlFor="remove-telomeres" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                     Remove telomeres (flanking regions)
                   </label>
                 </div>
 
                 <div>
-                  <label htmlFor="minimum-gap" className="block text-sm text-sp-white/80 mb-1">
+                  <label htmlFor="minimum-gap" className="block text-sm mb-1" style={{ color: colors.textSecondary }}>
                     Minimum gap between sites (bp)
                   </label>
                   <input
@@ -1902,10 +2130,15 @@ function MutationRateModal({
                         setMinimumGap("1000000");  // Reset to default
                       }
                     }}
-                    className="w-full bg-sp-dark-blue border border-sp-pale-green/20 rounded px-3 py-2 text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green font-mono"
+                    className="w-full rounded px-3 py-2 focus:outline-none focus:ring-2 font-mono"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  border: `1px solid ${colors.border}`,
+                  color: colors.text
+                }}
                     placeholder="1000000"
                   />
-                  <p className="mt-1 text-xs text-sp-white/60">
+                  <p className="mt-1 text-xs" style={{ color: colors.textSecondary }}>
                     Default: 1,000,000 bp
                   </p>
                 </div>
@@ -1916,9 +2149,10 @@ function MutationRateModal({
                     id="split-disjoint"
                     checked={splitDisjoint}
                     onChange={(e) => setSplitDisjoint(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="split-disjoint" className="ml-2 block text-sm text-sp-white/80">
+                  <label htmlFor="split-disjoint" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                     Split disjoint nodes
                   </label>
                 </div>
@@ -1929,9 +2163,10 @@ function MutationRateModal({
                     id="filter-populations"
                     checked={filterPopulations}
                     onChange={(e) => setFilterPopulations(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-populations" className="ml-2 block text-sm text-sp-white/80">
+                  <label htmlFor="filter-populations" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                     Filter populations
                   </label>
                 </div>
@@ -1942,9 +2177,10 @@ function MutationRateModal({
                     id="filter-individuals"
                     checked={filterIndividuals}
                     onChange={(e) => setFilterIndividuals(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-individuals" className="ml-2 block text-sm text-sp-white/80">
+                  <label htmlFor="filter-individuals" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                     Filter individuals
                   </label>
                 </div>
@@ -1955,14 +2191,15 @@ function MutationRateModal({
                     id="filter-sites"
                     checked={filterSites}
                     onChange={(e) => setFilterSites(e.target.checked)}
-                    className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                    className="h-4 w-4 rounded"
+                    style={{ accentColor: colors.accentPrimary }}
                   />
-                  <label htmlFor="filter-sites" className="ml-2 block text-sm text-sp-white/80">
+                  <label htmlFor="filter-sites" className="ml-2 block text-sm" style={{ color: colors.textSecondary }}>
                     Filter sites
                   </label>
                 </div>
 
-                <p className="text-xs text-sp-white/60">
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
                   Preprocessing simplifies the tree sequence by removing unary nodes and splitting disjoint nodes.
                   Telomeres are flanking regions that may contain missing data.
                 </p>
@@ -1971,19 +2208,20 @@ function MutationRateModal({
           </div>
 
           <div className="flex justify-end gap-3">
-            <button
-              type="button"
+            <LiquidButton
+              variant="secondary"
               onClick={onClose}
-              className="px-4 py-2 text-sp-white/80 hover:text-sp-white transition-colors"
+              type="button"
             >
               Cancel
-            </button>
-            <button
+            </LiquidButton>
+            <LiquidButton
+              variant="primary"
               type="submit"
-              className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold px-4 py-2 rounded-lg transition-colors"
+              className="font-bold"
             >
               Run tsdate
-            </button>
+            </LiquidButton>
           </div>
         </form>
       </div>
@@ -1994,18 +2232,34 @@ function MutationRateModal({
 export default function ResultPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { 
-    treeSequence: data, 
-    maxSamples, 
-    setMaxSamples, 
+  const {
+    treeSequence: data,
+    maxSamples,
+    setMaxSamples,
     setTreeSequence,
     temporalRange,
     setTemporalRange,
     genomicRange,
     setGenomicRange,
     genomicMode,
-    setGenomicMode
+    setGenomicMode,
+    // Sample subsetting
+    sampleSubsetMode,
+    setSampleSubsetMode,
+    sampleIds,
+    setSampleIds,
+    sampleRange,
+    setSampleRange,
+    randomSeed: _randomSeed,
+    setRandomSeed,
+    selectedPopulations,
+    setSelectedPopulations,
   } = useTreeSequence();
+  
+  // Theme system hooks
+  const { colors } = useColorTheme();
+  const { pageStyle, glassPanelStyle } = useThemeStyles();
+  
   const [totalSamples, setTotalSamples] = useState<number | null>(null);
   const [isInferringLocationsFast, setIsInferringLocationsFast] = useState(false);
   const [isInferringLocationsGaiaQuadratic, setIsInferringLocationsGaiaQuadratic] = useState(false);
@@ -2021,6 +2275,12 @@ export default function ResultPage() {
   const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
   const [, setInputValue] = useState(maxSamples.toString());
   const [selectedInferenceMethod, setSelectedInferenceMethod] = useState<string>('gaia_quadratic');
+  // Sample subsetting input state
+  const [sampleIdsInput, setSampleIdsInput] = useState('');
+  const [sampleRangeStartInput, setSampleRangeStartInput] = useState('');
+  const [sampleRangeEndInput, setSampleRangeEndInput] = useState('');
+  const [randomSeedInput, setRandomSeedInput] = useState('');
+  const [sampleIdsError, setSampleIdsError] = useState<string | null>(null);
   const [showMutationRateModal, setShowMutationRateModal] = useState(false);
   const [isInferringTimes, setIsInferringTimes] = useState(false);
   const [showSecondTreeSequenceSelector, setShowSecondTreeSequenceSelector] = useState(false);
@@ -2031,15 +2291,28 @@ export default function ResultPage() {
   
   // Clustering control for ARG visualization
   const [enableClustering, setEnableClustering] = useState(false);
-  
+
+  // Node focus state (mutually exclusive with sample subsetting)
+  const [focusMode, setFocusMode] = useState<'none' | 'root' | 'sample'>('none');
+  const [focusNodeId, setFocusNodeId] = useState<number | null>(null);
+  const [focusNodeInput, setFocusNodeInput] = useState('');
+  const [focusNodeError, setFocusNodeError] = useState<string | null>(null);
+
   // Temporal range input states
   const [temporalStartInput, setTemporalStartInput] = useState('');
   const [temporalEndInput, setTemporalEndInput] = useState('');
   
-  // Genomic range input states  
+  // Genomic range input states
   const [genomicStartInput, setGenomicStartInput] = useState('');
   const [genomicEndInput, setGenomicEndInput] = useState('');
-  
+
+  // Visualization wizard state
+  const [showVisualizationWizard, setShowVisualizationWizard] = useState(false);
+  const [wizardVisualizationType, setWizardVisualizationType] = useState<VisualizationType | null>(null);
+  // Track whether user has explicitly interacted with Advanced Settings
+  // This determines if wizard shows full steps or just confirmation
+  const [hasInteractedWithAdvancedSettings, setHasInteractedWithAdvancedSettings] = useState(false);
+
   const [searchParams] = useSearchParams();
 
   // Effect to initialize ranges from URL parameters
@@ -2146,6 +2419,14 @@ export default function ResultPage() {
     setInputValue(maxSamples.toString());
   }, [maxSamples]);
 
+  // Sync sample range input fields with sampleRange state
+  useEffect(() => {
+    if (sampleRange) {
+      setSampleRangeStartInput(sampleRange[0].toString());
+      setSampleRangeEndInput(sampleRange[1].toString());
+    }
+  }, [sampleRange]);
+
   // Calculate actual range values from the tree sequence data
   const getTemporalRange = () => {
     if (data?.temporal_range) {
@@ -2169,6 +2450,116 @@ export default function ResultPage() {
       min: 0,
       max: Math.max(0, (data?.num_trees || 1) - 1)
     };
+  };
+
+  // Build stats object for visualization wizard
+  const getTreeSequenceStats = (): TreeSequenceStats => ({
+    numNodes: data?.num_nodes || 0,
+    numEdges: data?.num_edges || 0,
+    numSamples: data?.num_samples || 0,
+    numTrees: data?.num_trees || 1,
+    sequenceLength: getGenomicRange().max, // Use same source as advanced settings
+    hasTemporal: data?.has_temporal || false,
+    hasAllSpatial: data?.has_all_spatial || false,
+    temporalRange: data?.temporal_range ? {
+      min: data.temporal_range.min_time,
+      max: data.temporal_range.max_time,
+    } : undefined,
+  });
+
+  // User has pre-configured settings only if they explicitly interacted with Advanced Settings
+  // This prevents the wizard from skipping steps just because values differ from defaults
+  const hasPreConfig = hasInteractedWithAdvancedSettings;
+
+  // Handle wizard launch
+  const handleWizardLaunch = (settings: WizardSettings) => {
+    setShowVisualizationWizard(false);
+    if (!wizardVisualizationType || !data?.filename) return;
+
+    const params = new URLSearchParams();
+
+    // Apply temporal range from advanced settings or wizard
+    if (settings.temporalRange) {
+      params.append('temporal_start', settings.temporalRange[0].toString());
+      params.append('temporal_end', settings.temporalRange[1].toString());
+    }
+
+    // Apply genomic/tree range from wizard
+    if (settings.regionFilter === 'filtered') {
+      if (settings.filterMode === 'base_pairs' && settings.genomicRange) {
+        params.append('genomic_start', settings.genomicRange[0].toString());
+        params.append('genomic_end', settings.genomicRange[1].toString());
+      } else if (settings.filterMode === 'tree_indices' && settings.treeRange) {
+        params.append('tree_start_idx', settings.treeRange[0].toString());
+        params.append('tree_end_idx', settings.treeRange[1].toString());
+      }
+    }
+
+    // Apply performance options
+    if (settings.enableClustering) {
+      params.append('clustering', 'true');
+    }
+    if (settings.enableHeatmap && wizardVisualizationType === '3d') {
+      params.append('heatmap_mode', 'true');
+    }
+
+    // Apply data scope settings
+    if (settings.dataScope === 'subset') {
+      // Apply sample subset settings
+      switch (settings.subsetMethod) {
+        case 'random':
+          params.append('sample_mode', 'random');
+          params.append('max_samples', settings.sampleCount.toString());
+          break;
+        case 'range':
+          params.append('sample_mode', 'range');
+          params.append('sample_start', settings.sampleRangeStart.toString());
+          params.append('sample_end', settings.sampleRangeEnd.toString());
+          break;
+        case 'specific':
+          if (settings.sampleIds.length > 0) {
+            params.append('sample_mode', 'ids');
+            params.append('sample_ids', settings.sampleIds.join(','));
+          }
+          break;
+      }
+    } else if (settings.dataScope === 'focal') {
+      // Apply focal node settings
+      if (settings.focalNodeId !== null) {
+        if (settings.focalMode === 'subgraph') {
+          params.append('focus_root', settings.focalNodeId.toString());
+        } else {
+          params.append('focus_sample', settings.focalNodeId.toString());
+        }
+      }
+    }
+    // For 'full' dataScope, no additional params needed
+
+    // Also check advanced settings for focal node (if user configured it there)
+    if (settings.dataScope !== 'focal' && focusMode === 'root' && focusNodeId !== null) {
+      params.append('focus_root', focusNodeId.toString());
+    } else if (settings.dataScope !== 'focal' && focusMode === 'sample' && focusNodeId !== null) {
+      params.append('focus_sample', focusNodeId.toString());
+    }
+
+    const queryString = params.toString();
+    const basePath = wizardVisualizationType === '2d' ? '/graph' :
+      wizardVisualizationType === '3d' ? '/spatial' : '/spatial-diff';
+
+    if (wizardVisualizationType === 'diff') {
+      // For diff, we need to open the second tree sequence selector
+      // Store the wizard settings and open the selector
+      setShowSecondTreeSequenceSelector(true);
+      // The second TS selector will handle navigation with these params
+    } else {
+      navigate(`${basePath}/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);
+    }
+  };
+
+  // Open wizard for a visualization type
+  const openWizard = (vizType: VisualizationType) => {
+    setWizardVisualizationType(vizType);
+    setShowVisualizationWizard(true);
   };
 
   // Fast location inference is available for:
@@ -2232,15 +2623,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const lowerErrorMessage = errorMessage.toLowerCase();
-      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      const { title, message, isTimeout } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: isTimeout ? 'Inference Timeout' : 'Error',
-        message: isTimeout 
-          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-          : `Fast location inference failed: ${errorMessage}`,
+        title,
+        message: isTimeout ? TIMEOUT_MESSAGE : message,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
         secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2304,15 +2691,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const lowerErrorMessage = errorMessage.toLowerCase();
-      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      const { title, message, isTimeout } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: isTimeout ? 'Inference Timeout' : 'Error',
-        message: isTimeout 
-          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-          : `GAIA quadratic inference failed: ${errorMessage}`,
+        title,
+        message: isTimeout ? TIMEOUT_MESSAGE : message,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
         secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2410,14 +2793,11 @@ export default function ResultPage() {
             error: error instanceof Error ? error : new Error(String(error)),
             data: { filename: data.filename }
           });
-          const errorMessage = error instanceof Error ? error.message : String(error);
-          const isTimeout = errorMessage.includes('timed out') || errorMessage.includes('504');
+          const { title, message, isTimeout } = parseInferenceError(error);
           setAlertModal({
             isOpen: true,
-            title: isTimeout ? 'Inference Timeout' : 'Error',
-            message: isTimeout 
-              ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-              : `sparg inference failed: ${errorMessage}`,
+            title,
+            message: isTimeout ? TIMEOUT_MESSAGE : message,
             type: 'error',
             buttonText: isTimeout ? 'Install Locally' : undefined,
             secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2497,15 +2877,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const lowerErrorMessage = errorMessage.toLowerCase();
-      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      const { title, message, isTimeout } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: isTimeout ? 'Inference Timeout' : 'Error',
-        message: isTimeout 
-          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-          : `GAIA linear inference failed: ${errorMessage}`,
+        title,
+        message: isTimeout ? TIMEOUT_MESSAGE : message,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
         secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2570,15 +2946,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const lowerErrorMessage = errorMessage.toLowerCase();
-      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      const { title, message, isTimeout } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: isTimeout ? 'Inference Timeout' : 'Error',
-        message: isTimeout 
-          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-          : `Midpoint inference failed: ${errorMessage}`,
+        title,
+        message: isTimeout ? TIMEOUT_MESSAGE : message,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
         secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2661,15 +3033,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const lowerErrorMessage = errorMessage.toLowerCase();
-      const isTimeout = lowerErrorMessage.includes('timed out') || lowerErrorMessage.includes('504') || lowerErrorMessage.includes('timeout');
+      const { title, message, isTimeout } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: isTimeout ? 'Inference Timeout' : 'Error',
-        message: isTimeout 
-          ? 'Spatial inference took longer than 90 seconds and was cancelled. For larger ARGs, please install ARGscape locally via Python.'
-          : `spacetrees inference failed: ${errorMessage}`,
+        title,
+        message: isTimeout ? TIMEOUT_MESSAGE : message,
         type: 'error',
         buttonText: isTimeout ? 'Install Locally' : undefined,
         secondaryButtonText: isTimeout ? 'Close' : undefined,
@@ -2773,22 +3141,11 @@ export default function ResultPage() {
         error: error instanceof Error ? error : new Error(String(error)),
         data: { filename: data.filename }
       });
-      
-      // Extract error message from API error
-      let errorMessage = 'Unknown error';
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        // Try to extract message from error object
-        errorMessage = (error as any).message || (error as any).detail || String(error);
-      } else {
-        errorMessage = String(error);
-      }
-      
+      const { title, message } = parseInferenceError(error);
       setAlertModal({
         isOpen: true,
-        title: 'Error',
-        message: errorMessage,
+        title,
+        message,
         type: 'error'
       });
     } finally {
@@ -2902,42 +3259,148 @@ export default function ResultPage() {
 
   if (!data) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-sp-very-dark-blue text-sp-white">
-        <h1 className="text-3xl font-bold mb-4">No data loaded</h1>
-        <button className="bg-sp-dark-blue hover:bg-sp-very-pale-green hover:text-sp-very-dark-blue text-sp-white font-bold py-2 px-6 rounded-lg mt-4" onClick={handleBackNavigation}>Back to Home</button>
+      <div className="h-screen flex flex-col items-center justify-center" style={pageStyle}>
+        <h1 className="text-3xl font-bold mb-4" style={{ color: colors.text }}>No data loaded</h1>
+        <button 
+          className="font-bold py-2 px-6 rounded-lg mt-4"
+          style={{ 
+            backgroundColor: colors.accentPrimary,
+            color: colors.buttonText 
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = colors.accentSecondary;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = colors.accentPrimary;
+          }}
+          onClick={handleBackNavigation}
+        >
+          Back to Home
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-sp-very-dark-blue relative">
+    <div className="min-h-screen relative" style={pageStyle}>
       <ParticleBackground />
-      <div className="bg-sp-very-dark-blue text-sp-white min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col" style={{ color: colors.text }}>
         <Navbar />
-        <div className="flex-grow px-4 pt-24 pb-32">
+        <div className="flex-grow px-4 pt-20 pb-24">
           {/* Header with logo and back button */}
-          <div className="max-w-7xl mx-auto mb-8">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">Tree Sequence Analysis</h1>
-              <p className="text-sp-white/70 text-lg font-mono break-all">{data.filename}</p>
+          <div className="max-w-7xl mx-auto mb-4">
+            <div className="mb-4">
+              <span className="text-xs uppercase tracking-wider font-medium mb-1 block" style={{ color: colors.textSecondary }}>Active Tree Sequence</span>
+              <div className="relative group">
+                <p
+                  className="text-lg font-mono mb-2 cursor-default"
+                  style={{ color: colors.text }}
+                >
+                  {data.filename.length > 40
+                    ? `${data.filename.slice(0, 18)}...${data.filename.slice(-18)}`
+                    : data.filename}
+                </p>
+                {data.filename.length > 40 && (
+                  <GroupTooltip content={data.filename} preferredPlacement="bottom" wide />
+                )}
+              </div>
+
+              {/* Basic Statistics - Always Visible */}
+              <div className="rounded-xl p-3 mt-2 inline-flex" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Statistics - Compact inline */}
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: colors.textSecondary }}>Samples:</span>
+                      <span className="font-mono font-bold" style={{ color: colors.accentPrimary }}>{data.num_samples.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: colors.textSecondary }}>Nodes:</span>
+                      <span className="font-mono font-bold" style={{ color: colors.accentPrimary }}>{data.num_nodes.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: colors.textSecondary }}>Edges:</span>
+                      <span className="font-mono font-bold" style={{ color: colors.accentPrimary }}>{data.num_edges.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: colors.textSecondary }}>Trees:</span>
+                      <span className="font-mono font-bold" style={{ color: colors.accentPrimary }}>{data.num_trees.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ color: colors.textSecondary }}>Mutations:</span>
+                      <span className="font-mono font-bold" style={{ color: colors.accentPrimary }}>{(data.num_mutations ?? 0).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Data Attributes - Status Pills */}
+                  <div className="flex flex-wrap gap-1.5 border-l pl-3" style={{ borderColor: colors.border }}>
+                    <div className="relative group">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide cursor-default"
+                        style={{
+                          backgroundColor: data.has_temporal ? `${colors.accentPrimary}15` : `${colors.textSecondary}10`,
+                          color: data.has_temporal ? colors.accentPrimary : colors.textSecondary
+                        }}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${data.has_temporal ? 'bg-current' : ''}`} style={{ backgroundColor: data.has_temporal ? undefined : colors.textSecondary, opacity: data.has_temporal ? 1 : 0.4 }} />
+                        Temporal
+                      </span>
+                      <GroupTooltip content={data.has_temporal ? "Node ages available for temporal analysis" : "Node ages missing - use tsdate to infer"} preferredPlacement="bottom" />
+                    </div>
+                    <div className="relative group">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide cursor-default"
+                        style={{
+                          backgroundColor: data.has_sample_spatial ? `${colors.accentPrimary}15` : `${colors.textSecondary}10`,
+                          color: data.has_sample_spatial ? colors.accentPrimary : colors.textSecondary
+                        }}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${data.has_sample_spatial ? 'bg-current' : ''}`} style={{ backgroundColor: data.has_sample_spatial ? undefined : colors.textSecondary, opacity: data.has_sample_spatial ? 1 : 0.4 }} />
+                        Samples
+                      </span>
+                      <GroupTooltip content={data.has_sample_spatial ? "Sample spatial coordinates available" : "Sample coordinates missing"} preferredPlacement="bottom" />
+                    </div>
+                    <div className="relative group">
+                      <span
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wide cursor-default"
+                        style={{
+                          backgroundColor: data.has_all_spatial ? `${colors.accentPrimary}15` : `${colors.textSecondary}10`,
+                          color: data.has_all_spatial ? colors.accentPrimary : colors.textSecondary
+                        }}
+                      >
+                        <span className={`w-1.5 h-1.5 rounded-full ${data.has_all_spatial ? 'bg-current' : ''}`} style={{ backgroundColor: data.has_all_spatial ? undefined : colors.textSecondary, opacity: data.has_all_spatial ? 1 : 0.4 }} />
+                        All Spatial
+                      </span>
+                      <GroupTooltip content={data.has_all_spatial ? "All node coordinates inferred" : "Not all nodes have spatial data - use inference"} preferredPlacement="bottom" />
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
           {/* Main content area */}
           <div className="max-w-7xl mx-auto">
-            <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-visible">
-              <div className="p-8 space-y-6">
+            <div className="rounded-2xl shadow-xl overflow-visible" style={{ ...glassPanelStyle, borderColor: colors.border }}>
+              <div className="p-5 space-y-4">
                 {/* Quick Actions Bar */}
                 <div className="flex justify-between items-center gap-3 flex-wrap">
-                  <button 
-                    className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
-                    onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                    {showTreeSequenceSelector ? 'Cancel' : 'Switch Tree Sequence'}
-                  </button>
+                  <div className="relative group">
+                    <LiquidButton
+                      variant="secondary"
+                      onClick={() => setShowTreeSequenceSelector(!showTreeSequenceSelector)}
+                      className="font-bold flex items-center gap-2"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      {showTreeSequenceSelector ? 'Cancel' : 'Switch File'}
+                    </LiquidButton>
+                    <GroupTooltip
+                      content="Load a different tree sequence file from your current session."
+                      preferredPlacement="bottom"
+                    />
+                  </div>
                   <DownloadDropdown 
                     filename={data.filename}
                     onError={(error) => {
@@ -2951,590 +3414,1123 @@ export default function ResultPage() {
                   />
                 </div>
 
-                {/* Data Overview - Always Visible, Compact */}
-                <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-xl p-4">
-                  <div className="flex flex-wrap items-center gap-3 justify-between">
-                    {/* Statistics - Compact inline */}
-                    <div className="flex flex-wrap gap-3 text-sm">
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sp-white/60">Samples:</span>
-                        <span className="font-mono font-bold text-sp-pale-green">{data.num_samples.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sp-white/60">Nodes:</span>
-                        <span className="font-mono font-bold text-sp-pale-green">{data.num_nodes.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sp-white/60">Edges:</span>
-                        <span className="font-mono font-bold text-sp-pale-green">{data.num_edges.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sp-white/60">Trees:</span>
-                        <span className="font-mono font-bold text-sp-pale-green">{data.num_trees.toLocaleString()}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-sp-white/60">Mutations:</span>
-                        <span className="font-mono font-bold text-sp-pale-green">{(data.num_mutations ?? 0).toLocaleString()}</span>
-                      </div>
-                    </div>
-                    
-                    {/* Data Attributes - Compact badges */}
-                    <div className="flex flex-wrap gap-2">
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-                        data.has_temporal ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
-                      }`} title={data.has_temporal ? "Node times available" : "No temporal data"}>
-                        <span className="text-[10px]">{data.has_temporal ? '✔️' : '✖️'}</span>
-                        Temporal
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-                        data.has_sample_spatial ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
-                      }`} title={data.has_sample_spatial ? "Sample coordinates available" : "No sample coordinates"}>
-                        <span className="text-[10px]">{data.has_sample_spatial ? '✔️' : '✖️'}</span>
-                        Samples
-                      </div>
-                      <div className={`flex items-center gap-1.5 px-2 py-1 rounded text-xs font-medium ${
-                        data.has_all_spatial ? 'bg-sp-pale-green/10 text-sp-pale-green' : 'text-sp-white/30'
-                      }`} title={data.has_all_spatial ? "All node coordinates available" : "Not all nodes have coordinates"}>
-                        <span className="text-[10px]">{data.has_all_spatial ? '✔️' : '✖️'}</span>
-                        All
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Population Genetics Statistics */}
-                  {data.statistics && (
-                    <div className="mt-6">
-                      <CollapsibleSection
-                      title="Population Genetics Statistics"
-                      icon={
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                      }
-                      subtitle="Diversity, tree topology, and demographic statistics"
-                      defaultOpen={false}
-                    >
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-                        {/* Diversity Statistics */}
-                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
-                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-                            </svg>
-                            Diversity
-                          </h5>
-                          <div className="space-y-1.5 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Nucleotide diversity (π):</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.nucleotide_diversity !== null && data.statistics.nucleotide_diversity !== undefined
-                                  ? data.statistics.nucleotide_diversity.toExponential(3)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Watterson's θ:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.wattersons_theta !== null && data.statistics.wattersons_theta !== undefined
-                                  ? data.statistics.wattersons_theta.toExponential(3)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Tajima's D:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.tajimas_d !== null && data.statistics.tajimas_d !== undefined
-                                  ? data.statistics.tajimas_d.toFixed(3)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            {data.statistics.segregating_sites !== null && data.statistics.segregating_sites !== undefined && (
-                              <div className="flex justify-between">
-                                <span className="text-sp-white/70">Segregating sites:</span>
-                                <span className="font-mono text-sp-white">{data.statistics.segregating_sites.toLocaleString()}</span>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Tree Topology Statistics */}
-                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
-                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                            Tree Topology
-                          </h5>
-                          <div className="space-y-1.5 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Mean tree height:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.mean_tree_height !== null && data.statistics.mean_tree_height !== undefined
-                                  ? data.statistics.mean_tree_height.toFixed(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Median tree height:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.median_tree_height !== null && data.statistics.median_tree_height !== undefined
-                                  ? data.statistics.median_tree_height.toFixed(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Mean tree length:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.mean_tree_length !== null && data.statistics.mean_tree_length !== undefined
-                                  ? data.statistics.mean_tree_length.toFixed(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Median tree length:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.median_tree_length !== null && data.statistics.median_tree_length !== undefined
-                                  ? data.statistics.median_tree_length.toFixed(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">TMRCA:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.tmrca !== null && data.statistics.tmrca !== undefined
-                                  ? data.statistics.tmrca.toFixed(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Demographic & Recombination Statistics */}
-                        <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
-                          <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                            </svg>
-                            Demographics & Recombination
-                          </h5>
-                          <div className="space-y-1.5 text-xs">
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Ne (Watterson):</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.ne_watterson !== null && data.statistics.ne_watterson !== undefined
-                                  ? data.statistics.ne_watterson.toExponential(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Ne (π):</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.ne_pi !== null && data.statistics.ne_pi !== undefined
-                                  ? data.statistics.ne_pi.toExponential(2)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-sp-white/70">Est. recomb. rate:</span>
-                              <span className="font-mono text-sp-white">
-                                {data.statistics.estimated_recombination_rate !== null && data.statistics.estimated_recombination_rate !== undefined
-                                  ? data.statistics.estimated_recombination_rate.toExponential(3)
-                                  : 'N/A'}
-                              </span>
-                            </div>
-                            {data.statistics.mean_ld_r2 !== null && data.statistics.mean_ld_r2 !== undefined && (
-                              <>
-                                <div className="flex justify-between">
-                                  <span className="text-sp-white/70">Mean LD (r²):</span>
-                                  <span className="font-mono text-sp-white">{data.statistics.mean_ld_r2.toFixed(4)}</span>
-                                </div>
-                                {data.statistics.median_ld_r2 !== null && data.statistics.median_ld_r2 !== undefined && (
-                                  <div className="flex justify-between">
-                                    <span className="text-sp-white/70">Median LD (r²):</span>
-                                    <span className="font-mono text-sp-white">{data.statistics.median_ld_r2.toFixed(4)}</span>
-                                  </div>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Population Structure Statistics */}
-                        {(data.statistics?.fst !== null && data.statistics?.fst !== undefined) || 
-                         (data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined) ? (
-                          <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-3">
-                            <h5 className="text-sm font-semibold text-sp-pale-green mb-2 flex items-center gap-2">
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                              </svg>
-                              Population Structure
-                            </h5>
-                            <div className="space-y-1.5 text-xs">
-                              {data.statistics?.num_populations !== null && data.statistics?.num_populations !== undefined && data.statistics.num_populations > 0 && (
-                                <div className="flex justify-between">
-                                  <span className="text-sp-white/70">Populations:</span>
-                                  <span className="font-mono text-sp-white">{data.statistics.num_populations}</span>
-                                </div>
-                              )}
-                              {data.statistics?.fst !== null && data.statistics?.fst !== undefined && (
-                                <div className="flex justify-between">
-                                  <span className="text-sp-white/70">Fst:</span>
-                                  <span className="font-mono text-sp-white" title="Fixation index: measures population differentiation (0=no differentiation, 1=complete differentiation)">
-                                    {data.statistics.fst.toFixed(4)}
-                                  </span>
-                                </div>
-                              )}
-                              {data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined && (
-                                <>
-                                  <div className="flex justify-between">
-                                    <span className="text-sp-white/70">Mean divergence:</span>
-                                    <span className="font-mono text-sp-white">
-                                      {data.statistics.mean_divergence.toExponential(3)}
-                                    </span>
-                                  </div>
-                                  {data.statistics?.median_divergence !== null && data.statistics?.median_divergence !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span className="text-sp-white/70">Median divergence:</span>
-                                      <span className="font-mono text-sp-white">
-                                        {data.statistics.median_divergence.toExponential(3)}
-                                      </span>
-                                    </div>
-                                  )}
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        ) : null}
-                      </div>
-                    </CollapsibleSection>
-                    </div>
-                  )}
-                </div>
-
-                {/* Large Tree Sequence Warning */}
-                {data.num_nodes >= 1500 && (
-                  <div className="bg-yellow-900/20 border border-yellow-500/40 rounded-xl p-4">
+                {/* Large Tree Sequence Warning - Edge-based thresholds */}
+                {data.num_edges >= 1000 && (
+                  <div
+                    className="rounded-xl p-4 border"
+                    style={{
+                      backgroundColor: data.num_edges >= 3000 ? 'rgba(239, 68, 68, 0.1)' : 'rgba(249, 115, 22, 0.1)',
+                      borderColor: data.num_edges >= 3000 ? 'rgba(239, 68, 68, 0.3)' : 'rgba(249, 115, 22, 0.3)'
+                    }}
+                  >
                     <div className="flex items-start gap-3">
-                      <svg className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg
+                        className="w-5 h-5 flex-shrink-0 mt-0.5"
+                        style={{ color: data.num_edges >= 3000 ? '#ef4444' : '#ea580c' }}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                      >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                       <div className="flex-1">
-                        <h4 className="font-semibold text-yellow-400 mb-2">Large Tree Sequence Detected</h4>
-                        <div className="text-sm text-yellow-200/90 space-y-1.5">
+                        <h4 className="font-semibold mb-2" style={{ color: data.num_edges >= 3000 ? '#ef4444' : '#ea580c' }}>
+                          {data.num_edges >= 3000 ? 'High Complexity Warning' : 'Performance Notice'}
+                        </h4>
+                        <div className="text-sm space-y-1.5" style={{ color: colors.text }}>
                           <p>
-                            <strong>Inference Methods:</strong> Spatial and temporal inference methods may vary in speed, and may take up to several hours to complete on large ARGs.
+                            <strong>Edges:</strong> {data.num_edges.toLocaleString()} edges detected.
+                            {data.num_edges >= 3000
+                              ? ' Consider filtering by genomic region or enabling node clustering.'
+                              : ' Performance may vary depending on browser.'}
                           </p>
                           <p>
-                            <strong>2D Visualization:</strong> Works best for tree sequences/selections of 3,000 total nodes or fewer; larger files may result in long wait times or crash the browser window.
+                            <strong>2D Viz:</strong> Optimal for &lt;1K edges; 1-3K moderate; &gt;3K may cause delays.
                           </p>
                           <p>
-                            <strong>3D Visualizations:</strong> Work best for tree sequences/selections of 10,000 total nodes or fewer; larger files should load, but may take a long time to process before rendering.
+                            <strong>3D Viz:</strong> Better suited for larger datasets with heatmap mode.
                           </p>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
-                
-                {/* Tree Sequence Modification Section */}
+
+                {/* Edit & Analyze Combined Section */}
                 <CollapsibleSection
-                  title="Tree Sequence Modification"
+                  title="Edit & Analyze"
                   icon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                     </svg>
                   }
-                  subtitle="Simplify tree sequences or infer spatiotemporal info"
                   defaultOpen={false}
                 >
-                  <div className="space-y-3">
-                    {/* Simplify Button - At Top */}
+                  {/* Population Genetics Statistics */}
+                  {data.statistics && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                      {/* Diversity Statistics */}
+                      <div className="rounded-lg p-3" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+                        <h5 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: colors.accentPrimary, fontWeight: 600 }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                          </svg>
+                          Diversity
+                        </h5>
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Nucleotide diversity (π):</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.nucleotide_diversity !== null && data.statistics.nucleotide_diversity !== undefined
+                                ? data.statistics.nucleotide_diversity.toExponential(3)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Watterson's θ:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.wattersons_theta !== null && data.statistics.wattersons_theta !== undefined
+                                ? data.statistics.wattersons_theta.toExponential(3)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Tajima's D:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.tajimas_d !== null && data.statistics.tajimas_d !== undefined
+                                ? data.statistics.tajimas_d.toFixed(3)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          {data.statistics.segregating_sites !== null && data.statistics.segregating_sites !== undefined && (
+                            <div className="flex justify-between">
+                              <span style={{ color: colors.textSecondary }}>Segregating sites:</span>
+                              <span className="font-mono" style={{ color: colors.text }}>{data.statistics.segregating_sites.toLocaleString()}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Tree Topology Statistics */}
+                      <div className="rounded-lg p-3" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+                        <h5 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: colors.accentPrimary, fontWeight: 600 }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Topology
+                        </h5>
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Mean tree height:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.mean_tree_height !== null && data.statistics.mean_tree_height !== undefined
+                                ? data.statistics.mean_tree_height.toFixed(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Median tree height:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.median_tree_height !== null && data.statistics.median_tree_height !== undefined
+                                ? data.statistics.median_tree_height.toFixed(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Mean tree length:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.mean_tree_length !== null && data.statistics.mean_tree_length !== undefined
+                                ? data.statistics.mean_tree_length.toFixed(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Median tree length:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.median_tree_length !== null && data.statistics.median_tree_length !== undefined
+                                ? data.statistics.median_tree_length.toFixed(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>TMRCA:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.tmrca !== null && data.statistics.tmrca !== undefined
+                                ? data.statistics.tmrca.toFixed(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Demographic & Recombination Statistics */}
+                      <div className="rounded-lg p-3" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+                        <h5 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: colors.accentPrimary, fontWeight: 600 }}>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                          </svg>
+                          Demographics
+                        </h5>
+                        <div className="space-y-1.5 text-xs">
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Ne (Watterson):</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.ne_watterson !== null && data.statistics.ne_watterson !== undefined
+                                ? data.statistics.ne_watterson.toExponential(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Ne (π):</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.ne_pi !== null && data.statistics.ne_pi !== undefined
+                                ? data.statistics.ne_pi.toExponential(2)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: colors.textSecondary }}>Est. recomb. rate:</span>
+                            <span className="font-mono" style={{ color: colors.text }}>
+                              {data.statistics.estimated_recombination_rate !== null && data.statistics.estimated_recombination_rate !== undefined
+                                ? data.statistics.estimated_recombination_rate.toExponential(3)
+                                : 'N/A'}
+                            </span>
+                          </div>
+                          {data.statistics.mean_ld_r2 !== null && data.statistics.mean_ld_r2 !== undefined && (
+                            <>
+                              <div className="flex justify-between">
+                                <span style={{ color: colors.textSecondary }}>Mean LD (r²):</span>
+                                <span className="font-mono" style={{ color: colors.text }}>{data.statistics.mean_ld_r2.toFixed(4)}</span>
+                              </div>
+                              {data.statistics.median_ld_r2 !== null && data.statistics.median_ld_r2 !== undefined && (
+                                <div className="flex justify-between">
+                                  <span style={{ color: colors.textSecondary }}>Median LD (r²):</span>
+                                  <span className="font-mono" style={{ color: colors.text }}>{data.statistics.median_ld_r2.toFixed(4)}</span>
+                                </div>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Population Structure Statistics */}
+                      {(data.statistics?.fst !== null && data.statistics?.fst !== undefined) || 
+                       (data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined) ? (
+                        <div className="rounded-lg p-3" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
+                          <h5 className="text-sm font-semibold mb-2 flex items-center gap-2" style={{ color: colors.accentPrimary, fontWeight: 600 }}>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Structure
+                          </h5>
+                          <div className="space-y-1.5 text-xs">
+                            {data.statistics?.num_populations !== null && data.statistics?.num_populations !== undefined && data.statistics.num_populations > 0 && (
+                              <div className="flex justify-between">
+                                <span style={{ color: colors.textSecondary }}>Populations:</span>
+                                <span className="font-mono" style={{ color: colors.text }}>{data.statistics.num_populations}</span>
+                              </div>
+                            )}
+                            {data.statistics?.fst !== null && data.statistics?.fst !== undefined && (
+                              <div className="flex justify-between">
+                                <span style={{ color: colors.textSecondary }}>Fst:</span>
+                                <span className="font-mono" style={{ color: colors.text }} title="Fixation index: measures population differentiation (0=no differentiation, 1=complete differentiation)">
+                                  {data.statistics.fst.toFixed(4)}
+                                </span>
+                              </div>
+                            )}
+                            {data.statistics?.mean_divergence !== null && data.statistics?.mean_divergence !== undefined && (
+                              <>
+                                <div className="flex justify-between">
+                                  <span style={{ color: colors.textSecondary }}>Mean divergence:</span>
+                                  <span className="font-mono" style={{ color: colors.text }}>
+                                    {data.statistics.mean_divergence.toExponential(3)}
+                                  </span>
+                                </div>
+                                {data.statistics?.median_divergence !== null && data.statistics?.median_divergence !== undefined && (
+                                  <div className="flex justify-between">
+                                    <span style={{ color: colors.textSecondary }}>Median divergence:</span>
+                                    <span className="font-mono" style={{ color: colors.text }}>
+                                      {data.statistics.median_divergence.toExponential(3)}
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {/* Action Buttons in 3 Columns */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* Simplify Button */}
                     <div className="relative group">
                       <button
                         onClick={() => setShowAdvancedSubsettingModal(true)}
                         disabled={isSimplifying}
-                        className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 w-full justify-center ${
-                          isSimplifying ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
+                        className={`font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center gap-2 w-full justify-center ${
+                          isSimplifying ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-md'
                         }`}
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          color: colors.text,
+                          border: `1px solid ${colors.border}`,
+                          fontWeight: 500
+                        }}
+                        onMouseEnter={(e) => !isSimplifying && (e.currentTarget.style.backgroundColor = colors.accentPrimary, e.currentTarget.style.color = colors.buttonText)}
+                        onMouseLeave={(e) => !isSimplifying && (e.currentTarget.style.backgroundColor = colors.containerBackground, e.currentTarget.style.color = colors.text)}
                       >
                         {isSimplifying && (
-                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-sp-pale-green border-t-transparent"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: colors.accentPrimary, borderTopColor: 'transparent' }}></div>
                         )}
-                        {isSimplifying ? 'Processing...' : 'Simplify Tree Sequence'}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                        </svg>
+                        {isSimplifying ? 'Simplifying...' : 'Simplify'}
                       </button>
-                      {/* Hover Tooltip */}
                       <GroupTooltip 
-                        content="Simplify the tree sequence by retaining only specific samples or nodes using tskit simplify."
+                        content="Reduce file size by retaining only selected samples. Supports multiple selection methods and advanced tskit simplify options."
                         preferredPlacement="bottom"
                       />
                     </div>
 
-                    {/* Inference Tools */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="relative group">
-                        <button
-                          className={`bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-semibold py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 w-full ${
-                            !hasMutations ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02]'
-                          }`}
-                          disabled={!hasMutations || isInferringTimes}
-                          onClick={() => setShowMutationRateModal(true)}
-                          title={!hasMutations ? "Requires mutations" : ""}
-                        >
-                          {isInferringTimes && (
-                            <div className="animate-spin rounded-full h-4 w-4 border-2 border-sp-pale-green border-t-transparent"></div>
-                          )}
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {isInferringTimes ? 'Inferring...' : 'Infer Ages (tsdate)'}
-                        </button>
-                        <GroupTooltip 
-                          content={!hasMutations 
-                            ? "Requires mutations in the tree sequence to infer ages." 
-                            : "Infer node ages using tsdate, a Bayesian method that estimates times of ancestral nodes based on mutation patterns."}
-                          preferredPlacement="bottom"
-                        />
-                      </div>
-                      <LocationInferenceDropdown
-                        selectedMethod={selectedInferenceMethod}
-                        onMethodSelect={(method) => {
-                          setSelectedInferenceMethod(method.id);
-                          handleLocationInference(method);
+                    {/* Infer Ages Button */}
+                    <div className="relative group">
+                      <button
+                        className={`font-medium py-3 px-4 rounded-lg transition-all duration-200 flex items-center justify-center gap-2 w-full ${
+                          !hasMutations ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-md'
+                        }`}
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          color: colors.text,
+                          border: `1px solid ${colors.border}`,
+                          fontWeight: 500
                         }}
-                        disabled={!fastLocationInferenceEnabled}
-                        isInferring={isInferring}
-                        data={data}
+                        onMouseEnter={(e) => hasMutations && !isInferringTimes && (e.currentTarget.style.backgroundColor = colors.accentPrimary, e.currentTarget.style.color = colors.buttonText)}
+                        onMouseLeave={(e) => hasMutations && !isInferringTimes && (e.currentTarget.style.backgroundColor = colors.containerBackground, e.currentTarget.style.color = colors.text)}
+                        disabled={!hasMutations || isInferringTimes}
+                        onClick={() => setShowMutationRateModal(true)}
+                        title={!hasMutations ? "Requires mutations" : ""}
+                      >
+                        {isInferringTimes && (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: colors.accentPrimary, borderTopColor: 'transparent' }}></div>
+                        )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {isInferringTimes ? 'Inferring...' : 'Infer ages'}
+                      </button>
+                      <GroupTooltip 
+                        content={!hasMutations 
+                          ? "Requires mutations to infer node ages." 
+                          : "Estimate ancestral node ages using tsdate's Bayesian inference based on mutation patterns and coalescent models."}
+                        preferredPlacement="bottom"
                       />
                     </div>
+
+                    {/* Location Inference Dropdown */}
+                    <LocationInferenceDropdown
+                      selectedMethod={selectedInferenceMethod}
+                      onMethodSelect={(method) => {
+                        setSelectedInferenceMethod(method.id);
+                        handleLocationInference(method);
+                      }}
+                      disabled={!fastLocationInferenceEnabled}
+                      isInferring={isInferring}
+                      data={data}
+                    />
                   </div>
                 </CollapsibleSection>
 
                 {/* Visualization Section - Combined Settings and Launch */}
                 <CollapsibleSection
-                  title="Visualization"
+                  title="Visualize"
                   icon={
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10l-2 1m0 0l-2-1m2 1v2.5M20 7l-2 1m2-1l-2-1m2 1v2.5M14 4l-2-1-2 1M4 7l2-1M4 7l2 1M4 7v2.5M12 21l-2-1m2 1l2-1m-2 1v-2.5M6 18l-2-1v-2.5M18 18l2-1v-2.5" />
                     </svg>
                   }
-                  subtitle="Configure display settings and launch visualizations"
                   defaultOpen={true}
                 >
 
-                  {/* Sample Subsetting */}
-                  <div className="mb-6">
-                    <h4 className="font-medium text-sp-white text-sm mb-3 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
-                      </svg>
-                      Sample Subsetting
-                      <Tooltip content="Cuts the number of samples (and thereby total edges and nodes) displayed in the visualization to improve performance. A similar reduction can be accomplished by limiting the temporal or genomic range instead (or in addition)." />
-                      <span className="text-xs text-sp-white/60 font-normal ml-auto">
-                        Total: {totalSamples?.toLocaleString() || '?'} samples
-                      </span>
-                    </h4>
-                    <RangeSlider
-                      min={2}
-                      max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
-                      value={[2, Math.max(maxSamples, 2)]}
-                      onChange={([_, max]) => {
-                        setMaxSamples(max);
-                        setInputValue(max.toString());
+                  {/* Launch Buttons */}
+                  <h4 className="font-medium text-sm mb-2 flex items-center gap-2" style={{ color: colors.text, fontWeight: 500 }}>
+                    Launch Visualization
+                    <Tooltip content="Choose visualization mode: 2D ARG (interactive force-directed graph), 3D Spatial (geographic ancestry map), or Spatial Diff (compare two tree sequences)." />
+                  </h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="relative group">
+                    <button
+                      className={`py-3.5 px-4 rounded-xl transition-all duration-200 transform flex flex-col items-center gap-1.5 w-full ${
+                        !visualizeArgEnabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-md'
+                      }`}
+                      style={{
+                        backgroundColor: colors.containerBackground,
+                        color: colors.text,
+                        border: `1px solid ${colors.border}`
                       }}
-                      formatValue={(v) => v.toLocaleString()}
-                      step={1}
+                      onMouseEnter={(e) => {
+                        if (visualizeArgEnabled) {
+                          e.currentTarget.style.borderColor = colors.accentPrimary;
+                          e.currentTarget.style.backgroundColor = `${colors.accentPrimary}08`;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (visualizeArgEnabled) {
+                          e.currentTarget.style.borderColor = colors.border;
+                          e.currentTarget.style.backgroundColor = colors.containerBackground;
+                        }
+                      }}
+                      disabled={!visualizeArgEnabled}
+                      onClick={() => openWizard('2d')}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: colors.accentPrimary }}>
+                        <circle cx="12" cy="5" r="2" strokeWidth={2} />
+                        <circle cx="6" cy="15" r="2" strokeWidth={2} />
+                        <circle cx="18" cy="15" r="2" strokeWidth={2} />
+                        <line x1="12" y1="7" x2="6" y2="13" strokeWidth={2} strokeLinecap="round" />
+                        <line x1="12" y1="7" x2="18" y2="13" strokeWidth={2} strokeLinecap="round" />
+                      </svg>
+                      <div className="text-center">
+                        <span className="text-sm font-semibold">2D ARG</span>
+                      </div>
+                    </button>
+                    <GroupTooltip
+                      content="Interactive force-directed graph visualization. Shows nodes, edges, and recombination events across the genome. Best for exploring ARG structure and relationships."
+                      preferredPlacement="bottom"
                     />
                   </div>
-
-                  {/* Range Filtering - Combined Row */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Temporal Range Filtering */}
-                    <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
-                          <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <h4 className="font-medium text-sp-white text-sm flex items-center gap-2">
-                          Temporal Range
-                          <Tooltip content="Filter nodes and edges by time range. Only nodes within the specified time range will be displayed in the visualization. This can significantly improve performance for large ARGs by reducing the number of nodes and edges rendered." />
-                        </h4>
+                  <div className="relative group">
+                    <button
+                      className={`py-3.5 px-4 rounded-xl transition-all duration-200 transform flex flex-col items-center gap-1.5 w-full ${
+                        !visualizeSpatialArgEnabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-md'
+                      }`}
+                      style={{
+                        backgroundColor: colors.containerBackground,
+                        color: colors.text,
+                        border: `1px solid ${colors.border}`
+                      }}
+                      onMouseEnter={(e) => {
+                        if (visualizeSpatialArgEnabled) {
+                          e.currentTarget.style.borderColor = colors.accentPrimary;
+                          e.currentTarget.style.backgroundColor = `${colors.accentPrimary}08`;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (visualizeSpatialArgEnabled) {
+                          e.currentTarget.style.borderColor = colors.border;
+                          e.currentTarget.style.backgroundColor = colors.containerBackground;
+                        }
+                      }}
+                      disabled={!visualizeSpatialArgEnabled}
+                      onClick={() => openWizard('3d')}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: colors.accentPrimary }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div className="text-center">
+                        <span className="text-sm font-semibold">3D Spatial</span>
                       </div>
-                      <div className="mb-3">
-                        <span className="text-xs text-sp-white/60">
-                          {(() => {
-                            const tempRange = getTemporalRange();
-                            return data?.has_temporal ? 
-                              `Available: ${tempRange.min.toFixed(2)} - ${tempRange.max.toFixed(2)} time units` :
-                              'No temporal data available';
-                          })()}
+                    </button>
+                    <GroupTooltip
+                      content="3D visualization with geographic coordinates and temporal depth. Maps ancestral locations through time. Requires temporal and spatial data."
+                      preferredPlacement="bottom"
+                    />
+                  </div>
+                  <div className="relative group">
+                    <button
+                      className={`py-3.5 px-4 rounded-xl transition-all duration-200 transform flex flex-col items-center gap-1.5 w-full ${
+                        !visualizeSpatialDiffEnabled ? 'opacity-50 cursor-not-allowed' : 'hover:scale-[1.02] hover:shadow-md'
+                      }`}
+                      style={{
+                        backgroundColor: colors.containerBackground,
+                        color: colors.text,
+                        border: `1px solid ${colors.border}`
+                      }}
+                      onMouseEnter={(e) => {
+                        if (visualizeSpatialDiffEnabled) {
+                          e.currentTarget.style.borderColor = colors.accentPrimary;
+                          e.currentTarget.style.backgroundColor = `${colors.accentPrimary}08`;
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (visualizeSpatialDiffEnabled) {
+                          e.currentTarget.style.borderColor = colors.border;
+                          e.currentTarget.style.backgroundColor = colors.containerBackground;
+                        }
+                      }}
+                      disabled={!visualizeSpatialDiffEnabled}
+                      onClick={() => openWizard('diff')}
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: colors.accentPrimary }}>
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                      </svg>
+                      <div className="text-center">
+                        <span className="text-sm font-semibold">Spatial Diff</span>
+                      </div>
+                    </button>
+                    <GroupTooltip
+                      content="Compare spatial coordinates between two tree sequences. Visualizes differences in inferred locations. Useful for evaluating inference methods."
+                      preferredPlacement="bottom"
+                    />
+                  </div>
+                  </div>
+
+                  {/* Advanced Settings - Nested CollapsibleSection */}
+                  <div className="mt-4">
+                  <CollapsibleSection
+                    title="Advanced Settings"
+                    icon={
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                    }
+                    defaultOpen={false}
+                    onOpen={() => setHasInteractedWithAdvancedSettings(true)}
+                  >
+                    <p className="text-xs mb-6" style={{ color: colors.textSecondary }}>
+                      Configure detailed visualization settings. The wizard will guide you through common options.
+                    </p>
+
+                  {/* Data Selection Group */}
+                  <div className="space-y-3 mb-6">
+                    <h5 className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                      Data Selection
+                    </h5>
+
+                    {/* Sample Selection */}
+                    <div className="rounded-lg p-4" style={{ backgroundColor: `${colors.containerBackground}`, border: `1px solid ${colors.border}` }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+                        </svg>
+                        <h4 className="font-medium text-sm" style={{ color: colors.text, fontWeight: 500 }}>
+                          Sample Selection
+                        </h4>
+                        <Tooltip content="Choose how to select samples for visualization. Different modes offer various selection strategies." />
+                      <select
+                        value={sampleSubsetMode}
+                        onChange={(e) => {
+                          const newMode = e.target.value as typeof sampleSubsetMode;
+                          setSampleSubsetMode(newMode);
+                          // Clear node focus when using sample subsetting (modes other than 'even')
+                          if (newMode !== 'even') {
+                            setFocusMode('none');
+                            setFocusNodeId(null);
+                            setFocusNodeInput('');
+                            setFocusNodeError(null);
+                          }
+                          // Reset mode-specific state when switching
+                          if (newMode !== 'ids') {
+                            setSampleIds([]);
+                            setSampleIdsInput('');
+                            setSampleIdsError(null);
+                          }
+                          if (newMode !== 'range') {
+                            setSampleRange(null);
+                            setSampleRangeStartInput('');
+                            setSampleRangeEndInput('');
+                          }
+                          if (newMode !== 'random') {
+                            setRandomSeed(null);
+                            setRandomSeedInput('');
+                          }
+                          if (newMode !== 'population') {
+                            setSelectedPopulations([]);
+                          }
+                        }}
+                        className="rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 ml-auto"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text,
+                        }}
+                      >
+                        <option value="range">By Range</option>
+                        <option value="even">Even Distribution</option>
+                        <option value="random">Random</option>
+                        <option value="ids">By IDs</option>
+                        {(data?.statistics?.num_populations ?? 0) > 1 && (
+                          <option value="population">By Population</option>
+                        )}
+                      </select>
+                      <span className="text-xs font-normal" style={{ color: colors.textSecondary }}>
+                        Total: {totalSamples?.toLocaleString() || '?'}
+                      </span>
+                    </div>
+
+                    {/* Even Distribution / Random Mode */}
+                    {(sampleSubsetMode === 'even' || sampleSubsetMode === 'random') && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            # Samples:
+                          </span>
+                          <input
+                            type="number"
+                            min={2}
+                            max={totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES}
+                            value={maxSamples}
+                            onChange={(e) => {
+                              const value = parseInt(e.target.value);
+                              if (!isNaN(value) && value >= 2) {
+                                setMaxSamples(Math.min(value, totalSamples || SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES));
+                              }
+                            }}
+                            className="w-24 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                            style={{
+                              backgroundColor: colors.containerBackground,
+                              border: `1px solid ${colors.border}`,
+                              color: colors.text,
+                            }}
+                          />
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            {sampleSubsetMode === 'even' ? '(evenly spaced)' : '(randomly selected)'}
+                          </span>
+                        </div>
+                        {/* Random seed input for random mode */}
+                        {sampleSubsetMode === 'random' && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs" style={{ color: colors.textSecondary }}>Seed (optional):</span>
+                            <input
+                              type="number"
+                              value={randomSeedInput}
+                              onChange={(e) => {
+                                setRandomSeedInput(e.target.value);
+                                const value = parseInt(e.target.value);
+                                setRandomSeed(isNaN(value) ? null : value);
+                              }}
+                              placeholder="Leave empty for random"
+                              className="w-32 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                              style={{
+                                backgroundColor: colors.containerBackground,
+                                border: `1px solid ${colors.border}`,
+                                color: colors.text,
+                              }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* By IDs Mode */}
+                    {sampleSubsetMode === 'ids' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            Enter sample IDs (comma-separated)
+                          </span>
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            Valid range: 0-{(totalSamples || 1) - 1}
+                          </span>
+                        </div>
+                        <textarea
+                          value={sampleIdsInput}
+                          onChange={(e) => setSampleIdsInput(e.target.value)}
+                          onBlur={() => {
+                            // Parse and validate IDs on blur
+                            const input = sampleIdsInput.trim();
+                            if (!input) {
+                              setSampleIds([]);
+                              setSampleIdsError(null);
+                              return;
+                            }
+                            try {
+                              const ids = input.split(',').map(s => {
+                                const num = parseInt(s.trim());
+                                if (isNaN(num)) throw new Error(`Invalid ID: ${s.trim()}`);
+                                if (num < 0 || num >= (totalSamples || 0)) {
+                                  throw new Error(`ID ${num} out of range`);
+                                }
+                                return num;
+                              });
+                              const uniqueIds = [...new Set(ids)];
+                              setSampleIds(uniqueIds);
+                              setSampleIdsError(null);
+                            } catch (err) {
+                              setSampleIdsError(err instanceof Error ? err.message : 'Invalid input');
+                            }
+                          }}
+                          placeholder="e.g., 0, 5, 10, 25, 42"
+                          rows={2}
+                          className="w-full rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 resize-none"
+                          style={{
+                            backgroundColor: colors.containerBackground,
+                            border: `1px solid ${sampleIdsError ? '#ef4444' : colors.border}`,
+                            color: colors.text,
+                          }}
+                        />
+                        {sampleIdsError ? (
+                          <span className="text-xs" style={{ color: '#ef4444' }}>{sampleIdsError}</span>
+                        ) : sampleIds.length > 0 ? (
+                          <span className="text-xs" style={{ color: colors.accentPrimary }}>
+                            {sampleIds.length} valid sample{sampleIds.length !== 1 ? 's' : ''} selected
+                          </span>
+                        ) : null}
+                      </div>
+                    )}
+
+                    {/* By Range Mode */}
+                    {sampleSubsetMode === 'range' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            Select contiguous sample range
+                          </span>
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            Available: 0-{(totalSamples || 1) - 1}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={(totalSamples || 1) - 1}
+                            value={sampleRangeStartInput}
+                            onChange={(e) => {
+                              setSampleRangeStartInput(e.target.value);
+                              const start = parseInt(e.target.value);
+                              const end = sampleRange?.[1] ?? (totalSamples || 1) - 1;
+                              if (!isNaN(start) && start >= 0 && start <= end) {
+                                setSampleRange([start, end]);
+                              }
+                            }}
+                            placeholder="Start"
+                            className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                            style={{
+                              backgroundColor: colors.containerBackground,
+                              border: `1px solid ${colors.border}`,
+                              color: colors.text,
+                            }}
+                          />
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>to</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={(totalSamples || 1) - 1}
+                            value={sampleRangeEndInput}
+                            onChange={(e) => {
+                              setSampleRangeEndInput(e.target.value);
+                              const end = parseInt(e.target.value);
+                              const start = sampleRange?.[0] ?? 0;
+                              if (!isNaN(end) && end >= start && end < (totalSamples || 1)) {
+                                setSampleRange([start, end]);
+                              }
+                            }}
+                            placeholder="End"
+                            className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                            style={{
+                              backgroundColor: colors.containerBackground,
+                              border: `1px solid ${colors.border}`,
+                              color: colors.text,
+                            }}
+                          />
+                          <button
+                            onClick={() => {
+                              setSampleRange(null);
+                              setSampleRangeStartInput('');
+                              setSampleRangeEndInput('');
+                            }}
+                            className="rounded px-1.5 py-1 text-xs hover:opacity-80 transition-opacity flex items-center justify-center"
+                            style={{
+                              backgroundColor: colors.containerBackground,
+                              border: `1px solid ${colors.border}`,
+                              color: colors.textSecondary,
+                            }}
+                            title="Reset to full range"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          </button>
+                        </div>
+                        {sampleRange && (
+                          <span className="text-xs" style={{ color: colors.accentPrimary }}>
+                            {sampleRange[1] - sampleRange[0] + 1} samples selected (indices {sampleRange[0]}-{sampleRange[1]})
+                          </span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* By Population Mode */}
+                    {sampleSubsetMode === 'population' && (data?.statistics?.num_populations ?? 0) > 1 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            Select populations to include
+                          </span>
+                          <button
+                            onClick={() => {
+                              const allPops = Array.from({ length: data?.statistics?.num_populations || 0 }, (_, i) => i);
+                              setSelectedPopulations(selectedPopulations.length === allPops.length ? [] : allPops);
+                            }}
+                            className="text-xs hover:underline"
+                            style={{ color: colors.accentPrimary }}
+                          >
+                            {selectedPopulations.length === (data?.statistics?.num_populations || 0) ? 'Deselect All' : 'Select All'}
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Array.from({ length: data?.statistics?.num_populations || 0 }, (_, i) => (
+                            <label
+                              key={i}
+                              className="flex items-center gap-2 rounded px-2 py-1 cursor-pointer hover:opacity-80 transition-opacity"
+                              style={{
+                                backgroundColor: selectedPopulations.includes(i) ? `${colors.accentPrimary}20` : colors.containerBackground,
+                                border: `1px solid ${selectedPopulations.includes(i) ? colors.accentPrimary : colors.border}`,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedPopulations.includes(i)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedPopulations([...selectedPopulations, i]);
+                                  } else {
+                                    setSelectedPopulations(selectedPopulations.filter(p => p !== i));
+                                  }
+                                }}
+                                className="rounded"
+                                style={{ accentColor: colors.accentPrimary }}
+                              />
+                              <span className="text-xs" style={{ color: colors.text }}>
+                                Population {i}
+                              </span>
+                            </label>
+                          ))}
+                        </div>
+                        {selectedPopulations.length > 0 && (
+                          <span className="text-xs" style={{ color: colors.accentPrimary }}>
+                            {selectedPopulations.length} population{selectedPopulations.length !== 1 ? 's' : ''} selected
+                          </span>
+                        )}
+                        {selectedPopulations.length === 0 && (
+                          <span className="text-xs" style={{ color: '#ef4444' }}>
+                            Select at least one population
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    </div>
+
+                    {/* Node Focus */}
+                    <div className="rounded-lg p-4" style={{ backgroundColor: `${colors.containerBackground}`, border: `1px solid ${colors.border}` }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <h4 className="font-medium text-sm" style={{ color: colors.text, fontWeight: 500 }}>
+                          Node Focus
+                        </h4>
+                        <Tooltip content="Focus on a specific node's subgraph (descendants from a root) or ancestors (parent ARG leading to a sample). Mutually exclusive with sample subsetting." />
+                      <select
+                        value={focusMode}
+                        onChange={(e) => {
+                          const newMode = e.target.value as 'none' | 'root' | 'sample';
+                          setFocusMode(newMode);
+                          if (newMode === 'none') {
+                            setFocusNodeId(null);
+                            setFocusNodeInput('');
+                            setFocusNodeError(null);
+                          } else {
+                            // Clear sample subsetting when using node focus
+                            setSampleSubsetMode('even');
+                            setSampleIds([]);
+                            setSampleIdsInput('');
+                            setSampleIdsError(null);
+                            setSampleRange(null);
+                            setSampleRangeStartInput('');
+                            setSampleRangeEndInput('');
+                            setSelectedPopulations([]);
+                          }
+                        }}
+                        className="rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 ml-auto"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text,
+                        }}
+                      >
+                        <option value="none">None</option>
+                        <option value="root">Root (Descendants)</option>
+                        <option value="sample">Sample (Ancestors)</option>
+                      </select>
+                    </div>
+                    {focusMode !== 'none' && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            {focusMode === 'root' ? 'Root Node ID:' : 'Sample Node ID:'}
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            value={focusNodeInput}
+                            onChange={(e) => {
+                              setFocusNodeInput(e.target.value);
+                              const value = parseInt(e.target.value);
+                              if (e.target.value === '') {
+                                setFocusNodeId(null);
+                                setFocusNodeError(null);
+                              } else if (isNaN(value) || value < 0) {
+                                setFocusNodeId(null);
+                                setFocusNodeError('Invalid node ID');
+                              } else {
+                                setFocusNodeId(value);
+                                setFocusNodeError(null);
+                              }
+                            }}
+                            placeholder={focusMode === 'root' ? 'Enter root node ID' : 'Enter sample node ID'}
+                            className="w-32 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                            style={{
+                              backgroundColor: colors.containerBackground,
+                              border: `1px solid ${focusNodeError ? '#ef4444' : colors.border}`,
+                              color: colors.text,
+                            }}
+                          />
+                          {focusNodeId !== null && (
+                            <span className="text-xs" style={{ color: colors.accentPrimary }}>
+                              {focusMode === 'root' ? `Subgraph from node ${focusNodeId}` : `Ancestors of node ${focusNodeId}`}
+                            </span>
+                          )}
+                        </div>
+                        {focusNodeError && (
+                          <span className="text-xs" style={{ color: '#ef4444' }}>
+                            {focusNodeError}
+                          </span>
+                        )}
+                        <span className="text-xs block" style={{ color: colors.textSecondary }}>
+                          {focusMode === 'root'
+                            ? 'Shows all descendants of the specified root node.'
+                            : 'Shows all ancestors leading to the specified sample node.'}
                         </span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          value={temporalStartInput}
-                          onChange={(e) => {
-                            setTemporalStartInput(e.target.value);
-                            const value = parseFloat(e.target.value);
-                            if (!isNaN(value)) {
-                              const tempRange = getTemporalRange();
-                              setTemporalRange([value, temporalRange?.[1] ?? tempRange.max]);
-                            }
-                          }}
-                          placeholder={`Min: ${getTemporalRange().min.toFixed(2)}`}
-                          disabled={!data?.has_temporal}
-                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
-                          title="Minimum time value"
-                        />
-                        <span className="text-sp-white/70 text-sm">to</span>
-                        <input
-                          type="number"
-                          value={temporalEndInput}
-                          onChange={(e) => {
-                            setTemporalEndInput(e.target.value);
-                            const value = parseFloat(e.target.value);
-                            if (!isNaN(value)) {
-                              const tempRange = getTemporalRange();
-                              setTemporalRange([temporalRange?.[0] ?? tempRange.min, value]);
-                            }
-                          }}
-                          placeholder={`Max: ${getTemporalRange().max.toFixed(2)}`}
-                          disabled={!data?.has_temporal}
-                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green disabled:opacity-50"
-                          title="Maximum time value"
-                        />
-                        <button
-                          onClick={() => {
-                            setTemporalRange(null);
-                            setTemporalStartInput('');
-                            setTemporalEndInput('');
-                          }}
-                          disabled={!data?.has_temporal}
-                          className="text-sp-pale-green hover:text-sp-very-pale-green disabled:opacity-50 disabled:hover:text-sp-pale-green text-sm px-2"
-                          title="Reset to full range"
-                        >
-                          Clear
-                        </button>
+                    )}
+                    </div>
+                  </div>
+
+                  {/* Range Filters Group */}
+                  <div className="space-y-3 mb-6">
+                    <h5 className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                      Range Filters
+                    </h5>
+
+                    {/* Time Range */}
+                    <div className="rounded-lg p-4" style={{ backgroundColor: `${colors.containerBackground}`, border: `1px solid ${colors.border}` }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h4 className="font-medium text-sm" style={{ color: colors.text, fontWeight: 500 }}>
+                          Time Range
+                        </h4>
+                        <Tooltip content="Filter by node age. Only nodes within the specified time range are displayed, improving performance on large ARGs." />
+                      <span className="text-xs font-normal ml-auto" style={{ color: colors.textSecondary }}>
+                        {(() => {
+                          const tempRange = getTemporalRange();
+                          return data?.has_temporal ?
+                            `${tempRange.min.toFixed(2)} - ${tempRange.max.toFixed(2)} units` :
+                            'No temporal data';
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={temporalStartInput}
+                        onChange={(e) => {
+                          setTemporalStartInput(e.target.value);
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value)) {
+                            const tempRange = getTemporalRange();
+                            setTemporalRange([value, temporalRange?.[1] ?? tempRange.max]);
+                          }
+                        }}
+                        placeholder={`Min: ${getTemporalRange().min.toFixed(2)}`}
+                        disabled={!data?.has_temporal}
+                        className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 disabled:opacity-50"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text
+                        }}
+                        title="Minimum time value"
+                      />
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>to</span>
+                      <input
+                        type="number"
+                        value={temporalEndInput}
+                        onChange={(e) => {
+                          setTemporalEndInput(e.target.value);
+                          const value = parseFloat(e.target.value);
+                          if (!isNaN(value)) {
+                            const tempRange = getTemporalRange();
+                            setTemporalRange([temporalRange?.[0] ?? tempRange.min, value]);
+                          }
+                        }}
+                        placeholder={`Max: ${getTemporalRange().max.toFixed(2)}`}
+                        disabled={!data?.has_temporal}
+                        className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 disabled:opacity-50"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text
+                        }}
+                        title="Maximum time value"
+                      />
+                      <button
+                        onClick={() => {
+                          setTemporalRange(null);
+                          setTemporalStartInput('');
+                          setTemporalEndInput('');
+                        }}
+                        disabled={!data?.has_temporal}
+                        className="text-xs px-1.5 disabled:opacity-50 flex items-center justify-center"
+                        style={{ color: colors.accentPrimary }}
+                        onMouseEnter={(e) => !e.currentTarget.disabled && (e.currentTarget.style.opacity = '0.8')}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
+                        title="Reset to full range"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
                       </div>
                     </div>
 
-                    {/* Genomic Range Filtering */}
-                    <div className="bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-lg p-4">
-                      <div className="flex items-center gap-3 mb-2">
-                        <div className="w-6 h-6 bg-sp-pale-green/10 rounded flex items-center justify-center">
-                          <svg className="w-3 h-3 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                        </div>
-                        <h4 className="font-medium text-sp-white text-sm flex items-center gap-2">
+                    {/* Genomic Range */}
+                    <div className="rounded-lg p-4" style={{ backgroundColor: `${colors.containerBackground}`, border: `1px solid ${colors.border}` }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                        </svg>
+                        <h4 className="font-medium text-sm" style={{ color: colors.text, fontWeight: 500 }}>
                           Genomic Range
-                          <Tooltip content="Filter by genomic position (base pairs) or tree index. When using base pairs, only trees overlapping the specified genomic region will be shown. When using tree indices, only trees within the specified index range will be displayed. This helps focus on specific regions of the genome or reduce the number of trees for better performance." />
                         </h4>
-                        <select
-                          value={genomicMode}
-                          onChange={(e) => {
-                            setGenomicMode(e.target.value as 'base_pairs' | 'tree_indices');
-                            setGenomicRange(null);
-                            setGenomicStartInput('');
-                            setGenomicEndInput('');
-                          }}
-                          className="bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-xs text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green ml-auto"
-                          title="Choose between base pair positions or tree indices"
-                        >
-                          <option value="base_pairs">Base Pairs</option>
-                          <option value="tree_indices">Tree Indices</option>
-                        </select>
-                      </div>
-                      <div className="mb-3">
-                        <span className="text-xs text-sp-white/60">
-                          {(() => {
-                            if (genomicMode === 'base_pairs') {
-                              const genomicRange = getGenomicRange();
-                              return `Available: ${genomicRange.min.toLocaleString()} - ${genomicRange.max.toLocaleString()} bp`;
-                            } else {
-                              const treeRange = getTreeIndexRange();
-                              return `Available: ${treeRange.min} - ${treeRange.max} trees`;
-                            }
-                          })()}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number"
-                          value={genomicStartInput}
-                          onChange={(e) => {
-                            setGenomicStartInput(e.target.value);
-                            const value = parseInt(e.target.value);
-                            if (!isNaN(value)) {
-                              const maxValue = genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max;
-                              setGenomicRange([value, genomicRange?.[1] ?? maxValue]);
-                            }
-                          }}
-                          min={0}
-                          max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
-                          placeholder={genomicMode === 'base_pairs' ? `Min: ${getGenomicRange().min}` : `Min: ${getTreeIndexRange().min}`}
-                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
-                          title={genomicMode === 'base_pairs' ? "Minimum base pair position" : "Starting tree index"}
-                        />
-                        <span className="text-sp-white/70 text-sm">to</span>
-                        <input
-                          type="number"
-                          value={genomicEndInput}
-                          onChange={(e) => {
-                            setGenomicEndInput(e.target.value);
-                            const value = parseInt(e.target.value);
-                            if (!isNaN(value)) {
-                              setGenomicRange([genomicRange?.[0] ?? 0, value]);
-                            }
-                          }}
-                          min={0}
-                          max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
-                          placeholder={genomicMode === 'base_pairs' ? `Max: ${getGenomicRange().max.toLocaleString()}` : `Max: ${getTreeIndexRange().max}`}
-                          className="flex-1 bg-sp-dark-blue border border-sp-pale-green/20 rounded px-2 py-1 text-sm text-sp-white focus:outline-none focus:ring-2 focus:ring-sp-pale-green"
-                          title={genomicMode === 'base_pairs' ? "Maximum base pair position" : "Ending tree index"}
-                        />
-                        <button
-                          onClick={() => {
-                            setGenomicRange(null);
-                            setGenomicStartInput('');
-                            setGenomicEndInput('');
-                          }}
-                          className="text-sp-pale-green hover:text-sp-very-pale-green text-sm px-2"
-                          title="Reset to full range"
-                        >
-                          Clear
-                        </button>
+                        <Tooltip content="Filter by genomic position (base pairs) or tree index to focus on specific regions. Reduces trees displayed for better performance." />
+                      <select
+                        value={genomicMode}
+                        onChange={(e) => {
+                          setGenomicMode(e.target.value as 'base_pairs' | 'tree_indices');
+                          setGenomicRange(null);
+                          setGenomicStartInput('');
+                          setGenomicEndInput('');
+                        }}
+                        className="rounded px-2 py-1 text-xs focus:outline-none focus:ring-2 ml-auto"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text,
+                        }}
+                        title="Select measurement unit"
+                      >
+                        <option value="base_pairs">Base Pairs</option>
+                        <option value="tree_indices">Tree Indices</option>
+                      </select>
+                      <span className="text-xs font-normal" style={{ color: colors.textSecondary }}>
+                        {(() => {
+                          if (genomicMode === 'base_pairs') {
+                            const genomicRange = getGenomicRange();
+                            return `${genomicRange.min.toLocaleString()} - ${genomicRange.max.toLocaleString()} bp`;
+                          } else {
+                            const treeRange = getTreeIndexRange();
+                            return `${treeRange.min} - ${treeRange.max} trees`;
+                          }
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        value={genomicStartInput}
+                        onChange={(e) => {
+                          setGenomicStartInput(e.target.value);
+                          const value = parseInt(e.target.value);
+                          if (!isNaN(value)) {
+                            const maxValue = genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max;
+                            setGenomicRange([value, genomicRange?.[1] ?? maxValue]);
+                          }
+                        }}
+                        min={0}
+                        max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
+                        placeholder={genomicMode === 'base_pairs' ? `Min: ${getGenomicRange().min}` : `Min: ${getTreeIndexRange().min}`}
+                        className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text
+                        }}
+                        title={genomicMode === 'base_pairs' ? "Minimum base pair position" : "Starting tree index"}
+                      />
+                      <span className="text-xs" style={{ color: colors.textSecondary }}>to</span>
+                      <input
+                        type="number"
+                        value={genomicEndInput}
+                        onChange={(e) => {
+                          setGenomicEndInput(e.target.value);
+                          const value = parseInt(e.target.value);
+                          if (!isNaN(value)) {
+                            setGenomicRange([genomicRange?.[0] ?? 0, value]);
+                          }
+                        }}
+                        min={0}
+                        max={genomicMode === 'base_pairs' ? getGenomicRange().max : getTreeIndexRange().max}
+                        placeholder={genomicMode === 'base_pairs' ? `Max: ${getGenomicRange().max.toLocaleString()}` : `Max: ${getTreeIndexRange().max}`}
+                        className="flex-1 rounded px-2 py-1 text-xs focus:outline-none focus:ring-2"
+                        style={{
+                          backgroundColor: colors.containerBackground,
+                          border: `1px solid ${colors.border}`,
+                          color: colors.text
+                        }}
+                        title={genomicMode === 'base_pairs' ? "Maximum base pair position" : "Ending tree index"}
+                      />
+                      <button
+                        onClick={() => {
+                          setGenomicRange(null);
+                          setGenomicStartInput('');
+                          setGenomicEndInput('');
+                        }}
+                        className="text-xs px-1.5 flex items-center justify-center"
+                        style={{ color: colors.accentPrimary }}
+                        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+                        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                        title="Reset to full range"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                      </button>
                       </div>
                     </div>
                   </div>
 
-                  {/* Divider */}
-                  <div className="border-t border-sp-pale-green/20 my-4"></div>
-
-                  {/* Performance Options */}
-                  <div className="space-y-3 mb-4">
+                  {/* Performance Options Group */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
+                      Performance Options
+                    </h5>
+                    <div className={`${visualizeSpatialArgEnabled ? 'grid grid-cols-1 md:grid-cols-2 gap-3' : 'space-y-3'}`}>
                     {/* Enable Clustering for ARG visualization */}
-                    <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+                    <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
                       <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           id="enable-clustering"
                           checked={enableClustering}
                           onChange={(e) => setEnableClustering(e.target.checked)}
-                          className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                          className="h-4 w-4 rounded"
+                          style={{ accentColor: colors.accentPrimary }}
                         />
-                        <label htmlFor="enable-clustering" className="text-sm text-sp-white font-medium cursor-pointer flex items-center gap-1.5">
-                          Enable Clustering (ARG Performance)
+                        <label htmlFor="enable-clustering" className="text-sm font-medium cursor-pointer flex items-center gap-1.5" style={{ color: colors.text, fontWeight: 500 }}>
+                          Node Clustering
                           <Tooltip 
                             content={
                               <>
-                                <strong className="text-sp-pale-green">⚠️ Beta Feature</strong><br/>
-                                Condense dense subtrees into cluster nodes for better performance with large ARGs. Auto-enabled for graphs with &gt;250 nodes. Click cluster nodes to expand and explore details.<br/><br/>
-                                <em className="text-sp-white/60">Note: This is a testing feature and may cause unexpected results.</em>
+                                <strong style={{ color: colors.accentPrimary }}>⚠️ Beta</strong><br/>
+                                Groups dense subtrees into expandable cluster nodes. Auto-enabled for &gt;250 nodes. Click clusters to expand.<br/><br/>
+                                <em style={{ color: colors.textSecondary }}>Experimental feature - may behave unexpectedly.</em>
                               </>
                             }
                           />
@@ -3544,109 +4540,26 @@ export default function ResultPage() {
 
                     {/* Heatmap Mode Option for Spatial */}
                     {visualizeSpatialArgEnabled && (
-                      <div className="flex items-center justify-between p-3 bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg">
+                      <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.containerBackground, border: `1px solid ${colors.border}` }}>
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             id="heatmap-only-mode"
                             checked={heatmapOnlyMode}
                             onChange={(e) => setHeatmapOnlyMode(e.target.checked)}
-                            className="h-4 w-4 text-sp-pale-green focus:ring-sp-pale-green border-sp-pale-green/20 rounded bg-sp-dark-blue"
+                            className="h-4 w-4 rounded"
+                            style={{ accentColor: colors.accentPrimary }}
                           />
-                          <label htmlFor="heatmap-only-mode" className="text-sm text-sp-white font-medium cursor-pointer flex items-center gap-1.5">
-                            Start in Heatmap-Only Mode
-                            <Tooltip content="Load spatial visualizations with only the heatmap visible. Nodes and edges remain hidden to improve performance for large ARGs. You can enable them later from the sidebar if needed." />
+                          <label htmlFor="heatmap-only-mode" className="text-sm font-medium cursor-pointer flex items-center gap-1.5" style={{ color: colors.text, fontWeight: 500 }}>
+                            Heatmap-Only Mode
+                            <Tooltip content="Load spatial view with only heatmap visible (nodes/edges hidden). Improves performance on large ARGs. Toggle nodes/edges later via sidebar." />
                           </label>
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
-
-                  {/* Launch Buttons */}
-                  <h4 className="font-medium text-sp-white text-sm mb-3 flex items-center gap-2">
-                    Launch Visualization
-                    <Tooltip content="Choose a visualization type: Visualize ARG (interactive D3 force-directed graph), Spatial ARG (3D visualization with spatial coordinates), or Spatial Diff (compare spatial coordinates between two tree sequences). Each visualization type supports different features and is optimized for different use cases." />
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                    disabled={!visualizeArgEnabled}
-                    onClick={() => {
-                      const params = new URLSearchParams();
-                      if (temporalRange) {
-                        params.append('temporal_start', temporalRange[0].toString());
-                        params.append('temporal_end', temporalRange[1].toString());
-                      }
-                      if (genomicRange) {
-                        if (genomicMode === 'base_pairs') {
-                          params.append('genomic_start', genomicRange[0].toString());
-                          params.append('genomic_end', genomicRange[1].toString());
-                        } else {
-                          params.append('tree_start_idx', genomicRange[0].toString());
-                          params.append('tree_end_idx', genomicRange[1].toString());
-                        }
-                      }
-                      if (enableClustering) {
-                        params.append('clustering', 'true');
-                      }
-                      const queryString = params.toString();
-                      navigate(`/graph/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);
-                    }}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                    <div className="text-center">
-                      <span className="text-base font-bold">Visualize ARG</span>
-                      <span className="text-sm opacity-80 block">Interactive D3</span>
-                    </div>
-                  </button>
-                  <button
-                    className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeSpatialArgEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                    disabled={!visualizeSpatialArgEnabled}
-                    onClick={() => {
-                      const params = new URLSearchParams();
-                      if (temporalRange) {
-                        params.append('temporal_start', temporalRange[0].toString());
-                        params.append('temporal_end', temporalRange[1].toString());
-                      }
-                      if (genomicRange) {
-                        if (genomicMode === 'base_pairs') {
-                          params.append('genomic_start', genomicRange[0].toString());
-                          params.append('genomic_end', genomicRange[1].toString());
-                        } else {
-                          params.append('tree_start_idx', genomicRange[0].toString());
-                          params.append('tree_end_idx', genomicRange[1].toString());
-                        }
-                      }
-                      if (heatmapOnlyMode) {
-                        params.append('heatmap_mode', 'true');
-                      }
-                      const queryString = params.toString();
-                      navigate(`/spatial/${encodeURIComponent(data.filename)}${queryString ? `?${queryString}` : ''}`);
-                    }}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <div className="text-center">
-                      <span className="text-base font-bold">Spatial ARG</span>
-                      <span className="text-sm opacity-80 block">3D coordinates</span>
-                    </div>
-                  </button>
-                  <button
-                    className={`bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-5 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex flex-col items-center gap-2 ${!visualizeSpatialDiffEnabled && 'opacity-50 cursor-not-allowed hover:transform-none'}`}
-                    disabled={!visualizeSpatialDiffEnabled}
-                    onClick={handleSpatialDiffClick}
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                    </svg>
-                    <div className="text-center">
-                      <span className="text-base font-bold">Spatial Diff</span>
-                      <span className="text-sm opacity-80 block">Compare locations</span>
-                    </div>
-                  </button>
+                  </CollapsibleSection>
                   </div>
                 </CollapsibleSection>
 
@@ -3718,6 +4631,31 @@ export default function ResultPage() {
             secondaryButtonText={alertModal.secondaryButtonText}
             onSecondaryAction={alertModal.onSecondaryAction}
           />
+
+          {/* Visualization Wizard */}
+          {data && wizardVisualizationType && (
+            <VisualizationWizard
+              isOpen={showVisualizationWizard}
+              onClose={() => {
+                setShowVisualizationWizard(false);
+                setWizardVisualizationType(null);
+              }}
+              onLaunch={handleWizardLaunch}
+              vizType={wizardVisualizationType}
+              stats={getTreeSequenceStats()}
+              preConfigured={hasPreConfig ? {
+                temporalRange,
+                genomicRange,
+                genomicMode,
+                sampleSubsetMode,
+                maxSamples,
+                enableClustering,
+                heatmapOnlyMode,
+                focusMode,
+                focusNodeId,
+              } : null}
+            />
+          )}
         </div>
       </div>
 

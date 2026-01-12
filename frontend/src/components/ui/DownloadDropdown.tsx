@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
-import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 interface DownloadDropdownProps {
     filename: string;
@@ -11,7 +11,7 @@ interface DownloadDropdownProps {
 }
 
 export function DownloadDropdown({ filename, onError, onDownloadImage, useVisualizationStyle = false }: DownloadDropdownProps) {
-    const { colors } = useColorTheme();
+    const { colors, dropdownMenuStyle } = useThemeStyles();
     const [isOpen, setIsOpen] = useState(false);
     const [showLocationOptions, setShowLocationOptions] = useState(false);
     const [showIntermediateData, setShowIntermediateData] = useState(false);
@@ -27,13 +27,9 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
                 .then((result) => {
                     const dataTypes = result.available_data_types || [];
                     setAvailableIntermediateData(dataTypes);
-                    if (dataTypes.length > 0) {
-                        console.log('Available intermediate data types:', dataTypes);
-                    }
                 })
-                .catch((error) => {
+                .catch(() => {
                     // Silently fail - intermediate data is optional
-                    console.warn('Failed to load intermediate data:', error);
                     setAvailableIntermediateData([]);
                 });
         }
@@ -216,8 +212,19 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
                     </svg>
                 </button>
             ) : (
-                <button 
-                    className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                <button
+                    className="font-bold py-2.5 px-4 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center gap-2"
+                    style={{
+                        backgroundColor: colors.accentPrimary,
+                        color: colors.buttonText,
+                        border: `1px solid ${colors.accentPrimary}`
+                    }}
+                    onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.accentSecondary;
+                    }}
+                    onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                    }}
                     onClick={() => setIsOpen(!isOpen)}
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -231,14 +238,29 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
             )}
 
             {isOpen && (
-                <div className="absolute w-64 mt-2 right-0 bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl" style={{ zIndex: 10000 }}>
-                    <div className="py-2">
+                <div 
+                    className="absolute w-64 mt-2 right-0" 
+                    style={{ 
+                        ...dropdownMenuStyle,
+                        zIndex: 10000
+                    }}
+                >
+                    <div className="py-2" style={{ color: colors.text }}>
                         {/* Tree Sequence Downloads */}
-                        <div className="px-4 py-2 text-xs font-semibold text-sp-pale-green/70 uppercase tracking-wider">
+                        <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textSecondary }}>
                             Tree Sequence
                         </div>
                         <button
-                            className="w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 flex items-center gap-2"
+                            className="w-full px-4 py-2 text-left transition-colors duration-200 flex items-center gap-2"
+                            style={{ color: colors.text }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                e.currentTarget.style.color = colors.buttonText;
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = colors.text;
+                            }}
                             onClick={() => handleDownload('trees')}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -247,7 +269,16 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
                             Download .trees
                         </button>
                         <button
-                            className="w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 flex items-center gap-2"
+                            className="w-full px-4 py-2 text-left transition-colors duration-200 flex items-center gap-2"
+                            style={{ color: colors.text }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = colors.accentPrimary;
+                                e.currentTarget.style.color = colors.buttonText;
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = colors.text;
+                            }}
                             onClick={() => handleDownload('tsz')}
                         >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -379,7 +410,47 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
                                 <div className="px-4 py-2 text-xs font-semibold text-sp-pale-green/70 uppercase tracking-wider">
                                     Intermediate Data
                                 </div>
-                                {!showIntermediateData ? (
+                                {/* Flattened display for 1-2 items that don't need format selection */}
+                                {availableIntermediateData.length <= 2 && !showIntermediateData && selectedDataType === null ? (
+                                    <>
+                                        {availableIntermediateData.map(dataType => {
+                                            const displayNames: Record<string, string> = {
+                                                'mpr_result': 'GAIA MPR Result',
+                                                'spatial_arg': 'SpatialARG Object',
+                                                'dispersal_params': 'Dispersal Parameters',
+                                                'ancestor_locations': 'Ancestor Locations'
+                                            };
+                                            const displayName = displayNames[dataType] || dataType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                                            const supportsFormats = dataType === 'mpr_result';
+
+                                            return (
+                                                <button
+                                                    key={dataType}
+                                                    className="w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 flex items-center gap-2"
+                                                    onClick={() => {
+                                                        if (supportsFormats) {
+                                                            setSelectedDataType(dataType);
+                                                            setSelectedFormat('pkl');
+                                                            setShowIntermediateData(true);
+                                                        } else {
+                                                            handleDownloadIntermediateData(dataType);
+                                                        }
+                                                    }}
+                                                >
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                                                    </svg>
+                                                    {displayName}
+                                                    {supportsFormats && (
+                                                        <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                                        </svg>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </>
+                                ) : !showIntermediateData ? (
                                     <button
                                         className="w-full px-4 py-2 text-left hover:bg-sp-pale-green hover:text-sp-very-dark-blue transition-colors duration-200 flex items-center gap-2"
                                         onClick={() => setShowIntermediateData(true)}
@@ -387,7 +458,7 @@ export function DownloadDropdown({ filename, onError, onDownloadImage, useVisual
                                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
                                         </svg>
-                                        Download Intermediate Data
+                                        Download Intermediate Data ({availableIntermediateData.length})
                                         <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                                         </svg>

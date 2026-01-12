@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
 
@@ -25,7 +25,7 @@ export function ComprehensiveDownloadDropdown({
     const [isOpen, setIsOpen] = useState(false);
     const [hoveredTooltip, setHoveredTooltip] = useState<string | null>(null);
     const dropdownRef = useRef<HTMLDivElement>(null);
-    const { colors } = useColorTheme();
+    const { colors, dropdownMenuStyle } = useThemeStyles();
 
     // Close dropdown when clicking outside
     useEffect(() => {

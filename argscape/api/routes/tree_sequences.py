@@ -104,6 +104,7 @@ async def upload_tree_sequence(request: Request, file: UploadFile = File(...)):
             "num_edges": ts.num_edges,
             "num_samples": ts.num_samples,
             "num_trees": ts.num_trees,
+            "sequence_length": ts.sequence_length,
             "has_temporal": has_temporal,
             "temporal_range": temporal_range,
             **spatial_info
@@ -251,7 +252,7 @@ async def download_tree_sequence(
 @router.get("/graph-data/{filename}")
 async def get_graph_data(
     request: Request,
-    filename: str, 
+    filename: str,
     max_samples: int = DEFAULT_MAX_SAMPLES_FOR_GRAPH,
     genomic_start: float = None,
     genomic_end: float = None,
@@ -260,11 +261,20 @@ async def get_graph_data(
     temporal_start: float = None,
     temporal_end: float = None,
     sample_order: str = "consensus_minlex",
+    keep_unary: bool = False,  # Deprecated, use unary_retention_percent
+    unary_retention_percent: float = 0.0,
     # Pagination parameters
     page: int = None,
     page_size: int = None,
     nodes_only: bool = False,
-    edges_only: bool = False
+    edges_only: bool = False,
+    # Sample subsetting parameters
+    sample_subset_mode: str = "even",  # "even" | "random" | "ids" | "range" | "population"
+    sample_ids: str = None,  # comma-separated IDs for "ids" mode
+    sample_range_start: int = None,  # for "range" mode
+    sample_range_end: int = None,  # for "range" mode
+    random_seed: int = None,  # for reproducible "random" mode
+    sample_populations: str = None,  # comma-separated population IDs for "population" mode
 ):
     """Get graph data for visualization.
     
@@ -457,18 +467,86 @@ async def get_graph_data(
                 # On any error, continue with original tree sequence
 
         # Apply sample subsetting last (after all other filtering)
-        if ts.num_samples > max_samples:
-            sample_nodes = [node for node in ts.nodes() if node.is_sample()]
+        sample_nodes = [node for node in ts.nodes() if node.is_sample()]
+        selected_sample_ids = None
+
+        if sample_subset_mode == "ids" and sample_ids:
+            # Select specific sample IDs
+            try:
+                requested_ids = [int(id.strip()) for id in sample_ids.split(",") if id.strip()]
+                valid_sample_ids = {node.id for node in sample_nodes}
+                selected_sample_ids = [id for id in requested_ids if id in valid_sample_ids]
+                if not selected_sample_ids:
+                    raise HTTPException(status_code=400, detail="No valid sample IDs provided")
+                logger.info(f"Sample subsetting mode 'ids': selected {len(selected_sample_ids)} samples from {len(requested_ids)} requested")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid sample IDs format - must be comma-separated integers")
+
+        elif sample_subset_mode == "range" and (sample_range_start is not None or sample_range_end is not None):
+            # Select contiguous range of samples
+            start_idx = sample_range_start if sample_range_start is not None else 0
+            end_idx = sample_range_end if sample_range_end is not None else len(sample_nodes) - 1
+
+            if start_idx < 0 or end_idx >= len(sample_nodes) or start_idx > end_idx:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid sample range: [{start_idx}, {end_idx}] for {len(sample_nodes)} samples"
+                )
+
+            selected_sample_ids = [sample_nodes[i].id for i in range(start_idx, end_idx + 1)]
+            logger.info(f"Sample subsetting mode 'range': selected samples {start_idx}-{end_idx} ({len(selected_sample_ids)} samples)")
+
+        elif sample_subset_mode == "population" and sample_populations:
+            # Select samples by population membership
+            try:
+                requested_pops = [int(p.strip()) for p in sample_populations.split(",") if p.strip()]
+                selected_sample_ids = []
+                for node in sample_nodes:
+                    # Get population from individual if available, otherwise from node
+                    pop = None
+                    if node.individual != -1:
+                        ind = ts.individual(node.individual)
+                        if hasattr(ind, 'population') and ind.population is not None:
+                            pop = ind.population
+                    if pop is None:
+                        pop = node.population
+                    if pop in requested_pops:
+                        selected_sample_ids.append(node.id)
+
+                if not selected_sample_ids:
+                    raise HTTPException(status_code=400, detail="No samples found in specified populations")
+                logger.info(f"Sample subsetting mode 'population': selected {len(selected_sample_ids)} samples from populations {requested_pops}")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid population IDs format - must be comma-separated integers")
+
+        elif sample_subset_mode == "random" and ts.num_samples > max_samples:
+            # Random selection with optional seed
+            import random
+            if random_seed is not None:
+                random.seed(random_seed)
+            sample_ids_list = [node.id for node in sample_nodes]
+            selected_sample_ids = random.sample(sample_ids_list, max_samples)
+            logger.info(f"Sample subsetting mode 'random': selected {max_samples} random samples" +
+                       (f" with seed {random_seed}" if random_seed is not None else ""))
+
+        elif ts.num_samples > max_samples:
+            # Default "even" mode: evenly distributed
             indices = [int(i * (len(sample_nodes) - 1) / (max_samples - 1)) for i in range(max_samples)]
             selected_sample_ids = [sample_nodes[i].id for i in indices]
+            logger.info(f"Sample subsetting mode 'even': selected {max_samples} evenly distributed samples")
+
+        # Apply simplification if samples were selected
+        if selected_sample_ids is not None and len(selected_sample_ids) < ts.num_samples:
             ts = ts.simplify(samples=selected_sample_ids)
-            logger.info(f"Simplified to {max_samples} samples: {ts.num_nodes} nodes, {ts.num_edges} edges")
+            logger.info(f"Simplified to {len(selected_sample_ids)} samples: {ts.num_nodes} nodes, {ts.num_edges} edges")
 
         logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
         
         # Apply recombination flagging before conversion to ensure frontend can detect recombination nodes
-        logger.info("Applying recombination node flagging...")
-        ts_with_recomb_flags, _ = simplify_with_recombination(ts, flag_recomb=True)
+        # Use unary_retention_percent if provided, otherwise fall back to keep_unary for backward compatibility
+        retention_percent = unary_retention_percent if unary_retention_percent is not None else (100.0 if keep_unary else 0.0)
+        logger.info(f"Applying recombination node flagging (unary_retention_percent={retention_percent}%)...")
+        ts_with_recomb_flags, _ = simplify_with_recombination(ts, flag_recomb=True, keep_unary=keep_unary, unary_retention_percent=retention_percent)
         logger.info(f"Recombination flagging complete: {ts_with_recomb_flags.num_nodes} nodes, {ts_with_recomb_flags.num_edges} edges")
         
         # Pass expected tree count if we filtered by tree indices and sample ordering

@@ -160,19 +160,22 @@ export default function InstallPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-sp-very-dark-blue relative">
+    <div className="min-h-screen relative" style={{ backgroundColor: colors.background }}>
       <ParticleBackground />
-      <div className="text-sp-white min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col" style={{ color: colors.text }}>
         <Navbar />
         <div className="flex-grow px-4 pt-24 pb-32">
           <div className="max-w-4xl mx-auto">
-            <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden p-8">
+            <div className="backdrop-blur-sm rounded-2xl shadow-xl border overflow-hidden p-8" style={{
+              backgroundColor: `${colors.containerBackground}f0`,
+              borderColor: colors.border
+            }}>
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-4">
               Install ARG<span style={{ color: colors.accentPrimary }}>scape</span> Locally
             </h1>
-            <p className="text-xl text-sp-white/80 max-w-2xl mx-auto">
+            <p className="text-xl max-w-2xl mx-auto" style={{ color: colors.textSecondary }}>
               Install ARG<span style={{ color: colors.accentPrimary }}>scape</span> on your machine for better performance and offline use.
             </p>
           </div>
@@ -180,27 +183,37 @@ export default function InstallPage() {
           {/* Installation Steps */}
           <div className="space-y-6">
             {/* Step 0 - Collapsible Prerequisites */}
-            <div className="bg-sp-dark-blue/30 border border-sp-pale-green/10 rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden" style={{
+              backgroundColor: `${colors.containerBackground}50`,
+              borderColor: `${colors.border}30`
+            }}>
               <button
                 onClick={() => setIsStep0Expanded(!isStep0Expanded)}
-                className="w-full p-6 flex items-start space-x-4 hover:bg-sp-dark-blue/40 transition-colors text-left"
+                className="w-full p-6 flex items-start space-x-4 transition-colors text-left"
+                style={{ color: colors.text }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${colors.containerBackground}80`}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
               >
-                <div className="flex-shrink-0 w-8 h-8 bg-sp-pale-green/70 text-sp-very-dark-blue rounded-full flex items-center justify-center font-bold text-sm">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm" style={{
+                  backgroundColor: colors.accentPrimary,
+                  color: colors.buttonText
+                }}>
                   {step0.number}
                 </div>
                 <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-sp-white mb-2">
+                  <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text }}>
                     {step0.title}
                   </h3>
-                  <p className="text-sm text-sp-white/70 mb-2">
+                  <p className="text-sm mb-2" style={{ color: colors.textSecondary }}>
                     {step0.description}
                   </p>
-                  <p className="text-xs text-sp-pale-green/80 italic">
+                  <p className="text-xs italic" style={{ color: colors.accentPrimary, opacity: 0.8 }}>
                     Click to {isStep0Expanded ? 'collapse' : 'expand'} instructions
                   </p>
                 </div>
                 <svg
-                  className={`w-5 h-5 text-sp-pale-green transition-transform ${isStep0Expanded ? 'rotate-180' : ''}`}
+                  className={`w-5 h-5 transition-transform ${isStep0Expanded ? 'rotate-180' : ''}`}
+                  style={{ color: colors.accentPrimary }}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -210,7 +223,7 @@ export default function InstallPage() {
               </button>
               
               {isStep0Expanded && (
-                <div className="px-6 pb-6 pt-0 border-t border-sp-pale-green/10">
+                <div className="px-6 pb-6 pt-0 border-t" style={{ borderColor: `${colors.border}30` }}>
                   <div className="pt-4">
                     {step0.platformSpecific && step0.platforms ? (
                       <>
@@ -226,15 +239,22 @@ export default function InstallPage() {
                                 {(Object.keys(step0.platforms) as Array<keyof typeof step0.platforms>).map((platformKey) => {
                                   const platformInfo = step0.platforms[platformKey];
                                   return (
-                                    <div key={platformKey} className="bg-sp-very-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-4">
-                                      <h4 className="text-sm font-semibold text-sp-pale-green mb-2 capitalize">
+                                    <div key={platformKey} className="border rounded-lg p-4" style={{
+                                      backgroundColor: `${colors.containerBackground}80`,
+                                      borderColor: colors.border
+                                    }}>
+                                      <h4 className="text-sm font-semibold mb-2 capitalize" style={{ color: colors.accentPrimary }}>
                                         {platformKey === 'macos' ? 'macOS' : platformKey === 'windows' ? 'Windows' : 'Linux'}
                                       </h4>
-                                      <p className="text-sp-white/80 mb-2 text-sm">
+                                      <p className="mb-2 text-sm" style={{ color: colors.text, opacity: 0.8 }}>
                                         {platformInfo.description}
                                       </p>
                                       {'code' in platformInfo && platformInfo.code && (
-                                        <div className="bg-sp-very-dark-blue border border-sp-pale-green/30 rounded p-3 font-mono text-sm text-sp-pale-green whitespace-pre-wrap">
+                                        <div className="border rounded p-3 font-mono text-sm whitespace-pre-wrap" style={{
+                                          backgroundColor: colors.background,
+                                          borderColor: colors.border,
+                                          color: colors.accentPrimary
+                                        }}>
                                           {platformInfo.code}
                                         </div>
                                       )}
@@ -243,7 +263,13 @@ export default function InstallPage() {
                                           href={platformInfo.link}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="inline-flex items-center px-4 py-2 bg-sp-pale-green text-sp-very-dark-blue rounded-lg hover:bg-sp-pale-green/90 transition-colors duration-200 font-medium mt-2 text-sm"
+                                          className="inline-flex items-center px-4 py-2 rounded-lg transition-colors duration-200 font-medium mt-2 text-sm"
+                                          style={{
+                                            backgroundColor: colors.accentPrimary,
+                                            color: colors.buttonText
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                          onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                         >
                                           {'linkText' in platformInfo ? platformInfo.linkText : 'Download'}
                                           <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -261,11 +287,15 @@ export default function InstallPage() {
                           // Show detected platform's content
                           return (
                             <div>
-                              <p className="text-sp-white/80 mb-2 text-sm">
+                              <p className="mb-2 text-sm" style={{ color: colors.text, opacity: 0.8 }}>
                                 {platform.description}
                               </p>
                               {'code' in platform && platform.code && (
-                                <div className="bg-sp-very-dark-blue border border-sp-pale-green/30 rounded p-3 font-mono text-sm text-sp-pale-green whitespace-pre-wrap">
+                                <div className="border rounded p-3 font-mono text-sm whitespace-pre-wrap" style={{
+                                  backgroundColor: colors.background,
+                                  borderColor: colors.border,
+                                  color: colors.accentPrimary
+                                }}>
                                   {platform.code}
                                 </div>
                               )}
@@ -274,7 +304,13 @@ export default function InstallPage() {
                                   href={platform.link}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="inline-flex items-center px-4 py-2 bg-sp-pale-green text-sp-very-dark-blue rounded-lg hover:bg-sp-pale-green/90 transition-colors duration-200 font-medium mt-2"
+                                  className="inline-flex items-center px-4 py-2 rounded-lg transition-colors duration-200 font-medium mt-2"
+                                  style={{
+                                    backgroundColor: colors.accentPrimary,
+                                    color: colors.buttonText
+                                  }}
+                                  onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                                  onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                                 >
                                   {'linkText' in platform ? platform.linkText : 'Download'}
                                   <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -295,26 +331,36 @@ export default function InstallPage() {
             {/* Main Steps */}
             {steps.map((step) => (
               <React.Fragment key={step.number}>
-                <div className="bg-sp-dark-blue/50 border border-sp-pale-green/20 rounded-lg p-6">
+                <div className="border rounded-lg p-6" style={{
+                  backgroundColor: `${colors.containerBackground}80`,
+                  borderColor: colors.border
+                }}>
                   <div className="flex items-start space-x-4">
                     {/* Step Number */}
-                    <div className="flex-shrink-0 w-8 h-8 bg-sp-pale-green text-sp-very-dark-blue rounded-full flex items-center justify-center font-bold text-sm">
+                    <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm" style={{
+                      backgroundColor: colors.accentPrimary,
+                      color: colors.buttonText
+                    }}>
                       {step.number}
                     </div>
                     
                     {/* Step Content */}
                     <div className="flex-1">
-                      <h3 className="text-lg font-semibold text-sp-white mb-2">
+                      <h3 className="text-lg font-semibold mb-2" style={{ color: colors.text }}>
                         {renderTextWithARGscape(step.title)}
                       </h3>
                       
-                      <p className="text-sp-white/80 mb-3">
+                      <p className="mb-3" style={{ color: colors.text, opacity: 0.8 }}>
                         {renderTextWithARGscape(step.description)}
                       </p>
                       
                       {/* Code block */}
                       {step.code && (
-                        <div className="bg-sp-very-dark-blue border border-sp-pale-green/30 rounded p-3 font-mono text-sm text-sp-pale-green">
+                        <div className="border rounded p-3 font-mono text-sm" style={{
+                          backgroundColor: colors.background,
+                          borderColor: colors.border,
+                          color: colors.accentPrimary
+                        }}>
                           {step.code}
                         </div>
                       )}
@@ -322,8 +368,12 @@ export default function InstallPage() {
                       {/* Verification code block */}
                       {step.verificationCode && (
                         <div className="mt-3">
-                          <p className="text-sp-white/70 text-sm mb-2">Verify installation:</p>
-                          <div className="bg-sp-very-dark-blue border border-sp-pale-green/30 rounded p-3 font-mono text-sm text-sp-pale-green">
+                          <p className="text-sm mb-2" style={{ color: colors.textSecondary }}>Verify installation:</p>
+                          <div className="border rounded p-3 font-mono text-sm" style={{
+                            backgroundColor: colors.background,
+                            borderColor: colors.border,
+                            color: colors.accentPrimary
+                          }}>
                             {step.verificationCode}
                           </div>
                         </div>
@@ -336,7 +386,13 @@ export default function InstallPage() {
                             href={step.link}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="inline-flex items-center px-4 py-2 bg-sp-pale-green text-sp-very-dark-blue rounded-lg hover:bg-sp-pale-green/90 transition-colors duration-200 font-medium"
+                            className="inline-flex items-center px-4 py-2 rounded-lg transition-colors duration-200 font-medium"
+                            style={{
+                              backgroundColor: colors.accentPrimary,
+                              color: colors.buttonText
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                           >
                             {step.linkText}
                             <svg className="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -348,8 +404,11 @@ export default function InstallPage() {
                       
                       {/* Sidenote */}
                       {step.sidenote && (
-                        <div className="mt-4 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
-                          <p className="text-sm text-sp-white/90">
+                        <div className="mt-4 p-3 border rounded-lg" style={{
+                          backgroundColor: `${colors.accentPrimary}10`,
+                          borderColor: `${colors.accentPrimary}50`
+                        }}>
+                          <p className="text-sm" style={{ color: colors.text, opacity: 0.9 }}>
                             {step.sidenote}
                           </p>
                         </div>
@@ -357,15 +416,21 @@ export default function InstallPage() {
                       
                       {/* Port conflict note */}
                       {step.portNote && (
-                        <div className="mt-4 p-3 bg-sp-dark-blue/50 border border-sp-pale-green/30 rounded-lg">
+                        <div className="mt-4 p-3 border rounded-lg" style={{
+                          backgroundColor: `${colors.containerBackground}80`,
+                          borderColor: colors.border
+                        }}>
                           <div className="flex items-start space-x-2">
-                            <svg className="w-5 h-5 text-sp-pale-green flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: colors.accentPrimary }} fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                             </svg>
                             <div>
-                              <p className="text-sm font-medium text-sp-pale-green mb-1">Port Conflict?</p>
-                              <p className="text-sm text-sp-white/80">
-                                If port 8000 is already in use, ARGscape will show an error. Use <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape --port 8001</code> (or another available port) and access the app at the corresponding URL.
+                              <p className="text-sm font-medium mb-1" style={{ color: colors.accentPrimary }}>Port Conflict?</p>
+                              <p className="text-sm" style={{ color: colors.text, opacity: 0.8 }}>
+                                If port 8000 is already in use, ARGscape will show an error. Use <code className="px-1 py-0.5 rounded text-xs" style={{
+                                  backgroundColor: colors.background,
+                                  color: colors.accentPrimary
+                                }}>argscape --port 8001</code> (or another available port) and access the app at the corresponding URL.
                               </p>
                             </div>
                           </div>
@@ -374,29 +439,50 @@ export default function InstallPage() {
                       
                       {/* CLI Tools note */}
                       {step.cliToolsNote && (
-                        <div className="mt-4 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
+                        <div className="mt-4 p-3 border rounded-lg" style={{
+                          backgroundColor: `${colors.accentPrimary}10`,
+                          borderColor: `${colors.accentPrimary}50`
+                        }}>
                           <div className="flex items-start space-x-2">
-                            <svg className="w-5 h-5 text-sp-pale-green flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: colors.accentPrimary }} fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                             </svg>
                             <div>
-                              <p className="text-sm font-medium text-sp-pale-green mb-2">Command-line Tools</p>
-                              <p className="text-sm text-sp-white/90 mb-2">
+                              <p className="text-sm font-medium mb-2" style={{ color: colors.accentPrimary }}>Command-line Tools</p>
+                              <p className="text-sm mb-2" style={{ color: colors.text, opacity: 0.9 }}>
                                 ARGscape also includes CLI tools for command-line use:
                               </p>
-                              <ul className="text-sm text-sp-white/80 space-y-1.5 ml-4 list-disc">
+                              <ul className="text-sm space-y-1.5 ml-4 list-disc" style={{ color: colors.text, opacity: 0.8 }}>
                                 <li>
-                                  <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape</code> – Start the local web server
+                                  <code className="px-1 py-0.5 rounded text-xs" style={{
+                                    backgroundColor: colors.background,
+                                    color: colors.accentPrimary
+                                  }}>argscape</code> – Start the local web server
                                 </li>
                                 <li>
-                                  <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape_infer</code> – Run spatial/temporal inference
+                                  <code className="px-1 py-0.5 rounded text-xs" style={{
+                                    backgroundColor: colors.background,
+                                    color: colors.accentPrimary
+                                  }}>argscape_infer</code> – Run spatial/temporal inference
                                 </li>
                                 <li>
-                                  <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape_load</code> – Manage persistent session storage for tree sequences
+                                  <code className="px-1 py-0.5 rounded text-xs" style={{
+                                    backgroundColor: colors.background,
+                                    color: colors.accentPrimary
+                                  }}>argscape_load</code> – Manage persistent session storage for tree sequences
                                 </li>
                               </ul>
-                              <p className="text-sm text-sp-white/70 mt-2">
-                                Run <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape --help</code>, <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape_infer --help</code>, or <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape_load --help</code> to see usage information.
+                              <p className="text-sm mt-2" style={{ color: colors.textSecondary }}>
+                                Run <code className="px-1 py-0.5 rounded text-xs" style={{
+                                  backgroundColor: colors.background,
+                                  color: colors.accentPrimary
+                                }}>argscape --help</code>, <code className="px-1 py-0.5 rounded text-xs" style={{
+                                  backgroundColor: colors.background,
+                                  color: colors.accentPrimary
+                                }}>argscape_infer --help</code>, or <code className="px-1 py-0.5 rounded text-xs" style={{
+                                  backgroundColor: colors.background,
+                                  color: colors.accentPrimary
+                                }}>argscape_load --help</code> to see usage information.
                               </p>
                             </div>
                           </div>
@@ -409,7 +495,15 @@ export default function InstallPage() {
                           <button
                             onClick={handleDownloadEnvironment}
                             disabled={isDownloading}
-                            className="inline-flex items-center px-6 py-3 bg-sp-pale-green text-sp-very-dark-blue rounded-lg hover:bg-sp-pale-green/90 transition-colors duration-200 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center px-6 py-3 rounded-lg transition-colors duration-200 font-medium"
+                            style={{
+                              backgroundColor: isDownloading ? colors.border : colors.accentPrimary,
+                              color: isDownloading ? colors.textSecondary : colors.buttonText,
+                              opacity: isDownloading ? 0.5 : 1,
+                              cursor: isDownloading ? 'not-allowed' : 'pointer'
+                            }}
+                            onMouseEnter={(e) => !isDownloading && (e.currentTarget.style.opacity = '0.9')}
+                            onMouseLeave={(e) => !isDownloading && (e.currentTarget.style.opacity = '1')}
                           >
                             {isDownloading ? (
                               <>
@@ -431,21 +525,25 @@ export default function InstallPage() {
                           
                           {/* GitHub Alternative */}
                           {step.githubAlternative && (
-                            <div className="mt-4 p-3 bg-sp-pale-green/10 border border-sp-pale-green/30 rounded-lg">
+                            <div className="mt-4 p-3 border rounded-lg" style={{
+                              backgroundColor: `${colors.accentPrimary}10`,
+                              borderColor: `${colors.accentPrimary}50`
+                            }}>
                               <div className="flex items-start space-x-3">
                                 <div className="flex-shrink-0 mt-0.5">
-                                  <svg className="w-4 h-4 text-sp-pale-green" fill="currentColor" viewBox="0 0 20 20">
+                                  <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="currentColor" viewBox="0 0 20 20">
                                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                                   </svg>
                                 </div>
                                 <div>
-                                  <p className="text-sm text-sp-white/90">
-                                    <strong className="text-sp-pale-green">Alternative:</strong> Download directly from{' '}
+                                  <p className="text-sm" style={{ color: colors.text, opacity: 0.9 }}>
+                                    <strong style={{ color: colors.accentPrimary }}>Alternative:</strong> Download directly from{' '}
                                     <a 
                                       href="https://github.com/chris-a-talbot/argscape/blob/dev/argscape/api/environment.yml" 
                                       target="_blank" 
                                       rel="noopener noreferrer"
-                                      className="text-sp-pale-green hover:underline"
+                                      className="hover:underline"
+                                      style={{ color: colors.accentPrimary }}
                                     >
                                       GitHub
                                     </a>
@@ -465,18 +563,36 @@ export default function InstallPage() {
           </div>
 
           {/* Troubleshooting */}
-          <div className="mt-12 p-6 bg-sp-dark-blue/30 border border-sp-pale-green/20 rounded-lg">
-            <h3 className="text-lg font-semibold text-sp-pale-green mb-3">
+          <div className="mt-12 p-6 border rounded-lg" style={{
+            backgroundColor: `${colors.containerBackground}50`,
+            borderColor: colors.border
+          }}>
+            <h3 className="text-lg font-semibold mb-3" style={{ color: colors.accentPrimary }}>
               Troubleshooting
             </h3>
-            <ul className="space-y-2 text-sp-white/80">
+            <ul className="space-y-2" style={{ color: colors.text, opacity: 0.8 }}>
               <li>• <strong>Build errors during installation?</strong> Expand Step 0 (System Prerequisites) above and complete it for your platform. Missing build tools (Xcode CLT on macOS, Visual Studio Build Tools on Windows, build-essential on Linux) will cause compilation failures.</li>
               <li>• <strong>Conda not found after installation?</strong> Check PATH or use Anaconda Prompt (Windows). You may need to restart your terminal after installing conda.</li>
-              <li>• Environment already exists? Remove it first: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env remove -n argscape_local</code>, then run step 4 again</li>
-              <li>• Package conflicts? Try updating instead: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda env update -f environment.yml --prune</code></li>
+              <li>• Environment already exists? Remove it first: <code className="px-1 py-0.5 rounded text-xs" style={{
+                backgroundColor: colors.background,
+                color: colors.accentPrimary
+              }}>conda env remove -n argscape_local</code>, then run step 4 again</li>
+              <li>• Package conflicts? Try updating instead: <code className="px-1 py-0.5 rounded text-xs" style={{
+                backgroundColor: colors.background,
+                color: colors.accentPrimary
+              }}>conda env update -f environment.yml --prune</code></li>
               <li>• GDAL/geospatial errors? Ensure you're using conda (not pip) - the environment.yml handles all geospatial dependencies automatically via conda-forge</li>
-              <li>• Installation too slow? Try using mamba (faster conda alternative): <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">mamba env create -f environment.yml</code> (install mamba first: <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">conda install mamba -n base -c conda-forge</code>)</li>
-              <li>• <strong>Port 8000 already in use?</strong> Use <code className="bg-sp-very-dark-blue px-1 py-0.5 rounded text-xs text-sp-pale-green">argscape --port 8001</code> (or another port) and adjust the browser URL accordingly</li>
+              <li>• Installation too slow? Try using mamba (faster conda alternative): <code className="px-1 py-0.5 rounded text-xs" style={{
+                backgroundColor: colors.background,
+                color: colors.accentPrimary
+              }}>mamba env create -f environment.yml</code> (install mamba first: <code className="px-1 py-0.5 rounded text-xs" style={{
+                backgroundColor: colors.background,
+                color: colors.accentPrimary
+              }}>conda install mamba -n base -c conda-forge</code>)</li>
+              <li>• <strong>Port 8000 already in use?</strong> Use <code className="px-1 py-0.5 rounded text-xs" style={{
+                backgroundColor: colors.background,
+                color: colors.accentPrimary
+              }}>argscape --port 8001</code> (or another port) and adjust the browser URL accordingly</li>
               <li>• Web interface not loading? Wait 2-3 minutes, then refresh</li>
             </ul>
           </div>

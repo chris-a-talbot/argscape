@@ -1,7 +1,7 @@
 {
   "name": "ARGscape",
   "private": true,
-  "version": "0.5.0",
+  "version": "0.6.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -24,6 +24,7 @@
     "@react-three/fiber": "^9.1.2",
     "@tauri-apps/api": "^1",
     "@tauri-apps/cli": "^2.5.0",
+    "@testing-library/react": "^16.3.1",
     "@types/d3": "^7.4.3",
     "@types/dagre-d3": "^0.6.6",
     "@types/react-bootstrap": "^1.0.1",
@@ -32,8 +33,9 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "d3": "^7.9.0",
-    "dagre-d3": "^0.6.4",
+    "dagre-d3": "^0.4.18",
     "deck.gl": "^9.1.12",
+    "liquid-glass-react": "^1.1.1",
     "lucide-react": "^0.511.0",
     "pixi.js": "^8.9.2",
     "react": "^19.1.0",
@@ -44,6 +46,7 @@
     "tailwind-merge": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.176.0",
+    "vitest": "^4.0.16",
     "zustand": "^5.0.5"
   },
   "devDependencies": {

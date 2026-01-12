@@ -1,4 +1,4 @@
-import { GraphNode, GraphEdge } from '../components/ForceDirectedGraph/ForceDirectedGraph.types';
+import { GraphNode, GraphEdge } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 
 // Helper function to get all descendants of a node
 export const getDescendants = (node: GraphNode, _nodes: GraphNode[], edges: GraphEdge[]): Set<number> => {

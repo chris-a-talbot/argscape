@@ -1,35 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, getPrimaryColors, getOtherColors, calculateContrastRatio } from '../../context/ColorThemeContext';
-
-interface ColorScheme {
-  background: string;
-  containerBackground: string;
-  nodeDefault: [number, number, number, number];
-  nodeRoot: [number, number, number, number];
-  nodeSample: [number, number, number, number];
-  nodeCombined: [number, number, number, number];
-  nodeSelected: [number, number, number, number];
-  nodeClusterSample: [number, number, number, number];
-  nodeClusterRegular: [number, number, number, number];
-  edgeDefault: [number, number, number, number];
-  edgeHighlight: [number, number, number, number];
-  edgeClusterSample: [number, number, number, number];
-  mutationMarker: [number, number, number, number];
-  text: string;
-  textSecondary: string;
-  border: string;
-  exportBackground: string;
-  accentPrimary: string;
-  accentSecondary: string;
-  geographicGrid: [number, number, number, number];
-  temporalGrid: [number, number, number, number];
-  tooltipBackground: string;
-  tooltipText: string;
-  // Additional UI text colors
-  headerText: string;
-  controlPanelText: string;
-  buttonText: string;
-}
+import { useColorTheme, rgbaArrayToHex, colorStringToRgbaArray, getPrimaryColors, getOtherColors, calculateContrastRatio, type ColorScheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 interface CustomColorThemeModalProps {
   isOpen: boolean;
@@ -73,12 +44,6 @@ const ColorPicker: React.FC<ColorPickerProps> = ({ label, value, onChange, type 
   );
 };
 
-interface NodeColorPickerProps {
-  label: string;
-  value: [number, number, number, number];
-  onChange: (value: [number, number, number, number]) => void;
-}
-
 // Function to calculate contrast ratio between two colors
 const checkColorContrast = (color1: string, color2: string): number => {
   const getLuminance = (color: string): number => {
@@ -89,7 +54,6 @@ const checkColorContrast = (color1: string, color2: string): number => {
     }
     
     if (hex.length !== 6) {
-      console.warn('Invalid hex color:', color);
       return 0;
     }
     
@@ -103,7 +67,6 @@ const checkColorContrast = (color1: string, color2: string): number => {
   };
 
   if (!color1 || !color2) {
-    console.warn('Missing colors for contrast check:', { color1, color2 });
     return 21; // Max contrast if invalid
   }
 
@@ -113,12 +76,7 @@ const checkColorContrast = (color1: string, color2: string): number => {
   const darkest = Math.min(lum1, lum2);
   
   const ratio = (brightest + 0.05) / (darkest + 0.05);
-  
-  // Debug logging for white/white comparison
-  if (color1.toLowerCase() === '#ffffff' && color2.toLowerCase() === '#ffffff') {
-    console.log('White/white contrast check:', { color1, color2, lum1, lum2, ratio });
-  }
-  
+
   return ratio;
 };
 
@@ -245,56 +203,6 @@ const CompactNodeColorPicker: React.FC<CompactNodeColorPickerProps> = ({ label, 
           className="flex-1 min-w-0"
         />
         <span className="text-xs text-sp-white/70 w-10 text-right flex-shrink-0">{Math.round((alpha / 255) * 100)}%</span>
-      </div>
-    </div>
-  );
-};
-
-const NodeColorPicker: React.FC<NodeColorPickerProps> = ({ label, value, onChange }) => {
-  const hexValue = rgbaArrayToHex(value);
-  const alpha = value[3];
-
-  const handleColorChange = (color: string) => {
-    const rgb = colorStringToRgbaArray(color);
-    onChange([rgb[0], rgb[1], rgb[2], alpha]);
-  };
-
-  const handleAlphaChange = (newAlpha: number) => {
-    onChange([value[0], value[1], value[2], newAlpha]);
-  };
-
-  return (
-    <div className="flex items-center gap-3 min-h-[40px]">
-      <label className="text-sm font-medium text-sp-white flex-1 min-w-0">{label}</label>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        <div 
-          className="w-8 h-8 rounded border-2 border-sp-pale-green/20 cursor-pointer flex-shrink-0"
-          style={{ backgroundColor: `rgba(${value[0]}, ${value[1]}, ${value[2]}, ${value[3] / 255})` }}
-          onClick={() => document.getElementById(`color-${label.replace(/\s+/g, '-').toLowerCase()}`)?.click()}
-        />
-        <input
-          id={`color-${label.replace(/\s+/g, '-').toLowerCase()}`}
-          type="color"
-          value={hexValue}
-          onChange={(e) => handleColorChange(e.target.value)}
-          className="w-0 h-0 opacity-0 pointer-events-none"
-        />
-        <input
-          type="text"
-          value={hexValue}
-          onChange={(e) => handleColorChange(e.target.value)}
-          className="w-20 px-2 py-1 text-xs rounded border bg-sp-very-dark-blue text-sp-white border-sp-pale-green/20 focus:border-sp-pale-green focus:outline-none flex-shrink-0"
-          placeholder="#000000"
-        />
-        <input
-          type="range"
-          min="0"
-          max="255"
-          value={alpha}
-          onChange={(e) => handleAlphaChange(parseInt(e.target.value))}
-          className="w-16 flex-shrink-0"
-        />
-        <span className="text-xs text-sp-white/70 w-8 flex-shrink-0 text-center">{Math.round((alpha / 255) * 100)}%</span>
       </div>
     </div>
   );
@@ -476,7 +384,22 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
       tooltipText: '#ffffff',
       headerText: '#ffffff',
       controlPanelText: '#ffffff',
-      buttonText: '#ffffff'
+      buttonText: '#ffffff',
+      
+      // Semantic colors - tskit defaults for new custom themes
+      success: '#14E2A8',
+      successHover: '#1EEBB1',
+      warning: '#f59e0b',
+      warningHover: '#d97706',
+      error: '#ef4444',
+      errorHover: '#dc2626',
+      info: '#3b82f6',
+      infoHover: '#2563eb',
+      
+      // Interactive states
+      activeHighlight: '#14E2A8',
+      hoverOverlay: 'rgba(255, 255, 255, 0.05)',
+      focusRing: '#14E2A8'
     };
   });
 
@@ -523,7 +446,22 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
         tooltipText: '#ffffff',
         headerText: '#ffffff',
         controlPanelText: '#ffffff',
-        buttonText: '#ffffff'
+        buttonText: '#ffffff',
+        
+        // Semantic colors - tskit defaults for new custom themes
+        success: '#14E2A8',
+        successHover: '#1EEBB1',
+        warning: '#f59e0b',
+        warningHover: '#d97706',
+        error: '#ef4444',
+        errorHover: '#dc2626',
+        info: '#3b82f6',
+        infoHover: '#2563eb',
+        
+        // Interactive states
+        activeHighlight: '#14E2A8',
+        hoverOverlay: 'rgba(255, 255, 255, 0.05)',
+        focusRing: '#14E2A8'
       });
     }
   }, [editingTheme, isOpen]);
@@ -710,7 +648,18 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
       tooltipText: 'Tooltip Text',
       headerText: 'Header Text',
       controlPanelText: 'Control Panel Text',
-      buttonText: 'Button Text'
+      buttonText: 'Button Text',
+      success: 'Success Color',
+      successHover: 'Success Hover',
+      warning: 'Warning Color',
+      warningHover: 'Warning Hover',
+      error: 'Error Color',
+      errorHover: 'Error Hover',
+      info: 'Info Color',
+      infoHover: 'Info Hover',
+      activeHighlight: 'Active Highlight',
+      hoverOverlay: 'Hover Overlay',
+      focusRing: 'Focus Ring'
     };
     return labels[colorKey] || colorKey;
   };
@@ -744,37 +693,60 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
 
   if (!isOpen) return null;
 
+  // Get current theme colors for styling this modal
+  const { colors: currentColors, modalGlassStyle, modalOverlayStyle } = useThemeStyles();
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      {/* Backdrop */}
+      {/* Backdrop with consistent blur */}
       <div 
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm" 
+        className="absolute inset-0" 
+        style={modalOverlayStyle}
         onClick={onClose}
       />
       
-      {/* Modal */}
-      <div className="relative bg-sp-very-dark-blue border border-sp-pale-green/20 rounded-2xl shadow-2xl max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden transform transition-all">
+      {/* Modal with proper glass treatment */}
+      <div 
+        className="relative max-w-4xl w-full mx-4 max-h-[85vh] overflow-hidden transform transition-all"
+        style={modalGlassStyle}
+      >
         <div className="p-6 overflow-y-auto max-h-[85vh] overflow-x-hidden">
           {/* Header */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center bg-sp-pale-green/10">
-              <svg className="w-5 h-5 text-sp-pale-green" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center" 
+              style={{ backgroundColor: `${currentColors.accentPrimary}10` }}
+            >
+              <svg className="w-5 h-5" style={{ color: currentColors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zM21 5a2 2 0 00-2-2h-4a2 2 0 00-2 2v12a4 4 0 004 4h4a2 2 0 002-2V5z" />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-sp-white">
+            <h3 className="text-lg font-semibold" style={{ color: currentColors.text }}>
               {editingTheme ? 'Edit Custom Theme' : 'Create Custom Theme'}
             </h3>
           </div>
           
           {/* Theme Name */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-sp-white mb-2">Theme Name</label>
+            <label className="block text-sm font-medium mb-2" style={{ color: currentColors.text }}>Theme Name</label>
             <input
               type="text"
               value={themeName}
               onChange={(e) => setThemeName(e.target.value)}
-              className="w-full px-3 py-2 rounded border bg-sp-very-dark-blue text-sp-white border-sp-pale-green/20 focus:border-sp-pale-green focus:outline-none"
+              className="w-full px-3 py-2 rounded border focus:outline-none transition-all duration-200"
+              style={{
+                backgroundColor: currentColors.containerBackground,
+                color: currentColors.text,
+                borderColor: currentColors.border
+              }}
+              onFocus={(e) => {
+                e.currentTarget.style.borderColor = currentColors.accentPrimary;
+                e.currentTarget.style.boxShadow = `0 0 0 3px ${currentColors.accentPrimary}10`;
+              }}
+              onBlur={(e) => {
+                e.currentTarget.style.borderColor = currentColors.border;
+                e.currentTarget.style.boxShadow = 'none';
+              }}
               placeholder="Enter theme name..."
               maxLength={50}
             />
@@ -787,18 +759,22 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
                 type="checkbox"
                 checked={safeThemeEnabled}
                 onChange={(e) => setSafeThemeEnabled(e.target.checked)}
-                className="w-4 h-4 rounded border-sp-pale-green/20 bg-sp-very-dark-blue text-sp-pale-green focus:ring-sp-pale-green focus:ring-2"
+                className="w-4 h-4 rounded"
+                style={{ 
+                  accentColor: currentColors.accentPrimary,
+                  borderColor: currentColors.border
+                }}
               />
-              <span className="text-sm font-medium text-sp-white">Enable Safe Color Themes</span>
+              <span className="text-sm font-medium" style={{ color: currentColors.text }}>Enable Safe Color Themes</span>
             </label>
-            <p className="text-xs text-sp-white/70 mt-1 ml-6">
+            <p className="text-xs mt-1 ml-6" style={{ color: currentColors.textSecondary }}>
               Automatically ensures all colors meet minimum contrast ratios for visibility. Recommended for accessibility.
             </p>
           </div>
 
           {/* Main Colors - Full Width */}
           <div className="space-y-4 mb-6">
-            <h4 className="text-base font-semibold text-sp-pale-green">Main Colors</h4>
+            <h4 className="text-base font-semibold" style={{ color: currentColors.accentPrimary }}>Main Colors</h4>
             {primaryColors.map(colorKey => renderMainColorPicker(colorKey))}
           </div>
 
@@ -806,7 +782,14 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
           <div className="space-y-4 mb-6">
             <button
               onClick={() => setShowOtherColors(!showOtherColors)}
-              className="flex items-center gap-2 text-base font-semibold text-sp-pale-green hover:text-sp-very-pale-green transition-colors"
+              className="flex items-center gap-2 text-base font-semibold transition-colors"
+              style={{ color: currentColors.accentPrimary }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = currentColors.accentSecondary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = currentColors.accentPrimary;
+              }}
             >
               <svg 
                 className={`w-4 h-4 transition-transform ${showOtherColors ? 'rotate-90' : ''}`}
@@ -848,8 +831,7 @@ export const CustomColorThemeModal: React.FC<CustomColorThemeModalProps> = ({
                           />
                         );
                       }
-                    } catch (error) {
-                      console.warn(`Error rendering color picker for ${colorKey}:`, error);
+                    } catch {
                       return null;
                     }
                   })}

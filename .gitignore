@@ -38,3 +38,6 @@ dist/
 # Editors and IDEs
 .vscode/
 .idea/
+.cursorrules
+CLAUDE.md
+LIQUID_GLASS_STYLE_GUIDE.md

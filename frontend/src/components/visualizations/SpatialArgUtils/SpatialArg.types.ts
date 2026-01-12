@@ -43,6 +43,19 @@ export interface EdgeLabel3D {
     targetId: number;
 }
   
+export interface MutationDetail {
+    id: string;
+    mutation_tskit_id: number;
+    site: number;
+    position: number;
+    node: number;
+    time: number | null;
+    ancestral_state: string;
+    previous_state: string;
+    derived_state: string;
+    parent_mutation: number;
+}
+
 export interface MutationMarker3D {
     position: [number, number, number];
     text: string;
@@ -50,4 +63,5 @@ export interface MutationMarker3D {
     size: number;
     sourceId: number;
     targetId: number;
+    mutation?: MutationDetail; // Detailed mutation information
 }

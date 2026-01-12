@@ -2,6 +2,7 @@ import { GeographicMode, Node3D } from "./SpatialArg.types";
 import { VISUALIZATION_CONSTANTS } from "./SpatialArg.constants";
 import { GeographicShape, GraphNode, GraphEdge } from "../ForceDirectedGraph/ForceDirectedGraph.types";
 import { createUnitGridShape } from "./GeographicUtils";
+import { darkenColor } from "../../../utils/colorUtils";
 
 // Helper function to calculate z position based on temporal spacing mode
 export function calculateZPosition(
@@ -227,12 +228,26 @@ export function calculateNodeBaseRadius(
  * Calculate node color based on node type
  */
 export function calculateNodeColorByType(
-  node: { is_sample?: boolean; is_combined?: boolean },
+  node: { is_sample?: boolean; is_combined?: boolean; population?: number | null },
   combinedNodes: GraphNode[],
   combinedEdges: GraphEdge[],
   colors: any,
-  isRootFn: (node: any, nodes: GraphNode[], edges: GraphEdge[]) => boolean
+  isRootFn: (node: any, nodes: GraphNode[], edges: GraphEdge[]) => boolean,
+  populationColors?: Map<number, [number, number, number]> | null
 ): [number, number, number, number] {
+  // Population coloring if enabled
+  if (populationColors && node.population !== null && node.population !== undefined) {
+    let color = populationColors.get(node.population);
+    if (color) {
+      // Darken for samples and roots
+      if (node.is_sample || isRootFn(node, combinedNodes, combinedEdges)) {
+        color = darkenColor(color, 0.75);
+      }
+      return [color[0], color[1], color[2], 255];
+    }
+  }
+  
+  // Default theme colors
   if (node.is_sample) {
     return colors.nodeSample;
   } else if (node.is_combined) {

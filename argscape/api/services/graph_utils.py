@@ -327,6 +327,177 @@ def detect_edges_with_mutations(ts: tskit.TreeSequence) -> set:
     return edges_with_mutations
 
 
+def extract_mutation_details(ts: tskit.TreeSequence) -> Dict[Tuple[int, int, float, float], List[Dict[str, Any]]]:
+    """
+    Extract detailed mutation information for each edge.
+    
+    For each mutation, we extract:
+    - site position
+    - ancestral state
+    - derived state
+    - mutation time
+    - parent mutation (if any)
+    - mutation ID in format: <previous_state><location><new_state>
+    
+    Args:
+        ts: The tree sequence to analyze
+        
+    Returns:
+        A dictionary mapping edge keys (parent, child, left, right) to lists of mutation details
+    """
+    edge_mutations = {}
+    
+    if ts.num_mutations == 0:
+        return edge_mutations
+    
+    # Build an efficient edge lookup: (parent, child) -> list of edges
+    edge_lookup = {}
+    for edge in ts.edges():
+        key = (edge.parent, edge.child)
+        if key not in edge_lookup:
+            edge_lookup[key] = []
+        edge_lookup[key].append(edge)
+    
+    # Cache trees at mutation positions
+    position_to_tree = {}
+    
+    # Process each mutation
+    for mutation in ts.mutations():
+        site = ts.site(mutation.site)
+        position = site.position
+        
+        # Get or create tree for this position (cached)
+        if position not in position_to_tree:
+            position_to_tree[position] = ts.at(position)
+        tree = position_to_tree[position]
+        
+        # Find the parent of the mutation node
+        mutation_node = mutation.node
+        parent_node = tree.parent(mutation_node)
+        
+        if parent_node != tskit.NULL:
+            # Look up edges for this parent-child pair
+            key = (parent_node, mutation_node)
+            if key in edge_lookup:
+                # Find the edge that spans this position
+                for edge in edge_lookup[key]:
+                    if edge.left <= position < edge.right:
+                        edge_key = (edge.parent, edge.child, edge.left, edge.right)
+                        
+                        # Determine the previous state (ancestral or parent mutation's derived state)
+                        previous_state = site.ancestral_state
+                        if mutation.parent != -1:
+                            parent_mutation = ts.mutation(mutation.parent)
+                            previous_state = parent_mutation.derived_state
+                        
+                        # Create mutation ID: <previous_state><position><new_state>
+                        mutation_id = f"{previous_state}{int(position)}{mutation.derived_state}"
+                        
+                        # Create mutation detail dictionary
+                        mutation_detail = {
+                            'id': mutation_id,
+                            'mutation_tskit_id': mutation.id,
+                            'site': mutation.site,
+                            'position': position,
+                            'node': mutation_node,
+                            'time': mutation.time if math.isfinite(mutation.time) else None,
+                            'ancestral_state': site.ancestral_state,
+                            'previous_state': previous_state,
+                            'derived_state': mutation.derived_state,
+                            'parent_mutation': mutation.parent
+                        }
+                        
+                        # Add to edge mutations list
+                        if edge_key not in edge_mutations:
+                            edge_mutations[edge_key] = []
+                        edge_mutations[edge_key].append(mutation_detail)
+                        break
+    
+    # Sort mutations on each edge by time (earliest first)
+    for edge_key in edge_mutations:
+        edge_mutations[edge_key].sort(key=lambda m: m['time'] if m['time'] is not None else float('inf'))
+    
+    logger.info(f"Extracted detailed mutation information for {len(edge_mutations)} edges")
+    logger.info(f"Total mutations processed: {sum(len(muts) for muts in edge_mutations.values())}")
+    
+    return edge_mutations
+
+
+def infer_ancestral_populations(ts: tskit.TreeSequence) -> Dict[int, int]:
+    """
+    Infer ancestral populations for internal nodes based on their descendants.
+    
+    For each internal node without an explicit population, assigns it to the most 
+    common population among its descendant nodes (both samples and internal nodes
+    that have explicit populations). If there's a tie, uses the numerically 
+    smallest population ID.
+    
+    Args:
+        ts: The tree sequence
+        
+    Returns:
+        Dictionary mapping node_id -> inferred_population_id for nodes that need inference
+    """
+    inferred_populations = {}
+    
+    # Get all nodes with explicit populations (both samples and internal nodes)
+    explicit_populations = {}
+    for node in ts.nodes():
+        if node.population != tskit.NULL:
+            explicit_populations[node.id] = node.population
+    
+    # If no nodes have populations, return empty dict
+    if not explicit_populations:
+        return inferred_populations
+    
+    # For each node without an explicit population, infer from descendants
+    for node in ts.nodes():
+        # Skip if this node already has an explicit population
+        if node.population != tskit.NULL:
+            continue
+        
+        # Find all descendant nodes with populations
+        descendant_populations = []
+        
+        # BFS to find all descendants
+        to_visit = {node.id}
+        visited = set()
+        
+        # Start by finding immediate children
+        for edge in ts.edges():
+            if edge.parent == node.id:
+                to_visit.add(edge.child)
+        
+        # Expand to find all descendants
+        changed = True
+        while changed:
+            changed = False
+            current_to_visit = list(to_visit - visited)
+            for node_id in current_to_visit:
+                visited.add(node_id)
+                
+                # If this node has an explicit population, record it
+                if node_id in explicit_populations:
+                    descendant_populations.append(explicit_populations[node_id])
+                
+                # Continue traversal to find more descendants
+                for edge in ts.edges():
+                    if edge.parent == node_id and edge.child not in visited:
+                        to_visit.add(edge.child)
+                        changed = True
+        
+        # If we found descendants with populations, infer from majority
+        if descendant_populations:
+            from collections import Counter
+            pop_counts = Counter(descendant_populations)
+            # Get most common, with ties broken by smallest population ID
+            most_common_pop = sorted(pop_counts.items(), key=lambda x: (-x[1], x[0]))[0][0]
+            inferred_populations[node.id] = most_common_pop
+    
+    logger.info(f"Inferred populations for {len(inferred_populations)} internal nodes")
+    return inferred_populations
+
+
 def convert_to_graph_data(
     ts: tskit.TreeSequence, 
     expected_tree_count: int = None, 
@@ -361,6 +532,26 @@ def convert_to_graph_data(
     # Detect edges with mutations
     edges_with_mutations = detect_edges_with_mutations(ts)
     
+    # Extract detailed mutation information
+    edge_mutation_details = extract_mutation_details(ts)
+    
+    # Infer ancestral populations for internal nodes
+    inferred_populations = infer_ancestral_populations(ts)
+    
+    # Debug: Check what populations actually exist in the tree sequence
+    actual_num_populations = ts.num_populations
+    logger.info(f"Tree sequence has {actual_num_populations} populations defined in population table")
+    
+    # Check what population IDs are explicitly set on nodes
+    explicit_pop_ids = set()
+    for node in ts.nodes():
+        if node.population != tskit.NULL:
+            explicit_pop_ids.add(node.population)
+    logger.info(f"Explicit population IDs on nodes: {sorted(explicit_pop_ids)}")
+    logger.info(f"Inferred populations for {len(inferred_populations)} nodes")
+    if inferred_populations:
+        logger.info(f"Unique inferred population IDs: {sorted(set(inferred_populations.values()))}")
+    
     # Detect effective location dimensionality (SLiM may emit a 3rd dim as NaN)
     effective_location_dims = 2
     try:
@@ -393,12 +584,21 @@ def convert_to_graph_data(
             safe_time = float(time) if math.isfinite(time) else 0.0
             log_time = math.log(safe_time + 1e-10) if safe_time > 0 else 0.0
 
+            # Determine population: use explicit if available, otherwise use inferred
+            population = None
+            if node.population != tskit.NULL:
+                population = node.population
+            elif node.id in inferred_populations:
+                population = inferred_populations[node.id]
+            
             node_data = {
                 'id': node.id,
                 'time': safe_time,
                 'log_time': log_time,
                 'is_sample': node.is_sample(),
                 'individual': node.individual,
+                'population': population,
+                'population_inferred': node.id in inferred_populations,  # Flag to indicate inference
                 'ts_flags': int(node.flags)  # Include tskit node flags for recombination detection
             }
 
@@ -433,10 +633,37 @@ def convert_to_graph_data(
         edge_key = (edge.parent, edge.child, edge.left, edge.right)
         edge_data['has_mutations'] = edge_key in edges_with_mutations
         
+        # Add detailed mutation information if available
+        if edge_key in edge_mutation_details:
+            edge_data['mutations'] = edge_mutation_details[edge_key]
+        else:
+            edge_data['mutations'] = []
+        
         edges.append(edge_data)
     
     # Apply sample ordering
     nodes = apply_sample_ordering(nodes, sample_order, ts)
+    
+    # Detect populations present in the data
+    populations = set()
+    explicit_pop_count = 0
+    inferred_pop_count = 0
+    for node in nodes:
+        if node.get('population') is not None:
+            populations.add(node['population'])
+            if node.get('population_inferred'):
+                inferred_pop_count += 1
+            else:
+                explicit_pop_count += 1
+    
+    populations_list = sorted(list(populations))
+    has_populations = len(populations_list) > 0
+    
+    logger.info(f"Populations in graph data: {populations_list}")
+    logger.info(f"  {len(populations_list)} unique population IDs")
+    logger.info(f"  {explicit_pop_count} nodes with explicit populations")
+    logger.info(f"  {inferred_pop_count} nodes with inferred populations")
+    logger.info(f"Tree sequence population table has {ts.num_populations} populations")
     
     # Count local trees and get tree intervals
     num_local_trees = ts.num_trees
@@ -455,7 +682,9 @@ def convert_to_graph_data(
         'auto_filtered': False,
         'tree_intervals': tree_intervals,
         'sample_order': sample_order,
-        'location_dimensions': effective_location_dims
+        'location_dimensions': effective_location_dims,
+        'has_populations': has_populations,
+        'populations': populations_list
     }
     
     # If we have an expected tree count (from tree index filtering), include it

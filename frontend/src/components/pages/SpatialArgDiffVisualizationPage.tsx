@@ -2,17 +2,18 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useColorTheme } from '../../context/ColorThemeContext';
 import { useTreeSequence } from '../../context/TreeSequenceContext';
 import { useRef, useEffect, useState } from 'react';
-import { export3DVisualizationAsImage, exportCanvasAsImage } from '../../lib/imageExport';
 import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import ClickableLogo from '../ui/ClickableLogo';
 import { TreeSequenceSelectorModal } from '../ui/TreeSequenceSelectorModal';
-import { SpatialDiffDownloadDropdown } from '../ui/SpatialDiffDownloadDropdown';
 import SpatialArgDiffVisualizationContainer from '../visualizations/SpatialArgDiff/SpatialArgDiffVisualizationContainer';
+
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 export default function SpatialArgDiffVisualizationPage() {
     const { filename } = useParams<{ filename: string }>();
     const navigate = useNavigate();
     const { colors, setCurrentVisualizationType } = useColorTheme();
+    const { navStyle } = useThemeStyles();
     const { maxSamples } = useTreeSequence();
     const containerRef = useRef<HTMLDivElement>(null);
     const [showTreeSequenceSelector, setShowTreeSequenceSelector] = useState(false);
@@ -40,75 +41,21 @@ export default function SpatialArgDiffVisualizationPage() {
         setSelectedTreeSequenceToChange(null);
     };
 
-    const handleDownloadImage = async () => {
-        if (!containerRef.current) return;
-
-        try {
-            const imageFilename = `${decodedFilename.replace(/\.(trees|tsz)$/, '')}_spatial_diff.png`;
-            const watermarkConfig = {
-                text: 'ARGscape',
-                subtext: decodedFilename,
-                position: 'bottom-center' as const,
-                color: colors.accentPrimary,
-                backgroundColor: colors.background + 'CC' // 80% opacity
-            };
-            
-            // Try high-quality export first
-            const visualizationContainer = containerRef.current.querySelector('[data-3d-visualization]') as any;
-            if (visualizationContainer?.getExportData) {
-                const exportData = visualizationContainer.getExportData();
-                const deckGLElement = containerRef.current.querySelector('[data-deck="true"]');
-                const deckGLRef = deckGLElement ? { current: deckGLElement } : null;
-                
-                try {
-                    await export3DVisualizationAsImage(exportData, deckGLRef, {
-                        filename: imageFilename,
-                        padding: 50,
-                        maxWidth: 8192,
-                        maxHeight: 8192,
-                        backgroundColor: colors.exportBackground,
-                        scale: 2,
-                        watermark: watermarkConfig
-                    });
-                    console.log('High-resolution spatial diff image exported successfully');
-                    return;
-                } catch (exportError) {
-                    console.warn('High-quality export failed, falling back to canvas capture:', exportError);
-                }
-            }
-            
-            // Fallback to canvas capture
-            const canvas = containerRef.current.querySelector('canvas') as HTMLCanvasElement;
-            if (!canvas) {
-                throw new Error('No canvas found for export');
-            }
-
-            await exportCanvasAsImage(canvas, {
-                filename: imageFilename,
-                padding: 50,
-                maxWidth: 4096,
-                maxHeight: 4096,
-                backgroundColor: colors.exportBackground,
-                scale: 2,
-                watermark: watermarkConfig
-            });
-            console.log('Spatial diff image captured from canvas');
-        } catch (error) {
-            console.error('Error downloading spatial diff image:', error);
-        }
-    };
-
     return (
         <div 
             className="h-screen flex flex-col overflow-hidden font-sans"
             style={{ backgroundColor: colors.background, color: colors.text }}
         >
             {/* Header */}
-            <header 
-                className="border-b shadow-md flex-shrink-0"
-                style={{ 
-                    backgroundColor: colors.background, 
-                    borderBottomColor: colors.border 
+            <header
+                className="border-b shadow-md flex-shrink-0 transition-colors duration-300"
+                style={{
+                    backgroundColor: navStyle.backgroundColor,
+                    borderBottomColor: navStyle.borderBottomColor,
+                    backdropFilter: navStyle.backdropFilter,
+                    WebkitBackdropFilter: navStyle.WebkitBackdropFilter,
+                    position: 'relative',
+                    zIndex: 10001,
                 }}
             >
                 <div className="max-w-7xl mx-auto">
@@ -159,7 +106,7 @@ export default function SpatialArgDiffVisualizationPage() {
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                     </svg>
-                                    <span>Change</span>
+                                    <span>Switch File</span>
                                 </button>
                                 
                                 <div className="flex items-center gap-2 min-w-0 overflow-hidden">
@@ -199,7 +146,7 @@ export default function SpatialArgDiffVisualizationPage() {
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                                 </svg>
-                                                <span>Change</span>
+                                                <span>Switch File</span>
                                             </button>
                                             <div 
                                                 className="text-sm font-mono truncate"
@@ -215,12 +162,7 @@ export default function SpatialArgDiffVisualizationPage() {
                             
                             <div className="flex items-center gap-2 flex-shrink-0">
                                 <ColorThemeDropdown />
-                                <SpatialDiffDownloadDropdown 
-                                    firstFilename={decodedFilename}
-                                    secondFilename={secondFilename}
-                                    onDownloadImage={handleDownloadImage}
-                                />
-                                <button 
+                                <button
                                     onClick={() => setIsHeaderCollapsed(false)}
                                     className="flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-colors"
                                     style={{
@@ -319,7 +261,7 @@ export default function SpatialArgDiffVisualizationPage() {
                                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                                 </svg>
-                                                <span>Change</span>
+                                                <span>Switch File</span>
                                             </button>
                                             <div 
                                                 className="text-base font-mono break-all min-w-0"
@@ -355,7 +297,7 @@ export default function SpatialArgDiffVisualizationPage() {
                                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
                                                     </svg>
-                                                    <span>Change</span>
+                                                    <span>Switch File</span>
                                                 </button>
                                                 <div 
                                                     className="text-base font-mono break-all min-w-0"
@@ -369,11 +311,6 @@ export default function SpatialArgDiffVisualizationPage() {
                                 </div>
                                 <div className="flex items-center gap-2 flex-shrink-0">
                                     <ColorThemeDropdown />
-                                    <SpatialDiffDownloadDropdown 
-                                        firstFilename={decodedFilename}
-                                        secondFilename={secondFilename}
-                                        onDownloadImage={handleDownloadImage}
-                                    />
                                 </div>
                             </div>
                         </div>

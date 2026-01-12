@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
 import { FILE_TYPES, RAILWAY_LIMITS, isRailway } from '../../config/constants';
 import AlertModal from '../ui/AlertModal';
+import { useColorTheme } from '../../context/ColorThemeContext';
 
 const RAILWAY_MAX_NODES = RAILWAY_LIMITS.MAX_NODES;
 
@@ -34,6 +35,7 @@ export default function Dropzone({
   errorMessage: propErrorMessage,
   setErrorMessage: propSetErrorMessage,
 }: DropzoneProps) {  
+  const { colors } = useColorTheme();
   const [file, setFile] = useState<File | null>(null);
   const [mode, setMode] = useState<'none' | 'load-as-is' | 'add-locations'>('none');
   const [locationFiles, setLocationFiles] = useState<LocationFiles>({
@@ -60,6 +62,24 @@ export default function Dropzone({
   const navigate = useNavigate();
   // Use ref to track if we're showing a modal (for synchronous check in finally block)
   const isShowingModalRef = useRef(false);
+
+  // Generate and download CSV template
+  const downloadTemplate = (type: 'sample' | 'node') => {
+    const headers = 'node_id,x,y,z';
+    const exampleRows = type === 'sample'
+      ? '0,1.5,2.3,0.0\n1,3.2,4.1,0.0\n2,5.0,6.8,0.0'
+      : '0,1.5,2.3,0.0\n1,3.2,4.1,0.0\n2,5.0,6.8,0.0';
+    const content = `${headers}\n${exampleRows}`;
+    const blob = new Blob([content], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = type === 'sample' ? 'sample_locations_template.csv' : 'node_locations_template.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   // Main tree sequence file dropzone
   const onDrop = useCallback((acceptedFiles: File[]) => {
@@ -108,21 +128,15 @@ export default function Dropzone({
       setLoading(true);
       isShowingModalRef.current = false;
       
-      console.log(`[Dropzone] Starting upload for ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
-      
       try {
         log.user.action('upload-start', { filename: file.name, size: file.size }, 'Dropzone');
-        
-        console.log(`[Dropzone] Calling api.uploadTreeSequence...`);
+
         const uploadStartTime = Date.now();
         const result = await api.uploadTreeSequence(file);
         const uploadDuration = Date.now() - uploadStartTime;
         
-        console.log(`[Dropzone] Upload completed in ${uploadDuration}ms, result:`, result);
-        
         // Validate response structure
         if (!result || !result.data) {
-          console.error('[Dropzone] Invalid response structure:', result);
           throw new Error('Invalid response from server');
         }
         
@@ -131,7 +145,6 @@ export default function Dropzone({
         if (isRailway() && result.data && typeof result.data === 'object' && 'num_nodes' in result.data) {
           const numNodes = (result.data as any).num_nodes;
           if (numNodes && numNodes > RAILWAY_MAX_NODES) {
-            console.log(`[Dropzone] Node limit exceeded on Railway: ${numNodes} > ${RAILWAY_MAX_NODES}`);
             isShowingModalRef.current = true;
             setLoading(false);
             setShowNodeLimitModal(true);
@@ -144,8 +157,6 @@ export default function Dropzone({
           data: { filename: file.name, result, uploadDuration }
         });
         
-        console.log(`[Dropzone] Upload successful, clearing loading and calling onUploadComplete`);
-        
         // Clear loading state before navigating away
         setLoading(false);
         
@@ -153,13 +164,9 @@ export default function Dropzone({
         await new Promise(resolve => setTimeout(resolve, 50));
         
         if (onUploadComplete) {
-          console.log(`[Dropzone] Calling onUploadComplete with:`, result.data);
           onUploadComplete(result.data);
-        } else {
-          console.warn('[Dropzone] onUploadComplete callback not provided');
         }
       } catch (err) {
-        console.error('[Dropzone] Upload error caught:', err);
         log.error('File upload failed', {
           component: 'Dropzone',
           error: err instanceof Error ? err : new Error(String(err)),
@@ -172,7 +179,6 @@ export default function Dropzone({
         // Check if this is a node limit error (check error message content, not frontend flag)
         // Backend might be in Railway mode even if frontend flag isn't set
         if (lowerErrorMessage.includes('nodes') && lowerErrorMessage.includes('railway limit')) {
-          console.log('[Dropzone] Detected Railway node limit error, setting modal state');
           isShowingModalRef.current = true;
           // Set modal state first (this persists in parent component across remounts)
           setShowNodeLimitModal(true);
@@ -182,7 +188,6 @@ export default function Dropzone({
         }
         
         // Show general error modal
-        console.log('[Dropzone] Showing error modal');
         isShowingModalRef.current = true;
         setErrorMessage(errorMessage);
         setShowErrorModal(true);
@@ -245,14 +250,12 @@ export default function Dropzone({
       }
 
       // Update tree sequence with custom locations
-      console.log('Starting tree sequence update...');
       const updateResult = await api.updateTreeSequenceLocations({
         tree_sequence_filename: file.name,
         sample_locations_filename: sampleLocationsFilename,
         node_locations_filename: nodeLocationsFilename
       });
 
-      console.log('Tree sequence update completed:', updateResult);
       log.info('Tree sequence updated with custom locations', {
         component: 'Dropzone',
         data: { originalFilename: file.name, newFilename: (updateResult.data as any).new_filename }
@@ -262,7 +265,6 @@ export default function Dropzone({
       setLoading(false);
       
       if (onUploadComplete) {
-        console.log('Calling onUploadComplete with:', updateResult.data);
         onUploadComplete(updateResult.data);
       }
 
@@ -307,26 +309,82 @@ export default function Dropzone({
 
   return (
     <div className="w-full flex flex-col items-center gap-4">
-      {/* Main tree sequence file dropzone */}
-      <div
-        {...getRootProps()}
-        className={`w-full h-48 border-2 border-dashed rounded-xl flex items-center justify-center text-xl transition-colors cursor-pointer select-none
-          ${isDragActive ? 'border-sp-pale-green bg-sp-dark-blue text-sp-white' : 'border-sp-dark-blue bg-sp-very-dark-blue text-sp-very-pale-green'}`}
-        tabIndex={0}
-      >
-        <input {...getInputProps()} />
-        {file ? (
-          <span className="truncate max-w-full px-2">{file.name}</span>
-        ) : isDragActive ? (
-          <span>Drop the file here…</span>
-        ) : (
-          <span className="text-center">
-            Drag and drop to select a file<br />
-            <span className="text-base text-sp-pale-green">or click to browse</span><br />
-            <span className="text-sm text-sp-very-pale-green mt-1">Supported formats: .trees, .tsz</span>
-          </span>
-        )}
-      </div>
+      {/* Main tree sequence file dropzone or File Card */}
+      {file ? (
+        /* File Card - compact display when file is selected */
+        <div
+          className="w-full flex items-center gap-3 p-4 rounded-xl border"
+          style={{
+            backgroundColor: colors.containerBackground,
+            borderColor: colors.border
+          }}
+        >
+          {/* File icon */}
+          <div
+            className="flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center"
+            style={{ backgroundColor: `${colors.accentPrimary}20` }}
+          >
+            <svg className="w-5 h-5" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+
+          {/* File name */}
+          <div className="flex-1 min-w-0">
+            <p className="font-medium truncate" style={{ color: colors.text }}>
+              {file.name}
+            </p>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+          </div>
+
+          {/* Remove button */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setFile(null);
+              setMode('none');
+              setLocationFiles({ sampleLocations: null, nodeLocations: null });
+              setUploadedCsvFiles({});
+            }}
+            className="flex-shrink-0 p-2 rounded-lg transition-colors hover:bg-opacity-80"
+            style={{
+              backgroundColor: `${colors.error || '#ef4444'}15`,
+              color: colors.error || '#ef4444'
+            }}
+            title="Remove file"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ) : (
+        /* Dropzone - shown when no file selected */
+        <div
+          {...getRootProps()}
+          className="w-full h-48 border-2 border-dashed rounded-xl flex items-center justify-center text-xl transition-colors cursor-pointer select-none"
+          style={{
+            borderColor: isDragActive ? colors.accentPrimary : colors.border,
+            backgroundColor: isDragActive ? `${colors.accentPrimary}10` : colors.containerBackground,
+            color: colors.text
+          }}
+          tabIndex={0}
+        >
+          <input {...getInputProps()} />
+          {isDragActive ? (
+            <span>Drop the file here…</span>
+          ) : (
+            <span className="text-center">
+              Drag and drop to select a file<br />
+              <span className="text-base" style={{ color: colors.accentPrimary }}>or click to browse</span><br />
+              <span className="text-sm" style={{ color: colors.textSecondary }}>Supported formats: .trees, .tsz</span>
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Action buttons when file is selected */}
       {file && mode === 'none' && (
@@ -334,7 +392,13 @@ export default function Dropzone({
           <button
             type="button"
             onClick={handleLoadAsIs}
-            className="bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+            className="font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+            style={{
+              backgroundColor: colors.accentPrimary,
+              color: colors.buttonText
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
@@ -344,7 +408,20 @@ export default function Dropzone({
           <button
             type="button"
             onClick={handleAddLocations}
-            className="bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2"
+            className="font-bold py-3 px-6 rounded-xl transition-all duration-200 transform hover:scale-105 hover:shadow-lg flex items-center justify-center gap-2 border"
+            style={{
+              backgroundColor: colors.containerBackground,
+              color: colors.text,
+              borderColor: colors.border
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = colors.accentPrimary;
+              e.currentTarget.style.color = colors.buttonText;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = colors.containerBackground;
+              e.currentTarget.style.color = colors.text;
+            }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
@@ -358,69 +435,170 @@ export default function Dropzone({
       {/* Location CSV upload section */}
       {mode === 'add-locations' && (
         <div className="w-full space-y-4">
-          <div className="text-center text-sp-white/70 text-sm mb-4">
+          <div className="text-center text-sm mb-4" style={{ color: colors.textSecondary }}>
             Upload CSV files with node locations (required columns: node_id, x, y, z)
           </div>
 
           {/* Sample Locations CSV */}
           <div className="space-y-2">
-            <label className="text-sp-white font-semibold text-sm">Sample Locations</label>
-            <div
-              {...sampleLocationsDropzone.getRootProps()}
-              className={`w-full h-24 border-2 border-dashed rounded-lg flex items-center justify-center text-sm transition-colors cursor-pointer select-none
-                ${sampleLocationsDropzone.isDragActive ? 'border-sp-pale-green bg-sp-dark-blue text-sp-white' : 'border-sp-dark-blue bg-sp-very-dark-blue text-sp-very-pale-green'}`}
-              tabIndex={0}
-            >
-              <input {...sampleLocationsDropzone.getInputProps()} />
-              {locationFiles.sampleLocations ? (
-                <span className="truncate max-w-full px-2 text-sp-pale-green">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-sm" style={{ color: colors.text }}>Sample Locations</label>
+              <button
+                type="button"
+                onClick={() => downloadTemplate('sample')}
+                className="text-xs underline hover:opacity-80 transition-opacity"
+                style={{ color: colors.accentPrimary }}
+              >
+                Download CSV template
+              </button>
+            </div>
+            {locationFiles.sampleLocations ? (
+              /* File Card for sample locations */
+              <div
+                className="w-full flex items-center gap-3 p-3 rounded-lg border"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  borderColor: colors.border
+                }}
+              >
+                <div
+                  className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.accentPrimary}20` }}
+                >
+                  <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <span className="flex-1 text-sm truncate" style={{ color: colors.text }}>
                   {locationFiles.sampleLocations.name}
                 </span>
-              ) : sampleLocationsDropzone.isDragActive ? (
-                <span>Drop CSV here…</span>
-              ) : (
-                <span>Click or drag CSV with sample locations</span>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setLocationFiles(prev => ({ ...prev, sampleLocations: null }))}
+                  className="flex-shrink-0 p-1.5 rounded-md transition-colors"
+                  style={{
+                    backgroundColor: `${colors.error || '#ef4444'}15`,
+                    color: colors.error || '#ef4444'
+                  }}
+                  title="Remove file"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* Dropzone for sample locations */
+              <div
+                {...sampleLocationsDropzone.getRootProps()}
+                className="w-full h-24 border-2 border-dashed rounded-lg flex items-center justify-center text-sm transition-colors cursor-pointer select-none"
+                style={{
+                  borderColor: sampleLocationsDropzone.isDragActive ? colors.accentPrimary : colors.border,
+                  backgroundColor: sampleLocationsDropzone.isDragActive ? `${colors.accentPrimary}10` : colors.containerBackground,
+                  color: colors.text
+                }}
+                tabIndex={0}
+              >
+                <input {...sampleLocationsDropzone.getInputProps()} />
+                {sampleLocationsDropzone.isDragActive ? (
+                  <span>Drop CSV here…</span>
+                ) : (
+                  <span>Click or drag CSV with sample locations</span>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Node Locations CSV */}
           <div className="space-y-2">
-            <label className="text-sp-white font-semibold text-sm">Node Locations</label>
-            <div
-              {...nodeLocationsDropzone.getRootProps()}
-              className={`w-full h-24 border-2 border-dashed rounded-lg flex items-center justify-center text-sm transition-colors cursor-pointer select-none
-                ${nodeLocationsDropzone.isDragActive ? 'border-sp-pale-green bg-sp-dark-blue text-sp-white' : 'border-sp-dark-blue bg-sp-very-dark-blue text-sp-very-pale-green'}`}
-              tabIndex={0}
-            >
-              <input {...nodeLocationsDropzone.getInputProps()} />
-              {locationFiles.nodeLocations ? (
-                <span className="truncate max-w-full px-2 text-sp-pale-green">
+            <div className="flex items-center justify-between">
+              <label className="font-semibold text-sm" style={{ color: colors.text }}>Node Locations</label>
+              <button
+                type="button"
+                onClick={() => downloadTemplate('node')}
+                className="text-xs underline hover:opacity-80 transition-opacity"
+                style={{ color: colors.accentPrimary }}
+              >
+                Download CSV template
+              </button>
+            </div>
+            {locationFiles.nodeLocations ? (
+              /* File Card for node locations */
+              <div
+                className="w-full flex items-center gap-3 p-3 rounded-lg border"
+                style={{
+                  backgroundColor: colors.containerBackground,
+                  borderColor: colors.border
+                }}
+              >
+                <div
+                  className="flex-shrink-0 w-8 h-8 rounded-md flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.accentPrimary}20` }}
+                >
+                  <svg className="w-4 h-4" style={{ color: colors.accentPrimary }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <span className="flex-1 text-sm truncate" style={{ color: colors.text }}>
                   {locationFiles.nodeLocations.name}
                 </span>
-              ) : nodeLocationsDropzone.isDragActive ? (
-                <span>Drop CSV here…</span>
-              ) : (
-                <span>Click or drag CSV with node locations</span>
-              )}
-            </div>
+                <button
+                  type="button"
+                  onClick={() => setLocationFiles(prev => ({ ...prev, nodeLocations: null }))}
+                  className="flex-shrink-0 p-1.5 rounded-md transition-colors"
+                  style={{
+                    backgroundColor: `${colors.error || '#ef4444'}15`,
+                    color: colors.error || '#ef4444'
+                  }}
+                  title="Remove file"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              /* Dropzone for node locations */
+              <div
+                {...nodeLocationsDropzone.getRootProps()}
+                className="w-full h-24 border-2 border-dashed rounded-lg flex items-center justify-center text-sm transition-colors cursor-pointer select-none"
+                style={{
+                  borderColor: nodeLocationsDropzone.isDragActive ? colors.accentPrimary : colors.border,
+                  backgroundColor: nodeLocationsDropzone.isDragActive ? `${colors.accentPrimary}10` : colors.containerBackground,
+                  color: colors.text
+                }}
+                tabIndex={0}
+              >
+                <input {...nodeLocationsDropzone.getInputProps()} />
+                {nodeLocationsDropzone.isDragActive ? (
+                  <span>Drop CSV here…</span>
+                ) : (
+                  <span>Click or drag CSV with node locations</span>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Update Tree Sequence button */}
+          {/* Load with Locations button */}
           <button
             type="button"
             onClick={handleUpdateTreeSequence}
             disabled={!canUpdateTreeSequence}
-            className={`w-full font-bold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 ${
-              canUpdateTreeSequence
-                ? 'bg-sp-pale-green hover:bg-sp-very-pale-green text-sp-very-dark-blue transform hover:scale-105 hover:shadow-lg'
-                : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-            }`}
+            className="w-full font-bold py-3 px-6 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+            style={{
+              backgroundColor: canUpdateTreeSequence ? colors.accentPrimary : colors.border,
+              color: canUpdateTreeSequence ? colors.buttonText : colors.textSecondary,
+              cursor: canUpdateTreeSequence ? 'pointer' : 'not-allowed',
+              opacity: canUpdateTreeSequence ? 1 : 0.5
+            }}
+            onMouseEnter={(e) => canUpdateTreeSequence && (e.currentTarget.style.opacity = '0.9')}
+            onMouseLeave={(e) => canUpdateTreeSequence && (e.currentTarget.style.opacity = '1')}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
             </svg>
-            Update Tree Sequence
+            Load with Locations
           </button>
 
           {/* Back button */}
@@ -431,7 +609,20 @@ export default function Dropzone({
               setLocationFiles({ sampleLocations: null, nodeLocations: null });
               setUploadedCsvFiles({});
             }}
-            className="w-full bg-sp-dark-blue hover:bg-sp-pale-green hover:text-sp-very-dark-blue text-sp-white border border-sp-pale-green/20 font-bold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
+            className="w-full font-bold py-2.5 px-4 rounded-xl transition-all duration-200 flex items-center justify-center gap-2 border"
+            style={{
+              backgroundColor: colors.containerBackground,
+              color: colors.text,
+              borderColor: colors.border
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = colors.accentPrimary;
+              e.currentTarget.style.color = colors.buttonText;
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = colors.containerBackground;
+              e.currentTarget.style.color = colors.text;
+            }}
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />

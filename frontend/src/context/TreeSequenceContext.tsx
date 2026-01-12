@@ -52,6 +52,9 @@ interface TreeSequenceData {
   };
 }
 
+// Sample subsetting mode type
+export type SampleSubsetMode = 'even' | 'random' | 'ids' | 'range' | 'population';
+
 interface TreeSequenceContextType {
   treeSequence: TreeSequenceData | null;
   setTreeSequence: (data: TreeSequenceData | null) => void;
@@ -63,6 +66,17 @@ interface TreeSequenceContextType {
   setGenomicRange: (range: [number, number] | null) => void;
   genomicMode: 'base_pairs' | 'tree_indices';
   setGenomicMode: (mode: 'base_pairs' | 'tree_indices') => void;
+  // Sample subsetting state
+  sampleSubsetMode: SampleSubsetMode;
+  setSampleSubsetMode: (mode: SampleSubsetMode) => void;
+  sampleIds: number[];
+  setSampleIds: (ids: number[]) => void;
+  sampleRange: [number, number] | null;
+  setSampleRange: (range: [number, number] | null) => void;
+  randomSeed: number | null;
+  setRandomSeed: (seed: number | null) => void;
+  selectedPopulations: number[];
+  setSelectedPopulations: (pops: number[]) => void;
 }
 
 const TreeSequenceContext = createContext<TreeSequenceContextType | undefined>(undefined);
@@ -73,15 +87,30 @@ export function TreeSequenceProvider({ children }: { children: ReactNode }) {
   const [temporalRange, setTemporalRange] = useState<[number, number] | null>(null);
   const [genomicRange, setGenomicRange] = useState<[number, number] | null>(null);
   const [genomicMode, setGenomicMode] = useState<'base_pairs' | 'tree_indices'>('tree_indices');
+  // Sample subsetting state
+  const [sampleSubsetMode, setSampleSubsetMode] = useState<SampleSubsetMode>('range');
+  const [sampleIds, setSampleIds] = useState<number[]>([]);
+  const [sampleRange, setSampleRange] = useState<[number, number] | null>(null);
+  const [randomSeed, setRandomSeed] = useState<number | null>(null);
+  const [selectedPopulations, setSelectedPopulations] = useState<number[]>([]);
 
-  // Custom setTreeSequence that also updates maxSamples appropriately
+  // Custom setTreeSequence that also updates maxSamples and resets subsetting state
   const setTreeSequenceWithSamples = (data: TreeSequenceData | null) => {
     setTreeSequence(data);
     if (data?.num_samples) {
       // Set maxSamples to min(DEFAULT_MAX_SAMPLES, actual_samples), ensuring we don't exceed available samples
       const newMaxSamples = Math.min(SAMPLE_LIMITS.DEFAULT_MAX_SAMPLES, data.num_samples);
       setMaxSamples(newMaxSamples);
+      // Set default range to all samples
+      setSampleRange([0, data.num_samples - 1]);
+    } else {
+      setSampleRange(null);
     }
+    // Reset other sample subsetting state when tree sequence changes
+    setSampleSubsetMode('range');
+    setSampleIds([]);
+    setRandomSeed(null);
+    setSelectedPopulations([]);
   };
 
   // Custom setMaxSamples that respects the current tree sequence sample limit
@@ -97,18 +126,29 @@ export function TreeSequenceProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <TreeSequenceContext.Provider 
-      value={{ 
-        treeSequence, 
-        setTreeSequence: setTreeSequenceWithSamples, 
-        maxSamples, 
+    <TreeSequenceContext.Provider
+      value={{
+        treeSequence,
+        setTreeSequence: setTreeSequenceWithSamples,
+        maxSamples,
         setMaxSamples: setMaxSamplesWithLimit,
         temporalRange,
         setTemporalRange,
         genomicRange,
         setGenomicRange,
         genomicMode,
-        setGenomicMode
+        setGenomicMode,
+        // Sample subsetting
+        sampleSubsetMode,
+        setSampleSubsetMode,
+        sampleIds,
+        setSampleIds,
+        sampleRange,
+        setSampleRange,
+        randomSeed,
+        setRandomSeed,
+        selectedPopulations,
+        setSelectedPopulations,
       }}
     >
       {children}

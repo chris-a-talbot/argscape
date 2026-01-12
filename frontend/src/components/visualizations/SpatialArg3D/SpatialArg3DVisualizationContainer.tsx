@@ -1,21 +1,22 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import SpatialArg3DVisualization from './SpatialArg3DVisualization';
+import { SpatialArg3DControls } from './SpatialArg3DControls';
+import { SpatialArg3DLegend } from './SpatialArg3DLegend';
+import { SpatialArg3DAnimationPopout } from './SpatialArg3DAnimationPopout';
 import { GraphData, GraphNode, TreeInterval, GeographicShape } from '../ForceDirectedGraph/ForceDirectedGraph.types';
 import { RangeSlider } from '../../ui/range-slider';
 import { TreeRangeSlider } from '../../ui/tree-range-slider';
 import { TemporalRangeSlider } from '../../ui/temporal-range-slider';
-import { ArgStatsData } from '../../ui/arg-stats-display';
 import { api } from '../../../lib/api';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { useTreeSequence } from '../../../context/TreeSequenceContext';
 import { TemporalSpacingMode, NodeIdSettings, EdgeMutationSettings, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
-import { VisualizationSidebar } from '../../ui/VisualizationSidebar';
-import { VisualizationSection, ViewControlsSection, ElementsSection, InformationSection } from './SpatialArg3DSidebarSections';
-import { StatisticsPanel } from '../shared/StatisticsPanel';
-import { CompactStatistics } from '../shared/CompactStatistics';
+import { KeyboardShortcutProvider } from '@/components/ui/QuickActionsBar/hooks/KeyboardShortcutProvider';
+import type { GeographicMode as QuickActionsGeographicMode, CameraPreset } from '@/components/ui/QuickActionsBar/panels';
 import { getDescendants, getAncestors, isRootNode } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
-import { calculatePercentage, convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
+import { convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
 import { useElapsedTime, formatElapsedTime } from '../../../hooks/useElapsedTime';
 import { isRailway } from '../../../config/constants';
 
@@ -87,29 +88,40 @@ const DEFAULT_VISUAL_SETTINGS = {
   }
 };
 
-// Helper wrapper for calculatePercentage with container precision
-const calcPercentage = (value: number, total: number): string => {
-  return calculatePercentage(value, total, CONTAINER_CONSTANTS.PERCENTAGE_PRECISION);
+/**
+ * Calculate default temporal spacing based on number of layers
+ * @param numLayers - Number of unique time layers in the ARG
+ * @returns Default temporal spacing value
+ */
+const calculateDefaultTemporalSpacing = (numLayers: number): number => {
+  if (numLayers >= 125) return 2;
+  if (numLayers >= 80) return 3;
+  if (numLayers >= 40) return 4;
+  if (numLayers >= 20) return 5;
+  return 6;
 };
-
 
 const createFilterOptions = (
   filterState: any,
   metadata: any,
-  maxSamples: number
+  maxSamples: number,
+  genomicFilterMode: 'subset' | 'dim' = 'dim',
+  treeFilterMode: 'subset' | 'dim' = 'dim'
 ) => {
   const options: any = { maxSamples };
-  
-  if (filterState.mode === 'genomic' && 
+
+  // Only apply API-level filtering when in 'subset' mode
+  // In 'dim' mode, we fetch all data and apply opacity changes client-side
+  if (filterState.mode === 'genomic' && genomicFilterMode === 'subset' &&
       (filterState.genomicRange[0] !== 0 || filterState.genomicRange[1] !== metadata.sequenceLength)) {
     options.genomicStart = filterState.genomicRange[0];
     options.genomicEnd = filterState.genomicRange[1];
-  } else if (filterState.mode === 'tree' && 
+  } else if (filterState.mode === 'tree' && treeFilterMode === 'subset' &&
              (filterState.treeRange[0] !== 0 || filterState.treeRange[1] !== metadata.treeIntervals.length - 1)) {
     options.treeStartIdx = filterState.treeRange[0];
     options.treeEndIdx = filterState.treeRange[1];
   }
-  
+
   return options;
 };
 
@@ -152,16 +164,26 @@ const filterDataByViewMode = (
   }
 };
 
-const applyTemporalFiltering = (data: GraphData, temporalState: any): GraphData => {
-  // Only apply filtering that removes nodes for 'hide' and 'hybrid' modes
-  if (!temporalState.isActive || (temporalState.mode !== 'hide' && temporalState.mode !== 'hybrid')) return data;
-  
+const applyTemporalFiltering = (
+  data: GraphData,
+  temporalState: any,
+  temporalFilterEnabled: boolean,
+  temporalFilterMode: 'subset' | 'dim'
+): GraphData => {
+  // Only apply filtering that removes nodes when:
+  // 1. Layer reveal is active with 'hide' or 'hybrid' mode, OR
+  // 2. Temporal filter is enabled with 'subset' mode
+  const shouldFilterForLayerReveal = temporalState.isActive && (temporalState.mode === 'hide' || temporalState.mode === 'hybrid');
+  const shouldFilterForSubsetMode = temporalFilterEnabled && temporalFilterMode === 'subset';
+
+  if (!shouldFilterForLayerReveal && !shouldFilterForSubsetMode) return data;
+
   const [minTimeFilter, maxTimeFilter] = temporalState.range;
   const isFullTimeRange = minTimeFilter === temporalState.minTime && maxTimeFilter === temporalState.maxTime;
-  
+
   if (isFullTimeRange) return data;
-  
-  const filteredNodes = data.nodes.filter(node => 
+
+  const filteredNodes = data.nodes.filter(node =>
     node.time >= minTimeFilter && node.time <= maxTimeFilter
   );
   const nodeIds = new Set(filteredNodes.map(node => node.id));
@@ -176,24 +198,6 @@ const applyTemporalFiltering = (data: GraphData, temporalState: any): GraphData 
     nodes: filteredNodes,
     edges: filteredEdges,
     metadata: { ...data.metadata, is_subset: true }
-  };
-};
-
-const calculateArgStats = (
-  subArgData: GraphData | null,
-  data: GraphData | null,
-  filteredData: GraphData | null,
-  treeSequence: any
-): ArgStatsData | null => {
-  if (!subArgData || !data || !filteredData || !treeSequence) return null;
-
-  return {
-    originalNodes: data.metadata.original_num_nodes || treeSequence.num_nodes,
-    originalEdges: data.metadata.original_num_edges || treeSequence.num_edges,
-    subArgNodes: subArgData.nodes.length,
-    subArgEdges: subArgData.edges.length,
-    displayedNodes: filteredData.nodes.length,
-    displayedEdges: filteredData.edges.length
   };
 };
 
@@ -245,9 +249,17 @@ const Spatial3DWrapper: React.FC<{
   edgeOpacity?: number;
   edgeLabelSettings?: { showEdgeLabels: boolean; labelFontSize: number };
   edgeMutationSettings?: EdgeMutationSettings;
+  colorByPopulation?: boolean;
   heatmapSettings?: AncestryHeatmapSettings;
   onViewStateChange?: (viewState: any) => void;
   viewState?: any;
+  // Spatial filter props for dim mode
+  genomicRange?: [number, number] | null;
+  genomicDimOpacity?: number;
+  treeRange?: [number, number] | null;
+  treeIntervals?: TreeInterval[];
+  treeDimOpacity?: number;
+  temporalDimOpacity?: number;
 }> = ({ 
   data, 
   originalData,
@@ -270,9 +282,16 @@ const Spatial3DWrapper: React.FC<{
   edgeOpacity,
   edgeLabelSettings,
   edgeMutationSettings,
+  colorByPopulation,
   heatmapSettings,
-  onViewStateChange, 
-  viewState 
+  onViewStateChange,
+  viewState,
+  genomicRange,
+  genomicDimOpacity,
+  treeRange,
+  treeIntervals,
+  treeDimOpacity,
+  temporalDimOpacity
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [dimensions, setDimensions] = useState(CONTAINER_CONSTANTS.DEFAULT_DIMENSIONS);
@@ -330,10 +349,17 @@ const Spatial3DWrapper: React.FC<{
         edgeOpacity={edgeOpacity}
         edgeLabelSettings={edgeLabelSettings}
         edgeMutationSettings={edgeMutationSettings}
+        colorByPopulation={colorByPopulation}
         heatmapSettings={heatmapSettings}
         onViewStateChange={onViewStateChange}
         externalViewState={viewState}
         temporalSpacingMode={temporalSpacingMode}
+        genomicRange={genomicRange}
+        genomicDimOpacity={genomicDimOpacity}
+        treeRange={treeRange}
+        treeIntervals={treeIntervals}
+        treeDimOpacity={treeDimOpacity}
+        temporalDimOpacity={temporalDimOpacity}
       />
     </div>
   );
@@ -352,15 +378,51 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 }) => {
   const { colors } = useColorTheme();
   const { treeSequence } = useTreeSequence();
-  
+  const [searchParams] = useSearchParams();
+
   const [data, setData] = useState<GraphData | null>(null);
   const [subArgData, setSubArgData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(true);
   const elapsedSeconds = useElapsedTime(loading);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [viewMode, setViewMode] = useState<ViewMode>('full');
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null);
+  const [initialFocusApplied, setInitialFocusApplied] = useState(false);
+
+  // Parse initial focus params from URL
+  const initialFocus = useMemo(() => {
+    const focusRootParam = searchParams.get('focus_root');
+    const focusSampleParam = searchParams.get('focus_sample');
+    if (focusRootParam) {
+      const id = parseInt(focusRootParam);
+      return !isNaN(id) ? { focusRoot: id } : undefined;
+    }
+    if (focusSampleParam) {
+      const id = parseInt(focusSampleParam);
+      return !isNaN(id) ? { focusSample: id } : undefined;
+    }
+    return undefined;
+  }, [searchParams]);
+
+  // Apply initial focus when data becomes available
+  useEffect(() => {
+    if (!data || initialFocusApplied) return;
+
+    const focusNodeId = initialFocus?.focusRoot ?? initialFocus?.focusSample;
+    if (focusNodeId === undefined) return;
+
+    const targetNode = data.nodes.find(n => n.id === focusNodeId);
+    if (!targetNode) {
+      console.warn(`Focus node ${focusNodeId} not found in graph data`);
+      setInitialFocusApplied(true);
+      return;
+    }
+
+    setSelectedNode(targetNode);
+    setViewMode(initialFocus?.focusRoot !== undefined ? 'subgraph' : 'ancestors');
+    setInitialFocusApplied(true);
+  }, [data, initialFocus, initialFocusApplied]);
   
   const [filterState, setFilterState] = useState({
     isActive: false,
@@ -385,11 +447,15 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const [visualSettings, setVisualSettings] = useState(DEFAULT_VISUAL_SETTINGS);
   const [nodeIdSettings, setNodeIdSettings] = useState<NodeIdSettings>(DEFAULT_VISUAL_SETTINGS.nodeIdSettings);
   const [edgeMutationSettings, setEdgeMutationSettings] = useState<EdgeMutationSettings>(DEFAULT_VISUAL_SETTINGS.edgeMutationSettings);
+  const [colorByPopulation, setColorByPopulation] = useState(false);
   const [heatmapSettings, setHeatmapSettings] = useState<AncestryHeatmapSettings>(() => ({
     ...DEFAULT_VISUAL_SETTINGS.heatmapSettings,
     enabled: initialHeatmapMode,
     nodeVisibility: initialHeatmapMode ? 'none' : 'all'
   }));
+  
+  const [unaryRetentionPercent, setUnaryRetentionPercent] = useState<number | null>(null); // null = not calculated yet
+  const [isCalculatingDefault, setIsCalculatingDefault] = useState(false);
   
   const [viewState, setViewState] = useState({
     target: [0, 0, 0] as [number, number, number], // Temporary, will be updated by auto-center
@@ -425,6 +491,59 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     initialZoom: 1.8, // Store initial zoom level for dynamic zoom calculation
     initialTarget: [0, 0, 0] as [number, number, number] // Store initial camera target
   });
+
+  // Filter visibility toggles (show sliders alongside visualization)
+  const [spatialFilterEnabled, setSpatialFilterEnabled] = useState(false);
+  const [temporalFilterEnabled, setTemporalFilterEnabled] = useState(false);
+
+  // Filter modes: 'subset' hides elements, 'dim' shows them with reduced opacity
+  const [genomicFilterMode, setGenomicFilterMode] = useState<'subset' | 'dim'>('dim');
+  const [treeFilterMode, setTreeFilterMode] = useState<'subset' | 'dim'>('dim');
+  const [temporalFilterMode, setTemporalFilterMode] = useState<'subset' | 'dim'>('dim');
+
+  // Dim opacity values (0-1) for when filter mode is 'dim'
+  const [genomicDimOpacity, setGenomicDimOpacity] = useState(0.15);
+  const [treeDimOpacity, setTreeDimOpacity] = useState(0.15);
+  const [temporalDimOpacity, setTemporalDimOpacity] = useState(0.15);
+
+  // Handler to set spatial filter enabled and initialize range to full when enabling
+  const handleSpatialFilterToggle = useCallback((enabled: boolean) => {
+    setSpatialFilterEnabled(enabled);
+    if (enabled) {
+      // When enabling, set range to full and mark filter as active
+      if (filterState.mode === 'genomic') {
+        setFilterState(prev => ({
+          ...prev,
+          isActive: true,
+          genomicRange: [0, metadata.sequenceLength]
+        }));
+      } else {
+        setFilterState(prev => ({
+          ...prev,
+          isActive: true,
+          treeRange: [0, metadata.treeIntervals.length - 1]
+        }));
+      }
+    } else {
+      // When disabling, mark filter as inactive
+      setFilterState(prev => ({
+        ...prev,
+        isActive: false
+      }));
+    }
+  }, [filterState.mode, metadata.sequenceLength, metadata.treeIntervals.length]);
+
+  // Handler to set temporal filter enabled and initialize range to full when enabling
+  const handleTemporalFilterToggle = useCallback((enabled: boolean) => {
+    setTemporalFilterEnabled(enabled);
+    if (enabled) {
+      // When enabling, set range to full [minTime, maxTime]
+      setTemporalState(prev => ({
+        ...prev,
+        range: [prev.minTime, prev.maxTime]
+      }));
+    }
+  }, []);
 
   const loadGeographicData = useCallback(async () => {
     try {
@@ -465,7 +584,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         setLoading(true);
         
         // Build options including URL parameters
-        const options: any = { maxSamples: max_samples };
+        // Start with 0% unary retention for initial load
+        const retentionPercent = unaryRetentionPercent ?? 0;
+        const options: any = { maxSamples: max_samples, unaryRetentionPercent: retentionPercent };
         
         // Add temporal filtering if provided via URL
         if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -527,7 +648,14 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           // Set intelligent defaults for node ID display based on data size
           const sampleCount = graphData.nodes.filter(n => n.is_sample).length;
           const rootCount = graphData.nodes.filter(n => isRootNode(n, graphData.nodes, graphData.edges)).length;
-          
+
+          // Calculate default temporal spacing based on number of layers
+          const uniqueTimes = Array.from(new Set(graphData.nodes.map(node => node.time))).sort((a, b) => a - b);
+          const numLayers = uniqueTimes.length;
+          const defaultTemporalSpacing = calculateDefaultTemporalSpacing(numLayers);
+
+          setVisualSettings(prev => ({ ...prev, temporalSpacing: defaultTemporalSpacing }));
+
           setNodeIdSettings({
             showSampleIds: sampleCount <= 40,
             showRootIds: rootCount <= 6,
@@ -543,7 +671,67 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     };
 
     fetchInitialData();
-  }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx]);
+  }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent]);
+
+  // Calculate smart default for unary retention (max 250 nodes)
+  useEffect(() => {
+    // Only calculate default once, and only if not already set
+    if (unaryRetentionPercent !== null || isCalculatingDefault || !data || data.nodes.length === 0) {
+      return;
+    }
+
+    const calculateDefault = async () => {
+      const baseNodeCount = data.nodes.length;
+      
+      // If we already have >= 250 nodes with 0% retention, default to 0
+      if (baseNodeCount >= 250) {
+        setUnaryRetentionPercent(0);
+        return;
+      }
+
+      // Otherwise, fetch with 100% to see total possible nodes
+      setIsCalculatingDefault(true);
+      try {
+        const options: any = { maxSamples: max_samples, unaryRetentionPercent: 100 };
+        
+        // Include same filters as initial load
+        if (temporalStart !== undefined && temporalEnd !== undefined) {
+          options.temporalStart = temporalStart;
+          options.temporalEnd = temporalEnd;
+        }
+        if (genomicStart !== undefined && genomicEnd !== undefined) {
+          options.genomicStart = genomicStart;
+          options.genomicEnd = genomicEnd;
+        } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
+          options.treeStartIdx = treeStartIdx;
+          options.treeEndIdx = treeEndIdx;
+        }
+
+        const response = await api.getGraphData(filename, options);
+        const fullGraphData = response.data as GraphData;
+        const totalNodeCount = fullGraphData.nodes.length;
+        const unaryNodeCount = totalNodeCount - baseNodeCount;
+
+        if (unaryNodeCount === 0) {
+          // No unary nodes available
+          setUnaryRetentionPercent(0);
+        } else {
+          // Calculate percentage to get to 250 nodes
+          const targetAdditionalNodes = 250 - baseNodeCount;
+          const calculatedPercent = Math.min(100, Math.max(0, (targetAdditionalNodes / unaryNodeCount) * 100));
+          setUnaryRetentionPercent(calculatedPercent);
+          console.log(`Calculated default unary retention: ${calculatedPercent.toFixed(1)}% (base: ${baseNodeCount}, total: ${totalNodeCount}, target: 250)`);
+        }
+      } catch (err) {
+        console.error('Error calculating default unary retention:', err);
+        setUnaryRetentionPercent(0); // Fallback to 0 on error
+      } finally {
+        setIsCalculatingDefault(false);
+      }
+    };
+
+    calculateDefault();
+  }, [data, filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, isCalculatingDefault]);
 
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
@@ -557,8 +745,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     loadingTimeoutRef.current = setTimeout(async () => {
       try {
         setLoading(true);
-        
-        const options = createFilterOptions(filterState, metadata, max_samples);
+
+        const options = createFilterOptions(filterState, metadata, max_samples, genomicFilterMode, treeFilterMode);
+        options.unaryRetentionPercent = unaryRetentionPercent ?? 0;
         
         // Always include URL parameters if present
         if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -612,7 +801,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         clearTimeout(loadingTimeoutRef.current);
       }
     };
-  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx]);
+  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, genomicFilterMode, treeFilterMode]);
 
   useEffect(() => {
     setVisualSettings(prev => ({
@@ -802,7 +991,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const getFilteredData = (): GraphData | null => {
     if (!data) return data;
 
-    const temporalFilteredData = applyTemporalFiltering(data, temporalState);
+    const temporalFilteredData = applyTemporalFiltering(data, temporalState, temporalFilterEnabled, temporalFilterMode);
     return filterDataByViewMode(temporalFilteredData, viewMode, selectedNode);
   };
 
@@ -953,372 +1142,42 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   }
 
   const filteredData = getFilteredData();
-  const stats = calculateArgStats(subArgData, data, filteredData, treeSequence);
 
   return (
-    <div 
-      className="w-full h-full flex flex-col overflow-hidden"
-      style={{ backgroundColor: colors.background }}
-    >
-      <div 
-        className="flex-shrink-0 border-b px-4 py-2"
-        style={{ 
-          backgroundColor: colors.background,
-          borderBottomColor: colors.border 
-        }}
-      >
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold" style={{ color: colors.headerText }}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: colors.background }}>
+      {/* Minimal Header - Title and view controls only */}
+      <div className="flex-shrink-0 border-b" style={{ backgroundColor: colors.background, borderBottomColor: colors.border }}>
+        <div className="px-4 py-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h2 className="text-sm font-medium" style={{ color: colors.headerText }}>
                 {getViewTitle(viewMode, selectedNode, filterState, data)}
               </h2>
-              
-              {(metadata.sequenceLength > 0 || metadata.treeIntervals.length > 0) && (
-                <div className="flex items-center gap-4">
-                  {metadata.sequenceLength > 0 && (
-                    <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.headerText }}>
-                      <input
-                        type="checkbox"
-                        checked={filterState.isActive}
-                        onChange={() => setFilterState(prev => ({ ...prev, isActive: !prev.isActive }))}
-                        className="w-4 h-4 rounded focus:ring-2"
-                        style={{
-                          accentColor: colors.accentPrimary
-                        }}
-                      />
-                      Filter Genomic Range
-                    </label>
-                  )}
-
-                  <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: colors.headerText }}>
-                    <input
-                      type="checkbox"
-                      checked={temporalState.isActive}
-                      onChange={() => setTemporalState(prev => ({ ...prev, isActive: !prev.isActive }))}
-                      className="w-4 h-4 rounded focus:ring-2"
-                      style={{
-                        accentColor: colors.accentPrimary
-                      }}
-                    />
-                    Filter Temporal Range
-                  </label>
-                </div>
-              )}
-              
               {viewMode !== 'full' && (
                 <button
                   onClick={handleReturnToFull}
-                  className="font-medium px-3 py-1 rounded text-sm transition-colors border"
-                  style={{
-                    backgroundColor: colors.containerBackground,
-                    color: colors.text,
-                    borderColor: `${colors.accentPrimary}33`
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.accentPrimary}66`;
-                    e.currentTarget.style.backgroundColor = `${colors.containerBackground}CC`;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.borderColor = `${colors.accentPrimary}33`;
-                    e.currentTarget.style.backgroundColor = colors.containerBackground;
-                  }}
+                  className="font-medium px-2 py-0.5 rounded text-xs transition-colors border"
+                  style={{ backgroundColor: colors.containerBackground, color: colors.text, borderColor: `${colors.accentPrimary}33` }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = `${colors.accentPrimary}66`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = `${colors.accentPrimary}33`; }}
                 >
-                  Return to Full ARG
+                  Return to Full
                 </button>
               )}
             </div>
-          </div>
-          
-          <div className="flex items-center gap-6">
-            {/* Show/hide controls button when filters are active */}
-            {(filterState.isActive || temporalState.isActive) && (
-              <button
-                onClick={() => setVisualSettings(prev => ({ ...prev, isFilterSectionCollapsed: !prev.isFilterSectionCollapsed }))}
-                className="flex items-center gap-2 px-3 py-1 rounded text-sm font-medium transition-colors"
-                style={{
-                  backgroundColor: colors.accentPrimary,
-                  color: colors.background
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-              >
-                <span>
-                  {visualSettings.isFilterSectionCollapsed ? 'Show Sliders' : 'Hide Sliders'}
-                </span>
-                <svg 
-                  className={`w-4 h-4 transition-transform ${visualSettings.isFilterSectionCollapsed ? 'rotate-180' : ''}`}
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-            )}
-            
-            <div className="flex items-center gap-4 text-xs" style={{ color: colors.headerText }}>
-              <div className="flex items-center gap-1">
-                <div 
-                  className="w-2 h-2 rounded-full border"
-                  style={{
-                    backgroundColor: `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`,
-                    borderColor: colors.background,
-                    borderWidth: '0.5px'
-                  }}
-                ></div>
-                <span>Sample</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div 
-                  className="w-2 h-2 rounded-full" 
-                  style={{backgroundColor: `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`}}
-                ></div>
-                <span>Internal</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div 
-                  className="w-2 h-2 rounded-full" 
-                  style={{backgroundColor: `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`}}
-                ></div>
-                <span>Combined</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div 
-                  className="w-2 h-2 rounded-full border-2" 
-                  style={{
-                    backgroundColor: `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`,
-                    borderColor: `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`
-                  }}
-                ></div>
-                <span>Root</span>
-              </div>
-            </div>
-            
-            <div 
-              className="text-xs border-l pl-4"
-              style={{ 
-                color: colors.headerText,
-                borderLeftColor: colors.border 
-              }}
-            >
-              Left click: Subgraph • Right click: Ancestors
+            {/* Interaction hints */}
+            <div className="flex items-center gap-4 text-xs" style={{ color: colors.textSecondary }}>
+              <span className="opacity-60">Click: Subgraph | Right-click: Ancestors</span>
             </div>
           </div>
         </div>
       </div>
-      
-      {/* Filter Controls Section - always show statistics bar */}
-      <div 
-        className="flex-shrink-0 border-b"
-        style={{ 
-          backgroundColor: colors.background,
-          borderBottomColor: colors.border 
-        }}
-      >
-        {/* Always show statistics bar when collapsed or when no filters are active */}
-        {(visualSettings.isFilterSectionCollapsed || (!filterState.isActive && !temporalState.isActive)) && (
-          <div className="px-4 py-2">
-            <div className="flex items-center justify-end gap-4">
-              <CompactStatistics
-                filename={filename}
-                genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
-                temporalRange={temporalState.isActive ? temporalState.range : null}
-                treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
-                isActive={true} // Always active to show full sequence stats when filters are off
-                sequenceLength={metadata.sequenceLength}
-              />
-            </div>
-          </div>
-        )}
-        
-        {/* Show full filter controls when not collapsed and filters are active */}
-        {(filterState.isActive || temporalState.isActive) && !visualSettings.isFilterSectionCollapsed && (
-            <div className="px-4 py-3">
-              <div className="flex items-start justify-between gap-6">
-                <div className="flex flex-col gap-3 flex-shrink-0 min-w-0">
-                  {filterState.isActive && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>Genomic Mode:</span>
-                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
-                        <button
-                          onClick={() => setFilterState(prev => ({ ...prev, mode: 'genomic' }))}
-                          className="px-3 py-1 text-xs font-medium transition-colors"
-                          style={{
-                            backgroundColor: filterState.mode === 'genomic' ? colors.accentPrimary : colors.containerBackground,
-                            color: filterState.mode === 'genomic' ? colors.background : colors.text
-                          }}
-                        >
-                          Genomic
-                        </button>
-                        {metadata.treeIntervals.length > 0 && (
-                          <button
-                            onClick={() => setFilterState(prev => ({ ...prev, mode: 'tree' }))}
-                            className="px-3 py-1 text-xs font-medium transition-colors"
-                            style={{
-                              backgroundColor: filterState.mode === 'tree' ? colors.accentPrimary : colors.containerBackground,
-                              color: filterState.mode === 'tree' ? colors.background : colors.text
-                            }}
-                          >
-                            Tree Index
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
 
-                  {temporalState.isActive && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm whitespace-nowrap" style={{ color: colors.text }}>Temporal Mode:</span>
-                      <div className="flex rounded overflow-hidden" style={{ backgroundColor: colors.containerBackground }}>
-                        <button
-                          onClick={() => setTemporalState(prev => ({ ...prev, mode: 'hide' }))}
-                          className="px-3 py-1 text-xs font-medium transition-colors"
-                          style={{
-                            backgroundColor: temporalState.mode === 'hide' ? colors.accentPrimary : colors.containerBackground,
-                            color: temporalState.mode === 'hide' ? colors.background : colors.text
-                          }}
-                        >
-                          Hide Others
-                        </button>
-                        <button
-                          onClick={() => setTemporalState(prev => ({ ...prev, mode: 'planes' }))}
-                          className="px-3 py-1 text-xs font-medium transition-colors"
-                          style={{
-                            backgroundColor: temporalState.mode === 'planes' ? colors.accentPrimary : colors.containerBackground,
-                            color: temporalState.mode === 'planes' ? colors.background : colors.text
-                          }}
-                        >
-                          Dim Others
-                        </button>
-                        <button
-                          onClick={() => setTemporalState(prev => ({ ...prev, mode: 'hybrid' }))}
-                          className="px-3 py-1 text-xs font-medium transition-colors"
-                          style={{
-                            backgroundColor: temporalState.mode === 'hybrid' ? colors.accentPrimary : colors.containerBackground,
-                            color: temporalState.mode === 'hybrid' ? colors.background : colors.text
-                          }}
-                        >
-                          Hybrid
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {filterState.isActive && (
-                  <div className="flex items-center gap-4 flex-1 min-w-0">
-                    <div className="flex-1 max-w-md min-w-0">
-                      {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
-                        <RangeSlider
-                          min={0}
-                          max={metadata.sequenceLength}
-                          step={Math.max(1, Math.floor(metadata.sequenceLength / CONTAINER_CONSTANTS.GENOMIC_STEP_DIVISOR))}
-                          value={filterState.genomicRange}
-                          onChange={(newRange) => setFilterState(prev => ({ ...prev, genomicRange: newRange }))}
-                          formatValue={formatGenomicPosition}
-                          className="w-full"
-                        />
-                      ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
-                        <TreeRangeSlider
-                          treeIntervals={metadata.treeIntervals}
-                          value={filterState.treeRange}
-                          onChange={(newRange) => setFilterState(prev => ({ ...prev, treeRange: newRange }))}
-                          className="w-full"
-                        />
-                      ) : null}
-                    </div>
-                    
-                    {/* Compact statistics display */}
-                    <CompactStatistics
-                      filename={filename}
-                      genomicRange={filterState.mode === 'genomic' ? filterState.genomicRange : null}
-                      temporalRange={temporalState.isActive ? temporalState.range : null}
-                      treeRange={filterState.mode === 'tree' ? filterState.treeRange : null}
-                      isActive={true} // Always active to show full sequence stats when filters are off
-                      sequenceLength={metadata.sequenceLength}
-                    />
-                    
-                    {/* Inline filter info */}
-                    <div className="text-xs flex-shrink-0" style={{ color: colors.text }}>
-                      {filterState.mode === 'genomic' ? (
-                        <span>
-                          {formatGenomicPosition(filterState.genomicRange[1] - filterState.genomicRange[0])} bp
-                          ({calcPercentage(filterState.genomicRange[1] - filterState.genomicRange[0], metadata.sequenceLength)}%)
-                          {data?.metadata.num_local_trees !== undefined && (
-                            <> • {data.metadata.num_local_trees} trees</>
-                          )}
-                        </span>
-                      ) : filterState.mode === 'tree' && metadata.treeIntervals.length > 0 ? (
-                        <span>
-                          Trees {filterState.treeRange[0]}-{filterState.treeRange[1]} ({filterState.treeRange[1] - filterState.treeRange[0] + 1} of {metadata.treeIntervals.length})
-                          {data?.metadata.num_local_trees !== undefined && (
-                            <> • {data.metadata.expected_tree_count ?? data.metadata.num_local_trees} displayed</>
-                          )}
-                          {data?.metadata.tree_count_mismatch && (
-                            <> ⚠️ (actual: {data.metadata.num_local_trees})</>
-                          )}
-                        </span>
-                      ) : null}
-                      {loading && (
-                        <div 
-                          className="inline-block ml-2 animate-spin rounded-full h-3 w-3 border border-t-transparent"
-                          style={{ borderColor: colors.accentPrimary }}
-                        ></div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Show statistics when only temporal filter is active */}
-                {!filterState.isActive && temporalState.isActive && (
-                  <div className="flex items-center gap-4 flex-1 min-w-0 justify-end">
-                    <CompactStatistics
-                      filename={filename}
-                      genomicRange={null}
-                      temporalRange={temporalState.range}
-                      treeRange={null}
-                      isActive={true}
-                      sequenceLength={metadata.sequenceLength}
-                    />
-                  </div>
-                )}
-              </div>
-              
-              {temporalState.isActive && (
-                <div className="text-xs mt-3" style={{ color: colors.text }}>
-                  <div className="flex items-center gap-2">
-                    <span>
-                      Temporal Range: {temporalState.range[0].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)} - {temporalState.range[1].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}{' '}
-                      ({calcPercentage(temporalState.range[1] - temporalState.range[0], temporalState.maxTime - temporalState.minTime)}% of time range)
-                      • Hold Shift + drag to maintain window size
-                    </span>
-                    {loading && (
-                      <div 
-                        className="animate-spin rounded-full h-3 w-3 border border-t-transparent"
-                        style={{ borderColor: colors.accentPrimary }}
-                      ></div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-      <div className="flex-1 overflow-hidden flex">
-        {temporalState.isActive && (
-          <div 
-            className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center"
-            style={{ 
-              backgroundColor: colors.background,
-              borderRightColor: colors.border 
-            }}
-          >
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden flex min-h-0 min-w-0">
+        {/* Temporal slider on left when temporal filter is enabled */}
+        {temporalFilterEnabled && temporalState.maxTime > temporalState.minTime && (
+          <div className="flex-shrink-0 border-r px-3 py-4 flex items-center justify-center" style={{ backgroundColor: colors.background, borderRightColor: colors.border }}>
             <TemporalRangeSlider
               min={temporalState.minTime}
               max={temporalState.maxTime}
@@ -1327,284 +1186,324 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               onChange={(newRange) => setTemporalState(prev => ({ ...prev, range: newRange }))}
               formatValue={(v) => v.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}
               height={CONTAINER_CONSTANTS.TEMPORAL_SLIDER_HEIGHT}
+              filterMode={temporalFilterMode === 'subset' ? 'subset' : 'highlight'}
+              onFilterModeChange={(mode) => setTemporalFilterMode(mode === 'subset' ? 'subset' : 'dim')}
+              dimOpacity={temporalDimOpacity}
+              onDimOpacityChange={setTemporalDimOpacity}
             />
           </div>
         )}
-        
-        <div className="flex-1 overflow-hidden flex flex-row">
+
+        {/* Visualization + optional bottom slider */}
+        <div className="flex-1 flex flex-col overflow-hidden min-h-0 min-w-0">
           {/* Main visualization area */}
-          <div className="flex-1 overflow-hidden relative">
-          {/* Time indicator during layer reveal */}
-          {layerReveal.enabled && (
-            <div 
-              className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg border"
-              style={{
-                backgroundColor: `${colors.background}F0`,
-                borderColor: colors.accentPrimary,
-                color: colors.accentPrimary
-              }}
-            >
-              <div className="flex items-center gap-2">
-                <svg 
-                  className={`w-4 h-4 ${layerReveal.isPlaying ? 'animate-pulse' : ''}`} 
-                  fill="none" 
-                  stroke="currentColor" 
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-mono font-bold text-lg">
-                  {(() => {
-                    const isRootToSamples = layerReveal.mode === 'root-to-samples';
-                    const displayTime = isRootToSamples ? temporalState.range[0] : temporalState.range[1];
-                    const isAtMinTime = Math.abs(displayTime - temporalState.minTime) < 0.0001;
-                    const isAtMaxTime = Math.abs(displayTime - temporalState.maxTime) < 0.0001;
-                    
-                    let label = `t = ${displayTime.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}`;
-                    
-                    if (isAtMinTime) {
-                      label += ' (present)';
-                    } else if (isAtMaxTime) {
-                      label += ' (MRCA)';
-                    }
-                    
-                    return label;
-                  })()}
-                </span>
-                {layerReveal.isPlaying && (
-                  <span className="text-xs opacity-75">Playing</span>
-                )}
-              </div>
-            </div>
-          )}
-          <Spatial3DWrapper
-            data={filteredData}
-            originalData={data}
-            onNodeClick={handleNodeClick}
-            onNodeRightClick={handleNodeRightClick}
-            selectedNode={selectedNode}
-            temporalRange={temporalState.isActive ? temporalState.range : null}
-            showTemporalPlanes={temporalState.isActive && (temporalState.mode === 'planes' || temporalState.mode === 'hybrid')}
-            temporalFilterMode={temporalState.isActive ? temporalState.mode : null}
-            temporalSpacing={visualSettings.temporalSpacing}
-            temporalSpacingMode={visualSettings.temporalSpacingMode}
-            spatialSpacing={visualSettings.spatialSpacing}
-            geographicShape={geoState.currentShape}
-            geographicMode={geoState.mode}
-            temporalGridOpacity={visualSettings.temporalGridOpacity}
-            geographicShapeOpacity={visualSettings.geographicShapeOpacity}
-            nodeSizes={visualSettings.nodeSizes}
-            nodeIdSettings={nodeIdSettings}
-            edgeThickness={visualSettings.edgeThickness}
-            edgeOpacity={visualSettings.edgeOpacity}
-            edgeLabelSettings={visualSettings.edgeLabelSettings}
-            edgeMutationSettings={edgeMutationSettings}
-            heatmapSettings={heatmapSettings}
-            onViewStateChange={handleViewStateChange}
-            viewState={viewState}
-          />
-        </div>
-        
-        {/* New Unified Sidebar */}
-        <VisualizationSidebar
-          position="right"
-          defaultWidth={360}
-          minWidth={280}
-          maxWidth={500}
-          defaultCollapsed={false}
-          sections={[
-            {
-              id: 'visualization',
-              title: 'Visualization',
-              icon: (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              ),
-              defaultOpen: true,
-              content: (
-                <VisualizationSection
-                  geographicMode={geoState.mode}
-                  onGeographicModeChange={(mode) => setGeoState(prev => ({ ...prev, mode }))}
-                  customShapeFile={geoState.customShapeFile}
-                  onCustomShapeFileChange={(file) => setGeoState(prev => ({ ...prev, customShapeFile: file }))}
-                  geographicShapeOpacity={visualSettings.geographicShapeOpacity}
-                  onGeographicShapeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, geographicShapeOpacity: value }))}
-                  isLoadingGeographic={geoState.isLoading}
-                  currentShape={geoState.currentShape}
-                  temporalSpacing={visualSettings.temporalSpacing}
-                  onTemporalSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, temporalSpacing: value }))}
-                  temporalSpacingMode={visualSettings.temporalSpacingMode}
-                  onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
-                  temporalGridOpacity={visualSettings.temporalGridOpacity}
-                  onTemporalGridOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, temporalGridOpacity: value }))}
-                  spatialSpacing={visualSettings.spatialSpacing}
-                  onSpatialSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, spatialSpacing: value }))}
-                  temporalFilterMode={temporalState.mode}
-                  isTemporalFilterActive={temporalState.isActive}
-                  heatmapSettings={heatmapSettings}
-                  onHeatmapSettingsChange={(settings) => setHeatmapSettings(settings)}
-                  showCrsWarning={geoState.showCrsWarning}
-                  crsDetection={data?.metadata.coordinate_system_detection}
-                  onDismissCrsWarning={() => setGeoState(prev => ({ ...prev, showCrsWarning: false }))}
-                />
-              ),
-            },
-            {
-              id: 'view-controls',
-              title: 'View Controls',
-              icon: (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-              ),
-              defaultOpen: true,
-              content: (
-                <ViewControlsSection
-                  currentViewState={viewState}
-                  bounds={calculateBounds(filteredData)}
-                  onViewStateChange={handlePresetViewChange}
-                  autoRotationEnabled={autoRotation.enabled}
-                  autoRotationRate={autoRotation.rate}
-                  onAutoRotationEnabledChange={(enabled) => setAutoRotation(prev => ({ ...prev, enabled }))}
-                  onAutoRotationRateChange={(rate) => setAutoRotation(prev => ({ ...prev, rate }))}
-                  layerRevealEnabled={layerReveal.enabled}
-                  layerRevealPlaying={layerReveal.isPlaying}
-                  layerRevealRate={layerReveal.rate}
-                  layerRevealMode={layerReveal.mode}
-                  onLayerRevealModeChange={(mode: 'hide' | 'glide' | 'root-to-samples') => setLayerReveal(prev => ({ ...prev, mode }))}
-                  onLayerRevealStart={() => {
-                    if (data) {
-                      const uniqueTimes = Array.from(new Set(data.nodes.map(node => node.time))).sort((a, b) => a - b);
-                      const minTime = uniqueTimes[0];
-                      const maxTime = uniqueTimes[uniqueTimes.length - 1];
-                      
-                      if (layerReveal.mode === 'root-to-samples') {
-                        // Start from root (maxTime) and reveal down
-                        setTemporalState(prev => ({ 
-                          ...prev, 
-                          isActive: true, 
-                          mode: 'hide',
-                          range: [maxTime, maxTime] 
-                        }));
-                      } else {
-                        // Start from samples (minTime) and reveal up
-                        setTemporalState(prev => ({ 
-                          ...prev, 
-                          isActive: true, 
-                          mode: layerReveal.mode === 'glide' ? 'hybrid' : 'hide', 
-                          range: [minTime, minTime] 
-                        }));
+          <div className="flex-1 overflow-hidden relative min-h-0 min-w-0">
+            {/* Time indicator during layer reveal */}
+            {layerReveal.enabled && (
+              <div
+                className="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 px-4 py-2 rounded-lg shadow-lg border"
+                style={{
+                  backgroundColor: `${colors.background}F0`,
+                  borderColor: colors.accentPrimary,
+                  color: colors.accentPrimary
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <svg
+                    className={`w-4 h-4 ${layerReveal.isPlaying ? 'animate-pulse' : ''}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="font-mono font-bold text-lg">
+                    {(() => {
+                      const isRootToSamples = layerReveal.mode === 'root-to-samples';
+                      const displayTime = isRootToSamples ? temporalState.range[0] : temporalState.range[1];
+                      const isAtMinTime = Math.abs(displayTime - temporalState.minTime) < 0.0001;
+                      const isAtMaxTime = Math.abs(displayTime - temporalState.maxTime) < 0.0001;
+
+                      let label = `t = ${displayTime.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}`;
+
+                      if (isAtMinTime) {
+                        label += ' (present)';
+                      } else if (isAtMaxTime) {
+                        label += ' (MRCA)';
                       }
-                      
-                      setLayerReveal(prev => ({ 
-                        ...prev, 
-                        enabled: true, 
-                        isPlaying: true, 
-                        currentProgress: 0,
-                        initialZoom: viewState.zoom, // Capture current zoom for dynamic adjustment
-                        initialTarget: viewState.target // Capture current camera target
+
+                      return label;
+                    })()}
+                  </span>
+                  {layerReveal.isPlaying && (
+                    <span className="text-xs opacity-75">Playing</span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Time indicator when temporal filter enabled */}
+            {temporalFilterEnabled && !layerReveal.enabled && (
+              <div className="absolute left-1/2 -translate-x-1/2 top-2 px-2.5 py-1.5 rounded text-xs font-semibold border shadow-sm" style={{ backgroundColor: `${colors.containerBackground}E6`, color: colors.text, borderColor: colors.border, backdropFilter: 'blur(2px)' }}>
+                t = {temporalState.range[1].toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)}
+              </div>
+            )}
+
+            <Spatial3DWrapper
+              data={filteredData}
+              originalData={data}
+              onNodeClick={handleNodeClick}
+              onNodeRightClick={handleNodeRightClick}
+              selectedNode={selectedNode}
+              temporalRange={temporalFilterEnabled ? temporalState.range : null}
+              showTemporalPlanes={temporalFilterEnabled && (temporalState.mode === 'planes' || temporalState.mode === 'hybrid')}
+              temporalFilterMode={temporalFilterEnabled ? temporalState.mode : null}
+              temporalSpacing={visualSettings.temporalSpacing}
+              temporalSpacingMode={visualSettings.temporalSpacingMode}
+              spatialSpacing={visualSettings.spatialSpacing}
+              geographicShape={geoState.currentShape}
+              geographicMode={geoState.mode}
+              temporalGridOpacity={visualSettings.temporalGridOpacity}
+              geographicShapeOpacity={visualSettings.geographicShapeOpacity}
+              nodeSizes={visualSettings.nodeSizes}
+              nodeIdSettings={nodeIdSettings}
+              edgeThickness={visualSettings.edgeThickness}
+              edgeOpacity={visualSettings.edgeOpacity}
+              edgeLabelSettings={visualSettings.edgeLabelSettings}
+              edgeMutationSettings={edgeMutationSettings}
+              colorByPopulation={colorByPopulation}
+              heatmapSettings={heatmapSettings}
+              onViewStateChange={handleViewStateChange}
+              viewState={viewState}
+              // Spatial filter props for dim mode
+              genomicRange={spatialFilterEnabled && filterState.mode === 'genomic' && genomicFilterMode === 'dim' ? filterState.genomicRange : null}
+              genomicDimOpacity={genomicDimOpacity}
+              treeRange={spatialFilterEnabled && filterState.mode === 'tree' && treeFilterMode === 'dim' ? filterState.treeRange : null}
+              treeIntervals={metadata.treeIntervals}
+              treeDimOpacity={treeDimOpacity}
+              temporalDimOpacity={temporalFilterEnabled && temporalFilterMode === 'dim' ? temporalDimOpacity : undefined}
+            />
+
+            {/* Floating Quick Actions Bar */}
+            <KeyboardShortcutProvider>
+              <SpatialArg3DControls
+                // Filter props
+                genomicFilter={metadata.sequenceLength > 0 ? {
+                  enabled: true,
+                  sequenceLength: metadata.sequenceLength,
+                  value: filterState.genomicRange,
+                  onChange: (range) => setFilterState(prev => ({ ...prev, genomicRange: range })),
+                  formatValue: formatGenomicPosition
+                } : undefined}
+                treeFilter={metadata.treeIntervals.length > 0 ? {
+                  enabled: true,
+                  treeIntervals: metadata.treeIntervals,
+                  value: filterState.treeRange,
+                  onChange: (range) => setFilterState(prev => ({ ...prev, treeRange: range }))
+                } : undefined}
+                temporalFilter={temporalState.maxTime > temporalState.minTime ? {
+                  enabled: true,
+                  min: temporalState.minTime,
+                  max: temporalState.maxTime,
+                  value: temporalState.range,
+                  onChange: (range) => setTemporalState(prev => ({ ...prev, range })),
+                  formatValue: (v) => v.toFixed(CONTAINER_CONSTANTS.TIME_PRECISION)
+                } : undefined}
+                filterType={filterState.mode === 'genomic' ? 'genomic' : 'tree'}
+                onFilterTypeChange={(type) => setFilterState(prev => ({ ...prev, mode: type as FilterMode }))}
+                spatialFilterEnabled={spatialFilterEnabled}
+                onSpatialFilterToggle={handleSpatialFilterToggle}
+                temporalFilterEnabled={temporalFilterEnabled}
+                onTemporalFilterToggle={handleTemporalFilterToggle}
+                temporalFilterMode={temporalState.mode === 'hide' ? 'subset' : temporalState.mode === 'planes' ? 'highlight' : 'subset'}
+                onTemporalFilterModeChange={(mode) => setTemporalState(prev => ({
+                  ...prev,
+                  mode: mode === 'subset' ? 'hide' : mode === 'highlight' ? 'planes' : 'hybrid'
+                }))}
+
+                // Nodes props
+                colorBy={colorByPopulation ? 'population' : 'type'}
+                onColorByChange={(mode) => setColorByPopulation(mode === 'population')}
+                availableColorModes={data?.metadata?.has_populations ? ['type', 'population'] : ['type']}
+                nodeSizes={visualSettings.nodeSizes}
+                onNodeSizesChange={(sizes) => setVisualSettings(prev => ({ ...prev, nodeSizes: sizes }))}
+                nodeIdSettings={nodeIdSettings}
+                onNodeIdSettingsChange={setNodeIdSettings}
+
+                // Edges props
+                edgeThickness={visualSettings.edgeThickness}
+                onEdgeThicknessChange={(thickness) => setVisualSettings(prev => ({ ...prev, edgeThickness: thickness }))}
+                edgeOpacity={visualSettings.edgeOpacity}
+                onEdgeOpacityChange={(opacity) => setVisualSettings(prev => ({ ...prev, edgeOpacity: opacity }))}
+                showEdgeLabels={visualSettings.edgeLabelSettings.showEdgeLabels}
+                onShowEdgeLabelsChange={(show) => setVisualSettings(prev => ({
+                  ...prev,
+                  edgeLabelSettings: { ...prev.edgeLabelSettings, showEdgeLabels: show }
+                }))}
+                edgeLabelFontSize={visualSettings.edgeLabelSettings.labelFontSize}
+                onEdgeLabelFontSizeChange={(size) => setVisualSettings(prev => ({
+                  ...prev,
+                  edgeLabelSettings: { ...prev.edgeLabelSettings, labelFontSize: size }
+                }))}
+
+                // Mutations props
+                showMutationMarkers={edgeMutationSettings.showMutationMarkers}
+                onShowMutationMarkersChange={(show) => setEdgeMutationSettings(prev => ({ ...prev, showMutationMarkers: show }))}
+                mutationMarkerSize={edgeMutationSettings.markerSize}
+                onMutationMarkerSizeChange={(size) => setEdgeMutationSettings(prev => ({ ...prev, markerSize: size }))}
+
+                // Stats props
+                nodeEdgeStats={data ? {
+                  originalNodes: data.metadata.original_num_nodes || treeSequence?.num_nodes || data.nodes.length,
+                  subsetNodes: subArgData?.nodes.length || data.nodes.length,
+                  displayedNodes: filteredData?.nodes.length || data.nodes.length,
+                  originalEdges: data.metadata.original_num_edges || treeSequence?.num_edges || data.edges.length,
+                  subsetEdges: subArgData?.edges.length || data.edges.length,
+                  displayedEdges: filteredData?.edges.length || data.edges.length,
+                } : undefined}
+                sequenceStats={treeSequence ? {
+                  samples: treeSequence.num_samples ?? 0,
+                  sites: treeSequence.num_sites ?? 0,
+                  trees: treeSequence.num_trees ?? 1,
+                  mutations: treeSequence.num_mutations ?? 0,
+                } : data ? {
+                  samples: data.metadata.num_samples || data.nodes.filter((n: GraphNode) => n.is_sample).length,
+                  sites: 0,
+                  trees: data.metadata.num_local_trees || 1,
+                  mutations: 0,
+                } : undefined}
+
+                // Export props
+                filename={filename}
+
+                // Camera props
+                currentRotationX={viewState.rotationX}
+                currentRotationOrbit={viewState.rotationOrbit}
+                currentZoom={viewState.zoom}
+                onPresetSelect={(preset: CameraPreset) => handlePresetViewChange({ ...viewState, rotationX: preset.rotationX, rotationOrbit: preset.rotationOrbit })}
+                onCenterView={() => autoCenterView(data)}
+                autoRotationEnabled={autoRotation.enabled}
+                onAutoRotationEnabledChange={(enabled) => setAutoRotation(prev => ({ ...prev, enabled }))}
+                autoRotationRate={autoRotation.rate}
+                onAutoRotationRateChange={(rate) => setAutoRotation(prev => ({ ...prev, rate }))}
+
+                // Spatial props
+                geographicMode={geoState.mode as QuickActionsGeographicMode}
+                onGeographicModeChange={(mode) => setGeoState(prev => ({ ...prev, mode: mode as GeographicMode }))}
+                customShapeFile={geoState.customShapeFile}
+                onCustomShapeFileChange={(file) => setGeoState(prev => ({ ...prev, customShapeFile: file }))}
+                geographicShapeOpacity={visualSettings.geographicShapeOpacity}
+                onGeographicShapeOpacityChange={(opacity) => setVisualSettings(prev => ({ ...prev, geographicShapeOpacity: opacity }))}
+                isLoadingGeographic={geoState.isLoading}
+                temporalSpacing={visualSettings.temporalSpacing}
+                onTemporalSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, temporalSpacing: value }))}
+                temporalSpacingMode={visualSettings.temporalSpacingMode}
+                onTemporalSpacingModeChange={(mode) => setVisualSettings(prev => ({ ...prev, temporalSpacingMode: mode }))}
+                spatialSpacing={visualSettings.spatialSpacing}
+                onSpatialSpacingChange={(value) => setVisualSettings(prev => ({ ...prev, spatialSpacing: value }))}
+                temporalGridOpacity={visualSettings.temporalGridOpacity}
+                onTemporalGridOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, temporalGridOpacity: value }))}
+                heatmapSettings={heatmapSettings}
+                onHeatmapSettingsChange={setHeatmapSettings}
+                isTemporalFilterActive={temporalFilterEnabled}
+                unaryRetentionPercent={unaryRetentionPercent ?? 0}
+                onUnaryRetentionPercentChange={setUnaryRetentionPercent}
+
+                floating={true}
+              />
+            </KeyboardShortcutProvider>
+
+            {/* Floating Legend */}
+            <div className="absolute bottom-4 right-4 z-50">
+              <SpatialArg3DLegend showMutations={edgeMutationSettings.showMutationMarkers} />
+            </div>
+
+            {/* Floating Animation Popout */}
+            {temporalState.maxTime > temporalState.minTime && (
+              <SpatialArg3DAnimationPopout
+                enabled={layerReveal.enabled}
+                isPlaying={layerReveal.isPlaying}
+                rate={layerReveal.rate}
+                mode={layerReveal.mode}
+                progress={layerReveal.currentProgress}
+                currentTime={layerReveal.mode === 'root-to-samples' ? temporalState.range[0] : temporalState.range[1]}
+                onStart={() => {
+                  if (data) {
+                    const uniqueTimes = Array.from(new Set(data.nodes.map(node => node.time))).sort((a, b) => a - b);
+                    const minTime = uniqueTimes[0];
+                    const maxTime = uniqueTimes[uniqueTimes.length - 1];
+
+                    if (layerReveal.mode === 'root-to-samples') {
+                      setTemporalState(prev => ({
+                        ...prev,
+                        isActive: true,
+                        mode: 'hide',
+                        range: [maxTime, maxTime]
+                      }));
+                    } else {
+                      setTemporalState(prev => ({
+                        ...prev,
+                        isActive: true,
+                        mode: layerReveal.mode === 'glide' ? 'hybrid' : 'hide',
+                        range: [minTime, minTime]
                       }));
                     }
-                  }}
-                  onLayerRevealPause={() => setLayerReveal(prev => ({ ...prev, isPlaying: false }))}
-                  onLayerRevealResume={() => setLayerReveal(prev => ({ ...prev, isPlaying: true }))}
-                  onLayerRevealCancel={() => {
-                    setLayerReveal(prev => ({ ...prev, enabled: false, isPlaying: false, currentProgress: 0 }));
-                    setTemporalState(prev => ({ ...prev, isActive: false, range: [prev.minTime, prev.maxTime] }));
-                  }}
-                  onLayerRevealRateChange={(rate: number) => setLayerReveal(prev => ({ ...prev, rate }))}
+
+                    setTemporalFilterEnabled(true);
+                    setLayerReveal(prev => ({
+                      ...prev,
+                      enabled: true,
+                      isPlaying: true,
+                      currentProgress: 0,
+                      initialZoom: viewState.zoom,
+                      initialTarget: viewState.target
+                    }));
+                  }
+                }}
+                onPause={() => setLayerReveal(prev => ({ ...prev, isPlaying: false }))}
+                onResume={() => setLayerReveal(prev => ({ ...prev, isPlaying: true }))}
+                onCancel={() => {
+                  setLayerReveal(prev => ({ ...prev, enabled: false, isPlaying: false, currentProgress: 0 }));
+                  setTemporalState(prev => ({ ...prev, isActive: false, range: [prev.minTime, prev.maxTime] }));
+                  setTemporalFilterEnabled(false);
+                }}
+                onRateChange={(rate) => setLayerReveal(prev => ({ ...prev, rate }))}
+                onModeChange={(mode) => setLayerReveal(prev => ({ ...prev, mode }))}
+              />
+            )}
+          </div>
+
+          {/* Spatial (genomic/tree) slider at bottom when enabled */}
+          {spatialFilterEnabled && (
+            <div className="flex-shrink-0 border-t px-4 pt-2 pb-1" style={{ backgroundColor: colors.background, borderTopColor: colors.border }}>
+              {filterState.mode === 'genomic' && metadata.sequenceLength > 0 ? (
+                <RangeSlider
+                  min={0}
+                  max={metadata.sequenceLength}
+                  step={Math.max(1, Math.floor(metadata.sequenceLength / CONTAINER_CONSTANTS.GENOMIC_STEP_DIVISOR))}
+                  value={filterState.genomicRange}
+                  onChange={(newRange) => setFilterState(prev => ({ ...prev, genomicRange: newRange }))}
+                  formatValue={formatGenomicPosition}
+                  label="Genomic Range"
+                  filterMode={genomicFilterMode === 'subset' ? 'subset' : 'highlight'}
+                  onFilterModeChange={(mode) => setGenomicFilterMode(mode === 'subset' ? 'subset' : 'dim')}
+                  dimOpacity={genomicDimOpacity}
+                  onDimOpacityChange={setGenomicDimOpacity}
                 />
-              ),
-            },
-            {
-              id: 'elements',
-              title: 'Elements',
-              icon: (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-              ),
-              defaultOpen: false,
-              content: (
-                <ElementsSection
-                  nodeSizes={visualSettings.nodeSizes}
-                  onNodeSizeChange={(sizes) => setVisualSettings(prev => ({ ...prev, nodeSizes: sizes }))}
-                  nodeIdSettings={nodeIdSettings}
-                  onNodeIdSettingsChange={(settings) => setNodeIdSettings(settings)}
-                  edgeThickness={visualSettings.edgeThickness}
-                  onEdgeThicknessChange={(value) => setVisualSettings(prev => ({ ...prev, edgeThickness: value }))}
-                  edgeOpacity={visualSettings.edgeOpacity}
-                  onEdgeOpacityChange={(value) => setVisualSettings(prev => ({ ...prev, edgeOpacity: value }))}
-                  edgeLabelSettings={visualSettings.edgeLabelSettings}
-                  onEdgeLabelSettingsChange={(settings) => setVisualSettings(prev => ({ ...prev, edgeLabelSettings: settings }))}
-                  edgeMutationSettings={edgeMutationSettings}
-                  onEdgeMutationSettingsChange={(settings) => setEdgeMutationSettings(settings)}
+              ) : metadata.treeIntervals.length > 0 ? (
+                <TreeRangeSlider
+                  treeIntervals={metadata.treeIntervals}
+                  value={filterState.treeRange}
+                  onChange={(newRange) => setFilterState(prev => ({ ...prev, treeRange: newRange }))}
+                  label="Tree Range"
+                  filterMode={treeFilterMode === 'subset' ? 'subset' : 'highlight'}
+                  onFilterModeChange={(mode) => setTreeFilterMode(mode === 'subset' ? 'subset' : 'dim')}
+                  dimOpacity={treeDimOpacity}
+                  onDimOpacityChange={setTreeDimOpacity}
                 />
-              ),
-            },
-            {
-              id: 'information',
-              title: 'Information',
-              icon: (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              ),
-              defaultOpen: false,
-              content: (
-                <InformationSection
-                  originalNodeCount={stats?.originalNodes}
-                  originalEdgeCount={stats?.originalEdges}
-                  subargNodeCount={stats?.subArgNodes}
-                  subargEdgeCount={stats?.subArgEdges}
-                  displayedNodeCount={stats?.displayedNodes}
-                  displayedEdgeCount={stats?.displayedEdges}
-                  genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : undefined}
-                  sequenceLength={metadata.sequenceLength}
-                  isFiltered={filterState.isActive}
-                  fullNumSamples={treeSequence?.num_samples}
-                  fullNumSites={treeSequence?.num_sites}
-                  fullNumTrees={treeSequence?.num_trees}
-                  fullNumMutations={treeSequence?.num_mutations}
-                  subargNumSamples={data?.metadata?.num_samples}
-                  subargNumSites={undefined}
-                  subargNumTrees={data?.metadata?.num_local_trees}
-                  subargNumMutations={undefined}
-                  statistics={treeSequence?.statistics}
-                  crsDetection={data?.metadata.coordinate_system_detection ? {
-                    crs: data.metadata.coordinate_system_detection.likely_crs,
-                    confidence: data.metadata.coordinate_system_detection.confidence,
-                    landPercentage: data.metadata.coordinate_system_detection.land_percentage,
-                    description: data.metadata.coordinate_system_detection.reasoning
-                  } : undefined}
-                />
-              ),
-            },
-            {
-              id: 'statistics',
-              title: 'Statistics',
-              icon: (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              ),
-              defaultOpen: false,
-              content: (
-                <div className="p-2">
-                  <StatisticsPanel
-                    filename={filename}
-                    genomicRange={filterState.isActive && filterState.mode === 'genomic' ? filterState.genomicRange : null}
-                    temporalRange={temporalState.isActive ? temporalState.range : null}
-                    treeRange={filterState.isActive && filterState.mode === 'tree' ? filterState.treeRange : null}
-                    isActive={filterState.isActive || temporalState.isActive}
-                    sequenceLength={metadata.sequenceLength}
-                  />
-                </div>
-              ),
-            },
-          ]}
-        />
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     </div>

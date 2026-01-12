@@ -88,7 +88,7 @@ export function calculateTotalSpanLength(spans: GenomicSpan[]): number {
 /**
  * Group edges by source-target pairs and calculate their genomic spans
  */
-export function groupEdgesByPairs(edges: GraphEdge[], nodes: GraphNode[], sequenceLength?: number): EdgeGroupWithSpans[] {
+export function groupEdgesByPairs(edges: GraphEdge[], _nodes: GraphNode[], sequenceLength?: number): EdgeGroupWithSpans[] {
     const edgeGroups = new Map<string, { sourceId: number; targetId: number; spans: GenomicSpan[] }>();
     
     let edgesWithoutSpans = 0;

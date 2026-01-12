@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useUIPreferences } from '../../context/UIPreferencesContext';
+import { useColorTheme } from '../../context/ColorThemeContext';
 
 interface Particle {
   x: number;
@@ -23,6 +24,7 @@ interface ParticleBackgroundProps {
 
 export default function ParticleBackground({ forceShow = false }: ParticleBackgroundProps) {
   const { backgroundAnimationEnabled } = useUIPreferences();
+  const { colors, theme } = useColorTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const animationFrameRef = useRef<number | undefined>(undefined);
@@ -30,6 +32,10 @@ export default function ParticleBackground({ forceShow = false }: ParticleBackgr
 
   // Determine if we should show the animation
   const shouldShow = forceShow || backgroundAnimationEnabled;
+  
+  // Use different particle colors based on theme
+  const particleColor = colors.accentPrimary; // ARGscape Green for all themes
+  const particleOpacityMultiplier = theme === 'liquid' ? 0.4 : 0.5; // Lower opacity for light theme
 
   useEffect(() => {
     // Don't run effect if animation shouldn't be shown
@@ -133,7 +139,11 @@ export default function ParticleBackground({ forceShow = false }: ParticleBackgr
         // Draw particle
         ctx.beginPath();
         ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(167, 243, 208, ${particle.opacity})`;
+        // Parse hex color and apply opacity
+        const r = parseInt(particleColor.slice(1, 3), 16);
+        const g = parseInt(particleColor.slice(3, 5), 16);
+        const b = parseInt(particleColor.slice(5, 7), 16);
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${particle.opacity * particleOpacityMultiplier})`;
         ctx.fill();
 
         // Connect nearby particles
@@ -148,9 +158,9 @@ export default function ParticleBackground({ forceShow = false }: ParticleBackgr
             ctx.moveTo(particle.x, particle.y);
             ctx.lineTo(otherParticle.x, otherParticle.y);
             const opacity = mouseRef.current.active ? 
-              0.15 * (1 - distance / maxDistance) : 
-              0.1 * (1 - distance / maxDistance);
-            ctx.strokeStyle = `rgba(167, 243, 208, ${opacity})`;
+              0.15 * (1 - distance / maxDistance) * particleOpacityMultiplier : 
+              0.1 * (1 - distance / maxDistance) * particleOpacityMultiplier;
+            ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${opacity})`;
             ctx.stroke();
           }
         });
@@ -169,7 +179,7 @@ export default function ParticleBackground({ forceShow = false }: ParticleBackgr
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [shouldShow]);
+  }, [shouldShow, particleColor, particleOpacityMultiplier]);
 
   // Don't render if animation is disabled (unless forced to show)
   if (!shouldShow) {
@@ -179,7 +189,7 @@ export default function ParticleBackground({ forceShow = false }: ParticleBackgr
   return (
     <canvas
       ref={canvasRef}
-      className="fixed inset-0 opacity-30"
+      className="fixed inset-0"
       style={{ zIndex: 0 }}
     />
   );

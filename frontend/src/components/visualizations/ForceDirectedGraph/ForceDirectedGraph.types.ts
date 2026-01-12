@@ -5,6 +5,8 @@ export interface GraphNode extends d3.SimulationNodeDatum {
     time: number;
     is_sample: boolean;
     individual: number;
+    population?: number | null; // Population ID from tskit
+    population_inferred?: boolean; // Whether population was inferred for internal node
     timeIndex?: number;
     layer?: number;  // For layered layout
     degree?: number; // For connectivity-based positioning
@@ -47,6 +49,19 @@ export interface GraphNode extends d3.SimulationNodeDatum {
 // Backward compatibility: Node is now an alias for GraphNode
 export type Node = GraphNode;
 
+export interface MutationDetail {
+    id: string; // Format: <previous_state><position><new_state>
+    mutation_tskit_id: number;
+    site: number;
+    position: number;
+    node: number;
+    time: number | null;
+    ancestral_state: string;
+    previous_state: string;
+    derived_state: string;
+    parent_mutation: number; // -1 if no parent
+}
+
 export interface GraphEdge {
     source: number | GraphNode;
     target: number | GraphNode;
@@ -56,6 +71,7 @@ export interface GraphEdge {
     bounds?: string; // String representation of regions like "0-1 5-8 9-10"
     region_fraction?: number; // Fraction of chromosome covered by this edge
     has_mutations?: boolean; // Whether this edge has mutations within its genomic span
+    mutations?: MutationDetail[]; // Detailed mutation information
 }
 
 export interface TreeInterval {
@@ -99,6 +115,9 @@ export interface GraphData {
         expected_tree_count?: number;
         tree_count_mismatch?: boolean;
         sample_order?: string;
+        // Population metadata
+        has_populations?: boolean;
+        populations?: number[];
         // Geographic metadata
         coordinate_system?: string;
         geographic_shape?: GeographicShape;
@@ -167,6 +186,7 @@ export interface ForceDirectedGraphProps {
     nodeIdSettings?: NodeIdSettings;  // Node ID visibility settings
     edgeLabelSettings?: EdgeLabelSettings;  // Edge label settings
     edgeMutationSettings?: EdgeMutationSettings;  // Edge mutation marker settings
+    colorByPopulation?: boolean;  // Color nodes by population
     sampleOrder?: string;  // The ordering method for sample nodes
     edgeThickness?: number;  // Edge thickness setting
     edgeOpacity?: number;  // Edge opacity setting (0-100)
@@ -195,6 +215,8 @@ export interface ForceDirectedGraphProps {
     clusteringRequireTemporalCompactness?: boolean;  // Require temporal compactness check (default: true)
     clusteringTemporalIntensity?: number;  // Intensity of temporal compactness (0=no effect, 1=max effect, default 0.5)
     clusteringMaxSampleClusterSize?: number;  // Maximum number of samples per sample cluster (default: 25)
+    combineInternalNodes?: boolean;  // Enable combining of internal nodes (default: false)
+    combineSampleNodes?: boolean;  // Enable combining of sample nodes (default: true)
 } 
 
 // Add type for simulation

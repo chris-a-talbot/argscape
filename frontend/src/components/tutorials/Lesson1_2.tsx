@@ -1,7 +1,6 @@
-import React from 'react';
 import BaseLessonComponent, { LessonConfig } from './BaseLessonComponent';
-import { IntroPageContent, ResourcesPageContent, InteractiveElement, MultiColumnLayout } from './LessonPageHelpers';
-import { LearningObjective, KeyTerm, ContentBox, VisualElement } from './LessonSlide';
+import { IntroPageContent, ResourcesPageContent, MultiColumnLayout } from './LessonPageHelpers';
+import { KeyTerm, ContentBox, VisualElement } from './LessonSlide';
 import {
   InteractivePedigreePreview,
   MendelianInheritanceSimulator,

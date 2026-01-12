@@ -414,6 +414,15 @@ class ApiService {
       temporalStart?: number;
       temporalEnd?: number;
       sampleOrder?: string;
+      keepUnary?: boolean;  // Deprecated, use unaryRetentionPercent
+      unaryRetentionPercent?: number;
+      // Sample subsetting options
+      sampleSubsetMode?: 'even' | 'random' | 'ids' | 'range' | 'population';
+      sampleIds?: number[];
+      sampleRangeStart?: number;
+      sampleRangeEnd?: number;
+      randomSeed?: number;
+      samplePopulations?: number[];
     } = {}
   ) {
     const params = new URLSearchParams();
@@ -425,7 +434,20 @@ class ApiService {
     if (options.temporalStart !== undefined) params.append('temporal_start', options.temporalStart.toString());
     if (options.temporalEnd !== undefined) params.append('temporal_end', options.temporalEnd.toString());
     if (options.sampleOrder) params.append('sample_order', options.sampleOrder);
-    
+    if (options.unaryRetentionPercent !== undefined) {
+      params.append('unary_retention_percent', options.unaryRetentionPercent.toString());
+    } else if (options.keepUnary !== undefined) {
+      // Backward compatibility
+      params.append('keep_unary', options.keepUnary.toString());
+    }
+    // Sample subsetting parameters
+    if (options.sampleSubsetMode) params.append('sample_subset_mode', options.sampleSubsetMode);
+    if (options.sampleIds?.length) params.append('sample_ids', options.sampleIds.join(','));
+    if (options.sampleRangeStart !== undefined) params.append('sample_range_start', options.sampleRangeStart.toString());
+    if (options.sampleRangeEnd !== undefined) params.append('sample_range_end', options.sampleRangeEnd.toString());
+    if (options.randomSeed !== undefined) params.append('random_seed', options.randomSeed.toString());
+    if (options.samplePopulations?.length) params.append('sample_populations', options.samplePopulations.join(','));
+
     const endpoint = `${API_CONFIG.ENDPOINTS.GRAPH_DATA}/${encodeURIComponent(filename)}?${params}`;
     return this.request(endpoint);
   }

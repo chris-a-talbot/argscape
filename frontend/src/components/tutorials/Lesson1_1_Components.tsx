@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import DNAAnimation from './DNAAnimation';
 import { SelfCheckQuestion } from './LessonPageHelpers';
 

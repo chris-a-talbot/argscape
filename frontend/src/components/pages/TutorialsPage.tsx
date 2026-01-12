@@ -4,6 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { getProgress, clearProgress } from '../../lib/tutorialProgress';
 import ClearProgressModal from '../tutorials/ClearProgressModal';
 import ParticleBackground from '../ui/ParticleBackground';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { useColorTheme } from '../../context/ColorThemeContext';
+import { useSemanticColors } from '../../hooks/useSemanticColors';
 
 interface Lesson {
   id: string;
@@ -22,6 +25,9 @@ interface Module {
 
 export default function TutorialsPage() {
   const navigate = useNavigate();
+  const { pageStyle, glassPanelStyle } = useThemeStyles();
+  const { colors } = useColorTheme();
+  const semanticColors = useSemanticColors();
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [progress, setProgress] = useState(getProgress());
   const [showClearProgressModal, setShowClearProgressModal] = useState(false);
@@ -159,21 +165,31 @@ export default function TutorialsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-sp-very-dark-blue relative">
+    <div style={pageStyle}>
       <ParticleBackground />
-      <div className="text-sp-white min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col relative z-10">
         <Navbar />
         <div className="flex-grow px-4 pt-24 pb-32">
           <div className="max-w-7xl mx-auto">
-            <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden p-8">
+            <div style={glassPanelStyle} className="p-8">
               <div className="text-center mb-12">
                 <h1 className="text-4xl font-bold mb-4">Learn ARGs</h1>
-                <p className="text-sp-white/70 text-lg max-w-2xl mx-auto">
+                <p className="text-lg max-w-2xl mx-auto" style={{ color: colors.textSecondary }}>
                   Learn about ancestral recombination graphs through interactive tutorials.
                 </p>
                 <button
                   onClick={() => setShowClearProgressModal(true)}
-                  className="mt-6 px-4 py-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-colors text-sm"
+                  className="mt-6 px-4 py-2 rounded-lg transition-colors text-sm"
+                  style={{
+                    backgroundColor: `${semanticColors.warning}1A`,
+                    color: semanticColors.warning
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = `${semanticColors.warning}33`;
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = `${semanticColors.warning}1A`;
+                  }}
                 >
                   Clear Progress
                 </button>
@@ -184,28 +200,40 @@ export default function TutorialsPage() {
                 {modules.map((module) => (
                   <div 
                     key={module.id}
-                    className="bg-sp-dark-blue/30 rounded-2xl border border-sp-pale-green/10 overflow-hidden cursor-pointer transition-all duration-300 hover:border-sp-pale-green/30"
+                    className="rounded-2xl border overflow-hidden cursor-pointer transition-all duration-300"
+                    style={{
+                      backgroundColor: `${colors.containerBackground}50`,
+                      borderColor: `${colors.border}30`
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.borderColor = `${colors.accentPrimary}50`}
+                    onMouseLeave={(e) => e.currentTarget.style.borderColor = `${colors.border}30`}
                     onClick={() => handleModuleClick(module.id)}
                   >
                     {/* Module Header */}
-                    <div className="p-6 border-b border-sp-pale-green/10">
+                    <div className="p-6 border-b" style={{ borderColor: `${colors.border}30` }}>
                       <div className="flex items-start justify-between">
                         <div>
                           <h2 className="text-2xl font-bold mb-2">{module.title}</h2>
-                          <p className="text-sp-white/70">{module.description}</p>
+                          <p style={{ color: colors.textSecondary }}>{module.description}</p>
                         </div>
                         <div className="flex items-center gap-4">
                           {/* Progress indicator */}
-                          <div className="text-sm text-sp-white/50">
+                          <div className="text-sm" style={{ color: colors.textSecondary, opacity: 0.7 }}>
                             {module.lessons.filter(l => getLessonProgress(module.id, l.id)).length} / {module.lessons.length} completed
                           </div>
                           <button
-                            className="flex-shrink-0 w-10 h-10 rounded-lg bg-sp-pale-green/10 hover:bg-sp-pale-green/20 transition-colors flex items-center justify-center"
+                            className="flex-shrink-0 w-10 h-10 rounded-lg transition-colors flex items-center justify-center"
+                            style={{
+                              backgroundColor: `${colors.accentPrimary}10`
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${colors.accentPrimary}20`}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${colors.accentPrimary}10`}
                           >
                             <svg
-                              className={`w-6 h-6 text-sp-pale-green transition-transform duration-200 ${
+                              className={`w-6 h-6 transition-transform duration-200 ${
                                 selectedModule === module.id ? 'transform rotate-180' : ''
                               }`}
+                              style={{ color: colors.accentPrimary }}
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -227,9 +255,24 @@ export default function TutorialsPage() {
                             key={lesson.id}
                             className={`group relative rounded-xl p-6 transition-all duration-200 ${
                               lesson.status === 'available'
-                                ? 'bg-sp-dark-blue hover:bg-sp-dark-blue/80 cursor-pointer'
-                                : 'bg-sp-dark-blue/50 cursor-not-allowed'
+                                ? 'cursor-pointer'
+                                : 'cursor-not-allowed'
                             }`}
+                            style={{
+                              backgroundColor: lesson.status === 'available' 
+                                ? colors.containerBackground
+                                : `${colors.containerBackground}80`
+                            }}
+                            onMouseEnter={(e) => {
+                              if (lesson.status === 'available') {
+                                e.currentTarget.style.backgroundColor = `${colors.containerBackground}cc`;
+                              }
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = lesson.status === 'available'
+                                ? colors.containerBackground
+                                : `${colors.containerBackground}80`;
+                            }}
                             onClick={(e) => {
                               e.stopPropagation();
                               if (lesson.status === 'available') {
@@ -239,13 +282,17 @@ export default function TutorialsPage() {
                           >
                             <div className="flex items-start gap-4">
                               {/* Lesson Number */}
-                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold ${
-                                getLessonProgress(module.id, lesson.id)
-                                  ? 'bg-green-500 text-white'
-                                  : lesson.status === 'available'
-                                    ? 'bg-sp-pale-green text-sp-very-dark-blue'
-                                    : 'bg-sp-pale-green/20 text-sp-pale-green/50'
-                              }`}>
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-bold`}
+                                style={{
+                                  backgroundColor: getLessonProgress(module.id, lesson.id)
+                                    ? semanticColors.success
+                                    : lesson.status === 'available'
+                                      ? colors.accentPrimary
+                                      : `${colors.accentPrimary}20`,
+                                  color: getLessonProgress(module.id, lesson.id) || lesson.status === 'available'
+                                    ? colors.buttonText
+                                    : `${colors.accentPrimary}80`
+                                }}>
                                 {getLessonProgress(module.id, lesson.id) ? (
                                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -258,29 +305,36 @@ export default function TutorialsPage() {
                               {/* Lesson Content */}
                               <div className="flex-grow">
                                 <div className="flex items-center gap-3 mb-1">
-                                  <h3 className={`font-semibold ${
-                                    lesson.status === 'available' ? 'text-sp-white' : 'text-sp-white/50'
-                                  }`}>{lesson.title}</h3>
+                                  <h3 className={`font-semibold`}
+                                    style={{ color: lesson.status === 'available' ? colors.text : colors.textSecondary }}>
+                                    {lesson.title}
+                                  </h3>
                                   {lesson.status === 'coming-soon' && (
-                                    <span className="px-2 py-1 rounded text-xs font-medium bg-sp-pale-green/10 text-sp-pale-green">
+                                    <span className="px-2 py-1 rounded text-xs font-medium" style={{
+                                      backgroundColor: `${colors.accentPrimary}10`,
+                                      color: colors.accentPrimary
+                                    }}>
                                       Coming Soon
                                     </span>
                                   )}
                                   {getLessonProgress(module.id, lesson.id) && (
-                                    <span className="px-2 py-1 rounded text-xs font-medium bg-green-500/10 text-green-500">
+                                    <span className="px-2 py-1 rounded text-xs font-medium" style={{
+                                      backgroundColor: `${semanticColors.success}1A`,
+                                      color: semanticColors.success
+                                    }}>
                                       Completed
                                     </span>
                                   )}
                                 </div>
-                                <p className={`text-sm ${
-                                  lesson.status === 'available' ? 'text-sp-white/70' : 'text-sp-white/30'
-                                }`}>{lesson.description}</p>
+                                <p className={`text-sm`}
+                                  style={{ color: lesson.status === 'available' ? colors.textSecondary : `${colors.textSecondary}80` }}>
+                                  {lesson.description}
+                                </p>
                               </div>
 
                               {/* Duration */}
-                              <div className={`flex items-center gap-2 text-sm ${
-                                lesson.status === 'available' ? 'text-sp-white/50' : 'text-sp-white/30'
-                              }`}>
+                              <div className={`flex items-center gap-2 text-sm`}
+                                style={{ color: lesson.status === 'available' ? colors.textSecondary : `${colors.textSecondary}80` }}>
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
@@ -290,8 +344,12 @@ export default function TutorialsPage() {
 
                             {/* Progress indicator for available lessons */}
                             {lesson.status === 'available' && !getLessonProgress(module.id, lesson.id) && (
-                              <div className="absolute bottom-0 left-0 w-full h-1 bg-sp-pale-green/20 rounded-b-xl overflow-hidden">
-                                <div className="w-0 group-hover:w-full h-full bg-sp-pale-green transition-all duration-500 ease-out" />
+                              <div className="absolute bottom-0 left-0 w-full h-1 rounded-b-xl overflow-hidden" style={{
+                                backgroundColor: `${colors.accentPrimary}20`
+                              }}>
+                                <div className="w-0 group-hover:w-full h-full transition-all duration-500 ease-out" style={{
+                                  backgroundColor: colors.accentPrimary
+                                }} />
                               </div>
                             )}
                           </div>

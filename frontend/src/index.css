@@ -28,7 +28,11 @@
     --chart-3: 197 37% 24%;
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
-    --radius: 0.5rem
+    --radius: 0.5rem;
+    /* Slider accent colors - synced from ColorThemeContext */
+    --slider-accent: #14E2A8;
+    --slider-accent-hover: #1EEBB1;
+    --slider-accent-rgb: 20, 226, 168;
   }
   .dark {
     --background: 222.2 84% 4.9%;
@@ -75,50 +79,50 @@
   }
 }
 
-/* Custom range slider styling for consistent sp-pale-green theme */
+/* Custom range slider styling - uses CSS variables from theme */
 @layer components {
   .slider-thumb-sp-pale-green::-webkit-slider-thumb {
     appearance: none;
     height: 16px;
     width: 16px;
     border-radius: 50%;
-    background: #14E2A8;
+    background: var(--slider-accent, #14E2A8);
     cursor: pointer;
     border: none;
-    box-shadow: 0 0 0 1px rgba(20, 226, 168, 0.3);
+    box-shadow: 0 0 0 1px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.3);
   }
-  
+
   .slider-thumb-sp-pale-green::-webkit-slider-thumb:hover {
-    background: #1EEBB1;
-    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.5);
+    background: var(--slider-accent-hover, #1EEBB1);
+    box-shadow: 0 0 0 2px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.5);
   }
-  
+
   .slider-thumb-sp-pale-green::-moz-range-thumb {
     height: 16px;
     width: 16px;
     border-radius: 50%;
-    background: #14E2A8;
+    background: var(--slider-accent, #14E2A8);
     cursor: pointer;
     border: none;
-    box-shadow: 0 0 0 1px rgba(20, 226, 168, 0.3);
+    box-shadow: 0 0 0 1px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.3);
   }
-  
+
   .slider-thumb-sp-pale-green::-moz-range-thumb:hover {
-    background: #1EEBB1;
-    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.5);
+    background: var(--slider-accent-hover, #1EEBB1);
+    box-shadow: 0 0 0 2px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.5);
   }
-  
+
   /* Focus styles for accessibility */
   .slider-thumb-sp-pale-green:focus {
     outline: none;
   }
-  
+
   .slider-thumb-sp-pale-green:focus::-webkit-slider-thumb {
-    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.6);
+    box-shadow: 0 0 0 2px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.6);
   }
-  
+
   .slider-thumb-sp-pale-green:focus::-moz-range-thumb {
-    box-shadow: 0 0 0 2px rgba(20, 226, 168, 0.6);
+    box-shadow: 0 0 0 2px rgba(var(--slider-accent-rgb, 20, 226, 168), 0.6);
   }
 }
 

@@ -4,7 +4,7 @@ import ArgVisualizationPage from './components/pages/ArgVisualizationPage';
 import Footer from './components/layout/Footer';
 import { useState, useEffect } from 'react';
 import { TreeSequenceProvider } from './context/TreeSequenceContext';
-import { ColorThemeProvider } from './context/ColorThemeContext';
+import { ColorThemeProvider, useColorTheme } from './context/ColorThemeContext';
 import { UIPreferencesProvider } from './context/UIPreferencesContext';
 import SpatialArg3DVisualizationPage from './components/pages/SpatialArg3DVisualizationPage';
 import SpatialArgDiffVisualizationPage from './components/pages/SpatialArgDiffVisualizationPage';
@@ -20,14 +20,31 @@ import LessonPage from './components/pages/LessonPage';
 import InstallPage from './components/pages/InstallPage';
 import BackgroundAnimationPage from './components/pages/BackgroundAnimationPage';
 
-// Loading screen component
+// Loading screen colors - uses tskit theme colors as defaults since this renders
+// before ColorThemeProvider mounts. These match the tskit theme in ColorThemeContext.tsx
+const LOADING_SCREEN_COLORS = {
+  background: '#03303E',       // tskit.background
+  accent: '#14E2A8',           // tskit.accentPrimary
+  logBackground: 'rgba(0, 0, 0, 0.3)', // dark overlay
+  logText: 'rgba(255, 255, 255, 0.8)', // light text
+};
+
+// Loading screen component - renders before theme context is available
 function LoadingScreen({ logs }: { logs: string[] }) {
   return (
-    <div className="fixed inset-0 bg-sp-very-dark-blue flex flex-col items-center justify-center">
-      <div className="text-sp-pale-green text-2xl mb-8">Starting ARGscape...</div>
-      <div className="w-96 h-64 bg-black/30 rounded-lg p-4 overflow-auto font-mono text-sm">
+    <div
+      className="fixed inset-0 flex flex-col items-center justify-center"
+      style={{ backgroundColor: LOADING_SCREEN_COLORS.background }}
+    >
+      <div className="text-2xl mb-8" style={{ color: LOADING_SCREEN_COLORS.accent }}>
+        Starting ARGscape...
+      </div>
+      <div
+        className="w-96 h-64 rounded-lg p-4 overflow-auto font-mono text-sm"
+        style={{ backgroundColor: LOADING_SCREEN_COLORS.logBackground }}
+      >
         {logs.map((log, i) => (
-          <div key={i} className="text-sp-white/80">{log}</div>
+          <div key={i} style={{ color: LOADING_SCREEN_COLORS.logText }}>{log}</div>
         ))}
       </div>
     </div>
@@ -50,6 +67,7 @@ type AppState = 'intro' | 'transitioning' | 'landing' | 'intermediate';
 type SelectedOption = 'upload' | 'simulate' | 'load' | null;
 
 function Home() {
+  const { colors } = useColorTheme();
   const location = useLocation();
   const [appState, setAppState] = useState<AppState>('intro');
   const [selectedOption, setSelectedOption] = useState<SelectedOption>(null);
@@ -59,23 +77,37 @@ function Home() {
 
   // Fetch available tree sequences to determine animation behavior
   useEffect(() => {
+    // AbortController for cleanup on unmount
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
     const fetchAvailableTreeSequences = async () => {
       try {
+        if (signal.aborted) return;
         log.data.processing('fetch-available-tree-sequences', 'Home');
         const response = await api.getUploadedFiles();
+
+        // Check if aborted before updating state
+        if (signal.aborted) return;
+
         const data = response.data as { uploaded_tree_sequences: string[] };
         setAvailableTreeSequences(data.uploaded_tree_sequences || []);
         log.info(`Found ${data.uploaded_tree_sequences?.length || 0} available tree sequences for animation logic`, {
           component: 'Home'
         });
       } catch (error) {
+        // Don't log errors if aborted
+        if (signal.aborted) return;
+
         log.error('Failed to fetch available tree sequences', {
           component: 'Home',
           error: error instanceof Error ? error : new Error(String(error))
         });
         setAvailableTreeSequences([]);
       } finally {
-        setHasCheckedSequences(true);
+        if (!signal.aborted) {
+          setHasCheckedSequences(true);
+        }
       }
     };
 
@@ -83,6 +115,10 @@ function Home() {
     if (!hasCheckedSequences) {
       fetchAvailableTreeSequences();
     }
+
+    return () => {
+      abortController.abort();
+    };
   }, [hasCheckedSequences]);
 
   useEffect(() => {
@@ -101,15 +137,20 @@ function Home() {
                       location.pathname === '/load' ? 'load' : null;
     
     // Determine if we should show intro based on the new rules
+    // NOTE: Intro animation temporarily disabled - kept for future use
     const shouldShowIntro = () => {
+      // Temporarily disabled - always skip intro animation
+      return false;
+
+      /* Original logic preserved for future use:
       // If we're navigating to a specific option, don't show intro
       if (pathOption) return false;
-      
+
       // If tree sequences are available (1+), never show animation
       if (availableTreeSequences.length > 0) {
         return false;
       }
-      
+
       // If no tree sequences available (0), show animation except for internal back buttons
       if (fromResult && selectedOptionFromResult) {
         return false; // This is from result page back button
@@ -122,6 +163,7 @@ function Home() {
       } else {
         return true; // Direct browser access when no sequences
       }
+      */
     };
     
     if (pathOption) {
@@ -169,7 +211,7 @@ function Home() {
   };
 
   return (
-    <div className="bg-sp-very-dark-blue min-h-screen">
+    <div className="min-h-screen" style={{ backgroundColor: colors.background }}>
       {/* Show intro animation */}
       {showIntro && appState === 'intro' && (
         <IntroAnimation onComplete={handleIntroComplete} />
@@ -207,11 +249,20 @@ function App() {
   const [startupLogs, setStartupLogs] = useState<string[]>([]);
 
   useEffect(() => {
+    // AbortController to cancel operations on unmount
+    const abortController = new AbortController();
+    const { signal } = abortController;
+
     const checkBackendHealth = async () => {
       try {
+        // Check if aborted before making request
+        if (signal.aborted) return false;
+
         const response = await api.checkHealth();
-        console.log('Health check response:', response);
-        
+
+        // Check if aborted before updating state
+        if (signal.aborted) return false;
+
         // Check if we have a valid response with status
         if (!response?.data) {
           setStartupLogs(prev => [...prev, '⚠️ Invalid response from backend']);
@@ -227,31 +278,41 @@ function App() {
         // Log the actual response for debugging
         setStartupLogs(prev => [...prev, `⚠️ Backend not ready: ${JSON.stringify(response.data)}`]);
       } catch (error) {
-        console.error('Health check error:', error);
+        // Don't log errors if aborted
+        if (signal.aborted) return false;
+
         setStartupLogs(prev => [...prev, `⚠️ Failed to connect to backend: ${error instanceof Error ? error.message : 'Unknown error'}`]);
       }
       return false;
     };
 
     const startupSequence = async () => {
+      if (signal.aborted) return;
       setStartupLogs(prev => [...prev, '🚀 Starting ARGscape...']);
-      
+
       // Try to connect to backend with timeout
       const startTime = Date.now();
       const timeout = 30000; // 30 seconds
-      
-      while (Date.now() - startTime < timeout) {
+
+      while (Date.now() - startTime < timeout && !signal.aborted) {
         if (await checkBackendHealth()) {
           return;
         }
+        if (signal.aborted) return;
         setStartupLogs(prev => [...prev, '⏳ Waiting for backend to start...']);
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
-      
-      setStartupLogs(prev => [...prev, '❌ Backend failed to start within timeout period']);
+
+      if (!signal.aborted) {
+        setStartupLogs(prev => [...prev, '❌ Backend failed to start within timeout period']);
+      }
     };
 
     startupSequence();
+
+    return () => {
+      abortController.abort();
+    };
   }, []);
 
   if (!isBackendReady) {

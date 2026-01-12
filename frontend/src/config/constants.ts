@@ -6,12 +6,10 @@
 // API Configuration
 const getApiBaseUrl = () => {
   if (import.meta.env.VITE_API_URL) {
-    console.log('Using VITE_API_URL:', import.meta.env.VITE_API_URL);
     return import.meta.env.VITE_API_URL;
   }
 
   // Always use /api as the base URL - the Vite proxy will handle the rest
-  console.log('Using default API base: /api');
   return '/api';
 };
 

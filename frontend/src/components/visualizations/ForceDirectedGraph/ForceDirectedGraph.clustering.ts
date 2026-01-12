@@ -454,7 +454,8 @@ export function createClusterNodes(
             right: edge.right,
             bounds: edge.bounds,
             region_fraction: edge.region_fraction,
-            has_mutations: edge.has_mutations
+            has_mutations: edge.has_mutations,
+            mutations: edge.mutations || []
         });
     }
     
@@ -782,7 +783,8 @@ export function createSampleClusters(
             right: edge.right,
             bounds: edge.bounds,
             region_fraction: edge.region_fraction,
-            has_mutations: edge.has_mutations
+            has_mutations: edge.has_mutations,
+            mutations: edge.mutations || []
         });
     }
     

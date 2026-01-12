@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import {
   SidebarSlider,
@@ -11,6 +11,7 @@ import { GeographicShape, NodeSizeSettings } from '../ForceDirectedGraph/ForceDi
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, EdgeMutationSettings, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { Tooltip } from '../../ui/tooltip';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
+import { api } from '../../../lib/api';
 
 type GeographicMode = 'unit_grid' | 'eastern_hemisphere' | 'custom';
 
@@ -48,6 +49,10 @@ interface VisualizationSectionProps {
   showCrsWarning?: boolean;
   crsDetection?: any;
   onDismissCrsWarning?: () => void;
+  
+  // Unary nodes
+  unaryRetentionPercent?: number;
+  onUnaryRetentionPercentChange?: (percent: number) => void;
 }
 
 export const VisualizationSection: React.FC<VisualizationSectionProps> = ({
@@ -74,6 +79,8 @@ export const VisualizationSection: React.FC<VisualizationSectionProps> = ({
   showCrsWarning,
   crsDetection,
   onDismissCrsWarning,
+  unaryRetentionPercent,
+  onUnaryRetentionPercentChange,
 }) => {
   const { colors } = useColorTheme();
 
@@ -183,6 +190,25 @@ export const VisualizationSection: React.FC<VisualizationSectionProps> = ({
           </div>
         )}
       </SidebarSubsection>
+
+      {/* Node Filtering */}
+      {onUnaryRetentionPercentChange !== undefined && (
+        <SidebarSubsection 
+          title="Node Filtering" 
+          tooltip="Control which nodes are included in the visualization"
+        >
+          <SidebarSlider
+            label="Unary Node Retention"
+            value={unaryRetentionPercent || 0}
+            min={0}
+            max={100}
+            step={1}
+            onChange={onUnaryRetentionPercentChange}
+            unit="%"
+            tooltip="Percentage of unary nodes (nodes with only one child) to randomly retain in the visualization. Recombination nodes are always kept."
+          />
+        </SidebarSubsection>
+      )}
 
       {/* Spacing Settings */}
       <SidebarSubsection 
@@ -657,6 +683,9 @@ interface ElementsSectionProps {
   onNodeSizeChange: (sizes: NodeSizeSettings) => void;
   nodeIdSettings: NodeIdSettings;
   onNodeIdSettingsChange: (settings: NodeIdSettings) => void;
+  colorByPopulation?: boolean;
+  onColorByPopulationChange?: (enabled: boolean) => void;
+  hasPopulations?: boolean;
   
   // Edge settings
   edgeThickness: number;
@@ -674,6 +703,9 @@ export const ElementsSection: React.FC<ElementsSectionProps> = ({
   onNodeSizeChange,
   nodeIdSettings,
   onNodeIdSettingsChange,
+  colorByPopulation,
+  onColorByPopulationChange,
+  hasPopulations,
   edgeThickness,
   onEdgeThicknessChange,
   edgeOpacity,
@@ -689,6 +721,14 @@ export const ElementsSection: React.FC<ElementsSectionProps> = ({
     <div className="space-y-4">
       {/* Node Settings */}
       <SidebarSubsection title="Nodes" tooltip="Customize node appearance and labels">
+        {hasPopulations && onColorByPopulationChange && (
+          <SidebarCheckbox
+            label="Color by Population"
+            checked={colorByPopulation || false}
+            onChange={onColorByPopulationChange}
+            tooltip="Color nodes based on their population assignment"
+          />
+        )}
         <SidebarSlider
           label="Sample Node Size"
           value={nodeSizes.sample}
@@ -821,6 +861,47 @@ interface InformationSectionProps {
     landPercentage: number;
     description: string;
   };
+  // Tree sequence metadata
+  genomicRange?: [number, number];
+  sequenceLength?: number;
+  isFiltered?: boolean;
+  fullNumSamples?: number;
+  fullNumSites?: number;
+  fullNumTrees?: number;
+  fullNumMutations?: number;
+  subargNumSamples?: number;
+  subargNumSites?: number;
+  subargNumTrees?: number;
+  subargNumMutations?: number;
+  // Population genetics statistics (full dataset)
+  statistics?: {
+    nucleotide_diversity?: number | null;
+    wattersons_theta?: number | null;
+    tajimas_d?: number | null;
+    segregating_sites?: number | null;
+    mean_tree_height?: number | null;
+    median_tree_height?: number | null;
+    mean_tree_length?: number | null;
+    median_tree_length?: number | null;
+    tmrca?: number | null;
+    mean_tmrca?: number | null;
+    median_tmrca?: number | null;
+    ne_watterson?: number | null;
+    ne_pi?: number | null;
+    estimated_recombination_rate?: number | null;
+    mean_ld_r2?: number | null;
+    median_ld_r2?: number | null;
+    fst?: number | null;
+    num_populations?: number | null;
+    mean_divergence?: number | null;
+    median_divergence?: number | null;
+  };
+  // For fetching filtered statistics
+  filename?: string;
+  filterActive?: boolean;
+  filteredGenomicRange?: [number, number] | null;
+  filteredTreeRange?: [number, number] | null;
+  filteredTemporalRange?: [number, number] | null;
 }
 
 export const InformationSection: React.FC<InformationSectionProps> = ({
@@ -831,8 +912,79 @@ export const InformationSection: React.FC<InformationSectionProps> = ({
   displayedNodeCount,
   displayedEdgeCount,
   crsDetection,
+  genomicRange,
+  sequenceLength,
+  isFiltered,
+  fullNumSamples,
+  fullNumSites,
+  fullNumTrees,
+  fullNumMutations,
+  subargNumSamples,
+  subargNumSites,
+  subargNumTrees,
+  subargNumMutations,
+  statistics,
+  filename,
+  filterActive,
+  filteredGenomicRange,
+  filteredTreeRange,
+  filteredTemporalRange,
 }) => {
   const { colors } = useColorTheme();
+  
+  // State for filtered statistics
+  const [filteredStatistics, setFilteredStatistics] = useState<typeof statistics | null>(null);
+  const [isLoadingFiltered, setIsLoadingFiltered] = useState(false);
+  
+  // Fetch filtered statistics when filters are active
+  useEffect(() => {
+    if (!filename || !filterActive) {
+      setFilteredStatistics(null);
+      return;
+    }
+    
+    const fetchFilteredStats = async () => {
+      setIsLoadingFiltered(true);
+      try {
+        const options: {
+          genomicStart?: number;
+          genomicEnd?: number;
+          temporalStart?: number;
+          temporalEnd?: number;
+          treeStartIdx?: number;
+          treeEndIdx?: number;
+        } = {};
+        
+        if (filteredGenomicRange && sequenceLength) {
+          if (filteredGenomicRange[0] !== 0 || filteredGenomicRange[1] !== sequenceLength) {
+            options.genomicStart = filteredGenomicRange[0];
+            options.genomicEnd = filteredGenomicRange[1];
+          }
+        }
+        
+        if (filteredTemporalRange) {
+          options.temporalStart = filteredTemporalRange[0];
+          options.temporalEnd = filteredTemporalRange[1];
+        }
+        
+        if (filteredTreeRange) {
+          options.treeStartIdx = filteredTreeRange[0];
+          options.treeEndIdx = filteredTreeRange[1];
+        }
+        
+        const response = await api.getStatisticsForRange(filename, options);
+        setFilteredStatistics(response.data as typeof statistics);
+      } catch (err) {
+        console.error('Error fetching filtered statistics:', err);
+        setFilteredStatistics(null);
+      } finally {
+        setIsLoadingFiltered(false);
+      }
+    };
+    
+    const timeoutId = setTimeout(fetchFilteredStats, 500);
+    return () => clearTimeout(timeoutId);
+  }, [filename, filterActive, filteredGenomicRange, filteredTreeRange, filteredTemporalRange, sequenceLength]);
 
   const nodePercentage = originalNodeCount && subargNodeCount 
     ? ((subargNodeCount / originalNodeCount) * 100).toFixed(1)
@@ -844,6 +996,94 @@ export const InformationSection: React.FC<InformationSectionProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Full Tree Sequence Information */}
+      {(fullNumSamples !== undefined || fullNumSites !== undefined || fullNumTrees !== undefined || fullNumMutations !== undefined || sequenceLength) && (
+        <SidebarSubsection title="Full Tree Sequence">
+          <div className="space-y-2 text-xs">
+            {fullNumSamples !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Samples:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumSamples.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumTrees !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Trees:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumTrees.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumSites !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sites:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumSites.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {fullNumMutations !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Mutations:</span>
+                <span style={{ color: colors.text }}>
+                  {fullNumMutations.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {sequenceLength && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sequence length:</span>
+                <span style={{ color: colors.text }}>
+                  {formatGenomicPosition(sequenceLength)}
+                </span>
+              </div>
+            )}
+          </div>
+        </SidebarSubsection>
+      )}
+
+      {/* SubARG Information */}
+      {(subargNumSamples !== undefined || subargNumSites !== undefined || subargNumTrees !== undefined || subargNumMutations !== undefined) && (
+        <SidebarSubsection title="Current SubARG">
+          <div className="space-y-2 text-xs">
+            {subargNumSamples !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Samples:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumSamples.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumTrees !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Trees:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumTrees.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumSites !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Sites:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumSites.toLocaleString()}
+                </span>
+              </div>
+            )}
+            {subargNumMutations !== undefined && (
+              <div className="flex justify-between">
+                <span style={{ color: colors.accentPrimary }}>Mutations:</span>
+                <span style={{ color: colors.text }}>
+                  {subargNumMutations.toLocaleString()}
+                </span>
+              </div>
+            )}
+          </div>
+        </SidebarSubsection>
+      )}
+
       {/* Graph Statistics */}
       {(originalNodeCount || subargNodeCount || displayedNodeCount) && (
         <SidebarSubsection title="Graph Statistics">
@@ -883,6 +1123,104 @@ export const InformationSection: React.FC<InformationSectionProps> = ({
                 </span>
               </div>
             )}
+          </div>
+        </SidebarSubsection>
+      )}
+
+      {/* Filter Information */}
+      {isFiltered && genomicRange && sequenceLength && (
+        <SidebarSubsection title="Filter Information">
+          <div className="space-y-2 text-xs">
+            <div className="flex justify-between">
+              <span style={{ color: colors.accentPrimary }}>Range:</span>
+              <span style={{ color: colors.text }}>
+                {formatGenomicPosition(genomicRange[0])} - {formatGenomicPosition(genomicRange[1])}
+              </span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span style={{ color: colors.accentPrimary }}>Length:</span>
+              <span style={{ color: colors.text }}>
+                {formatGenomicPosition(genomicRange[1] - genomicRange[0])} bp
+              </span>
+            </div>
+            
+            <div className="flex justify-between">
+              <span style={{ color: colors.accentPrimary }}>Coverage:</span>
+              <span style={{ color: colors.text }}>
+                {((genomicRange[1] - genomicRange[0]) / sequenceLength * 100).toFixed(1)}% of sequence
+              </span>
+            </div>
+          </div>
+        </SidebarSubsection>
+      )}
+
+      {/* Population Genetics Statistics */}
+      {statistics && (
+        <SidebarSubsection title="Population Genetics">
+          <div className="space-y-3 text-xs">
+            {/* Show filter status */}
+            {filterActive && (
+              <SidebarInfoBox>
+                <div className="text-xs">
+                  {isLoadingFiltered ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin h-3 w-3 border border-t-transparent rounded-full" style={{ borderColor: colors.accentPrimary }}></div>
+                      <span style={{ color: colors.text, opacity: 0.8 }}>Computing filtered statistics...</span>
+                    </div>
+                  ) : filteredStatistics ? (
+                    <span style={{ color: colors.accentPrimary }}>
+                      Showing full dataset vs filtered range comparison
+                    </span>
+                  ) : null}
+                </div>
+              </SidebarInfoBox>
+            )}
+            
+            {/* Helper function to render stat row */}
+            {(() => {
+              const renderStatRow = (label: string, fullValue: number | null | undefined, filteredValue?: number | null | undefined, formatter?: (v: number) => string) => {
+                if (fullValue === null || fullValue === undefined) return null;
+                const format = formatter || ((v: number) => v.toExponential(3));
+                
+                return (
+                  <div>
+                    <div className="flex justify-between items-center">
+                      <span style={{ color: colors.accentPrimary }}>{label}:</span>
+                      {!filterActive || !filteredValue ? (
+                        <span style={{ color: colors.text }}>{format(fullValue)}</span>
+                      ) : null}
+                    </div>
+                    {filterActive && filteredValue !== null && filteredValue !== undefined && (
+                      <div className="ml-2 mt-1 space-y-0.5" style={{ fontSize: '0.65rem' }}>
+                        <div className="flex justify-between">
+                          <span style={{ color: colors.text, opacity: 0.7 }}>Full:</span>
+                          <span style={{ color: colors.text, opacity: 0.9 }}>{format(fullValue)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: colors.accentSecondary, opacity: 0.9 }}>Filtered:</span>
+                          <span style={{ color: colors.accentSecondary, fontWeight: 600 }}>{format(filteredValue)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+              
+              return (
+                <>
+                  {renderStatRow('Nucleotide diversity (π)', statistics.nucleotide_diversity, filteredStatistics?.nucleotide_diversity)}
+                  {renderStatRow('Watterson\'s θ', statistics.wattersons_theta, filteredStatistics?.wattersons_theta)}
+                  {renderStatRow('Tajima\'s D', statistics.tajimas_d, filteredStatistics?.tajimas_d, (v) => v.toFixed(3))}
+                  {renderStatRow('Segregating sites', statistics.segregating_sites, filteredStatistics?.segregating_sites, (v) => v.toLocaleString())}
+                  {renderStatRow('Mean tree height', statistics.mean_tree_height, filteredStatistics?.mean_tree_height, (v) => v.toFixed(2))}
+                  {renderStatRow('TMRCA', statistics.tmrca, filteredStatistics?.tmrca, (v) => v.toFixed(2))}
+                  {renderStatRow('Mean tree length', statistics.mean_tree_length, filteredStatistics?.mean_tree_length, (v) => v.toFixed(2))}
+                  {renderStatRow('Fst', statistics.fst, filteredStatistics?.fst, (v) => v.toFixed(4))}
+                  {renderStatRow('Mean divergence', statistics.mean_divergence, filteredStatistics?.mean_divergence)}
+                </>
+              );
+            })()}
           </div>
         </SidebarSubsection>
       )}

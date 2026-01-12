@@ -126,19 +126,22 @@ async def remove_double_slash_middleware(request: Request, call_next):
 async def add_cache_control_headers(request: Request, call_next):
     response = await call_next(request)
     path = request.url.path
-    
+
     # Don't cache index.html - force revalidation on every request
-    if path == "/" or path.endswith("index.html"):
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    # Use aggressive headers that also bypass CDN caching
+    if path == "/" or path.endswith("index.html") or path.endswith(".html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+        response.headers["Surrogate-Control"] = "no-store"  # CDN bypass
+        response.headers["Vary"] = "*"  # Prevent CDN from caching variants
     # Long-term cache for hashed assets (JS, CSS with content hashes in filename)
     elif any(path.endswith(ext) for ext in [".js", ".css"]) and "-" in path:
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     # Moderate cache for other assets
     elif any(path.endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2", ".ttf"]):
         response.headers["Cache-Control"] = "public, max-age=86400"
-    
+
     return response
 
 # Include API routers
@@ -207,23 +210,43 @@ else:
         frontend_dist = Path(__file__).resolve().parent.parent / "frontend_dist"
 
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="frontend")
+    # Mount static files WITHOUT html=True so SPA routing is handled by catch-all
+    app.mount("/assets", StaticFiles(directory=frontend_dist / "assets"), name="frontend-assets")
     logger.info(f"Serving frontend from {frontend_dist} (Railway: {is_railway})")
 else:
     logger.warning(f"Frontend build directory not found: {frontend_dist}")
 
-# SPA fallback route
+
+# Serve static files that are in the root of frontend_dist (favicon, etc.)
+@app.get("/favicon.svg")
+async def serve_favicon():
+    """Serve favicon with caching."""
+    favicon_path = frontend_dist / "favicon.svg"
+    if favicon_path.exists():
+        return FileResponse(favicon_path, media_type="image/svg+xml")
+    return {"detail": "favicon not found"}, 404
+
+
+# SPA fallback route - handles all non-API, non-asset routes
 @app.get("/{full_path:path}")
 async def serve_spa(full_path: str):
-    """Serve index.html for client-side routing with no-cache headers."""
+    """Serve index.html for client-side routing with aggressive no-cache headers."""
+    # Check if it's a static file in frontend_dist root
+    static_path = frontend_dist / full_path
+    if full_path and static_path.exists() and static_path.is_file():
+        return FileResponse(static_path)
+
+    # Otherwise serve index.html for SPA routing
     index_path = frontend_dist / "index.html"
     if index_path.exists():
         return FileResponse(
             index_path,
             headers={
-                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
                 "Pragma": "no-cache",
-                "Expires": "0"
+                "Expires": "0",
+                "Surrogate-Control": "no-store",
+                "Vary": "*"
             }
         )
     return {"detail": "index.html not found"}, 404

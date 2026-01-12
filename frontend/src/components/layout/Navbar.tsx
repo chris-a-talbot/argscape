@@ -1,14 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import ClickableLogo from '../ui/ClickableLogo';
+import { ColorThemeDropdown } from '../ui/ColorThemeDropdown';
 import { useUIPreferences } from '../../context/UIPreferencesContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { useSemanticColors } from '../../hooks/useSemanticColors';
 
 export default function Navbar() {
   const navigate = useNavigate();
   const location = useLocation();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsDropdownRef = useRef<HTMLDivElement>(null);
-  const { backgroundAnimationEnabled, setBackgroundAnimationEnabled } = useUIPreferences();
+  const { backgroundAnimationEnabled, setBackgroundAnimationEnabled, liquidEffectsEnabled, setLiquidEffectsEnabled } = useUIPreferences();
+  const { navStyle, isLiquid, dropdownMenuStyle } = useThemeStyles();
+  const semanticColors = useSemanticColors();
 
   const navItems = [
     { label: 'Upload', path: '/upload' },
@@ -40,7 +45,10 @@ export default function Navbar() {
   }, []);
 
   return (
-    <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-sp-very-dark-blue/80 border-b border-sp-pale-green/10">
+    <nav 
+      className="fixed top-0 left-0 right-0 z-50 border-b transition-colors duration-300"
+      style={navStyle}
+    >
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <div className="flex-shrink-0 transition-transform hover:scale-105">
@@ -55,14 +63,24 @@ export default function Navbar() {
               onClick={() => navigate(item.path)}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 relative group ${
                 isActive(item.path) 
-                  ? 'text-sp-pale-green bg-sp-pale-green/10' 
-                  : 'text-sp-white hover:text-sp-pale-green'
+                  ? 'bg-white/10' 
+                  : 'hover:bg-white/5'
               }`}
+              style={{
+                color: isActive(item.path) 
+                  ? semanticColors.activeHighlight
+                  : navStyle.color
+              }}
             >
               {item.label}
-              <span className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 w-0 h-0.5 bg-sp-pale-green transition-all duration-200 ${
-                isActive(item.path) ? 'w-full' : 'group-hover:w-full'
-              }`} />
+              <span 
+                className={`absolute bottom-0 left-1/2 transform -translate-x-1/2 w-0 h-0.5 transition-all duration-200 ${
+                  isActive(item.path) ? 'w-full' : 'group-hover:w-full'
+                }`} 
+                style={{
+                  backgroundColor: semanticColors.activeHighlight
+                }}
+              />
             </button>
           ))}
         </div>
@@ -70,7 +88,8 @@ export default function Navbar() {
         {/* Settings Dropdown */}
         <div className="relative" ref={settingsDropdownRef}>
           <button
-            className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-sp-pale-green/10 hover:text-sp-pale-green text-sp-white"
+            className="w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-white/10"
+            style={{ color: navStyle.color }}
             aria-label="Settings"
             onClick={() => setSettingsOpen(!settingsOpen)}
           >
@@ -96,12 +115,27 @@ export default function Navbar() {
           </button>
 
           {settingsOpen && (
-            <div className="absolute right-0 mt-2 py-2 rounded-lg shadow-lg z-50 min-w-[200px] bg-sp-dark-blue border border-sp-pale-green/20">
+            <div 
+              className="absolute right-0 mt-2 py-2 z-50 min-w-[200px]"
+              style={dropdownMenuStyle}
+            >
+              {/* Theme Selector */}
+              <div className="px-4 py-2">
+                <div className="text-xs font-medium mb-2" style={{ color: navStyle.color }}>
+                  Theme
+                </div>
+                <ColorThemeDropdown />
+              </div>
+              
+              {/* Separator */}
+              <div className="h-px my-2" style={{ backgroundColor: navStyle.borderBottomColor }} />
+              
+              {/* Background Animation Toggle */}
               <button
                 onClick={() => {
                   setBackgroundAnimationEnabled(!backgroundAnimationEnabled);
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-sp-white hover:bg-sp-pale-green/10 transition-colors flex items-center justify-between"
+                className="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors flex items-center justify-between"
               >
                 <div className="flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,20 +143,52 @@ export default function Navbar() {
                   </svg>
                   <span>Background animation</span>
                 </div>
-                <div className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${
-                  backgroundAnimationEnabled ? 'bg-sp-pale-green' : 'bg-sp-white/20'
-                }`}>
+                <div 
+                  className="relative w-10 h-5 rounded-full transition-colors duration-200 bg-white/20"
+                  style={{
+                    backgroundColor: backgroundAnimationEnabled ? semanticColors.activeHighlight : 'rgba(255,255,255,0.2)'
+                  }}
+                >
                   <div className={`absolute w-4 h-4 bg-white rounded-full transition-transform duration-200 top-0.5 ${
                     backgroundAnimationEnabled ? 'left-5' : 'left-0.5'
                   }`} />
                 </div>
               </button>
+
+              {/* Liquid Effects Toggle - Only show in liquid theme */}
+              {isLiquid && (
+                <button
+                  onClick={() => {
+                    setLiquidEffectsEnabled(!liquidEffectsEnabled);
+                  }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                    </svg>
+                    <span>Liquid glass effects</span>
+                  </div>
+                  <div 
+                    className="relative w-10 h-5 rounded-full transition-colors duration-200 bg-white/20"
+                    style={{
+                      backgroundColor: liquidEffectsEnabled ? semanticColors.activeHighlight : 'rgba(255,255,255,0.2)'
+                    }}
+                  >
+                    <div className={`absolute w-4 h-4 bg-white rounded-full transition-transform duration-200 top-0.5 ${
+                      liquidEffectsEnabled ? 'left-5' : 'left-0.5'
+                    }`} />
+                  </div>
+                </button>
+              )}
+              
+              {/* View Animation Only */}
               <button
                 onClick={() => {
                   navigate('/background-animation');
                   setSettingsOpen(false);
                 }}
-                className="w-full text-left px-4 py-2 text-sm text-sp-white hover:bg-sp-pale-green/10 transition-colors flex items-center gap-2"
+                className="w-full text-left px-4 py-2 text-sm hover:bg-white/10 transition-colors flex items-center gap-2"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -136,7 +202,8 @@ export default function Navbar() {
 
         {/* Mobile Menu Button - Shown on small screens */}
         <button
-          className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-sp-pale-green/10 hover:text-sp-pale-green text-sp-white"
+          className="md:hidden w-10 h-10 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-white/10"
+          style={{ color: navStyle.color }}
           aria-label="Menu"
         >
           <svg

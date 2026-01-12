@@ -2,16 +2,22 @@ import { useEffect, forwardRef, ForwardedRef, useMemo, useRef, useCallback } fro
 import * as d3 from 'd3';
 import { ForceDirectedGraphProps, GraphNode, GraphEdge, TemporalSpacingMode, Simulation } from './ForceDirectedGraph.types';
 import { useColorTheme } from '../../../context/ColorThemeContext';
-import { 
-  combineGenealogyIdenticalNodes, 
-  analyzeNodeCombining 
+import {
+  combineGenealogyIdenticalNodes,
+  analyzeNodeCombining
 } from '../../../utils/nodeCombining';
-import { 
-  groupEdgesByPairs, 
+import {
+  groupEdgesByPairs,
   expandEdgeSpansForCombinedNodes,
-  EdgeGroupWithSpans 
+  EdgeGroupWithSpans
 } from '../../../utils/genomicSpanUtils';
+import {
+  getNodeOpacity,
+  getEdgeOpacity,
+  OpacityCalculationParams
+} from '../../../utils/opacityCalculations';
 import { isRootNode } from '../../../utils/graphTraversal';
+import { generatePopulationColors, darkenColor } from '../../../utils/colorUtils';
 import { DEFAULT_NODE_SIZES, DEFAULT_NODE_ID_SETTINGS, DEFAULT_EDGE_LABEL_SETTINGS, 
     GRAPH_CONSTANTS, setupInitialNodePositions } from './ForceDirectedGraph.constants';
 import { createClusterNodes, createSampleClusters, getEdgeClusterInfo } from './ForceDirectedGraph.clustering';
@@ -21,9 +27,9 @@ import { createFocusFunction, calculateEdgeCrossings, enforceDescendantRange,
     findOptimalLabelPosition, createDescendantRangeForce, createEdgeCrossingReductionForce, 
     createEdgeBundlingForce, isLikelyParentARG, getOptimalXPosition } from './ForceDirectedGraph.utils';
 
-export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphProps>(({ 
-    data, 
-    width, 
+export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphProps>(({
+    data,
+    width,
     height,
     onNodeClick,
     onNodeRightClick,
@@ -33,6 +39,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     nodeIdSettings = DEFAULT_NODE_ID_SETTINGS,
     edgeLabelSettings = DEFAULT_EDGE_LABEL_SETTINGS,
     edgeMutationSettings,
+    colorByPopulation = false,
     sampleOrder = 'consensus',
     edgeThickness = GRAPH_CONSTANTS.EDGE_STROKE_WIDTH,
     edgeOpacity = 95,
@@ -57,9 +64,38 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     clusteringDensityIntensity = 0.5,
     clusteringRequireTemporalCompactness = true,
     clusteringTemporalIntensity = 0.5,
-    clusteringMaxSampleClusterSize = 25
+    clusteringMaxSampleClusterSize = 25,
+    combineInternalNodes = false,
+    combineSampleNodes = true
 }, ref: ForwardedRef<SVGSVGElement>) => {
-    const { colors } = useColorTheme();
+    const { colors, theme } = useColorTheme();
+
+    // Determine if theme is dark - tskit is dark, liquid and grayscale are light
+    // For custom themes, calculate based on background luminance
+    const isDarkTheme = useMemo(() => {
+        if (theme === 'tskit') return true;
+        if (theme === 'liquid' || theme === 'grayscale') return false;
+        
+        // For custom themes, calculate luminance of background
+        const bg = colors.background;
+        if (bg.startsWith('#')) {
+            const hex = bg.replace('#', '');
+            const r = parseInt(hex.substr(0, 2), 16);
+            const g = parseInt(hex.substr(2, 2), 16);
+            const b = parseInt(hex.substr(4, 2), 16);
+            const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            return luminance <= 0.5;
+        }
+        return false; // Default to light if can't determine
+    }, [theme, colors.background]);
+    
+    // Generate population colors if enabled
+    const populationColors = useMemo(() => {
+        if (!colorByPopulation || !data?.metadata?.has_populations || !data?.metadata?.populations) {
+            return null;
+        }
+        return generatePopulationColors(data.metadata.populations, isDarkTheme);
+    }, [colorByPopulation, data?.metadata?.has_populations, data?.metadata?.populations, isDarkTheme]);
     
     // Track if clustering is changing to prevent stale data usage
     const prevClusteringRef = useRef({ 
@@ -74,27 +110,32 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     
     useEffect(() => {
         const prev = prevClusteringRef.current;
-        const clusteringChanged = 
+        const clusteringChanged =
             prev.enabled !== clusteringEnabled ||
             prev.minTreeSize !== clusteringMinTreeSize ||
             prev.requireDensity !== clusteringRequireDensity ||
             prev.densityIntensity !== clusteringDensityIntensity ||
             prev.requireTemporalCompactness !== clusteringRequireTemporalCompactness ||
             prev.temporalIntensity !== clusteringTemporalIntensity;
-        
+
+        let timeoutId: NodeJS.Timeout | undefined;
         if (clusteringChanged) {
             isClusteringChanging.current = true;
             // Reset flag after main rendering effect has had time to complete
-            setTimeout(() => { isClusteringChanging.current = false; }, 100);
+            timeoutId = setTimeout(() => { isClusteringChanging.current = false; }, 100);
         }
-        
-        prevClusteringRef.current = { 
-            enabled: clusteringEnabled, 
+
+        prevClusteringRef.current = {
+            enabled: clusteringEnabled,
             minTreeSize: clusteringMinTreeSize,
             requireDensity: clusteringRequireDensity,
             densityIntensity: clusteringDensityIntensity,
             requireTemporalCompactness: clusteringRequireTemporalCompactness,
             temporalIntensity: clusteringTemporalIntensity
+        };
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
         };
     }, [clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
     
@@ -117,6 +158,40 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         currentTransform: null
     });
 
+    // Refs for tracking timeouts to ensure proper cleanup
+    const dragCleanupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const dragCrossingsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const autoZoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const edgeCrossingsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Ref for tooltip element to ensure proper cleanup
+    const tooltipRef = useRef<d3.Selection<HTMLDivElement, unknown, HTMLElement, any> | null>(null);
+
+    // Refs for visual settings to avoid triggering effect re-runs
+    // These are read inside the effect but shouldn't cause re-renders
+    const colorsRef = useRef(colors);
+    const nodeSizesRef = useRef(nodeSizes);
+    const edgeThicknessRef = useRef(edgeThickness);
+    const edgeOpacityRef = useRef(edgeOpacity);
+    const edgeLabelSettingsRef = useRef(edgeLabelSettings);
+    const edgeMutationSettingsRef = useRef(edgeMutationSettings);
+    const temporalSpacingModeRef = useRef(temporalSpacingMode);
+    const temporalSpacingRef = useRef(temporalSpacing);
+    const sampleSpacingRef = useRef(sampleSpacing);
+
+    // Keep refs in sync with props
+    useEffect(() => {
+        colorsRef.current = colors;
+        nodeSizesRef.current = nodeSizes;
+        edgeThicknessRef.current = edgeThickness;
+        edgeOpacityRef.current = edgeOpacity;
+        edgeLabelSettingsRef.current = edgeLabelSettings;
+        edgeMutationSettingsRef.current = edgeMutationSettings;
+        temporalSpacingModeRef.current = temporalSpacingMode;
+        temporalSpacingRef.current = temporalSpacing;
+        sampleSpacingRef.current = sampleSpacing;
+    });
+
     // Resolve runtime force tuning with defaults matching container
     const tuning = useMemo(() => ({
         chargeScale: forceTuning?.chargeScale ?? 1,
@@ -137,10 +212,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const edges = visualStateRef.current.edges as GraphEdge[];
         if (!sim || !nodes || !edges) return;
         
-        // Debug logging only in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Applying force tuning:', tuning);
-        }
 
         // Update built-in forces
         const linkForce = sim.force("link") as d3.ForceLink<GraphNode, GraphEdge> | null;
@@ -207,9 +278,13 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Nudge simulation to apply changes with higher alpha for initial settling
         sim.alpha(0.5).alphaTarget(0.1).restart();
         // Drop target after settling - increased delay to allow more time for simulation
-        setTimeout(() => {
+        const settleTimeout = setTimeout(() => {
             sim.alphaTarget(0);
         }, 2000);
+
+        return () => {
+            clearTimeout(settleTimeout);
+        };
     }, [tuning, sampleOrder, data]); // Add data dependency to trigger on initial load
 
     // Full simulation reset while retaining sample order and positions
@@ -217,29 +292,16 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         if (resetTrigger === 0) return;
         // Skip reset if clustering is currently changing - let main rendering effect handle it
         if (isClusteringChanging.current) {
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Reset trigger skipped - clustering is changing, main effect will handle positioning');
-            }
             return;
         }
         const sim = visualStateRef.current.simulation as d3.Simulation<GraphNode, GraphEdge> | null;
         const nodes = visualStateRef.current.nodes as GraphNode[];
         const svg = visualStateRef.current.svg;
         if (!sim || !nodes || !svg) return;
-        
+
         // For dagre mode, skip manual reset - dagre positions are handled in main rendering effect
         if (sampleOrder === 'dagre') {
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Reset trigger skipped for dagre mode - positions handled in main rendering effect');
-            }
             return;
-        }
-        
-        // Debug logging only in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log('Reset trigger fired - recalculating horizontal and vertical spacing');
         }
         
         const containerRect = svg.node()?.getBoundingClientRect();
@@ -286,10 +348,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             node.vx = 0; // Reset velocity
         });
         
-        // Debug logging only in development
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`Repositioned ${sampleLevelNodes.length} sample-level nodes with spacing ${sampleSpacing}, ${uniqueTimes.length} temporal layers`);
-        }
         
         // Reset velocities and unpin only NON-SAMPLE nodes; samples keep fx and fy
         nodes.forEach(n => {
@@ -333,7 +391,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         // Restart the simulation with the updated positions
         sim.alpha(0.9).alphaTarget(0.3).restart();
-        setTimeout(() => sim.alphaTarget(0), 2000); // Increased from 200ms to allow more settling time
+        const resetSettleTimeout = setTimeout(() => sim.alphaTarget(0), 2000); // Increased from 200ms to allow more settling time
+
+        return () => {
+            clearTimeout(resetSettleTimeout);
+        };
     }, [resetTrigger, width, height, sampleSpacing, temporalSpacingMode, temporalSpacing, sampleOrder]);
 
     // Keep y pinned to layer when spacing/mode/height/temporalRange changes
@@ -360,7 +422,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             }
         });
         sim.alphaTarget(0.15).restart();
-        setTimeout(() => sim.alphaTarget(0), 1500); // Increased from 120ms to allow more settling time
+        const temporalSettleTimeout = setTimeout(() => sim.alphaTarget(0), 1500); // Increased from 120ms to allow more settling time
+
+        return () => {
+            clearTimeout(temporalSettleTimeout);
+        };
     }, [temporalSpacingMode, temporalSpacing, height, temporalRange]);
 
     // Memoize data key to prevent unnecessary simulation restarts
@@ -377,14 +443,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
     const stableData = useMemo(() => {
         if (!data || !dataKey) return null;
-        
+
         const isNewData = prevDataRef.current.key !== dataKey;
         if (isNewData || !prevDataRef.current.data) {
-        prevDataRef.current = { data, key: dataKey };
+            prevDataRef.current = { data, key: dataKey };
             shouldAutoZoomRef.current = true; // Auto-zoom for new data
-        return data;
+            return data;
         }
-        
+
         return prevDataRef.current.data;
     }, [data, dataKey]);
 
@@ -398,9 +464,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
           analyzeNodeCombining(stableData.nodes, stableData.edges);
         }
         
-        const { nodes: combinedNodes, edges: combinedEdges } = combineGenealogyIdenticalNodes(stableData.nodes, stableData.edges);
+        const { nodes: combinedNodes, edges: combinedEdges } = combineGenealogyIdenticalNodes(
+            stableData.nodes, 
+            stableData.edges,
+            combineInternalNodes,
+            combineSampleNodes
+        );
         return { nodes: combinedNodes, edges: combinedEdges };
-    }, [stableData]);
+    }, [stableData, combineInternalNodes, combineSampleNodes]);
 
     // Apply clustering if enabled
     const clusteredData = useMemo(() => {
@@ -421,7 +492,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 clusteringTemporalIntensity
             );
             
-            console.log(`Subtree clustering: ${currentData.nodes.length} nodes -> ${clusteredNodes.length} nodes (${currentData.nodes.length - clusteredNodes.length} clustered)`);
             
             currentData = { nodes: clusteredNodes as GraphNode[], edges: clusteredEdges };
             originalParentMap = parentMap;
@@ -465,7 +535,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     useEffect(() => {
         const focalNodeChanged = prevFocalNodeRef.current?.id !== focalNode?.id;
         if (focalNodeChanged) {
-            console.log('Focal node changed:', prevFocalNodeRef.current?.id, '->', focalNode?.id);
             shouldAutoZoomRef.current = true; // Auto-zoom for focal node changes (including clearing focus)
         }
         prevFocalNodeRef.current = focalNode || null;
@@ -587,6 +656,17 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         if (!ref || typeof ref === 'function' || !ref.current || !clusteredData || !stableData) return;
         const orderChanged = prevSampleOrderRef.current !== sampleOrder;
 
+        // Read visual settings from refs (not dependencies) to avoid re-renders
+        const colors = colorsRef.current;
+        const nodeSizes = nodeSizesRef.current;
+        const edgeThickness = edgeThicknessRef.current;
+        const edgeOpacity = edgeOpacityRef.current;
+        const edgeLabelSettings = edgeLabelSettingsRef.current;
+        const edgeMutationSettings = edgeMutationSettingsRef.current;
+        const temporalSpacingMode = temporalSpacingModeRef.current;
+        const temporalSpacing = temporalSpacingRef.current;
+        const sampleSpacing = sampleSpacingRef.current;
+
         const containerRect = ref.current.getBoundingClientRect();
         const actualWidth = width || containerRect.width || 800;
         const actualHeight = height || containerRect.height || 600;
@@ -594,7 +674,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         const { nodes: combinedNodes, edges: combinedEdges } = clusteredData;
         const originalNodes = (clusteredData as any).originalNodes as GraphNode[] | undefined;
-        const uniqueTimes = Array.from(new Set(combinedNodes.map(n => n.time))).sort((a, b) => a - b);
+
+        // Create nodeMap for O(1) lookups (instead of O(n) .find() calls)
+        const nodeMap = new Map<number, GraphNode>(combinedNodes.map(n => [n.id, n]));
+        const stableNodeMap = new Map<number, GraphNode>(stableData.nodes.map(n => [n.id, n]));
 
         d3.select(ref.current).selectAll("*").remove();
 
@@ -649,7 +732,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update the ref for next comparison
         prevNodeSetRef.current = currentNodeIds;
         
-        const { timeSpacing, uniqueTimes: setupUniqueTimes } = setupInitialNodePositions(combinedNodes, combinedEdges, actualWidth, actualHeight, sampleOrder, nodeSizes, temporalSpacingMode, temporalSpacing, sampleSpacing, originalNodes);
+        const { timeSpacing: _timeSpacing, uniqueTimes: setupUniqueTimes } = setupInitialNodePositions(combinedNodes, combinedEdges, actualWidth, actualHeight, sampleOrder, nodeSizes, temporalSpacingMode, temporalSpacing, sampleSpacing, originalNodes);
 
         // Detect if sample-level nodes have changed (due to clustering changes)
         const previousSampleLevelNodeIds = new Set(
@@ -674,7 +757,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         if ((sampleLevelNodesChanged || sampleOrderChanged) && sampleOrder !== 'dagre') {
             // Only recalculate sample spacing if the set changed
             if (sampleLevelNodesChanged) {
-                console.log('Sample-level nodes changed, recalculating horizontal spacing');
                 
                 // Get all sample-level nodes (samples and sample clusters)
                 // Spacing should be based on the NEW visible set of nodes, not original samples
@@ -709,7 +791,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             const internalNodes = combinedNodes.filter(n => !n.is_sample && !n.is_sample_cluster);
             const allSampleLevelNodes = combinedNodes.filter(n => n.is_sample || n.is_sample_cluster);
             
-            console.log(`Recalculating ${internalNodes.length} internal node positions based on updated sample positions`);
             
             internalNodes.forEach(node => {
                 // Recalculate optimal x position based on updated sample positions
@@ -760,42 +841,35 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             currentTransform: visualStateRef.current.currentTransform // Preserve zoom state
         };
 
-        // Track timeout for cleanup
-        let autoZoomTimeout: NodeJS.Timeout | undefined;
-        
+        // Clear any existing timeouts before setting new ones
+        if (autoZoomTimeoutRef.current) clearTimeout(autoZoomTimeoutRef.current);
+        if (dragCleanupTimeoutRef.current) clearTimeout(dragCleanupTimeoutRef.current);
+        if (dragCrossingsTimeoutRef.current) clearTimeout(dragCrossingsTimeoutRef.current);
+        if (edgeCrossingsTimeoutRef.current) clearTimeout(edgeCrossingsTimeoutRef.current);
+
         // Only auto-zoom when there's a structural change, not for visual parameter adjustments
+        // Use a simple flag check - no timeouts to prevent race conditions
         if (shouldAutoZoomRef.current) {
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Auto-zoom triggered:', {
-                focalNode: focalNode ? `node ${focalNode.id}` : 'none',
-                action: focalNode ? 'focusing on specific node' : 'fitting entire graph to view',
-                nodeCount: combinedNodes.length,
-                edgeCount: combinedEdges.length
-              });
-            }
-            
             // Reset flag immediately to prevent multiple calls
             shouldAutoZoomRef.current = false;
-            
-            // Use a small delay to ensure nodes are positioned before zoom
-            autoZoomTimeout = setTimeout(() => {
-        if (focalNode) {
-                    // Focus on specific node (subARG)
-                    // Debug logging only in development
-                    if (process.env.NODE_ENV === 'development') {
-                      console.log('Executing focus on node:', focalNode.id);
+
+            // Schedule zoom after a brief delay to let positions settle
+            // Using requestAnimationFrame for smoother timing
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    if (focalNode) {
+                        focusOnNode(focalNode, combinedNodes, combinedEdges, false);
+                    } else {
+                        focusOnNode(null, combinedNodes, combinedEdges, true);
                     }
-                    focusOnNode(focalNode, combinedNodes, combinedEdges, false);
-                } else {
-                    // Fit entire graph to view using the enhanced bounds calculation
-                    // Debug logging only in development
-                    if (process.env.NODE_ENV === 'development') {
-                      console.log('Executing fit to entire graph');
-                    }
-                    focusOnNode(null, combinedNodes, combinedEdges, true);
-                }
-            }, 100);
+                });
+            });
+        }
+
+        // Clean up previous tooltip if it exists
+        if (tooltipRef.current) {
+            tooltipRef.current.remove();
+            tooltipRef.current = null;
         }
 
         // Create tooltip outside of simulation
@@ -814,6 +888,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("z-index", "9999")
             .style("max-width", "300px");
 
+        // Store tooltip in ref for cleanup
+        tooltipRef.current = tooltip as any;
+
         // Create simulation with proper typing
         const simulation: Simulation = d3.forceSimulation<GraphNode>(combinedNodes)
             .alpha(sampleOrder === 'dagre' ? 0 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START)
@@ -822,8 +899,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .force("link", sampleOrder === 'dagre' ? null : d3.forceLink<GraphNode, GraphEdge>(combinedEdges)
                 .id(d => d.id)
                 .distance(d => {
-                    const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
-                    const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                    const source = typeof d.source === 'number' ? nodeMap.get(d.source) : d.source as GraphNode;
+                    const target = typeof d.target === 'number' ? nodeMap.get(d.target) : d.target as GraphNode;
                     if (!source || !target) return 100; // Default distance if nodes not found
                     
                     // Calculate vertical distance between layers
@@ -847,8 +924,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     return baseDistance + verticalDistance * 18;
                 })
                 .strength(d => {
-                    const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
-                    const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                    const source = typeof d.source === 'number' ? nodeMap.get(d.source) : d.source as GraphNode;
+                    const target = typeof d.target === 'number' ? nodeMap.get(d.target) : d.target as GraphNode;
                     if (!source || !target) return 0.5; // Default strength if nodes not found
                     
                     // Check if nodes are siblings (share same parent)
@@ -932,137 +1009,19 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 });
         }
 
-        // Helper function to check if an edge overlaps with genomic range
-        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
-            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
-            const [genomicLeft, genomicRight] = genomicRange;
-            // Check if edge overlaps with genomic range (edges use [left, right) notation)
-            return edge.left < genomicRight && edge.right > genomicLeft;
+        // Create opacity calculation parameters
+        const opacityParams: OpacityCalculationParams = {
+            temporalRange,
+            temporalDimOpacity,
+            genomicRange,
+            genomicDimOpacity,
+            treeRange,
+            treeIntervals,
+            treeDimOpacity,
+            nodes: combinedNodes,
+            edges: combinedEdges
         };
 
-        // Helper function to check if a node has any edges in the genomic range
-        const nodeHasEdgesInGenomicRange = (node: GraphNode): boolean => {
-            if (!genomicRange) return true;
-            const nodeId = node.id;
-            // Check if this node has any edges that overlap with the genomic range
-            return combinedEdges.some(edge => {
-                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsGenomicRange(edge);
-            });
-        };
-
-        // Helper function to check if an edge overlaps with any selected tree intervals
-        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
-            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
-            const [treeStartIdx, treeEndIdx] = treeRange;
-            
-            // Find all tree intervals in the selected range
-            const selectedIntervals = treeIntervals.filter(interval => 
-                interval.index >= treeStartIdx && interval.index <= treeEndIdx
-            );
-            
-            // Check if edge overlaps with any selected tree interval's genomic range
-            return selectedIntervals.some(interval => {
-                // Check if edge overlaps with this tree interval's genomic range
-                return edge.left < interval.right && edge.right > interval.left;
-            });
-        };
-
-        // Helper function to check if a node has any edges in the tree range
-        const nodeHasEdgesInTreeRange = (node: GraphNode): boolean => {
-            if (!treeRange || !treeIntervals) return true;
-            const nodeId = node.id;
-            // Check if this node has any edges that overlap with the tree range
-            return combinedEdges.some(edge => {
-                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsTreeRange(edge);
-            });
-        };
-
-        // Helper function to calculate opacity based on temporal range
-        const getTemporalNodeOpacity = (node: GraphNode): number => {
-            if (!temporalRange) return 1;
-            const [minTime, maxTime] = temporalRange;
-            if (node.time >= minTime && node.time <= maxTime) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, temporalDimOpacity));
-        };
-
-        // Helper function to calculate opacity based on genomic range
-        const getGenomicNodeOpacity = (node: GraphNode): number => {
-            if (!genomicRange) return 1;
-            if (nodeHasEdgesInGenomicRange(node)) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, genomicDimOpacity));
-        };
-
-        // Helper function to calculate opacity based on tree range
-        const getTreeNodeOpacity = (node: GraphNode): number => {
-            if (!treeRange || !treeIntervals) return 1;
-            if (nodeHasEdgesInTreeRange(node)) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, treeDimOpacity));
-        };
-
-        // Combined node opacity (temporal, genomic, and tree)
-        const getNodeOpacity = (node: GraphNode): number => {
-            const temporal = getTemporalNodeOpacity(node);
-            const genomic = getGenomicNodeOpacity(node);
-            const tree = getTreeNodeOpacity(node);
-            // Use minimum so all filters apply
-            return Math.min(temporal, genomic, tree);
-        };
-
-        // Helper function to calculate edge opacity based on temporal range
-        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
-            if (!temporalRange) return edgeOpacity / 100;
-            const sourceNode = typeof edge.source === 'number' ? 
-                combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
-            const targetNode = typeof edge.target === 'number' ? 
-                combinedNodes.find(n => n.id === edge.target) : edge.target as GraphNode;
-            
-            // Edge is visible if both nodes are visible
-            if (sourceNode && targetNode) {
-                const sourceVisible = getTemporalNodeOpacity(sourceNode) > 0.5;
-                const targetVisible = getTemporalNodeOpacity(targetNode) > 0.5;
-                if (sourceVisible && targetVisible) {
-                    return edgeOpacity / 100;
-                }
-            }
-            return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Helper function to calculate edge opacity based on genomic range
-        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
-            if (!genomicRange) return edgeOpacity / 100;
-            if (edgeOverlapsGenomicRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Helper function to calculate edge opacity based on tree range
-        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
-            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
-            if (edgeOverlapsTreeRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Combined edge opacity (temporal, genomic, and tree)
-        const getEdgeOpacity = (edge: GraphEdge): number => {
-            const temporal = getTemporalEdgeOpacity(edge);
-            const genomic = getGenomicEdgeOpacity(edge);
-            const tree = getTreeEdgeOpacity(edge);
-            // Use minimum so all filters apply
-            return Math.min(temporal, genomic, tree);
-        };
 
         const edges = g.append("g")
             .selectAll<SVGLineElement, GraphEdge>("line")
@@ -1076,7 +1035,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     return `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`;
                 }
             })
-            .attr("stroke-opacity", d => getEdgeOpacity(d))
+            .attr("stroke-opacity", d => getEdgeOpacity(d, combinedNodes, opacityParams) * (edgeOpacity / 100))
             .attr("stroke-width", d => {
                 const { isSampleClusterEdge, clusterSize } = getEdgeClusterInfo(d, combinedNodes);
                 if (isSampleClusterEdge) {
@@ -1086,53 +1045,71 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 return edgeThickness;
             })
             .attr("x1", d => {
-                const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
+                const source = typeof d.source === 'number' ? nodeMap.get(d.source as number) : d.source as GraphNode;
                 return source?.x ?? 0;
             })
             .attr("y1", d => {
-                const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
+                const source = typeof d.source === 'number' ? nodeMap.get(d.source as number) : d.source as GraphNode;
                 return sampleOrder === 'dagre' ? (source?.y ?? 0) : 
                     calculateYPosition(source?.time ?? 0, setupUniqueTimes, availableHeight, temporalSpacingMode, temporalSpacing);
             })
             .attr("x2", d => {
-                const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
                 return target?.x ?? 0;
             })
             .attr("y2", d => {
-                const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
                 return sampleOrder === 'dagre' ? (target?.y ?? 0) : 
                     calculateYPosition(target?.time ?? 0, setupUniqueTimes, actualHeight * (1 - GRAPH_CONSTANTS.LAYOUT.BOTTOM_MARGIN_RATIO), temporalSpacingMode, temporalSpacing);
             })
-            .on("click", (event, d) => onEdgeClick?.(d));
+            .on("click", (_event, d) => onEdgeClick?.(d));
 
-        // Create mutation markers (red "x"s) on edges that have mutations  
-        let mutationMarkers: d3.Selection<SVGTextElement, GraphEdge, SVGGElement, unknown> | null = null;
+        // Create mutation markers with detailed information
+        interface MutationMarkerData {
+            edge: GraphEdge;
+            mutation: any; // MutationDetail from types
+            sourceNode: GraphNode | undefined;
+            targetNode: GraphNode | undefined;
+        }
+        
+        let mutationMarkers: d3.Selection<SVGTextElement, MutationMarkerData, SVGGElement, unknown> | null = null;
         
         if (edgeMutationSettings?.showMutationMarkers) {
-            const edgesWithMutations = combinedEdges.filter(d => d.has_mutations);
-            console.log('Force-directed mutation markers debug:', {
-                totalEdges: combinedEdges.length,
-                edgesWithMutations: edgesWithMutations.length,
-                firstFewMutationEdges: edgesWithMutations.slice(0, 5).map(edge => ({
-                    source: typeof edge.source === 'number' ? edge.source : (edge.source as any).id,
-                    target: typeof edge.target === 'number' ? edge.target : (edge.target as any).id,
-                    has_mutations: edge.has_mutations,
-                    left: edge.left,
-                    right: edge.right
-                })),
-                percentageWithMutations: `${Math.round((edgesWithMutations.length / combinedEdges.length) * 100)}%`,
-                note: 'High percentage is normal - most edges span large genomic regions containing mutations'
-            });
+            // Flatten all mutations from all edges into individual markers
+            const mutationMarkerData: MutationMarkerData[] = [];
             
-            mutationMarkers = g.append("g")
-                .attr("class", "mutation-markers")
-                .selectAll<SVGTextElement, GraphEdge>("text")
-                .data(edgesWithMutations)
+            for (const edge of combinedEdges) {
+                if (edge.mutations && edge.mutations.length > 0) {
+                    const sourceNode = typeof edge.source === 'number' 
+                        ? nodeMap.get(edge.source as number)
+                        : edge.source as GraphNode;
+                    const targetNode = typeof edge.target === 'number' 
+                        ? nodeMap.get(edge.target as number)
+                        : edge.target as GraphNode;
+                    
+                    for (const mutation of edge.mutations) {
+                        mutationMarkerData.push({
+                            edge,
+                            mutation,
+                            sourceNode,
+                            targetNode
+                        });
+                    }
+                }
+            }
+            
+            
+            // Create a group for mutation markers
+            const markerGroup = g.append("g").attr("class", "mutation-markers");
+            
+            mutationMarkers = markerGroup
+                .selectAll<SVGTextElement, MutationMarkerData>("text")
+                .data(mutationMarkerData)
                 .join("text")
                 .text("×") // Use multiplication sign for a clean "x" appearance
                 .attr("font-size", `${edgeMutationSettings.markerSize || 40}px`)
                 .attr("fill", `rgb(${colors.mutationMarker[0]}, ${colors.mutationMarker[1]}, ${colors.mutationMarker[2]})`)
-                .attr("opacity", d => getEdgeOpacity(d))
+                .attr("opacity", d => getEdgeOpacity(d.edge, combinedNodes, opacityParams) * (edgeOpacity / 100))
                 .attr("stroke", colors.background) // Background stroke for visibility
                 .attr("stroke-width", "2px") // Thicker stroke for better contrast
                 .attr("paint-order", "stroke fill")
@@ -1140,8 +1117,112 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 .attr("dominant-baseline", "middle")
                 .attr("font-weight", "bold")
                 .attr("font-family", "monospace, Arial, sans-serif") // Monospace for better symbol rendering
-                .style("pointer-events", "none")
-                .style("user-select", "none");
+                .style("cursor", "pointer")
+                .style("pointer-events", "all")
+                .style("user-select", "none")
+                // Set initial positions for mutation markers
+                // Position along the edge based on mutation time ratio
+                .attr("x", d => {
+                    if (d.sourceNode && d.targetNode && 
+                        d.sourceNode.x !== undefined && d.targetNode.x !== undefined) {
+                        // If mutation has time info, interpolate along edge
+                        if (d.mutation.time !== null && d.mutation.time !== undefined) {
+                            const sourceTime = d.sourceNode.time ?? 0;
+                            const targetTime = d.targetNode.time ?? 0;
+                            const mutationTime = d.mutation.time;
+                            const timeRange = sourceTime - targetTime;
+                            
+                            if (timeRange > 0 && mutationTime >= targetTime && mutationTime <= sourceTime) {
+                                const timeRatio = (mutationTime - targetTime) / timeRange;
+                                return d.targetNode.x + timeRatio * (d.sourceNode.x - d.targetNode.x);
+                            }
+                        }
+                        // Default to midpoint
+                        return (d.sourceNode.x + d.targetNode.x) / 2;
+                    }
+                    return 0;
+                })
+                .attr("y", d => {
+                    if (d.sourceNode && d.targetNode && 
+                        d.sourceNode.y !== undefined && d.targetNode.y !== undefined) {
+                        // If mutation has time info, interpolate along edge
+                        if (d.mutation.time !== null && d.mutation.time !== undefined) {
+                            const sourceTime = d.sourceNode.time ?? 0;
+                            const targetTime = d.targetNode.time ?? 0;
+                            const mutationTime = d.mutation.time;
+                            const timeRange = sourceTime - targetTime;
+                            
+                            if (timeRange > 0 && mutationTime >= targetTime && mutationTime <= sourceTime) {
+                                const timeRatio = (mutationTime - targetTime) / timeRange;
+                                return d.targetNode.y + timeRatio * (d.sourceNode.y - d.targetNode.y);
+                            }
+                        }
+                        // Default to midpoint
+                        return (d.sourceNode.y + d.targetNode.y) / 2;
+                    }
+                    return 0;
+                });
+            
+            // Add tooltip on hover using the same tooltip div as nodes
+            mutationMarkers
+                .on("mouseover", (event, d) => {
+                    const mut = d.mutation;
+                    let tooltipContent = `<strong>Mutation ${mut.id}</strong><br>`;
+                    tooltipContent += `Position: ${Math.round(mut.position)}<br>`;
+                    tooltipContent += `Transition: ${mut.previous_state} → ${mut.derived_state}<br>`;
+                    tooltipContent += `Ancestral: ${mut.ancestral_state}`;
+                    
+                    if (mut.time !== null && mut.time !== undefined) {
+                        tooltipContent += `<br>Time: ${mut.time.toFixed(4)}`;
+                    }
+                    if (mut.parent_mutation !== -1) {
+                        tooltipContent += `<br>Parent mutation: ${mut.parent_mutation}`;
+                    }
+                    
+                    // Calculate position with bounds checking (same as node tooltips)
+                    const gap = 10;
+                    const margin = 8;
+                    const tooltipNode = tooltip.node() as HTMLElement;
+                    if (tooltipNode) {
+                        tooltip.html(tooltipContent);
+                        // Force a layout calculation to get actual dimensions
+                        tooltip.style("visibility", "hidden");
+                        tooltipNode.style.display = "block";
+                        const tooltipRect = tooltipNode.getBoundingClientRect();
+                        tooltipNode.style.display = "";
+                        
+                        const viewportW = window.innerWidth;
+                        const viewportH = window.innerHeight;
+                        const clientX = (event as MouseEvent).clientX;
+                        const clientY = (event as MouseEvent).clientY;
+                        
+                        // Calculate preferred position (to the right and slightly below cursor)
+                        let left = clientX + gap;
+                        let top = clientY + gap;
+                        
+                        // Check if tooltip would overflow right edge
+                        if (left + tooltipRect.width > viewportW - margin) {
+                            left = clientX - tooltipRect.width - gap;
+                        }
+                        
+                        // Check if tooltip would overflow bottom edge
+                        if (top + tooltipRect.height > viewportH - margin) {
+                            top = clientY - tooltipRect.height - gap;
+                        }
+                        
+                        // Ensure minimum margins
+                        left = Math.max(margin, Math.min(left, viewportW - tooltipRect.width - margin));
+                        top = Math.max(margin, Math.min(top, viewportH - tooltipRect.height - margin));
+                        
+                        tooltip
+                            .style("left", left + "px")
+                            .style("top", top + "px")
+                            .style("visibility", "visible");
+                    }
+                })
+                .on("mouseout", () => {
+                    tooltip.style("visibility", "hidden");
+                });
         }
 
         // Calculate edge groups for labels (always calculate, control visibility separately)
@@ -1175,11 +1256,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         // Helper function to find optimal edge label position
         const findOptimalEdgeLabelPosition = (
-            sourceNode: GraphNode, 
-            targetNode: GraphNode, 
+            sourceNode: GraphNode,
+            targetNode: GraphNode,
             edgeGroup: EdgeGroupWithSpans,
             allNodes: GraphNode[],
-            allEdgeGroups: EdgeGroupWithSpans[]
+            _allEdgeGroups: EdgeGroupWithSpans[]
         ): { x: number; y: number } => {
             if (!sourceNode || !targetNode) {
                 console.warn(`Edge label positioning: missing nodes for ${edgeGroup.sourceId}->${edgeGroup.targetId}`);
@@ -1282,11 +1363,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("user-select", "none")
             .attr("opacity", d => {
                 // Get opacity from the edge
-                const sourceNode = combinedNodes.find(n => n.id === d.sourceId);
-                const targetNode = combinedNodes.find(n => n.id === d.targetId);
+                const sourceNode = nodeMap.get(d.sourceId);
+                const targetNode = nodeMap.get(d.targetId);
                 if (sourceNode && targetNode) {
-                    const sourceVisible = getNodeOpacity(sourceNode) > 0.5;
-                    const targetVisible = getNodeOpacity(targetNode) > 0.5;
+                    const sourceVisible = getNodeOpacity(sourceNode, opacityParams) > 0.5;
+                    const targetVisible = getNodeOpacity(targetNode, opacityParams) > 0.5;
                     if (sourceVisible && targetVisible) {
                         return 1;
                     }
@@ -1295,12 +1376,12 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             })
             .each(function(d) {
                 // Try to find nodes in combined nodes first, then fall back to original data
-                let sourceNode = combinedNodes.find(n => n.id === d.sourceId);
-                let targetNode = combinedNodes.find(n => n.id === d.targetId);
+                let sourceNode = nodeMap.get(d.sourceId);
+                let targetNode = nodeMap.get(d.targetId);
                 
                 // If not found in combined nodes, try to find in original nodes and map to combined
                 if (!sourceNode) {
-                    const originalSource = stableData.nodes.find(n => n.id === d.sourceId);
+                    const originalSource = stableNodeMap.get(d.sourceId);
                     if (originalSource) {
                         // Find the combined node that contains this original node
                         sourceNode = combinedNodes.find(cn => 
@@ -1310,7 +1391,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 }
                 
                 if (!targetNode) {
-                    const originalTarget = stableData.nodes.find(n => n.id === d.targetId);
+                    const originalTarget = stableNodeMap.get(d.targetId);
                     if (originalTarget) {
                         // Find the combined node that contains this original node
                         targetNode = combinedNodes.find(cn => 
@@ -1479,16 +1560,17 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 fy: event.subject.fy
             });
             
-            // Clean up drag tracking properties
-            setTimeout(() => {
+            // Clean up drag tracking properties (using refs for proper cleanup)
+            if (dragCleanupTimeoutRef.current) clearTimeout(dragCleanupTimeoutRef.current);
+            dragCleanupTimeoutRef.current = setTimeout(() => {
                 (event.subject as any).wasDragged = false;
             }, 100); // Small delay to ensure click handler has time to check the flag
-            
-            // Recalculate edge crossings after drag with a slight delay
-            setTimeout(() => {
+
+            // Recalculate edge crossings after drag with a slight delay (using refs for proper cleanup)
+            if (dragCrossingsTimeoutRef.current) clearTimeout(dragCrossingsTimeoutRef.current);
+            dragCrossingsTimeoutRef.current = setTimeout(() => {
                 if (onEdgeCrossingsChange && combinedNodes && combinedEdges) {
                     const crossings = calculateEdgeCrossings(combinedNodes, combinedEdges);
-                    console.log('Edge crossings recalculated after drag:', crossings);
                     onEdgeCrossingsChange(crossings);
                 }
             }, 300); // 300ms delay to allow simulation to settle after drag
@@ -1508,20 +1590,33 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 return getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
             })
             .attr("fill", d => {
+                // Cluster nodes always use theme colors
                 if (d.is_cluster) {
-                    // Sample clusters use theme color
                     if (d.is_sample_cluster) {
                         return `rgba(${colors.nodeClusterSample[0]}, ${colors.nodeClusterSample[1]}, ${colors.nodeClusterSample[2]}, ${colors.nodeClusterSample[3] / 255})`;
                     }
-                    // Regular cluster nodes use theme color
                     return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
                 }
+                
+                // Population coloring
+                if (populationColors && d.population !== null && d.population !== undefined) {
+                    let color = populationColors.get(d.population);
+                    if (color) {
+                        // Darken for samples and roots
+                        if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) {
+                            color = darkenColor(color, 0.75);
+                        }
+                        return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                    }
+                }
+                
+                // Default theme colors
                 if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
                 if (d.is_combined) return `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`;
                 if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`;
                 return `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`;
             })
-            .attr("fill-opacity", d => getNodeOpacity(d))
+            .attr("fill-opacity", d => getNodeOpacity(d, opacityParams))
             .attr("stroke", d => {
                 if (d.is_cluster) {
                     if (d.is_sample_cluster) return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
@@ -1531,7 +1626,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 if (d.is_sample) return colors.background;
                 return "none";
             })
-            .attr("stroke-opacity", d => getNodeOpacity(d))
+            .attr("stroke-opacity", d => getNodeOpacity(d, opacityParams))
             .attr("stroke-width", d => {
                 if (d.is_cluster) return 2.5; // Thick stroke for cluster nodes
                 if (isRootNode(d, combinedNodes, combinedEdges)) return GRAPH_CONSTANTS.ROOT_NODE_STROKE_WIDTH;
@@ -1547,9 +1642,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .on("click", (event, d) => {
                 event.preventDefault();
                 // Debug logging only in development
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('D3 click event:', { button: event.button, which: event.which, type: event.type });
-                }
                 // Only fire click if the node wasn't dragged
                 if (!(d as any).wasDragged) {
                 onNodeClick?.(d);
@@ -1560,9 +1652,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .on("contextmenu", (event, d) => {
                 event.preventDefault();
                 // Debug logging only in development
-                if (process.env.NODE_ENV === 'development') {
-                  console.log('D3 contextmenu event:', { button: event.button, which: event.which, type: event.type });
-                }
                 onNodeRightClick?.(d);
             })
             .on("mouseover", (event, d) => {
@@ -1604,13 +1693,22 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 } else if (d.is_sample) {
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Sample node ${nodeIdDisplay}<br>Time: ${d.time}`;
+                    if (d.population !== null && d.population !== undefined) {
+                        tooltipContent += `<br>Population: ${d.population}`;
+                    }
                 } else if (d.is_combined) {
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Combined node ${nodeIdDisplay}<br>Time: ${d.time}`;
+                    if (d.population !== null && d.population !== undefined) {
+                        tooltipContent += `<br>Population: ${d.population}`;
+                        if (d.population_inferred) {
+                            tooltipContent += ` (inferred)`;
+                        }
+                    }
                 } else if (isRootNode(d, combinedNodes, combinedEdges)) {
                     const childEdges = combinedEdges
                         .filter(e => {
-                            const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as GraphNode;
+                            const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
                             return source?.id === d.id;
                         });
                     
@@ -1618,7 +1716,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
                     
                     childEdges.forEach(e => {
-                        const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
+                        const target = typeof e.target === 'number' ? nodeMap.get(e.target as number) : e.target as GraphNode;
                         if (!target) return;
                         
                         // If child is a cluster, show the actual nodes that were clustered
@@ -1647,6 +1745,12 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Root node ${nodeIdDisplay}<br>Time: ${d.time}`;
+                    if (d.population !== null && d.population !== undefined) {
+                        tooltipContent += `<br>Population: ${d.population}`;
+                        if (d.population_inferred) {
+                            tooltipContent += ` (inferred)`;
+                        }
+                    }
                     
                     if (childrenInfo.length > 0) {
                         // Group by cluster
@@ -1685,11 +1789,11 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 } else {
                     const parents = [...new Set(combinedEdges
                         .filter(e => {
-                            const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
+                            const target = typeof e.target === 'number' ? nodeMap.get(e.target as number) : e.target as GraphNode;
                             return target?.id === d.id;
                         })
                         .map(e => {
-                            const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as GraphNode;
+                            const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
                             return source?.id;
                         })
                         .filter(id => id !== undefined))]
@@ -1697,7 +1801,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     
                     const childEdges = combinedEdges
                         .filter(e => {
-                            const source = typeof e.source === 'number' ? combinedNodes.find(n => n.id === e.source) : e.source as GraphNode;
+                            const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
                             return source?.id === d.id;
                         });
                     
@@ -1705,7 +1809,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
                     
                     childEdges.forEach(e => {
-                        const target = typeof e.target === 'number' ? combinedNodes.find(n => n.id === e.target) : e.target as GraphNode;
+                        const target = typeof e.target === 'number' ? nodeMap.get(e.target as number) : e.target as GraphNode;
                         if (!target) return;
                         
                         // If child is a cluster, show the actual nodes that were clustered
@@ -1733,6 +1837,12 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
                     const nodeIdDisplay = formatNodeId(d);
                     tooltipContent = `Internal node ${nodeIdDisplay}<br>Time: ${d.time}`;
+                    if (d.population !== null && d.population !== undefined) {
+                        tooltipContent += `<br>Population: ${d.population}`;
+                        if (d.population_inferred) {
+                            tooltipContent += ` (inferred)`;
+                        }
+                    }
                     if (parents.length > 0) {
                         tooltipContent += `<br>Parents: ${parents.join(", ")}`;
                     }
@@ -1916,7 +2026,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 }
                 return d.id.toString();
             })
-            .attr("opacity", d => getNodeOpacity(d))
+            .attr("opacity", d => getNodeOpacity(d, opacityParams))
             .attr("font-size", d => {
                 const nodeRadius = getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
                 if (d.is_sample) {
@@ -1927,6 +2037,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 }
             })
             .attr("fill", colors.text)
+            .attr("stroke", colors.background)
+            .attr("stroke-width", "2.5px")
+            .attr("paint-order", "stroke fill")
             .attr("text-anchor", "middle")
             .attr("font-weight", d => {
                 if (d.is_sample) return "normal";
@@ -1976,19 +2089,19 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
             edges
                 .attr("x1", d => {
-                    const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
+                    const source = typeof d.source === 'number' ? nodeMap.get(d.source as number) : d.source as GraphNode;
                     return source?.x ?? 0;
                 })
                 .attr("y1", d => {
-                    const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
+                    const source = typeof d.source === 'number' ? nodeMap.get(d.source as number) : d.source as GraphNode;
                     return source?.y ?? 0; // Always use node.y which reflects current position (including spacing updates)
                 })
                 .attr("x2", d => {
-                    const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                    const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
                     return target?.x ?? 0;
                 })
                 .attr("y2", d => {
-                    const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
+                    const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
                     return target?.y ?? 0; // Always use node.y which reflects current position (including spacing updates)
                 });
 
@@ -2033,12 +2146,12 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 edgeLabels
                     .each(function(d) {
                         // Try to find nodes in combined nodes first, then fall back to original data
-                        let sourceNode = combinedNodes.find(n => n.id === d.sourceId);
-                        let targetNode = combinedNodes.find(n => n.id === d.targetId);
+                        let sourceNode = nodeMap.get(d.sourceId);
+                        let targetNode = nodeMap.get(d.targetId);
                         
                         // If not found in combined nodes, try to find in original nodes and map to combined
                         if (!sourceNode) {
-                            const originalSource = stableData.nodes.find(n => n.id === d.sourceId);
+                            const originalSource = stableNodeMap.get(d.sourceId);
                             if (originalSource) {
                                 // Find the combined node that contains this original node
                                 sourceNode = combinedNodes.find(cn => 
@@ -2048,7 +2161,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         }
                         
                         if (!targetNode) {
-                            const originalTarget = stableData.nodes.find(n => n.id === d.targetId);
+                            const originalTarget = stableNodeMap.get(d.targetId);
                             if (originalTarget) {
                                 // Find the combined node that contains this original node
                                 targetNode = combinedNodes.find(cn => 
@@ -2070,14 +2183,17 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             if (mutationMarkers) {
                 mutationMarkers
                     .each(function(d) {
-                        // Use the same node-finding logic as edge labels
-                        let sourceNode = combinedNodes.find(n => n.id === (typeof d.source === 'number' ? d.source : (d.source as any).id));
-                        let targetNode = combinedNodes.find(n => n.id === (typeof d.target === 'number' ? d.target : (d.target as any).id));
+                        // Dynamically find the current source and target nodes from combinedNodes
+                        // This ensures markers move with the simulation
+                        const sourceId = typeof d.edge.source === 'number' ? d.edge.source : (d.edge.source as any).id;
+                        const targetId = typeof d.edge.target === 'number' ? d.edge.target : (d.edge.target as any).id;
                         
-                        // Fallback to original nodes if not found in combined nodes
+                        let sourceNode = nodeMap.get(sourceId);
+                        let targetNode = nodeMap.get(targetId);
+                        
+                        // Fallback: try to find in original nodes and map to combined nodes
                         if (!sourceNode) {
-                            const sourceId = typeof d.source === 'number' ? d.source : (d.source as any).id;
-                            const originalSource = stableData.nodes.find(n => n.id === sourceId);
+                            const originalSource = stableNodeMap.get(sourceId);
                             if (originalSource) {
                                 sourceNode = combinedNodes.find(cn => 
                                     cn.combined_nodes?.includes(sourceId) || cn.id === sourceId
@@ -2086,8 +2202,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         }
                         
                         if (!targetNode) {
-                            const targetId = typeof d.target === 'number' ? d.target : (d.target as any).id;
-                            const originalTarget = stableData.nodes.find(n => n.id === targetId);
+                            const originalTarget = stableNodeMap.get(targetId);
                             if (originalTarget) {
                                 targetNode = combinedNodes.find(cn => 
                                     cn.combined_nodes?.includes(targetId) || cn.id === targetId
@@ -2095,21 +2210,37 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             }
                         }
                         
-                        if (sourceNode && targetNode) {
-                            // Position at edge midpoint (simpler than edge labels which need offset)
-                            const midX = ((sourceNode.x ?? 0) + (targetNode.x ?? 0)) / 2;
-                            const midY = ((sourceNode.y ?? 0) + (targetNode.y ?? 0)) / 2;
+                        if (sourceNode && targetNode && 
+                            sourceNode.x !== undefined && sourceNode.y !== undefined &&
+                            targetNode.x !== undefined && targetNode.y !== undefined) {
+                            
+                            // Calculate position along edge based on mutation time
+                            let mutationX = (sourceNode.x + targetNode.x) / 2;
+                            let mutationY = (sourceNode.y + targetNode.y) / 2;
+                            
+                            if (d.mutation.time !== null && d.mutation.time !== undefined) {
+                                const sourceTime = sourceNode.time ?? 0;
+                                const targetTime = targetNode.time ?? 0;
+                                const mutationTime = d.mutation.time;
+                                const timeRange = sourceTime - targetTime;
+                                
+                                // Interpolate position along the edge based on time ratio
+                                if (timeRange > 0 && mutationTime >= targetTime && mutationTime <= sourceTime) {
+                                    const timeRatio = (mutationTime - targetTime) / timeRange;
+                                    mutationX = targetNode.x + timeRatio * (sourceNode.x - targetNode.x);
+                                    mutationY = targetNode.y + timeRatio * (sourceNode.y - targetNode.y);
+                                }
+                            }
                             
                             d3.select(this)
-                                .attr("x", midX)
-                                .attr("y", midY);
+                                .attr("x", mutationX)
+                                .attr("y", mutationY);
                         }
                     });
             }
         });
 
         // Add "end" event handler to calculate edge crossings after simulation settles
-        const edgeCrossingsTimeoutRef = { current: undefined as NodeJS.Timeout | undefined };
         simulation.on("end", () => {
             // Clear any pending timeout
             if (edgeCrossingsTimeoutRef.current) {
@@ -2119,13 +2250,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             edgeCrossingsTimeoutRef.current = setTimeout(() => {
                 if (onEdgeCrossingsChange && combinedNodes && combinedEdges) {
                     const crossings = calculateEdgeCrossings(combinedNodes, combinedEdges);
-                    // Debug logging only in development
-                    if (process.env.NODE_ENV === 'development') {
-                      console.log('Edge crossings calculated:', crossings);
-                    }
                     onEdgeCrossingsChange(crossings);
                 }
-                edgeCrossingsTimeoutRef.current = undefined;
+                edgeCrossingsTimeoutRef.current = null;
             }, 100); // 100ms delay to ensure everything is settled
         });
 
@@ -2140,18 +2267,57 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             currentTransform: visualStateRef.current.currentTransform // Preserve zoom state
         };
 
+        // Cleanup function - properly deregister all D3 event handlers and clear timeouts
         return () => {
-            if (simulation) simulation.stop();
-            if (tooltip) tooltip.remove();
-            if (autoZoomTimeout) clearTimeout(autoZoomTimeout);
-            if (edgeCrossingsTimeoutRef.current) clearTimeout(edgeCrossingsTimeoutRef.current);
+            // Stop simulation and deregister its event handlers
+            if (simulation) {
+                simulation.stop();
+                simulation.on("tick", null);
+                simulation.on("end", null);
+            }
+
+            // Remove tooltip from DOM
+            if (tooltip) {
+                tooltip.remove();
+            }
+            if (tooltipRef.current) {
+                tooltipRef.current.remove();
+                tooltipRef.current = null;
+            }
+
+            // Clear all timeouts using refs
+            if (autoZoomTimeoutRef.current) {
+                clearTimeout(autoZoomTimeoutRef.current);
+                autoZoomTimeoutRef.current = null;
+            }
+            if (dragCleanupTimeoutRef.current) {
+                clearTimeout(dragCleanupTimeoutRef.current);
+                dragCleanupTimeoutRef.current = null;
+            }
+            if (dragCrossingsTimeoutRef.current) {
+                clearTimeout(dragCrossingsTimeoutRef.current);
+                dragCrossingsTimeoutRef.current = null;
+            }
+            if (edgeCrossingsTimeoutRef.current) {
+                clearTimeout(edgeCrossingsTimeoutRef.current);
+                edgeCrossingsTimeoutRef.current = null;
+            }
+
+            // Deregister zoom handler
+            if (svg) {
+                svg.on(".zoom", null);
+            }
+
+            // Note: Node/edge event handlers are automatically cleaned up when their DOM elements are removed
+            // by d3.select(ref.current).selectAll("*").remove() at the start of the effect
         };
     // Only restart simulation for structural changes, not visual settings
-    // nodeSizes, edgeThickness, edgeOpacity, nodeIdSettings, edgeLabelSettings, edgeMutationSettings are purely visual
+    // Visual settings (colors, nodeSizes, edgeThickness, edgeOpacity, edgeLabelSettings, edgeMutationSettings,
+    // temporalSpacingMode, temporalSpacing, sampleSpacing) are accessed via refs to avoid triggering re-renders
     // clusteredData depends on combinedData, so only clusteredData is needed in dependencies
         // Update previous sample order after applying layout
         prevSampleOrderRef.current = sampleOrder;
-    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize, colors, nodeSizes, edgeThickness, edgeOpacity, edgeLabelSettings, edgeMutationSettings, temporalSpacingMode, temporalSpacing, sampleSpacing]);
+    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
 
     // Effect to pause/resume simulation based on simulationPaused prop
     useEffect(() => {
@@ -2186,7 +2352,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             // and will continue to render the pinned positions
             simulation.alpha(0).alphaTarget(0);
             
-            console.log('Force simulation paused - non-sample nodes pinned at current positions');
         } else {
             // Unpin nodes that were auto-pinned (not manually dragged or samples)
             // CRITICAL: Only unpin x-positions (fx), keep y-positions (fy) pinned to maintain temporal layers
@@ -2208,7 +2373,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             
             // Resume the simulation with a gentle restart
             simulation.alpha(0.1).alphaTarget(0).restart();
-            console.log('Force simulation resumed - non-sample nodes unpinned');
         }
     }, [simulationPaused, ref]);
 
@@ -2271,7 +2435,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Give the simulation a gentle nudge to continue from current positions
         simulation.alpha(0.1).alphaTarget(0).restart();
         
-        console.log('All non-sample nodes unpinned - simulation continues from current positions');
     }, [unpinTrigger, sampleOrder, temporalSpacingMode, temporalSpacing, height]);
 
     // Effect to update opacities when temporal, genomic, or tree range changes (without restarting simulation)
@@ -2282,143 +2445,36 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const svg = d3.select(ref.current);
         const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
 
-        // Helper function to check if an edge overlaps with genomic range
-        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
-            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
-            const [genomicLeft, genomicRight] = genomicRange;
-            return edge.left < genomicRight && edge.right > genomicLeft;
+        // Create opacity calculation parameters
+        const opacityParams: OpacityCalculationParams = {
+            temporalRange,
+            temporalDimOpacity,
+            genomicRange,
+            genomicDimOpacity,
+            treeRange,
+            treeIntervals,
+            treeDimOpacity,
+            nodes: combinedNodes,
+            edges: combinedEdges
         };
 
-        // Helper function to check if a node has any edges in the genomic range
-        const nodeHasEdgesInGenomicRange = (node: GraphNode): boolean => {
-            if (!genomicRange) return true;
-            const nodeId = node.id;
-            return combinedEdges.some(edge => {
-                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsGenomicRange(edge);
-            });
-        };
-
-        // Helper function to check if an edge overlaps with any selected tree intervals
-        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
-            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
-            const [treeStartIdx, treeEndIdx] = treeRange;
-            const selectedIntervals = treeIntervals.filter(interval => 
-                interval.index >= treeStartIdx && interval.index <= treeEndIdx
-            );
-            return selectedIntervals.some(interval => {
-                return edge.left < interval.right && edge.right > interval.left;
-            });
-        };
-
-        // Helper function to check if a node has any edges in the tree range
-        const nodeHasEdgesInTreeRange = (node: GraphNode): boolean => {
-            if (!treeRange || !treeIntervals) return true;
-            const nodeId = node.id;
-            return combinedEdges.some(edge => {
-                const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-                const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                return (sourceId === nodeId || targetId === nodeId) && edgeOverlapsTreeRange(edge);
-            });
-        };
-
-        // Helper function to calculate opacity based on temporal range
-        const getTemporalNodeOpacity = (node: GraphNode): number => {
-            if (!temporalRange) return 1;
-            const [minTime, maxTime] = temporalRange;
-            if (node.time >= minTime && node.time <= maxTime) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, temporalDimOpacity));
-        };
-
-        // Helper function to calculate opacity based on genomic range
-        const getGenomicNodeOpacity = (node: GraphNode): number => {
-            if (!genomicRange) return 1;
-            if (nodeHasEdgesInGenomicRange(node)) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, genomicDimOpacity));
-        };
-
-        // Helper function to calculate opacity based on tree range
-        const getTreeNodeOpacity = (node: GraphNode): number => {
-            if (!treeRange || !treeIntervals) return 1;
-            if (nodeHasEdgesInTreeRange(node)) {
-                return 1;
-            }
-            return Math.max(0, Math.min(0.99, treeDimOpacity));
-        };
-
-        // Combined node opacity (temporal, genomic, and tree)
-        const getNodeOpacity = (node: GraphNode): number => {
-            const temporal = getTemporalNodeOpacity(node);
-            const genomic = getGenomicNodeOpacity(node);
-            const tree = getTreeNodeOpacity(node);
-            return Math.min(temporal, genomic, tree);
-        };
-
-        // Helper function to calculate edge opacity based on temporal range
-        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
-            if (!temporalRange) return edgeOpacity / 100;
-            const sourceNode = typeof edge.source === 'number' ? 
-                combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
-            const targetNode = typeof edge.target === 'number' ? 
-                combinedNodes.find(n => n.id === edge.target) : edge.target as GraphNode;
-            
-            if (sourceNode && targetNode) {
-                const sourceVisible = getTemporalNodeOpacity(sourceNode) > 0.5;
-                const targetVisible = getTemporalNodeOpacity(targetNode) > 0.5;
-                if (sourceVisible && targetVisible) {
-                    return edgeOpacity / 100;
-                }
-            }
-            return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Helper function to calculate edge opacity based on genomic range
-        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
-            if (!genomicRange) return edgeOpacity / 100;
-            if (edgeOverlapsGenomicRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Helper function to calculate edge opacity based on tree range
-        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
-            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
-            if (edgeOverlapsTreeRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        // Combined edge opacity (temporal, genomic, and tree)
-        const getEdgeOpacity = (edge: GraphEdge): number => {
-            const temporal = getTemporalEdgeOpacity(edge);
-            const genomic = getGenomicEdgeOpacity(edge);
-            const tree = getTreeEdgeOpacity(edge);
-            return Math.min(temporal, genomic, tree);
-        };
 
         // Update node opacities
         svg.selectAll<SVGCircleElement, GraphNode>("circle")
-            .attr("fill-opacity", d => getNodeOpacity(d))
-            .attr("stroke-opacity", d => getNodeOpacity(d));
+            .attr("fill-opacity", d => getNodeOpacity(d, opacityParams))
+            .attr("stroke-opacity", d => getNodeOpacity(d, opacityParams));
 
         // Update edge opacities
         svg.selectAll<SVGLineElement, GraphEdge>("line")
-            .attr("stroke-opacity", d => getEdgeOpacity(d));
+            .attr("stroke-opacity", d => getEdgeOpacity(d, combinedNodes, opacityParams) * (edgeOpacity / 100));
 
         // Update node label opacities
         svg.selectAll<SVGTextElement, GraphNode>(".node-labels text")
-            .attr("opacity", d => getNodeOpacity(d));
+            .attr("opacity", d => getNodeOpacity(d, opacityParams));
 
         // Update mutation marker opacities
         svg.selectAll(".mutation-markers text")
-            .attr("opacity", (d: any) => getEdgeOpacity(d));
+            .attr("opacity", (d: any) => d && d.edge ? getEdgeOpacity(d.edge, combinedNodes, opacityParams) * (edgeOpacity / 100) : 0);
 
         // Update edge label opacities
         svg.selectAll<SVGTextElement, any>("text")
@@ -2431,8 +2487,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 const sourceNode = combinedNodes.find((n: GraphNode) => n.id === d.sourceId);
                 const targetNode = combinedNodes.find((n: GraphNode) => n.id === d.targetId);
                 if (sourceNode && targetNode) {
-                    const sourceVisible = getNodeOpacity(sourceNode) > 0.5;
-                    const targetVisible = getNodeOpacity(targetNode) > 0.5;
+                    const sourceVisible = getNodeOpacity(sourceNode, opacityParams) > 0.5;
+                    const targetVisible = getNodeOpacity(targetNode, opacityParams) > 0.5;
                     if (sourceVisible && targetVisible) {
                         return 1;
                     }
@@ -2453,23 +2509,38 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update node colors
         svg.selectAll<SVGCircleElement, GraphNode>("circle")
             .attr("fill", d => {
+                // Cluster nodes always use theme colors
                 if (d.is_cluster) {
                     if (d.is_sample_cluster) {
                         return `rgba(${colors.nodeClusterSample[0]}, ${colors.nodeClusterSample[1]}, ${colors.nodeClusterSample[2]}, ${colors.nodeClusterSample[3] / 255})`;
                     }
                     return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
                 }
-                if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
-                if (d.is_combined) return `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`;
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`;
-                return `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`;
+                
+                // Population coloring
+                if (populationColors && d.population !== null && d.population !== undefined) {
+                    let color = populationColors.get(d.population);
+                    if (color) {
+                        // Darken for samples and roots
+                        if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) {
+                            color = darkenColor(color, 0.75);
+                        }
+                        return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
+                    }
+                }
+                
+                // Default theme colors
+                if (d.is_sample) return `rgba(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]}, ${colors.nodeSample[3] / 255})`;
+                if (d.is_combined) return `rgba(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]}, ${colors.nodeCombined[3] / 255})`;
+                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgba(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]}, ${colors.nodeRoot[3] / 255})`;
+                return `rgba(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]}, ${colors.nodeDefault[3] / 255})`;
             })
             .attr("stroke", d => {
                 if (d.is_cluster) {
-                    if (d.is_sample_cluster) return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
-                    return `rgb(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]})`;
+                    if (d.is_sample_cluster) return `rgba(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]}, ${colors.edgeClusterSample[3] / 255})`;
+                    return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
                 }
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`;
+                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgba(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]}, ${colors.nodeSelected[3] / 255})`;
                 if (d.is_sample) return colors.background;
                 return "none";
             });
@@ -2479,9 +2550,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("stroke", d => {
                 const { isSampleClusterEdge } = getEdgeClusterInfo(d, combinedNodes);
                 if (isSampleClusterEdge) {
-                    return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
+                    return `rgba(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]}, ${colors.edgeClusterSample[3] / 255})`;
                 } else {
-                    return `rgb(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]})`;
+                    return `rgba(${colors.edgeDefault[0]}, ${colors.edgeDefault[1]}, ${colors.edgeDefault[2]}, ${colors.edgeDefault[3] / 255})`;
                 }
             });
 
@@ -2502,7 +2573,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update node label colors
         svg.selectAll<SVGTextElement, GraphNode>(".node-labels text")
             .attr("fill", colors.text)
-            .attr("stroke", colors.background);
+            .attr("stroke", colors.background)
+            .attr("stroke-width", "2.5px")
+            .attr("paint-order", "stroke fill");
 
         // Update tooltip colors
         svg.selectAll<HTMLDivElement, unknown>(".tooltip")
@@ -2510,7 +2583,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("color", colors.tooltipText)
             .style("border", `1px solid ${colors.border}`);
 
-    }, [colors, ref]);
+    }, [colors, populationColors, ref]);
 
     // Effect to update node sizes without restarting simulation
     useEffect(() => {
@@ -2545,114 +2618,42 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     useEffect(() => {
         // Debug logging only in development
         if (process.env.NODE_ENV === 'development') {
-          console.log('Edge opacity effect triggered:', { edgeThickness, edgeOpacity, hasTemporalRange: !!temporalRange, hasGenomicRange: !!genomicRange });
-        }
-        if (!ref || typeof ref === 'function' || !ref.current) {
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Edge opacity effect: no ref');
-            }
-            return;
-        }
-        if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) {
-            // Debug logging only in development
-            if (process.env.NODE_ENV === 'development') {
-              console.log('Edge opacity effect: no nodes in visualStateRef');
-            }
-            return;
         }
 
         const svg = d3.select(ref.current);
         const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
 
-        // Helper functions for opacity calculation
-        const edgeOverlapsGenomicRange = (edge: GraphEdge): boolean => {
-            if (!genomicRange || edge.left === undefined || edge.right === undefined) return true;
-            const [genomicLeft, genomicRight] = genomicRange;
-            return edge.left < genomicRight && edge.right > genomicLeft;
-        };
-
-        const edgeOverlapsTreeRange = (edge: GraphEdge): boolean => {
-            if (!treeRange || !treeIntervals || edge.left === undefined || edge.right === undefined) return true;
-            const [treeStartIdx, treeEndIdx] = treeRange;
-            const selectedIntervals = treeIntervals.filter(interval => 
-                interval.index >= treeStartIdx && interval.index <= treeEndIdx
-            );
-            return selectedIntervals.some(interval => {
-                return edge.left < interval.right && edge.right > interval.left;
-            });
-        };
-
-        const getTemporalEdgeOpacity = (edge: GraphEdge): number => {
-            if (!temporalRange) return edgeOpacity / 100;
-            const sourceNode = typeof edge.source === 'number' ? 
-                combinedNodes.find(n => n.id === edge.source) : edge.source as GraphNode;
-            const targetNode = typeof edge.target === 'number' ? 
-                combinedNodes.find(n => n.id === edge.target) : edge.target as GraphNode;
-            
-            if (sourceNode && targetNode) {
-                const [minTime, maxTime] = temporalRange;
-                const sourceVisible = sourceNode.time >= minTime && sourceNode.time <= maxTime;
-                const targetVisible = targetNode.time >= minTime && targetNode.time <= maxTime;
-                if (sourceVisible && targetVisible) {
-                    return edgeOpacity / 100;
-                }
-            }
-            return Math.max(0, Math.min(0.99, temporalDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        const getGenomicEdgeOpacity = (edge: GraphEdge): number => {
-            if (!genomicRange) return edgeOpacity / 100;
-            if (edgeOverlapsGenomicRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, genomicDimOpacity)) * (edgeOpacity / 100);
-        };
-
-        const getTreeEdgeOpacity = (edge: GraphEdge): number => {
-            if (!treeRange || !treeIntervals) return edgeOpacity / 100;
-            if (edgeOverlapsTreeRange(edge)) {
-                return edgeOpacity / 100;
-            }
-            return Math.max(0, Math.min(0.99, treeDimOpacity)) * (edgeOpacity / 100);
+        // Create opacity calculation parameters
+        const opacityParams: OpacityCalculationParams = {
+            temporalRange,
+            temporalDimOpacity,
+            genomicRange,
+            genomicDimOpacity,
+            treeRange,
+            treeIntervals,
+            treeDimOpacity,
+            nodes: combinedNodes,
+            edges: combinedEdges
         };
 
         const edges = svg.selectAll<SVGLineElement, GraphEdge>("line");
-        console.log('Edge opacity effect: found', edges.size(), 'edges');
 
         // Update edge thickness
         edges.attr("stroke-width", edgeThickness);
 
         // Update edge opacity (respecting temporal, genomic, and tree filters if active)
-        let visibleCount = 0;
-        let hiddenCount = 0;
-        edges.attr("stroke-opacity", (d: GraphEdge) => {
-                const temporal = getTemporalEdgeOpacity(d);
-                const genomic = getGenomicEdgeOpacity(d);
-                const tree = getTreeEdgeOpacity(d);
-                const finalOpacity = Math.min(temporal, genomic, tree);
-                
-                if (finalOpacity > 0.5) {
-                    visibleCount++;
-                } else {
-                    hiddenCount++;
-                }
-                return finalOpacity;
-            });
-        
-        console.log('Edge opacity effect: updated', edges.size(), 'edges (visible:', visibleCount, 'hidden:', hiddenCount, ')');
+        edges.attr("stroke-opacity", (d: GraphEdge) =>
+            getEdgeOpacity(d, combinedNodes, opacityParams) * (edgeOpacity / 100)
+        );
         
     }, [edgeThickness, edgeOpacity, temporalRange, temporalDimOpacity, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity, ref]);
 
     // Effect to update node ID visibility without restarting simulation
     useEffect(() => {
-        console.log('Node ID visibility effect triggered:', nodeIdSettings);
         if (!ref || typeof ref === 'function' || !ref.current) {
-            console.log('Node ID effect: no ref');
             return;
         }
         if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) {
-            console.log('Node ID effect: no nodes in visualStateRef');
             return;
         }
 
@@ -2662,27 +2663,19 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Get all node labels from the node-labels group
         const nodeLabels = svg.selectAll<SVGTextElement, GraphNode>(".node-labels text");
 
-        console.log('Node ID effect: found', nodeLabels.size(), 'node labels');
-
         // Update visibility based on settings
-        let updateCount = 0;
         nodeLabels.style("display", (d: GraphNode) => {
-            updateCount++;
             if (d.is_sample && !nodeIdSettings.showSampleIds) return "none";
             if (isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showRootIds) return "none";
             if (!d.is_sample && !isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showInternalIds) return "none";
             return "block";
         });
-        
-        console.log('Node ID effect: updated', updateCount, 'labels');
 
     }, [nodeIdSettings, ref]);
 
     // Effect to update edge labels without restarting simulation
     useEffect(() => {
-        console.log('Edge label effect triggered:', edgeLabelSettings);
         if (!ref || typeof ref === 'function' || !ref.current) {
-            console.log('Edge label effect: no ref');
             return;
         }
 
@@ -2690,14 +2683,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         // Update edge label visibility and font size
         const edgeLabels = svg.selectAll<SVGTextElement, any>(".edge-labels text");
-        
-        console.log('Edge label effect: found', edgeLabels.size(), 'edge labels');
-        
+
         edgeLabels
             .style("display", edgeLabelSettings.showEdgeLabels ? "block" : "none")
             .attr("font-size", `${edgeLabelSettings.labelFontSize}px`);
-
-        console.log('Edge label effect: updated to', edgeLabelSettings.showEdgeLabels ? 'visible' : 'hidden');
 
     }, [edgeLabelSettings, ref]);
 
@@ -2713,6 +2702,58 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("font-size", `${edgeMutationSettings?.markerSize || 40}px`);
 
     }, [edgeMutationSettings, ref]);
+
+    // Cleanup effect that runs only on unmount - clears all refs to prevent memory leaks
+    useEffect(() => {
+        return () => {
+            // Clear all timeout refs
+            if (autoZoomTimeoutRef.current) {
+                clearTimeout(autoZoomTimeoutRef.current);
+                autoZoomTimeoutRef.current = null;
+            }
+            if (dragCleanupTimeoutRef.current) {
+                clearTimeout(dragCleanupTimeoutRef.current);
+                dragCleanupTimeoutRef.current = null;
+            }
+            if (dragCrossingsTimeoutRef.current) {
+                clearTimeout(dragCrossingsTimeoutRef.current);
+                dragCrossingsTimeoutRef.current = null;
+            }
+            if (edgeCrossingsTimeoutRef.current) {
+                clearTimeout(edgeCrossingsTimeoutRef.current);
+                edgeCrossingsTimeoutRef.current = null;
+            }
+
+            // Stop simulation if it exists
+            if (visualStateRef.current.simulation) {
+                visualStateRef.current.simulation.stop();
+                visualStateRef.current.simulation.on("tick", null);
+                visualStateRef.current.simulation.on("end", null);
+            }
+
+            // Remove tooltip if it exists
+            if (tooltipRef.current) {
+                tooltipRef.current.remove();
+                tooltipRef.current = null;
+            }
+
+            // Clear visualStateRef to release large data structures
+            visualStateRef.current = {
+                nodes: [],
+                edges: [],
+                simulation: null,
+                svg: null,
+                zoom: null,
+                userMovedNodes: new Map(),
+                currentTransform: null
+            };
+        };
+    }, []);
+
+    // Don't render if no data
+    if (!data) {
+        return null;
+    }
 
     return (
         <div className="w-full h-full">

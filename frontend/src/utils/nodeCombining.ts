@@ -4,7 +4,7 @@ import { GraphNode, GraphEdge } from '../components/visualizations/ForceDirected
  * Diagnostic function to analyze node relationships and potential combining issues
  * Call this to understand what's happening in your data
  */
-export function analyzeNodeCombining(nodes: GraphNode[], edges: GraphEdge[]): void {
+export function analyzeNodeCombining(nodes: GraphNode[], _edges: GraphEdge[]): void {
   // Only log in development mode
   if (process.env.NODE_ENV === 'development') {
     console.log('📊 Node Analysis:', {
@@ -119,23 +119,6 @@ function getRecombinationNodePairs(nodes: GraphNode[]): Map<number, number> {
     }
   }
   
-  console.log(`🧬 Recombination pairs: ${recombinationNodes.length} flagged nodes → ${nodePairs.size} valid pairs`);
-  if (recombinationNodes.length > 0) {
-    console.log(`   Flagged nodes: [${recombinationNodes.join(', ')}]`);
-    if (nodePairs.size > 0) {
-      console.log(`   Valid pairs: [${Array.from(nodePairs.entries()).map(([replace, keep]) => `${replace}→${keep}`).join(', ')}]`);
-    } else {
-      console.log(`   ⚠️  No valid pairs (consecutive flagged nodes must have identical times)`);
-    }
-    
-    // Debug: Show times for flagged nodes
-    const nodeDetails = recombinationNodes.map(id => {
-      const node = nodes.find(n => n.id === id);
-      return `${id}(t=${node?.time})`;
-    });
-    console.log(`   Node times: [${nodeDetails.join(', ')}]`);
-  }
-  
   return nodePairs;
 }
 
@@ -153,17 +136,53 @@ function areRecombinationPair(node1: GraphNode, node2: GraphNode, recombNodePair
 /**
  * Check if two nodes should be combined based on various criteria
  */
-function shouldCombineNodes(node1: GraphNode, node2: GraphNode, edges: GraphEdge[], recombNodePairs: Map<number, number>): { shouldCombine: boolean; reason: string } {
-  // Check 1: D3ARG-style recombination pairs (PRIORITY - combine regardless of relationships)
+function shouldCombineNodes(
+  node1: GraphNode, 
+  node2: GraphNode, 
+  edges: GraphEdge[], 
+  recombNodePairs: Map<number, number>,
+  combineInternalNodes: boolean = false,
+  combineSampleNodes: boolean = true
+): { shouldCombine: boolean; reason: string } {
+  // Check if both nodes are internal (non-samples)
+  const areBothInternal = !node1.is_sample && !node2.is_sample;
+  const areBothSamples = node1.is_sample && node2.is_sample;
+  
+  // Check 1: D3ARG-style recombination pairs
+  // For internal nodes, respect combineInternalNodes setting
+  // For sample nodes, respect combineSampleNodes setting
   if (areRecombinationPair(node1, node2, recombNodePairs)) {
+    if (areBothInternal && !combineInternalNodes) {
+      return { shouldCombine: false, reason: 'recombination_pair_internal_combining_disabled' };
+    }
+    if (areBothSamples && !combineSampleNodes) {
+      return { shouldCombine: false, reason: 'recombination_pair_sample_combining_disabled' };
+    }
     return { shouldCombine: true, reason: 'recombination_pair' };
   }
   
-  // Check 2: Same individual (most reliable for sample nodes)
-  if (areSameIndividual(node1, node2)) {
+  // Check 2: Internal nodes combining (if enabled)
+  if (areBothInternal) {
+    if (!combineInternalNodes) {
+      return { shouldCombine: false, reason: 'internal_nodes_combining_disabled' };
+    }
+    // For internal nodes, require identical relationships
+    if (haveIdenticalRelationships(node1, node2, edges)) {
+      return { shouldCombine: true, reason: 'internal_nodes_identical_relationships' };
+    }
+    return { shouldCombine: false, reason: 'internal_nodes_different_relationships' };
+  }
+  
+  // Check 3: Sample nodes combining (if enabled)
+  if (areBothSamples) {
+    if (!combineSampleNodes) {
+      return { shouldCombine: false, reason: 'sample_nodes_combining_disabled' };
+    }
     // Same individual nodes should have same time and relationships
-    if (node1.time === node2.time && haveIdenticalRelationships(node1, node2, edges)) {
-      return { shouldCombine: true, reason: 'same_individual' };
+    if (areSameIndividual(node1, node2)) {
+      if (node1.time === node2.time && haveIdenticalRelationships(node1, node2, edges)) {
+        return { shouldCombine: true, reason: 'same_individual' };
+      }
     }
   }
   
@@ -213,7 +232,12 @@ function mergeEdgeBounds(edges: GraphEdge[]): string {
  * Combine nodes that are genealogically identical (types 1 & 2)
  * This is used for force-directed graphs where visual clarity comes from genealogical relationships
  */
-export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[], edges: GraphEdge[] } {
+export function combineGenealogyIdenticalNodes(
+  nodes: GraphNode[], 
+  edges: GraphEdge[],
+  combineInternalNodes: boolean = false,
+  combineSampleNodes: boolean = true
+): { nodes: GraphNode[], edges: GraphEdge[] } {
   const processedNodes = new Set<number>();
   const newNodes: GraphNode[] = [];
   const nodeMap = new Map<number, number>(); // Maps old node IDs to new combined node IDs
@@ -242,7 +266,14 @@ export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphE
       const node2 = sortedNodes[j];
       if (processedNodes.has(node2.id)) continue;
       
-      const { shouldCombine, reason } = shouldCombineNodes(node1, node2, edges, recombNodePairs);
+      const { shouldCombine, reason } = shouldCombineNodes(
+        node1, 
+        node2, 
+        edges, 
+        recombNodePairs,
+        combineInternalNodes,
+        combineSampleNodes
+      );
       
       if (shouldCombine) {
         combinableNodes.push(node2);
@@ -291,9 +322,7 @@ export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphE
     
     processedNodes.add(node1.id);
   }
-  
-  console.log(`✅ Genealogical combining: ${nodes.length} → ${newNodes.length} nodes`);
-  
+
   // Create merged edges for genealogically combined nodes
   const newEdges = createMergedEdges(edges, nodeMap);
   
@@ -304,9 +333,19 @@ export function combineGenealogyIdenticalNodes(nodes: GraphNode[], edges: GraphE
  * Combine nodes for spatial visualization (all three types, with location-aware logic)
  * This preserves all edges while combining nodes for visual clarity
  */
-export function combineSpatiallyColocatedNodes(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[], edges: GraphEdge[] } {
+export function combineSpatiallyColocatedNodes(
+  nodes: GraphNode[], 
+  edges: GraphEdge[],
+  combineInternalNodes: boolean = false,
+  combineSampleNodes: boolean = true
+): { nodes: GraphNode[], edges: GraphEdge[] } {
   // First, apply genealogical combining but ONLY for nodes with identical spatial locations
-  const genealogicallyCombined = combineGenealogyIdenticalNodesWithLocationCheck(nodes, edges);
+  const genealogicallyCombined = combineGenealogyIdenticalNodesWithLocationCheck(
+    nodes, 
+    edges,
+    combineInternalNodes,
+    combineSampleNodes
+  );
   
   // Then, apply spatial combining for remaining nodes at same locations (type 3)
   return applySpatialLocationCombining(genealogicallyCombined.nodes, genealogicallyCombined.edges);
@@ -315,7 +354,12 @@ export function combineSpatiallyColocatedNodes(nodes: GraphNode[], edges: GraphE
 /**
  * Apply genealogical combining only for nodes that also have identical spatial locations
  */
-function combineGenealogyIdenticalNodesWithLocationCheck(nodes: GraphNode[], edges: GraphEdge[]): { nodes: GraphNode[], edges: GraphEdge[] } {
+function combineGenealogyIdenticalNodesWithLocationCheck(
+  nodes: GraphNode[], 
+  edges: GraphEdge[],
+  combineInternalNodes: boolean = false,
+  combineSampleNodes: boolean = true
+): { nodes: GraphNode[], edges: GraphEdge[] } {
   const processedNodes = new Set<number>();
   const newNodes: GraphNode[] = [];
   const nodeMap = new Map<number, number>();
@@ -336,9 +380,16 @@ function combineGenealogyIdenticalNodesWithLocationCheck(nodes: GraphNode[], edg
     for (let j = i + 1; j < sortedNodes.length; j++) {
       const node2 = sortedNodes[j];
       if (processedNodes.has(node2.id)) continue;
-      
-      const { shouldCombine, reason } = shouldCombineNodes(node1, node2, edges, recombNodePairs);
-      
+
+      const { shouldCombine, reason: _reason } = shouldCombineNodes(
+        node1,
+        node2,
+        edges,
+        recombNodePairs,
+        combineInternalNodes,
+        combineSampleNodes
+      );
+
       // Additional check: only combine if they have identical spatial locations
       const haveSameLocation = nodesHaveIdenticalLocation(node1, node2);
       

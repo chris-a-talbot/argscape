@@ -10,12 +10,15 @@ import ParticleBackground from '../ui/ParticleBackground';
 import Footer from '../layout/Footer';
 import { useElapsedTime, formatElapsedTime } from '../../hooks/useElapsedTime';
 
+import { useThemeStyles } from '../../hooks/useThemeStyles';
+import { useColorTheme } from '../../context/ColorThemeContext';
+
 interface IntermediatePageProps {
   selectedOption: 'upload' | 'simulate' | 'load';
   onBack: () => void;
 }
 
-export default function IntermediatePage({ selectedOption, onBack }: IntermediatePageProps) {
+export default function IntermediatePage({ selectedOption, onBack: _onBack }: IntermediatePageProps) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [dots, setDots] = useState(0);
@@ -24,6 +27,9 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
   const [errorMessage, setErrorMessage] = useState('');
   const { setTreeSequence } = useTreeSequence();
   const elapsedSeconds = useElapsedTime(loading);
+  const { pageStyle, glassPanelStyle } = useThemeStyles() as any; // Using existing hooks, expanding them
+  // Manually grab colors from context just in case useThemeStyles return type isn't fully updated yet in TS
+  const { colors: themeColors } = useColorTheme();
 
   useEffect(() => {
     if (loading) {
@@ -57,19 +63,6 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
     navigate('/result', { state: { fromIntermediate: selectedOption } });
   };
 
-  const getTitle = () => {
-    switch (selectedOption) {
-      case 'upload':
-        return 'Upload a Tree Sequence';
-      case 'simulate':
-        return 'Simulate a Tree Sequence';
-      case 'load':
-        return 'Load a Tree Sequence';
-      default:
-        return '';
-    }
-  };
-
   const renderComponent = () => {
     if (loading) {
       const elapsedTime = formatElapsedTime(elapsedSeconds);
@@ -77,18 +70,18 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
       const isLocal = !isRailway();
       
       return (
-        <div className="flex flex-col items-center text-xl text-sp-white space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-sp-pale-green"></div>
+        <div className="flex flex-col items-center text-xl space-y-4" style={{ color: themeColors.text }}>
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2" style={{ borderColor: themeColors.accentPrimary }}></div>
           <span>
             Processing{Array(dots + 1).join('.')}
           </span>
           {showElapsedTime && (
             <>
-              <p className="text-sm text-sp-white/80 mt-2">
+              <p className="text-sm mt-2" style={{ color: themeColors.textSecondary }}>
                 Elapsed: {elapsedTime}
               </p>
               {isLocal && elapsedSeconds > 30 && (
-                <p className="text-xs text-sp-white/70 mt-2 max-w-md text-center px-4">
+                <p className="text-xs mt-2 max-w-md text-center px-4" style={{ color: themeColors.textSecondary }}>
                   Large files may take several minutes. Upload continues in the background...
                 </p>
               )}
@@ -120,21 +113,17 @@ export default function IntermediatePage({ selectedOption, onBack }: Intermediat
   };
 
   return (
-    <div className="min-h-screen bg-sp-very-dark-blue relative">
+    <div style={pageStyle}>
       <ParticleBackground />
-      <div className="text-sp-white min-h-screen flex flex-col">
+      <div className="min-h-screen flex flex-col relative z-10">
         <Navbar />
         <div className="flex-grow px-4 pt-24 pb-40">
-          {/* Header with title */}
-          <div className="max-w-7xl mx-auto mb-8">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl md:text-4xl font-bold mb-2">{getTitle()}</h1>
-            </div>
-          </div>
-
           {/* Main content area */}
           <div className="max-w-7xl mx-auto">
-            <div className="bg-sp-very-dark-blue/95 backdrop-blur-sm rounded-2xl shadow-xl border border-sp-dark-blue overflow-hidden">
+            <div 
+              style={glassPanelStyle}
+              className="overflow-hidden"
+            >
               <div className="p-8 min-h-[600px] flex items-start justify-center">
                 {renderComponent()}
               </div>

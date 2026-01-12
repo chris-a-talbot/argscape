@@ -113,7 +113,7 @@ def generate_random_ancestors_dataframe(ts, number_of_ancestors, include_locatio
         df = pd.concat([df, locs], axis=1)
     return df
 
-def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None):
+def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_unary=False, unary_retention_percent=0.0, seed=None):
     """Simplifies a tree sequence while keeping recombination nodes
 
     Removes unary nodes that are not recombination nodes. Does not remove non-genetic ancestors.
@@ -126,6 +126,14 @@ def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None):
         Whether to add msprime node flags. Default is False.
     keep_nodes (optional) : list
         List of node IDs that should be kept. Default is None, so empty list.
+    keep_unary (optional) : bool
+        Whether to keep unary nodes. Default is False (removes unary nodes except recombination nodes).
+        Deprecated: use unary_retention_percent instead.
+    unary_retention_percent (optional) : float
+        Percentage (0-100) of unary nodes to randomly retain. Default is 0.0.
+        If keep_unary is True, this is ignored and all unary nodes are kept.
+    seed (optional) : int
+        Random seed for sampling unary nodes. Default is None.
 
     Returns
     -------
@@ -156,8 +164,28 @@ def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None):
     keep_nodes = np.unique(np.concatenate((keep_nodes, recomb_nodes)))
     potentially_uninformative = np.intersect1d(child_node[np.where(parents_count!=0)[0]], parent_node[np.where(children_count==1)[0]])
     truly_uninformative = np.delete(potentially_uninformative, np.where(np.isin(potentially_uninformative, keep_nodes)))
+    
+    # Handle unary node retention
+    if keep_unary:
+        # Legacy behavior: keep all unary nodes
+        unary_to_keep = truly_uninformative
+    elif unary_retention_percent > 0:
+        # Randomly sample the requested percentage of unary nodes
+        if seed is not None:
+            np.random.seed(seed)
+        num_to_keep = int(len(truly_uninformative) * (unary_retention_percent / 100.0))
+        if num_to_keep > 0:
+            unary_to_keep = np.random.choice(truly_uninformative, size=num_to_keep, replace=False)
+        else:
+            unary_to_keep = np.array([], dtype=int)
+    else:
+        # Keep no unary nodes
+        unary_to_keep = np.array([], dtype=int)
+    
     all_nodes = np.array(range(ts.num_nodes))
-    important = np.delete(all_nodes, np.where(np.isin(all_nodes, truly_uninformative)))
+    # Remove unary nodes that we're not keeping
+    unary_to_remove = np.setdiff1d(truly_uninformative, unary_to_keep)
+    important = np.delete(all_nodes, np.where(np.isin(all_nodes, unary_to_remove)))
     ts_sim, maps_sim = ts.simplify(samples=important, map_nodes=True, keep_input_roots=False, keep_unary=False, update_sample_flags=False)
     return ts_sim, maps_sim
 

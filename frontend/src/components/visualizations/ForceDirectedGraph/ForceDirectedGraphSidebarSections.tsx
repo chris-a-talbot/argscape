@@ -611,16 +611,57 @@ interface NodesSectionProps {
   onNodeSizeChange: (sizes: NodeSizeSettings) => void;
   nodeIdSettings: NodeIdSettings;
   onNodeIdSettingsChange: (settings: NodeIdSettings) => void;
+  colorByPopulation?: boolean;
+  onColorByPopulationChange?: (enabled: boolean) => void;
+  hasPopulations?: boolean;
+  combineInternalNodes?: boolean;
+  onCombineInternalNodesChange?: (enabled: boolean) => void;
+  combineSampleNodes?: boolean;
+  onCombineSampleNodesChange?: (enabled: boolean) => void;
 }
 
 export function NodesSection({
   nodeSizes,
   onNodeSizeChange,
   nodeIdSettings,
-  onNodeIdSettingsChange
+  onNodeIdSettingsChange,
+  colorByPopulation,
+  onColorByPopulationChange,
+  hasPopulations,
+  combineInternalNodes,
+  onCombineInternalNodesChange,
+  combineSampleNodes,
+  onCombineSampleNodesChange
 }: NodesSectionProps) {
   return (
     <div className="space-y-4">
+      {hasPopulations && onColorByPopulationChange && (
+        <SidebarSubsection title="Node Colors">
+          <SidebarCheckbox
+            label="Color by Population"
+            checked={colorByPopulation || false}
+            onChange={onColorByPopulationChange}
+            tooltip="Color nodes based on their population assignment. Each population gets a unique color."
+          />
+        </SidebarSubsection>
+      )}
+      
+      <SidebarSubsection title="Node Combining">
+        <SidebarCheckbox
+          label="Combine Internal Nodes"
+          checked={combineInternalNodes || false}
+          onChange={onCombineInternalNodesChange || (() => {})}
+          tooltip="Combine internal nodes that have identical parents and children. This reduces visual clutter but may hide structural details."
+        />
+        
+        <SidebarCheckbox
+          label="Combine Sample Nodes"
+          checked={combineSampleNodes !== undefined ? combineSampleNodes : true}
+          onChange={onCombineSampleNodesChange || (() => {})}
+          tooltip="Combine sample nodes from the same individual that have identical relationships. This is typically enabled to reduce redundancy."
+        />
+      </SidebarSubsection>
+      
       <SidebarSubsection title="Node Sizes">
         <SidebarSlider
           label="Sample Nodes"

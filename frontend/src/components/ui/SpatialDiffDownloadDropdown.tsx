@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../lib/api';
 import { log } from '../../lib/logger';
-import { useColorTheme } from '../../context/ColorThemeContext';
+import { useThemeStyles } from '../../hooks/useThemeStyles';
 
 interface SpatialDiffDownloadDropdownProps {
     firstFilename: string;
@@ -16,7 +16,7 @@ export function SpatialDiffDownloadDropdown({
     onError, 
     onDownloadImage 
 }: SpatialDiffDownloadDropdownProps) {
-    const { colors } = useColorTheme();
+    const { colors, dropdownMenuStyle } = useThemeStyles();
     const [isOpen, setIsOpen] = useState(false);
     const [showDiffOptions, setShowDiffOptions] = useState(false);
     const [showTree1Menu, setShowTree1Menu] = useState(false);
@@ -201,7 +201,10 @@ export function SpatialDiffDownloadDropdown({
             </button>
 
             {isOpen && (
-                <div className="absolute w-64 mt-2 right-0 bg-sp-dark-blue border border-sp-pale-green/20 rounded-xl shadow-xl" style={{ zIndex: 10000 }}>
+                <div 
+                    className="absolute w-64 mt-2 right-0" 
+                    style={{ ...dropdownMenuStyle, zIndex: 10000 }}
+                >
                     <div className="py-2">
                         {/* Image Download */}
                         {onDownloadImage && (

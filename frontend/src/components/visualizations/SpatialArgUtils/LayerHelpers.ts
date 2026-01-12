@@ -61,7 +61,7 @@ export function calculateMidpoint(
 /**
  * Create mutation markers for edges that have mutations
  */
-export function createMutationMarkers<T extends { id: number; position: [number, number, number] }>(
+export function createMutationMarkers<T extends { id: number; time: number; position: [number, number, number] }>(
   edges: GraphEdge[],
   nodeMap: Map<number, T>,
   edgeMutationSettings: EdgeMutationSettings | undefined
@@ -72,18 +72,46 @@ export function createMutationMarkers<T extends { id: number; position: [number,
 
   const markers: MutationMarker3D[] = [];
   
-  // Filter edges that have mutations
-  const mutationEdges = edges.filter(edge => edge.has_mutations);
-  
-  mutationEdges.forEach(graphEdge => {
-    const { sourceId, targetId } = getEdgeNodeIds(graphEdge);
+  // Iterate through all edges and their mutations
+  edges.forEach(graphEdge => {
+    if (!graphEdge.mutations || graphEdge.mutations.length === 0) {
+      return;
+    }
     
+    const { sourceId, targetId } = getEdgeNodeIds(graphEdge);
     const sourceNode = nodeMap.get(sourceId);
     const targetNode = nodeMap.get(targetId);
     
-    if (sourceNode && targetNode) {
-      // Calculate midpoint position for marker
-      const position = calculateMidpoint(sourceNode.position, targetNode.position);
+    if (!sourceNode || !targetNode) {
+      return;
+    }
+    
+    // Create a marker for each mutation on this edge
+    graphEdge.mutations.forEach((mutation: any) => {
+      // Calculate position based on mutation time if available
+      let position: [number, number, number];
+      
+      if (mutation.time !== null && mutation.time !== undefined) {
+        const sourceTime = sourceNode.time;
+        const targetTime = targetNode.time;
+        const mutationTime = mutation.time;
+        
+        // Interpolate position based on time
+        if (mutationTime >= targetTime && mutationTime <= sourceTime && sourceTime !== targetTime) {
+          const timeRatio = (mutationTime - targetTime) / (sourceTime - targetTime);
+          position = [
+            targetNode.position[0] + timeRatio * (sourceNode.position[0] - targetNode.position[0]),
+            targetNode.position[1] + timeRatio * (sourceNode.position[1] - targetNode.position[1]),
+            targetNode.position[2] + timeRatio * (sourceNode.position[2] - targetNode.position[2])
+          ];
+        } else {
+          // Fallback to midpoint if time is out of range
+          position = calculateMidpoint(sourceNode.position, targetNode.position);
+        }
+      } else {
+        // No time info - use midpoint
+        position = calculateMidpoint(sourceNode.position, targetNode.position);
+      }
       
       markers.push({
         position,
@@ -91,9 +119,10 @@ export function createMutationMarkers<T extends { id: number; position: [number,
         color: [220, 38, 38, 255], // Red color (#dc2626)
         size: edgeMutationSettings.markerSize || 18,
         sourceId: sourceId,
-        targetId: targetId
+        targetId: targetId,
+        mutation: mutation
       });
-    }
+    });
   });
 
   return markers;
