@@ -6,7 +6,7 @@
 
 **ARGscape** (v0.6.1) is a comprehensive web application for visualizing and analyzing tree sequences (representing Ancestral Recombination Graphs, or ARGs). Built with React and FastAPI, it aims to provide an intuitive web interface, powerful computational backend, and simple command-line interface for spatiotemporal population genetics research.
 
-🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com) (May be blocked on some networks - working on it!)
+🌐 **Live Demo**: [www.argscape.com](https://www.argscape.com)
 
 ![ARGscape Homepage](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/home.png)
 
@@ -25,14 +25,13 @@ Talbot, C., & Bradburd, G. (2025). ARGscape: A modular, interactive tool for man
   - 2D ARG (force‑directed)
   - 3D Spatial ARG (for sequences with spatial coordinates)
   - Spatial Diff (compare two spatial sequences)
-  - Heatmap (via any spatial visualization, view ancestry heatmap rather than precise locations)
 - **Spatial inference**: Estimate locations for internal nodes from genealogical signal
 - **Session storage**: Persistent per‑client storage with auto‑cleanup
 - **Export**: Download processed tree sequences and rendered images
 
 ### Visualization details
 - **2D ARG**: pan/zoom, node IDs, edge spans, optional sample ordering strategies
-- **3D spatial ARG**: geographic grid, temporal planes, adjustable node/edge styles, heatmap, built-in animations
+- **3D spatial ARG**: geographic grid, temporal planes, adjustable node/edge styles, built-in animations
 - **Filtering**: by genomic position, by tree index, and over time (temporal planes)
 
 ### Session management
@@ -59,11 +58,6 @@ Three-dimensional rendering of spatially-embedded tree sequences with geographic
 Explore different time periods using the temporal slider controls.
 
 ![Temporal Slider](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/temporal_slider.png)
-
-#### Ancestry Heatmap
-View a heatmap of ancestral locations across specific chunks of time.
-
-![Ancestry Heatmap](https://raw.githubusercontent.com/chris-a-talbot/argscape/dev/.github/images/heatmap.png)
 
 ## Quick start
 
