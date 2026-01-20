@@ -669,6 +669,21 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Keep auto-zoom disabled for order changes
     }, [sampleOrder, updateSpacing]);
 
+    // Helper function to format node ID for display (preserves original IDs after subsetting)
+    const formatNodeId = (node: GraphNode): string => {
+        // Use the label property if available (tskit format)
+        if (node.label) {
+            return node.label;
+        }
+        // Use original_id if available (preserves original node IDs after subsetting)
+        const displayId = (node as any).original_id ?? node.id;
+        // Fallback to old format for backwards compatibility
+        if (node.is_combined && node.combined_nodes && node.combined_nodes.length > 1) {
+            return node.combined_nodes.map(id => ((node as any).original_id ?? id)).join('/');
+        }
+        return displayId.toString();
+    };
+
     useEffect(() => {
         if (!ref || typeof ref === 'function' || !ref.current || !clusteredData || !stableData) return;
         const orderChanged = prevSampleOrderRef.current !== sampleOrder;
@@ -1674,19 +1689,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .on("mouseover", (event, d) => {
                 let tooltipContent = '';
                 
-                // Helper function to format node ID for display (tskit approach)
-                const formatNodeId = (node: GraphNode): string => {
-                    // Use the label property if available (tskit format)
-                    if (node.label) {
-                        return node.label;
-                    }
-                    // Fallback to old format for backwards compatibility
-                    if (node.is_combined && node.combined_nodes && node.combined_nodes.length > 1) {
-                        return node.combined_nodes.join('/');
-                    }
-                    return node.id.toString();
-                };
-                
                 if (d.is_cluster) {
                     if (d.is_sample_cluster) {
                         // Sample cluster tooltip
@@ -1705,7 +1707,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             ? `<br>Nodes: ${d.cluster_nodes.slice(0, 20).sort((a, b) => a - b).join(', ')}... (+${d.cluster_nodes.length - 20} more)`
                             : '';
                         
-                        tooltipContent = `<strong>Cluster Node</strong> [${d.cluster_size} nodes]<br>Root: Node ${d.id}<br>Time: ${d.time}<br>Depth: ${d.cluster_depth} layers<br>Descendant samples: ${d.cluster_samples}${nodeList}<br><br><em>Click to view subARG rooted here</em>`;
+                        const rootIdDisplay = formatNodeId(d);
+                        tooltipContent = `<strong>Cluster Node</strong> [${d.cluster_size} nodes]<br>Root: Node ${rootIdDisplay}<br>Time: ${d.time}<br>Depth: ${d.cluster_depth} layers<br>Descendant samples: ${d.cluster_samples}${nodeList}<br><br><em>Click to view subARG rooted here</em>`;
                     }
                 } else if (d.is_sample) {
                     const nodeIdDisplay = formatNodeId(d);
@@ -2033,15 +2036,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 if (d.is_cluster) {
                     return `[${d.cluster_size}]`;
                 }
-                // Use the label property if available (tskit format)
-                if (d.label) {
-                    return d.label;
-                }
-                // Fallback to old format for backwards compatibility
-                if (d.is_combined && d.combined_nodes && d.combined_nodes.length > 1) {
-                    return d.combined_nodes.join('/');
-                }
-                return d.id.toString();
+                // Use formatNodeId for consistent ID display
+                return formatNodeId(d);
             })
             .attr("opacity", d => getNodeOpacity(d, opacityParams))
             .attr("font-size", d => {

@@ -319,10 +319,11 @@ export function createTooltipContent(
   const secondX = transform ? node.secondPosition[0] * (transform.maxScale / spatialSpacing) + transform.centerX : node.secondPosition[0];
   const secondY = transform ? node.secondPosition[1] * (transform.maxScale / spatialSpacing) + transform.centerY : node.secondPosition[1];
   
+  const displayId = node.original_id ?? node.id;
   return {
     html: `
       <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
-        <strong>Node ${node.id}</strong><br/>
+        <strong>Node ${displayId}</strong><br/>
         Time: ${node.time.toFixed(3)}<br/>
         ${nodeTypeInfo}${populationInfo}<br/>
         ${node.is_sample ? 'Sample Node (Fixed Position)' : `
@@ -370,14 +371,15 @@ export function createNodeLabels(
     const baseNodeSize = nodeSizes.sample * 0.5;
     const textSize = baseNodeSize * 1.0;
     const textColor = parseTextColor(colors.text, 255);
-    const labelText = node.label || node.id.toString();
+    const displayId = node.original_id ?? node.id;
+    const labelText = node.label || displayId.toString();
     
     labels.push({
       position: node.position,
       text: labelText,
       color: textColor,
       size: textSize,
-      labelId: `sample-label-${node.id}`
+      labelId: `sample-label-${displayId}`
     });
   });
   
@@ -386,14 +388,15 @@ export function createNodeLabels(
     const textSize = baseNodeSize * 1.2;
     const nodeColor = calculateNodeColor(node, null, null, null, colors);
     const textColor = getContrastColor(nodeColor, colors);
-    const labelText = node.label || node.id.toString();
-    
+    const displayId = node.original_id ?? node.id;
+    const labelText = node.label || displayId.toString();
+
     labels.push({
       position: node.position,
       text: labelText,
       color: textColor,
       size: textSize,
-      labelId: `root-label-${node.id}`
+      labelId: `root-label-${displayId}`
     });
   });
   
@@ -402,14 +405,15 @@ export function createNodeLabels(
     const textSize = baseNodeSize * 1.2;
     const nodeColor = calculateNodeColor(node, null, null, null, colors);
     const textColor = getContrastColor(nodeColor, colors);
-    const labelText = node.label || node.id.toString();
-    
+    const displayId = node.original_id ?? node.id;
+    const labelText = node.label || displayId.toString();
+
     labels.push({
       position: node.position,
       text: labelText,
       color: textColor,
       size: textSize,
-      labelId: `internal-label-${node.id}`
+      labelId: `internal-label-${displayId}`
     });
   });
   

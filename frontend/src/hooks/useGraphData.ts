@@ -181,6 +181,13 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                 let response = await api.getGraphData(filename, apiOptions);
                 let graphData = response.data as GraphData;
                 console.log('Received initial graph data:', graphData);
+                // Debug: Check sample nodes
+                const sampleNodes = graphData.nodes.filter(n => n.is_sample);
+                console.log('Sample nodes in response:', sampleNodes.map(n => ({
+                    id: n.id,
+                    original_id: (n as any).original_id,
+                    display: ((n as any).original_id ?? n.id)
+                })));
 
                 // FALLBACK: Check metadata.original_num_nodes from response if context wasn't available
                 // This catches cases where treeSequence context wasn't loaded yet

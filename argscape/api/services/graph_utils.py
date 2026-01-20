@@ -247,7 +247,7 @@ def filter_by_tree_indices(ts: tskit.TreeSequence, start_tree_idx: int, end_tree
             # Try to get connected samples for simplification
             sample_ids = [node.id for node in filtered_ts.nodes() if node.is_sample()]
             if sample_ids:
-                filtered_ts = filtered_ts.simplify(samples=sample_ids)
+                filtered_ts, _ = filtered_ts.simplify(samples=sample_ids, map_nodes=True)
         except:
             # If simplification fails, use the unsimplified version
             pass
@@ -499,23 +499,30 @@ def infer_ancestral_populations(ts: tskit.TreeSequence) -> Dict[int, int]:
 
 
 def convert_to_graph_data(
-    ts: tskit.TreeSequence, 
-    expected_tree_count: int = None, 
+    ts: tskit.TreeSequence,
+    expected_tree_count: int = None,
     sample_order: str = "consensus_minlex",
     use_cache: bool = True,
-    cache_key_prefix: str = ""
+    cache_key_prefix: str = "",
+    node_id_mapping: np.ndarray = None
 ) -> Dict[str, Any]:
+    logger.info(f"convert_to_graph_data called with node_id_mapping: {node_id_mapping is not None}")
+    if node_id_mapping is not None:
+        logger.info(f"node_id_mapping length: {len(node_id_mapping)}, first 10: {node_id_mapping[:min(10, len(node_id_mapping))]}")
     """Convert a tskit.TreeSequence to graph data format for D3 visualization.
-    
+
     Args:
         ts: The tree sequence to convert
         expected_tree_count: If provided, the expected number of trees (used when filtering by tree indices)
         sample_order: Method for ordering samples ("numeric", "first_minlex", "center_minlex", "consensus_minlex", "ancestral", "coalescence", "dagre")
         use_cache: Whether to use graph cache (default: True)
         cache_key_prefix: Optional prefix for cache key (e.g., filename)
+        node_id_mapping: Optional numpy array mapping new node IDs to original node IDs (from tskit.simplify)
     """
     # Try to get from cache first
-    if use_cache and GRAPH_CACHE_AVAILABLE and graph_cache and graph_cache.enabled:
+    # IMPORTANT: Skip cache when node_id_mapping is present, because cached data
+    # would have original_id values from a different subset request
+    if use_cache and GRAPH_CACHE_AVAILABLE and graph_cache and graph_cache.enabled and node_id_mapping is None:
         cache_options = {
             "num_nodes": ts.num_nodes,
             "num_edges": ts.num_edges,
@@ -526,6 +533,8 @@ def convert_to_graph_data(
         if cached_data:
             logger.info(f"Using cached graph data for {cache_key_prefix}")
             return cached_data
+    elif node_id_mapping is not None:
+        logger.info(f"Skipping cache due to node_id_mapping (subset-specific original_ids needed)")
     
     logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
     
@@ -591,8 +600,19 @@ def convert_to_graph_data(
             elif node.id in inferred_populations:
                 population = inferred_populations[node.id]
             
+            # Get original node ID from mapping if available
+            # node_id_mapping maps: new_id -> original_id, with -1 for unmapped nodes
+            if node_id_mapping is not None:
+                mapped_id = int(node_id_mapping[node.id])
+                # If mapping exists and is valid (not -1), use it; otherwise fall back to current id
+                original_id = mapped_id if mapped_id >= 0 else node.id
+            else:
+                original_id = node.id
+            if node.is_sample():
+                logger.info(f"Sample node {node.id}: original_id = {original_id}, node_id_mapping is {node_id_mapping is not None}, mapped_value = {node_id_mapping[node.id] if node_id_mapping is not None else 'N/A'}")
             node_data = {
                 'id': node.id,
+                'original_id': original_id,
                 'time': safe_time,
                 'log_time': log_time,
                 'is_sample': node.is_sample(),
@@ -686,7 +706,8 @@ def convert_to_graph_data(
         'has_populations': has_populations,
         'populations': populations_list,
         'num_mutations': ts.num_mutations,
-        'num_individuals': ts.num_individuals
+        'num_individuals': ts.num_individuals,
+        'node_id_mapping': node_id_mapping.tolist() if node_id_mapping is not None else None
     }
     
     # If we have an expected tree count (from tree index filtering), include it

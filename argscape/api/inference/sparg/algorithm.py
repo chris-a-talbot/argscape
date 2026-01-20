@@ -113,7 +113,7 @@ def generate_random_ancestors_dataframe(ts, number_of_ancestors, include_locatio
         df = pd.concat([df, locs], axis=1)
     return df
 
-def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_unary=False, unary_retention_percent=0.0, seed=None):
+def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_unary=False, unary_retention_percent=0.0, seed=None, input_node_mapping=None):
     """Simplifies a tree sequence while keeping recombination nodes
 
     Removes unary nodes that are not recombination nodes. Does not remove non-genetic ancestors.
@@ -134,13 +134,18 @@ def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_una
         If keep_unary is True, this is ignored and all unary nodes are kept.
     seed (optional) : int
         Random seed for sampling unary nodes. Default is None.
+    input_node_mapping (optional) : numpy.ndarray
+        Existing node mapping from a previous simplification. If provided, the returned
+        mapping will be composed with this one to maintain the original node IDs.
 
     Returns
     -------
     ts_sim : tskit.TreeSequence
         Simplified tree sequence
     maps_sim : numpy.ndarray
-        Mapping for nodes in the simplified tree sequence versus the original
+        Mapping for nodes in the simplified tree sequence versus the original tree sequence
+        (before any simplification). If input_node_mapping was provided, this represents
+        the composed mapping.
     """
 
     if keep_nodes == None:
@@ -186,8 +191,41 @@ def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_una
     # Remove unary nodes that we're not keeping
     unary_to_remove = np.setdiff1d(truly_uninformative, unary_to_keep)
     important = np.delete(all_nodes, np.where(np.isin(all_nodes, unary_to_remove)))
-    ts_sim, maps_sim = ts.simplify(samples=important, map_nodes=True, keep_input_roots=False, keep_unary=False, update_sample_flags=False)
-    return ts_sim, maps_sim
+
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"simplify_with_recombination: input_node_mapping is {'None' if input_node_mapping is None else f'len={len(input_node_mapping)}, first 10: {input_node_mapping[:min(10, len(input_node_mapping))]}'}")
+    logger.info(f"simplify_with_recombination: ts.num_nodes={ts.num_nodes}, len(important)={len(important)}, will_simplify={len(important) < ts.num_nodes}")
+
+    # Only simplify if we're actually removing nodes
+    if len(important) < ts.num_nodes:
+        ts_sim, maps_sim = ts.simplify(samples=important, map_nodes=True, keep_input_roots=False, keep_unary=False, update_sample_flags=False)
+
+        # Convert tskit mapping format (orig_id -> new_id) to our format (new_id -> orig_id)
+        reverse_maps_sim = np.full(ts_sim.num_nodes, -1, dtype=int)
+        for orig_id, new_id in enumerate(maps_sim):
+            if new_id >= 0 and new_id < len(reverse_maps_sim):
+                reverse_maps_sim[new_id] = orig_id
+
+        # If we have an input mapping from a previous simplification, compose the mappings
+        if input_node_mapping is not None:
+            # input_node_mapping is in new_id -> orig_id format for the previous tree
+            # reverse_maps_sim is in new_id -> intermediate_orig_id format
+            # We need to compose: final_new_id -> intermediate_orig_id -> original_orig_id
+            composed_mapping = np.full(ts_sim.num_nodes, -1, dtype=int)
+            for final_new_id, intermediate_orig_id in enumerate(reverse_maps_sim):
+                if intermediate_orig_id >= 0 and intermediate_orig_id < len(input_node_mapping):
+                    composed_mapping[final_new_id] = input_node_mapping[intermediate_orig_id]
+            logger.info(f"simplify_with_recombination RETURNING (simplified+composed): len={len(composed_mapping)}, first 10: {composed_mapping[:min(10, len(composed_mapping))]}")
+            return ts_sim, composed_mapping
+
+        logger.info(f"simplify_with_recombination RETURNING (simplified, no input mapping): len={len(reverse_maps_sim)}, first 10: {reverse_maps_sim[:min(10, len(reverse_maps_sim))]}")
+        return ts_sim, reverse_maps_sim
+    else:
+        # No nodes removed, return original tree sequence and identity mapping
+        # If we have an input mapping, return it; otherwise return None
+        logger.info(f"simplify_with_recombination RETURNING (no simplify): input_node_mapping is {'None' if input_node_mapping is None else f'len={len(input_node_mapping)}'}")
+        return ts, input_node_mapping
 
 def remove_unattached_nodes(ts):
     """Removes any nodes that are not attached to any other nodes from the tree sequence

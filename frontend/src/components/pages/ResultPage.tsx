@@ -2503,44 +2503,49 @@ export default function ResultPage() {
       params.append('heatmap_mode', 'true');
     }
 
-    // Apply data scope settings
+    // Apply data scope settings by updating advanced settings directly
     if (settings.dataScope === 'subset') {
-      // Apply sample subset settings
+      // Update sample subset settings in TreeSequenceContext
       switch (settings.subsetMethod) {
         case 'random':
-          params.append('sample_mode', 'random');
-          params.append('max_samples', settings.sampleCount.toString());
+          setSampleSubsetMode('random');
+          setMaxSamples(settings.sampleCount);
           break;
         case 'range':
-          params.append('sample_mode', 'range');
-          params.append('sample_start', settings.sampleRangeStart.toString());
-          params.append('sample_end', settings.sampleRangeEnd.toString());
+          setSampleSubsetMode('range');
+          setSampleRange([settings.sampleRangeStart, settings.sampleRangeEnd]);
           break;
         case 'specific':
           if (settings.sampleIds.length > 0) {
-            params.append('sample_mode', 'ids');
-            params.append('sample_ids', settings.sampleIds.join(','));
+            setSampleSubsetMode('ids');
+            setSampleIds(settings.sampleIds);
           }
           break;
       }
+      // Clear focal node settings when using sample subsetting
+      setFocusMode('none');
+      setFocusNodeId(null);
     } else if (settings.dataScope === 'focal') {
-      // Apply focal node settings
+      // Update focal node settings
       if (settings.focalNodeId !== null) {
-        if (settings.focalMode === 'subgraph') {
-          params.append('focus_root', settings.focalNodeId.toString());
-        } else {
-          params.append('focus_sample', settings.focalNodeId.toString());
-        }
+        setFocusMode(settings.focalMode === 'subgraph' ? 'root' : 'sample');
+        setFocusNodeId(settings.focalNodeId);
       }
+      // Clear sample subsetting when using focal node
+      setSampleSubsetMode('range');
+      setSampleIds([]);
+      setSampleRange(null);
+    } else {
+      // Full scope - reset both sample subsetting and focal node
+      setSampleSubsetMode('range');
+      setSampleIds([]);
+      setSampleRange(null);
+      setFocusMode('none');
+      setFocusNodeId(null);
     }
-    // For 'full' dataScope, no additional params needed
 
-    // Also check advanced settings for focal node (if user configured it there)
-    if (settings.dataScope !== 'focal' && focusMode === 'root' && focusNodeId !== null) {
-      params.append('focus_root', focusNodeId.toString());
-    } else if (settings.dataScope !== 'focal' && focusMode === 'sample' && focusNodeId !== null) {
-      params.append('focus_sample', focusNodeId.toString());
-    }
+    // Mark that user has interacted with advanced settings (for wizard logic)
+    setHasInteractedWithAdvancedSettings(true);
 
     const queryString = params.toString();
     const basePath = wizardVisualizationType === '2d' ? '/graph' :

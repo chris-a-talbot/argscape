@@ -286,35 +286,41 @@ export function combineGenealogyIdenticalNodes(
       // Create a combined node using the LESSER ID (tskit approach)
       const sortedIds = combinableNodes.map(n => n.id).sort((a, b) => a - b);
       const representativeNode = combinableNodes.find(n => n.id === sortedIds[0])!;
-      
+
+      // Use original_id for display labels (preserves original tskit IDs after subsetting)
+      const sortedOriginalIds = combinableNodes
+        .map(n => (n as any).original_id ?? n.id)
+        .sort((a, b) => a - b);
+
       // Debug logging only in development
       if (process.env.NODE_ENV === 'development') {
         if (combiningReasons[0] === 'recombination_pair') {
-          console.log(`🧬 Combined recombination pair: ${sortedIds[0]}/${sortedIds[1]}`);
+          console.log(`🧬 Combined recombination pair: ${sortedOriginalIds[0]}/${sortedOriginalIds[1]}`);
         } else {
-          console.log(`🔗 Combined ${combiningReasons[0]}: ${sortedIds.join('/')}`);
+          console.log(`🔗 Combined ${combiningReasons[0]}: ${sortedOriginalIds.join('/')}`);
         }
       }
-      
+
       const combinedNode: GraphNode = {
         ...representativeNode,
-        id: sortedIds[0], // Use the lesser ID
+        id: sortedIds[0], // Use the lesser ID for internal tracking
         is_combined: true,
         combined_nodes: sortedIds,
-        label: sortedIds.join('/'), // tskit format: "id1/id2/id3"
+        label: sortedOriginalIds.join('/'), // Use original IDs for display label
         is_recombination: representativeNode.is_recombination,
         ts_flags: representativeNode.ts_flags,
         individual: representativeNode.individual
       };
       newNodes.push(combinedNode);
-      
+
       // Map all combined node IDs to the new combined node ID (lesser ID)
       combinableNodes.forEach(n => nodeMap.set(n.id, combinedNode.id));
     } else {
-      // Single node, just copy with a simple label
+      // Single node - use original_id for label if available (preserves original tskit IDs)
+      const displayId = (node1 as any).original_id ?? node1.id;
       const singleNode = {
         ...node1,
-        label: node1.id.toString()
+        label: displayId.toString()
       };
       newNodes.push(singleNode);
       nodeMap.set(node1.id, node1.id);
@@ -403,13 +409,18 @@ function combineGenealogyIdenticalNodesWithLocationCheck(
     if (combinableNodes.length > 1) {
       const sortedIds = combinableNodes.map(n => n.id).sort((a, b) => a - b);
       const representativeNode = combinableNodes.find(n => n.id === sortedIds[0])!;
-      
+
+      // Use original_id for display labels (preserves original tskit IDs after subsetting)
+      const sortedOriginalIds = combinableNodes
+        .map(n => (n as any).original_id ?? n.id)
+        .sort((a, b) => a - b);
+
       const combinedNode: GraphNode = {
         ...representativeNode,
         id: sortedIds[0],
         is_combined: true,
         combined_nodes: sortedIds,
-        label: sortedIds.join('/'),
+        label: sortedOriginalIds.join('/'), // Use original IDs for display
         is_recombination: representativeNode.is_recombination,
         ts_flags: representativeNode.ts_flags,
         individual: representativeNode.individual
@@ -417,14 +428,16 @@ function combineGenealogyIdenticalNodesWithLocationCheck(
       newNodes.push(combinedNode);
       combinableNodes.forEach(n => nodeMap.set(n.id, combinedNode.id));
     } else {
-      const singleNode = { ...node1, label: node1.id.toString() };
+      // Single node - use original_id for label if available
+      const displayId = (node1 as any).original_id ?? node1.id;
+      const singleNode = { ...node1, label: displayId.toString() };
       newNodes.push(singleNode);
       nodeMap.set(node1.id, node1.id);
     }
-    
+
     processedNodes.add(node1.id);
   }
-  
+
   const newEdges = createMergedEdges(edges, nodeMap);
   return { nodes: newNodes, edges: newEdges };
 }
@@ -461,13 +474,18 @@ function applySpatialLocationCombining(nodes: GraphNode[], edges: GraphEdge[]): 
     if (colocatedNodes.length > 1) {
       const sortedIds = colocatedNodes.map(n => n.id).sort((a, b) => a - b);
       const representativeNode = colocatedNodes.find(n => n.id === sortedIds[0])!;
-      
+
+      // Use original_id for display labels (preserves original tskit IDs after subsetting)
+      const sortedOriginalIds = colocatedNodes
+        .map(n => (n as any).original_id ?? n.id)
+        .sort((a, b) => a - b);
+
       const combinedNode: GraphNode = {
         ...representativeNode,
         id: sortedIds[0],
         is_combined: true,
         combined_nodes: sortedIds,
-        label: sortedIds.join('/'),
+        label: sortedOriginalIds.join('/'), // Use original IDs for display
         // Preserve individual assignment from representative
         individual: representativeNode.individual,
         // Mark as spatially combined to distinguish from genealogical combining
@@ -476,7 +494,9 @@ function applySpatialLocationCombining(nodes: GraphNode[], edges: GraphEdge[]): 
       newNodes.push(combinedNode);
       colocatedNodes.forEach(n => nodeMap.set(n.id, combinedNode.id));
     } else {
-      const singleNode = { ...node1, label: node1.id.toString() };
+      // Single node - use original_id for label if available
+      const displayId = (node1 as any).original_id ?? node1.id;
+      const singleNode = { ...node1, label: displayId.toString() };
       newNodes.push(singleNode);
       nodeMap.set(node1.id, node1.id);
     }

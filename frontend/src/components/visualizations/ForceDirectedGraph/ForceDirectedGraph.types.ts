@@ -2,6 +2,7 @@
 // Extends d3.SimulationNodeDatum to add vx, vy, and index properties for D3 compatibility
 export interface GraphNode extends d3.SimulationNodeDatum {
     id: number;
+    original_id?: number; // Original node ID from tskit (preserved after subsetting/simplification)
     time: number;
     is_sample: boolean;
     individual: number;

@@ -293,7 +293,11 @@ async def get_graph_data(
     """
     logger.info(f"Requesting graph data for file: {filename} with max_samples: {max_samples}, "
                f"pagination: page={page}, page_size={page_size}")
-    
+
+    # Log sample subsetting parameters - CRITICAL for debugging ID mapping
+    logger.info(f"SAMPLE SUBSETTING PARAMS: mode={sample_subset_mode}, ids={sample_ids}, "
+               f"range=[{sample_range_start}, {sample_range_end}], seed={random_seed}, pops={sample_populations}")
+
     # Log filtering parameters
     if tree_start_idx is not None or tree_end_idx is not None:
         logger.info(f"Tree index filter: {tree_start_idx} - {tree_end_idx}")
@@ -536,17 +540,29 @@ async def get_graph_data(
             logger.info(f"Sample subsetting mode 'even': selected {max_samples} evenly distributed samples")
 
         # Apply simplification if samples were selected
+        node_id_mapping = None
+        logger.info(f"SIMPLIFICATION CHECK: selected_sample_ids={'None' if selected_sample_ids is None else f'{len(selected_sample_ids)} ids: {selected_sample_ids[:10] if len(selected_sample_ids) > 10 else selected_sample_ids}'}, ts.num_samples={ts.num_samples}")
         if selected_sample_ids is not None and len(selected_sample_ids) < ts.num_samples:
-            ts = ts.simplify(samples=selected_sample_ids)
+            ts, raw_mapping = ts.simplify(samples=selected_sample_ids, map_nodes=True)
+            # Convert tskit mapping format (orig_id -> new_id) to our format (new_id -> orig_id)
+            node_id_mapping = np.full(ts.num_nodes, -1, dtype=int)
+            for orig_id, new_id in enumerate(raw_mapping):
+                if new_id >= 0 and new_id < len(node_id_mapping):
+                    node_id_mapping[new_id] = orig_id
             logger.info(f"Simplified to {len(selected_sample_ids)} samples: {ts.num_nodes} nodes, {ts.num_edges} edges")
+            logger.info(f"Raw tskit mapping: {raw_mapping}")
+            logger.info(f"Converted node_id_mapping: {node_id_mapping}")
+            logger.info(f"Sample nodes in simplified tree: {[n.id for n in ts.nodes() if n.is_sample()]}")
 
         logger.info(f"Converting tree sequence to graph data: {ts.num_nodes} nodes, {ts.num_edges} edges")
-        
+        logger.info(f"BEFORE recomb flagging: node_id_mapping is {'None' if node_id_mapping is None else f'array of len {len(node_id_mapping)}, first 10: {node_id_mapping[:min(10, len(node_id_mapping))]}'}")
+
         # Apply recombination flagging before conversion to ensure frontend can detect recombination nodes
         # Use unary_retention_percent if provided, otherwise fall back to keep_unary for backward compatibility
         retention_percent = unary_retention_percent if unary_retention_percent is not None else (100.0 if keep_unary else 0.0)
         logger.info(f"Applying recombination node flagging (unary_retention_percent={retention_percent}%)...")
-        ts_with_recomb_flags, _ = simplify_with_recombination(ts, flag_recomb=True, keep_unary=keep_unary, unary_retention_percent=retention_percent)
+        ts_with_recomb_flags, node_id_mapping = simplify_with_recombination(ts, flag_recomb=True, keep_unary=keep_unary, unary_retention_percent=retention_percent, input_node_mapping=node_id_mapping)
+        logger.info(f"AFTER recomb flagging: node_id_mapping is {'None' if node_id_mapping is None else f'array of len {len(node_id_mapping)}, first 10: {node_id_mapping[:min(10, len(node_id_mapping))]}'}")
         logger.info(f"Recombination flagging complete: {ts_with_recomb_flags.num_nodes} nodes, {ts_with_recomb_flags.num_edges} edges")
         
         # Pass expected tree count if we filtered by tree indices and sample ordering
@@ -555,13 +571,16 @@ async def get_graph_data(
         cache_key = filename
         if page is not None or page_size is not None:
             cache_key = f"{filename}_page{page}_size{page_size}"
-        
+
+        logger.info(f"CALLING convert_to_graph_data with node_id_mapping={'None' if node_id_mapping is None else f'len={len(node_id_mapping)}'}")
+
         graph_data = convert_to_graph_data(
-            ts_with_recomb_flags, 
-            expected_tree_count, 
+            ts_with_recomb_flags,
+            expected_tree_count,
             sample_order,
             use_cache=True,
-            cache_key_prefix=cache_key
+            cache_key_prefix=cache_key,
+            node_id_mapping=node_id_mapping
         )
         
         # Apply pagination if requested

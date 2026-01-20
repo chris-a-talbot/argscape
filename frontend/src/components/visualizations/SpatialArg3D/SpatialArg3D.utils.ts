@@ -288,10 +288,11 @@ export function createTooltipContent(
     populationInfo = `<br/>${populationInfo}`;
   }
   
+  const displayId = node.original_id ?? node.id;
   return {
     html: `
       <div style="background: ${colors.tooltipBackground}; color: ${colors.tooltipText}; padding: 8px; border-radius: 4px; font-size: 12px;">
-        <strong>Node ${node.id}</strong><br/>
+        <strong>Node ${displayId}</strong><br/>
         Time: ${node.time.toFixed(3)}<br/>
         ${nodeTypeInfo}${populationInfo}<br/>
         ${node.location ? `Location: ${formatCoordinates(node.location.x, node.location.y, geographicMode === 'eastern_hemisphere')}` : ''}
@@ -540,9 +541,10 @@ export function createNodeLabels(
     }
     
     const textColor = parseTextColor(colors.text, labelOpacity);
-    
-    const labelText = node.label || node.id.toString();
-    const labelId = `sample-label-${node.id}`;
+    const displayId = node.original_id ?? node.id;
+
+    const labelText = node.label || displayId.toString();
+    const labelId = `sample-label-${displayId}`;
     
     let labelPosition: [number, number, number];
     let needsLine: boolean;
@@ -628,18 +630,18 @@ export function createNodeLabels(
         ] as [number, number, number, number];
       }
     }
-    
-    const labelText = node.label || node.id.toString();
-    
+    const displayId = node.original_id ?? node.id;
+    const labelText = node.label || displayId.toString();
+
     labels.push({
       position: node.position,
       text: labelText,
       color: textColor,
       size: textSize,
-      nodeIds: node.combined_nodes || [node.id],
+      nodeIds: node.combined_nodes || [displayId],
       needsLine: false,
       nodePosition: node.position,
-      labelId: `root-label-${node.id}`
+      labelId: `root-label-${displayId}`
     });
   });
   
@@ -649,18 +651,18 @@ export function createNodeLabels(
     
     const nodeColor = calculateNodeColor(node, null, null, null, colors);
     const textColor = getContrastColor(nodeColor, colors);
-    
-    const labelText = node.label || node.id.toString();
-    
+    const displayId = node.original_id ?? node.id;
+    const labelText = node.label || displayId.toString();
+
     labels.push({
       position: node.position,
       text: labelText,
       color: textColor,
       size: textSize,
-      nodeIds: node.combined_nodes || [node.id],
+      nodeIds: node.combined_nodes || [displayId],
       needsLine: false,
       nodePosition: node.position,
-      labelId: `internal-label-${node.id}`
+      labelId: `internal-label-${displayId}`
     });
   });
   
