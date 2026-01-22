@@ -1,31 +1,57 @@
-name: argscape_local_test
+# ARGscape conda environment (full installation with spatial dependencies)
+# Install with: conda env create -f environment.yml
+# Activate with: conda activate argscape
+#
+# This environment provides argscape[spatial] - the full installation including:
+# - 2D and 3D visualization
+# - Web application (argscape serve)
+# - Spatial inference tools (argscape infer)
+#
+# For lightweight installation without geospatial dependencies:
+#   pip install argscape
+name: argscape
 channels:
   - conda-forge
 dependencies:
+  # Core Python
   - python>=3.8
   - pip
+
+  # Geospatial stack (requires system libraries - conda handles this automatically)
+  - gdal
+  - geopandas=0.14.1
+  - shapely=2.0.2
+  - pyproj=3.6.1
+  - fiona=1.9.5
+
+  # Scientific computing
   - numpy>=1.24.0,<2.0.0
   - pandas
+  - scipy
+  - scikit-learn
+  - sympy
+  - matplotlib
+
+  # Tree sequence libraries
   - tskit
   - tszip>=0.2.3
   - msprime
-  - scikit-learn
+
+  # Web framework
   - fastapi
   - uvicorn=0.24.0
   - python-multipart=0.0.6
   - python-dotenv=1.0.0
   - apscheduler=3.10.4
-  - geopandas=0.14.1
-  - shapely=2.0.2
-  - pyproj=3.6.1
-  - fiona=1.9.5
-  - gdal
-  - sympy
-  - scipy
-  - tqdm
+  - cryptography>=41.0.0
   - pydantic
+
+  # Utilities
+  - tqdm
+
+  # Pip-only packages (not available on conda-forge)
   - pip:
+      - argscape[spatial]
       - fastgaia
       - geoancestry
       - tsdate
-      - argscape

@@ -16,6 +16,7 @@ from .requests import (
     SpacetreesInferenceRequest,
     TsdateInferenceRequest,
     SimplifyTreeSequenceRequest,
+    BenchmarkInferenceRequest,
 )
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "SpacetreesInferenceRequest",
     "TsdateInferenceRequest",
     "SimplifyTreeSequenceRequest",
+    "BenchmarkInferenceRequest",
 ]

@@ -24,43 +24,62 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
+# Base dependencies - lightweight, 2D visualization only
 dependencies = [
-  "numpy>=1.24.0,<2.0.0",
-  "pandas",
-  "tskit",
-  "tszip>=0.2.3",
-  "msprime",
-  "scikit-learn",
-  "fastapi",
-  "uvicorn[standard]==0.24.0",
-  "python-multipart==0.0.6",
-  "python-dotenv==1.0.0",
-  "apscheduler==3.10.4",
-  "cryptography>=41.0.0",
-  "tsdate",
-  "fastgaia",
-  "geoancestry",
-  "geopandas==0.14.1",
-  "shapely>=2.0.2,<3.0.0",
-  "pyproj",
-  "fiona==1.9.5",
-  "sympy",
-  "scipy",
-  "tqdm",
-  "matplotlib",
-  "pydantic"
+    "numpy>=1.24.0,<2.0.0",
+    "pandas",
+    "tskit",
+    "tszip>=0.2.3",
+    "scipy",
+    "scikit-learn",
+    "tqdm",
+    "matplotlib",
+    "pydantic",
 ]
 
 [project.urls]
 Homepage = "https://argscape.com"
-Documentation = "https://argscape.com"
+Documentation = "https://argscape.com/docs"
 Repository = "https://github.com/chris-a-talbot/argscape"
 Paper = "https://arxiv.org/abs/2510.07255"
 
+[project.optional-dependencies]
+# Spatial dependencies - enables 3D viz, web app, inference
+spatial = [
+    "geopandas==0.14.1",
+    "shapely>=2.0.2,<3.0.0",
+    "pyproj",
+    "fiona==1.9.5",
+    "fastapi",
+    "uvicorn[standard]==0.24.0",
+    "python-multipart==0.0.6",
+    "python-dotenv==1.0.0",
+    "apscheduler==3.10.4",
+    "cryptography>=41.0.0",
+    "tsdate",
+    "fastgaia",
+    "geoancestry",
+    "msprime",
+    "sympy",
+]
+
+# Documentation dependencies (jupyter-book v2 is incompatible)
+docs = [
+    "jupyter-book>=1.0,<2.0",
+    "sphinx-book-theme>=1.1",
+    "myst-nb>=1.0",
+    "sphinx-copybutton",
+    "sphinx-design",
+]
+
+# All dependencies (spatial + playwright)
+all = [
+    "argscape[spatial]",
+    "playwright>=1.40",
+]
+
 [project.scripts]
 argscape = "argscape.cli:main"
-argscape_infer = "argscape.spatial_cli:main"
-argscape_load = "argscape.load_cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -72,10 +91,12 @@ include = ["argscape*"]
     "api/environment.yml",
     "api/geo_utils/data/**/*.geojson",
     "api/geo_utils/data/**/*.shp",
-    "api/geo_utils/data/**/*.shx", 
+    "api/geo_utils/data/**/*.shx",
     "api/geo_utils/data/**/*.dbf",
     "api/geo_utils/data/**/*.prj",
     "api/geo_utils/data/**/*.cpg",
     "api/geo_utils/data/**/*.xml",
     "notebook_viz_template.html",
+    "viz/standalone/**/*",
+    "docs_dist/**/*",
 ]

@@ -8,14 +8,14 @@ Features:
 - interactive (default): Guided text UI to choose a loaded sequence, method, and output
 
 Usage examples:
-  argscape_infer load --file /path/data.trees --name mydata
-  argscape_infer list
-  argscape_infer run --input /path/data.trees --method midpoint --output /tmp/outdir
-  argscape_infer run --name mydata --method gaia-quadratic --output /tmp/outdir
-  argscape_infer run --name mydata --method fastgaia --output /tmp/outdir
-  argscape_infer run --name mydata --method spacetrees --output /tmp/outdir --st-ne 1000.0
-  argscape_infer run --name mydata --method spacetrees --output /tmp/outdir --st-tcutoff 50.0 --st-atimes "10.0,20.0,30.0"
-  argscape_infer  # interactive mode
+  argscape infer load --file /path/data.trees --name mydata
+  argscape infer list
+  argscape infer run --input /path/data.trees --method midpoint --output /tmp/outdir
+  argscape infer run --name mydata --method gaia-quadratic --output /tmp/outdir
+  argscape infer run --name mydata --method fastgaia --output /tmp/outdir
+  argscape infer run --name mydata --method spacetrees --output /tmp/outdir --st-ne 1000.0
+  argscape infer run --name mydata --method spacetrees --output /tmp/outdir --st-tcutoff 50.0 --st-atimes "10.0,20.0,30.0"
+  argscape infer  # interactive mode
 """
 
 import argparse
@@ -33,14 +33,21 @@ except Exception as import_error:  # pragma: no cover
 else:
     _TSKIT_IMPORT_ERROR = None
 
-# Session storage for loaded files
-try:
-    from argscape.api.services import session_storage  # type: ignore
-except Exception as e:  # pragma: no cover
-    session_storage = None  # type: ignore
-    _SESSION_IMPORT_ERROR = e
-else:
-    _SESSION_IMPORT_ERROR = None
+# Session storage is loaded lazily to avoid import errors when spatial deps aren't installed
+session_storage = None  # type: ignore
+_SESSION_IMPORT_ERROR = None
+
+
+def _load_session_storage():
+    """Lazily load session storage module."""
+    global session_storage, _SESSION_IMPORT_ERROR
+    if session_storage is not None or _SESSION_IMPORT_ERROR is not None:
+        return
+    try:
+        from argscape.api.services import session_storage as _ss  # type: ignore
+        session_storage = _ss
+    except Exception as e:  # pragma: no cover
+        _SESSION_IMPORT_ERROR = e
 
 # Inference modules are imported lazily per-method to avoid slow startup
 # Only load the specific method needed when actually running inference
@@ -211,6 +218,7 @@ def _load_ts_from_path(input_path: str) -> tskit.TreeSequence:  # type: ignore
 
 
 def _load_ts_from_session(name: str) -> tskit.TreeSequence:  # type: ignore
+    _load_session_storage()
     if session_storage is None:
         raise RuntimeError(f"Session storage unavailable: {_SESSION_IMPORT_ERROR}")
     session_id = session_storage.get_or_create_session(CLI_SESSION_IP)
@@ -221,6 +229,7 @@ def _load_ts_from_session(name: str) -> tskit.TreeSequence:  # type: ignore
 
 
 def _store_into_session(name: str, ts: "tskit.TreeSequence", raw_bytes: Optional[bytes] = None) -> None:
+    _load_session_storage()
     if session_storage is None:
         raise RuntimeError(f"Session storage unavailable: {_SESSION_IMPORT_ERROR}")
     session_id = session_storage.get_or_create_session(CLI_SESSION_IP)
@@ -230,6 +239,7 @@ def _store_into_session(name: str, ts: "tskit.TreeSequence", raw_bytes: Optional
 
 
 def _list_loaded() -> Tuple[str, Tuple[str, ...]]:
+    _load_session_storage()
     if session_storage is None:
         raise RuntimeError(f"Session storage unavailable: {_SESSION_IMPORT_ERROR}")
     session_id = session_storage.get_or_create_session(CLI_SESSION_IP)
@@ -593,8 +603,9 @@ def cmd_interactive(_: argparse.Namespace) -> int:
     _require_tskit()
     # Start background preloading immediately - by the time user selects a method, modules will be ready
     _background_preload_inference_modules()
-    
+
     # Ensure we have session
+    _load_session_storage()
     if session_storage is None:
         print(f"Session storage unavailable: {_SESSION_IMPORT_ERROR}", file=sys.stderr)
         return 1
@@ -768,7 +779,7 @@ def cmd_interactive(_: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     from argscape import __version__
     parser = argparse.ArgumentParser(
-        prog="argscape_infer",
+        prog="argscape infer",
         description="Run ARGscape inference (spatial and temporal) from the command line.",
     )
     parser.add_argument(
@@ -934,6 +945,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: Optional[list] = None) -> int:
+    """Main entry point for argscape infer CLI.
+
+    Note: Spatial dependency check is done by the unified CLI (argscape/cli.py).
+    This function can also be called directly, but requires spatial deps.
+    """
+    # Lazy load session storage now that we know spatial deps are available
+    _load_session_storage()
+
     parser = build_parser()
     args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:

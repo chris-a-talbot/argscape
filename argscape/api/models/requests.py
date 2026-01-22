@@ -110,3 +110,10 @@ class SimplifyTreeSequenceRequest(BaseModel):
     keep_unary_in_individuals: Optional[bool] = None
     keep_input_roots: bool = False
     record_provenance: bool = True
+
+
+class BenchmarkInferenceRequest(BaseModel):
+    """Request model for benchmarking inference methods with instrumentation."""
+    method: str  # Inference method: fastgaia, gaia-quadratic, gaia-linear, midpoint, sparg, spacetrees, tsdate
+    filename: str  # Tree sequence filename
+    params: Optional[Dict] = None  # Method-specific parameters
