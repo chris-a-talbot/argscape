@@ -14,13 +14,34 @@ logger = logging.getLogger(__name__)
 # Midpoint inference is always available as it only uses standard libraries
 MIDPOINT_AVAILABLE = True
 
+def build_parent_to_edges_map(ts: tskit.TreeSequence) -> Dict[int, List[tskit.Edge]]:
+    """Build a mapping from parent node ID to list of child edges.
+
+    This is O(E) once, instead of O(E) per node lookup.
+
+    Args:
+        ts: Tree sequence
+
+    Returns:
+        Dict mapping parent_id -> list of edges where that node is parent
+    """
+    parent_edges: Dict[int, List[tskit.Edge]] = {}
+    for edge in ts.edges():
+        if edge.parent not in parent_edges:
+            parent_edges[edge.parent] = []
+        parent_edges[edge.parent].append(edge)
+    return parent_edges
+
+
 def get_child_edges(ts: tskit.TreeSequence, parent_id: int) -> List[tskit.Edge]:
     """Get all edges where the given node is a parent.
-    
+
+    DEPRECATED: Use build_parent_to_edges_map() for better performance.
+
     Args:
         ts: Tree sequence
         parent_id: ID of the parent node
-        
+
     Returns:
         List of edges where parent_id is the parent
     """
@@ -119,18 +140,22 @@ def run_midpoint_inference(
             locations[node.id] = loc
     
     logger.info(f"Loaded {len(locations)} sample locations")
-    
+
+    # Build parent->edges map once (O(E) instead of O(N*E))
+    logger.info("Building parent-to-edges map...")
+    parent_edges_map = build_parent_to_edges_map(ts)
+
     # Get nodes sorted by time, excluding samples
     sorted_nodes = sorted(
         [node for node in ts.nodes() if not node.flags & tskit.NODE_IS_SAMPLE],
         key=lambda x: x.time
     )
-    
+
     # Process nodes in order of increasing time
     inferred_count = 0
     for node in sorted_nodes:
-        # Get all edges where this node is a parent
-        child_edges = get_child_edges(ts, node.id)
+        # Get all edges where this node is a parent (O(1) lookup)
+        child_edges = parent_edges_map.get(node.id, [])
         
         if not child_edges:
             logger.warning(f"Node {node.id} has no child edges, skipping")

@@ -301,11 +301,5 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
     
     except Exception as e:
         logger.error("Error during sparg inference", exc_info=True)
-        # Check for the specific "more than 2 parents" error
-        if "Nodes has more than 2 parents" in str(e):
-            raise RuntimeError(
-                "This ARG contains nodes with more than 2 parents. "
-                "Please try a different location inference method."
-            )
-        # For all other errors, pass through the original error message
-        raise RuntimeError(f"Sparg inference failed: {str(e)}") 
+        # Re-raise the original exception - let the route handler format it
+        raise 

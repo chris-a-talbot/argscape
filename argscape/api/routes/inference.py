@@ -40,9 +40,9 @@ from argscape.api.constants import (
     RAILWAY_INFERENCE_TIMEOUT_SECONDS,
 )
 from argscape.api.errors import (
-    categorize_inference_error,
-    create_timeout_error,
-    create_file_not_found_error,
+    get_inference_error_message,
+    get_timeout_error_message,
+    get_file_not_found_message,
 )
 
 logger = logging.getLogger(__name__)
@@ -156,8 +156,8 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"Fast location inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("fastgaia", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("fastgaia", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info = await run_inference()
 
@@ -185,8 +185,8 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         raise
     except Exception as e:
         logger.error(f"Error during fast location inference: {str(e)}")
-        error = categorize_inference_error(e, "fastgaia")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "fastgaia")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-locations-gaia")
@@ -285,8 +285,8 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"GAIA quadratic inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("gaia_quadratic", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("gaia_quadratic", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info, mpr_result = await run_inference()
         
@@ -319,8 +319,8 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         raise
     except Exception as e:
         logger.error(f"Error during GAIA quadratic location inference: {str(e)}")
-        error = categorize_inference_error(e, "gaia_quadratic")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "gaia_quadratic")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-locations-gaia-linear")
@@ -372,8 +372,8 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"GAIA linear inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("gaia_linear", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("gaia_linear", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info, mpr_result = await run_inference()
         
@@ -406,8 +406,8 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
         raise
     except Exception as e:
         logger.error(f"Error during GAIA linear location inference: {str(e)}")
-        error = categorize_inference_error(e, "gaia_linear")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "gaia_linear")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-locations-midpoint")
@@ -463,8 +463,8 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"Midpoint inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("midpoint", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("midpoint", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info = await run_inference()
         
@@ -501,8 +501,8 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
         raise
     except Exception as e:
         logger.error(f"Error during midpoint location inference: {str(e)}")
-        error = categorize_inference_error(e, "midpoint")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "midpoint")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/upload-location-csv")
@@ -699,8 +699,8 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"sparg inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("sparg", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("sparg", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info, intermediate_data = await run_inference()
         
@@ -734,8 +734,8 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         raise
     except Exception as e:
         logger.error(f"Error during sparg inference: {str(e)}")
-        error = categorize_inference_error(e, "sparg")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "sparg")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-locations-spacetrees")
@@ -800,8 +800,8 @@ async def infer_locations_spacetrees(request: Request, inference_request: Spacet
                 )
             except asyncio.TimeoutError:
                 logger.warning(f"spacetrees inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                error = create_timeout_error("spacetrees", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+                message, status_code = get_timeout_error_message("spacetrees", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+                raise HTTPException(status_code=status_code, detail=message)
         else:
             ts_with_locations, inference_info, intermediate_data = await run_inference()
         
@@ -835,8 +835,8 @@ async def infer_locations_spacetrees(request: Request, inference_request: Spacet
         raise
     except Exception as e:
         logger.error(f"Error during spacetrees inference: {str(e)}")
-        error = categorize_inference_error(e, "spacetrees")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "spacetrees")
+        raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-times-tsdate")
@@ -892,12 +892,12 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
         
     except ValueError as e:
         logger.warning(f"tsdate validation error: {str(e)}")
-        error = categorize_inference_error(e, "tsdate")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "tsdate")
+        raise HTTPException(status_code=status_code, detail=message)
     except Exception as e:
         logger.error("Error during tsdate temporal inference", exc_info=True)
-        error = categorize_inference_error(e, "tsdate")
-        raise HTTPException(status_code=error.status_code, detail=error.to_dict())
+        message, status_code = get_inference_error_message(e, "tsdate")
+        raise HTTPException(status_code=status_code, detail=message)
 
 @router.post("/simplify-tree-sequence")
 async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTreeSequenceRequest):

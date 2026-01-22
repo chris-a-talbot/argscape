@@ -1242,7 +1242,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   const filteredData = getFilteredData();
 
   return (
-    <div className="flex flex-col h-full" style={{ backgroundColor: colors.background }}>
+    <div className="flex flex-col h-full" style={{ backgroundColor: colors.background }} data-testid="graph-ready">
       {/* Minimal Header - Title and view controls only */}
       <div className="flex-shrink-0 border-b" style={{ backgroundColor: colors.background, borderBottomColor: colors.border }}>
         <div className="px-4 py-1.5">

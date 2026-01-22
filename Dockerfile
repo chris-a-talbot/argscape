@@ -30,11 +30,18 @@ ENV GDAL_CONFIG=/usr/bin/gdal-config \
 # Copy Python package configuration and source
 COPY pyproject.toml .
 COPY argscape argscape/
+COPY docs docs/
 COPY argscape/api/requirements-web.txt requirements.txt
 
 # Install Python dependencies
 RUN pip install --no-cache-dir --timeout 300 -r requirements.txt && \
     pip install -e .
+
+# Build documentation (Jupyter Book)
+RUN pip install --no-cache-dir jupyter-book sphinx-book-theme myst-nb sphinx-copybutton sphinx-design && \
+    cd docs/book && jupyter-book build -n --keep-going . && \
+    mkdir -p /app/argscape/docs_dist && \
+    cp -r _build/html /app/argscape/docs_dist/
 
 # Set runtime environment variables
 ENV PYTHONPATH=/app \

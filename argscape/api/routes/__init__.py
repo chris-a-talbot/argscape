@@ -8,6 +8,7 @@ from .inference import router as inference_router
 from .geographic import router as geographic_router
 from .utils import router as utils_router
 from .statistics import router as statistics_router
+from .benchmark import router as benchmark_router
 
 __all__ = [
     "sessions_router",
@@ -16,5 +17,6 @@ __all__ = [
     "geographic_router",
     "utils_router",
     "statistics_router",
+    "benchmark_router",
 ]
 

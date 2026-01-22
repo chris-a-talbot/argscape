@@ -76,11 +76,12 @@ from argscape.api.routes import (
     inference_router,
     geographic_router,
     statistics_router,
+    benchmark_router,
 )
 from argscape.api.routes.downloads import router as downloads_router
 
 # Set availability flags in route modules that need them
-from argscape.api.routes import utils, inference
+from argscape.api.routes import utils, inference, benchmark
 utils.set_availability_flags(
     FASTGAIA_AVAILABLE,
     GEOANCESTRY_AVAILABLE,
@@ -89,6 +90,15 @@ utils.set_availability_flags(
     gp
 )
 inference.set_availability_flags(
+    FASTGAIA_AVAILABLE,
+    GEOANCESTRY_AVAILABLE,
+    MIDPOINT_AVAILABLE,
+    SPARG_AVAILABLE,
+    SPACETREES_AVAILABLE,
+    TSDATE_AVAILABLE,
+    DISABLE_TSDATE
+)
+benchmark.set_availability_flags(
     FASTGAIA_AVAILABLE,
     GEOANCESTRY_AVAILABLE,
     MIDPOINT_AVAILABLE,
@@ -153,6 +163,7 @@ app.include_router(inference_router, prefix="/api", tags=["inference"])
 app.include_router(geographic_router, prefix="/api", tags=["geographic"])
 app.include_router(downloads_router, prefix="/api", tags=["downloads"])
 app.include_router(statistics_router, prefix="/api", tags=["statistics"])
+app.include_router(benchmark_router, prefix="/api", tags=["benchmark"])
 
 # Serve environment.yml as a static file (before static file mount to take precedence)
 @app.get("/environment.yml")
@@ -217,6 +228,14 @@ if frontend_dist.exists():
     logger.info(f"Serving frontend from {frontend_dist} (Railway: {is_railway})")
 else:
     logger.warning(f"Frontend build directory not found: {frontend_dist}")
+
+# Mount Jupyter Book documentation if available
+docs_dist = Path(__file__).resolve().parent.parent / "docs_dist" / "html"
+if docs_dist.exists():
+    app.mount("/documentation", StaticFiles(directory=docs_dist, html=True), name="documentation")
+    logger.info(f"Serving documentation from {docs_dist}")
+else:
+    logger.info("Documentation not built - /documentation/ will not be available")
 
 
 # Serve static files that are in the root of frontend_dist (favicon, etc.)

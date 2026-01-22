@@ -1,0 +1,42 @@
+{
+  "type": "GeometryCollection",
+  "name": "World Boundary",
+  "bounds": [-180, -90, 180, 90],
+  "crs": "EPSG:4326",
+  "geometries": [
+    {
+      "type": "LineString",
+      "coordinates": [
+        [-180, -60], [-180, 90], [180, 90], [180, -60], [-180, -60]
+      ]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[-180, 0], [180, 0]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[0, -60], [0, 90]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[-90, -60], [-90, 90]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[90, -60], [90, 90]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[-180, -30], [180, -30]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[-180, 30], [180, 30]]
+    },
+    {
+      "type": "LineString",
+      "coordinates": [[-180, 60], [180, 60]]
+    }
+  ]
+}

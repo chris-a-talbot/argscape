@@ -7,6 +7,13 @@ Commands:
 - rm:   Remove one stored tree sequence by name
 - clear: Remove all stored tree sequences for the CLI session
 - available: List all available .trees and .tsz files in a directory
+
+Usage examples:
+  argscape load load --file /path/data.trees --name mydata
+  argscape load list
+  argscape load rm --name mydata
+  argscape load clear
+  argscape load available --dir /path/to/data
 """
 
 import argparse
@@ -160,7 +167,7 @@ def cmd_list(_: argparse.Namespace) -> int:
 
 def build_parser() -> argparse.ArgumentParser:
     from argscape import __version__
-    p = argparse.ArgumentParser(prog="argscape_load", description="Manage ARGscape session storage (load, list, rm, clear)")
+    p = argparse.ArgumentParser(prog="argscape load", description="Manage ARGscape session storage (load, list, rm, clear)")
     p.add_argument(
         "--version", action="version",
         version=f"ARGscape {__version__}",
@@ -332,6 +339,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    """Main entry point for argscape load CLI.
+
+    Note: Spatial dependency check is done by the unified CLI (argscape/cli.py).
+    This function can also be called directly, but requires web deps.
+    """
     parser = build_parser()
     args = parser.parse_args(argv)
     if getattr(args, "command", None) is None:
