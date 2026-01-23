@@ -1,20 +1,19 @@
 # backend/requirements-web.txt - Core dependencies for Railway deployment
 # Core scientific packages
-numpy>=1.24.0,<2.0.0
+numpy>=1.24.0
 pandas
-tskit
+tskit>=0.5.0
 tszip>=0.2.3
-msprime
+msprime>=1.0.0
 scikit-learn
 
 # FastAPI and web server
-fastapi==0.115.6
-uvicorn[standard]==0.24.0
-python-multipart==0.0.6
-python-dotenv==1.0.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
 
 # Cleanup and scheduling
-apscheduler==3.10.4
+apscheduler>=3.10.4
 
 # Encryption for secure file storage
 cryptography>=41.0.0
@@ -25,17 +24,16 @@ fastgaia
 geoancestry
 
 # Geographic data processing
-geopandas==0.14.1
-shapely>=2.0.2,<3.0.0
-pyproj
-fiona==1.9.5
+geopandas>=0.14.1
+shapely>=2.0.2
+pyproj>=3.4.0
+fiona>=1.9.5
 
 # sparg requirements
 sympy
 scipy
 tqdm
 matplotlib
-ipywidgets
 
 # Other requirements
 pydantic

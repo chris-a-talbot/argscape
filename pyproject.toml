@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "argscape"
-version = "0.7.0"
+version = "0.7.1"
 description = "ARGscape: interactive ARG visualization and analysis"
 readme = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 authors = [{ name = "Chris Talbot", email = "cat267@cornell.edu" }]
 license = "MIT"
 license-files = ["LICENSE"]
@@ -17,18 +17,18 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
 # Base dependencies - lightweight, 2D visualization only
 dependencies = [
-    "numpy>=1.24.0,<2.0.0",
+    "numpy>=1.24.0",
     "pandas",
-    "tskit",
+    "tskit>=0.5.0",
     "tszip>=0.2.3",
     "scipy",
     "scikit-learn",
@@ -46,20 +46,19 @@ Paper = "https://arxiv.org/abs/2510.07255"
 [project.optional-dependencies]
 # Spatial dependencies - enables 3D viz, web app, inference
 spatial = [
-    "geopandas==0.14.1",
-    "shapely>=2.0.2,<3.0.0",
-    "pyproj",
-    "fiona==1.9.5",
+    "geopandas>=0.14.1",
+    "shapely>=2.0.2",
+    "pyproj>=3.4.0",
+    "fiona>=1.9.5",
     "fastapi",
-    "uvicorn[standard]==0.24.0",
-    "python-multipart==0.0.6",
-    "python-dotenv==1.0.0",
-    "apscheduler==3.10.4",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    "apscheduler>=3.10.4",
     "cryptography>=41.0.0",
     "tsdate",
     "fastgaia",
     "geoancestry",
-    "msprime",
+    "msprime>=1.0.0",
     "sympy",
 ]
 
