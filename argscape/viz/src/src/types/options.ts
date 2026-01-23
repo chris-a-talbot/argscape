@@ -64,6 +64,28 @@ export interface SpatialState {
   autoFitSpatial: boolean  // Auto-fit spatial spacing to viewport
 }
 
+export type TemporalAnimationMode = 'hide' | 'glide' | 'root-to-samples'
+
+export interface TemporalAnimationConfig {
+  type: 'temporal'
+  mode: TemporalAnimationMode
+  rate: number
+}
+
+export interface GenomicAnimationConfig {
+  type: 'genomic'
+  window: number | null
+  window_trees: number | null
+  step: number | null
+  overlap: number | null
+  rate: number
+}
+
+export interface AnimationConfig {
+  temporal?: TemporalAnimationConfig
+  genomic?: GenomicAnimationConfig
+}
+
 export interface FocalState {
   nodeId: number | null
   mode: ViewMode | null
@@ -85,4 +107,5 @@ export interface VizOptions {
   width: number
   height: number
   initialState: InitialState
+  animation?: AnimationConfig
 }

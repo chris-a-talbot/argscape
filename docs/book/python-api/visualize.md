@@ -70,6 +70,8 @@ def visualize(
     geographic_base: Literal["unit_grid", "eastern_hemisphere", "world"] = "unit_grid",
     temporal_multiplier: float = 12.0,
     spatial_multiplier: float = 160.0,
+    # Animation
+    animation: TemporalAnimation | GenomicAnimation | tuple[TemporalAnimation, GenomicAnimation] | None = None,
 ) -> VizResult
 ```
 
@@ -544,6 +546,93 @@ viz = argscape.visualize(
     temporal_multiplier=20.0,
     spatial_multiplier=200.0
 )
+```
+
+### Animation
+
+Configure animations that can be played back in the visualization. Animations are started manually via play button and can be paused/resumed. A minimal play button is always visible when animation is configured, even with `show_controls=False`.
+
+```{list-table}
+:header-rows: 1
+:widths: 20 15 15 50
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `animation`
+  - `TemporalAnimation | GenomicAnimation | tuple | None`
+  - `None`
+  - Animation configuration. Can be a single animation type, or a tuple of both to enable switching between them.
+```
+
+#### Animation Classes
+
+```python
+from argscape import TemporalAnimation, GenomicAnimation
+```
+
+**TemporalAnimation** - Animates through time layers:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `mode` | `Literal["hide", "glide", "root-to-samples"]` | `"glide"` | Animation mode. `"hide"` reveals nodes layer by layer; `"glide"` smoothly expands the visible time range; `"root-to-samples"` animates from roots down to samples. |
+| `rate` | `float` | `1.0` | Speed in time layers per second. |
+
+**GenomicAnimation** - Slides a window across the genome:
+
+| Attribute | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `window` | `int | None` | `None` | Window size in base pairs. |
+| `window_trees` | `int | None` | `None` | Window size in number of trees (alternative to `window`). |
+| `step` | `int | None` | `None` | Step size per frame in base pairs or trees. |
+| `overlap` | `float | None` | `None` | Overlap fraction (0.0-1.0) between consecutive windows. Alternative to `step`. |
+| `rate` | `float` | `1.0` | Speed in steps per second. |
+
+```{note}
+For genomic animation, specify either `window` (base pairs) or `window_trees` (tree count), not both.
+Similarly, specify either `step` or `overlap` for advancement, not both.
+```
+
+**Examples:**
+
+```python
+# Temporal animation - glide through time
+viz = argscape.visualize(
+    ts,
+    animation=TemporalAnimation(mode="glide", rate=2.0)
+)
+
+# Temporal animation - reveal from roots to samples
+viz = argscape.visualize(
+    ts,
+    animation=TemporalAnimation(mode="root-to-samples", rate=1.5)
+)
+
+# Genomic animation - slide 10kb window with 50% overlap
+viz = argscape.visualize(
+    ts,
+    animation=GenomicAnimation(window=10000, overlap=0.5, rate=3.0)
+)
+
+# Genomic animation - slide 5 trees at a time
+viz = argscape.visualize(
+    ts,
+    animation=GenomicAnimation(window_trees=5, step=2, rate=2.0)
+)
+
+# Both animations configured (user can switch between them)
+viz = argscape.visualize(
+    ts,
+    animation=(
+        TemporalAnimation(mode="glide", rate=1.0),
+        GenomicAnimation(window=5000, overlap=0.25, rate=2.0)
+    )
+)
+```
+
+```{tip}
+When `show_controls=True`, a floating animation panel provides full controls including mode selection, speed adjustment, and progress display. In minimal mode (`show_controls=False`), only the play button is shown.
 ```
 
 ## Returns

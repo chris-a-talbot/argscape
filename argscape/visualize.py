@@ -19,6 +19,12 @@ if TYPE_CHECKING:
 from .viz.data import extract_graph, SampleOrderType
 from .viz.themes import get_theme, list_themes, customize_theme, TSKIT, Theme
 from .spatial import is_spatial_available, require_spatial
+from .animation import (
+    TemporalAnimation,
+    GenomicAnimation,
+    AnimationType,
+    normalize_animation,
+)
 
 # Type alias for shapefile input (avoids importing from shapes.py which needs geopandas)
 ShapefileInput = Union[str, Path, "gpd.GeoDataFrame", dict, None]
@@ -206,6 +212,8 @@ def visualize(
     geographic_base: Literal["unit_grid", "eastern_hemisphere", "world"] = "unit_grid",
     temporal_multiplier: float = 12.0,
     spatial_multiplier: float = 160.0,
+    # Animation
+    animation: AnimationType = None,
 ) -> VizResult:
     """
     Create an ARGscape visualization from a tree sequence.
@@ -262,6 +270,9 @@ def visualize(
         geographic_base: Built-in shape ("unit_grid", "eastern_hemisphere", "world")
         temporal_multiplier: Z-axis scaling for 3D
         spatial_multiplier: X-Y scaling for 3D
+        animation: Animation configuration. Pass a TemporalAnimation for time-based
+            layer reveal, GenomicAnimation for sliding window through genome, or a
+            list containing both. See animation classes for configuration options.
 
     Returns:
         VizResult with show(), display(), and export() methods
@@ -397,6 +408,11 @@ def visualize(
             },
         },
     }
+
+    # Add animation config if provided
+    animation_config = normalize_animation(animation)
+    if animation_config:
+        options["animation"] = animation_config
 
     return VizResult(data, options, mode)
 
