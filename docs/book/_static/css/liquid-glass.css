@@ -1,0 +1,982 @@
+/*
+ * ARGscape Documentation Theme
+ *
+ * A clean, modern theme moving away from stock Jupyter Book appearance.
+ * Light mode: "Liquid Glass" - glassmorphism aesthetic
+ * Dark mode: "Tskit" - dark theme matching the tskit visualization style
+ */
+
+/* ============================================
+   Web Fonts
+   ============================================ */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ============================================
+   CSS Variables - Light Mode (Liquid Glass)
+   ============================================ */
+:root,
+html[data-theme="light"] {
+  /* Core colors */
+  --as-background: #f8f9fa;
+  --as-container-bg: rgba(255, 255, 255, 0.85);
+  --as-text: #1a1a1a;
+  --as-text-secondary: #5c5c5c;
+  --as-text-muted: #888;
+
+  /* Accent colors */
+  --as-accent-primary: #0a9d7e;
+  --as-accent-secondary: #087a62;
+  --as-accent-light: #14E2A8;
+
+  /* Link colors - muted */
+  --as-link: #0a7d66;
+  --as-link-hover: #065a4a;
+
+  /* Glass effect colors */
+  --as-glass-shadow-primary: rgba(20, 226, 168, 0.08);
+  --as-glass-shadow-secondary: rgba(0, 0, 0, 0.04);
+  --as-glass-bg: rgba(255, 255, 255, 0.85);
+  --as-glass-border: rgba(0, 0, 0, 0.06);
+  --as-glass-shimmer: rgba(255, 255, 255, 0.6);
+
+  /* UI colors */
+  --as-border: rgba(0, 0, 0, 0.08);
+  --as-border-subtle: rgba(0, 0, 0, 0.04);
+  --as-hover-overlay: rgba(10, 157, 126, 0.06);
+
+  /* Code colors */
+  --as-code-bg: #f4f6f8;
+  --as-code-border: rgba(0, 0, 0, 0.06);
+
+  /* Semantic colors */
+  --as-success: #0a9d7e;
+  --as-warning: #b45309;
+  --as-error: #dc2626;
+  --as-info: #0369a1;
+
+  /* Border radius */
+  --as-radius: 8px;
+  --as-radius-sm: 4px;
+  --as-radius-lg: 12px;
+
+  /* Spacing */
+  --as-space-xs: 0.25rem;
+  --as-space-sm: 0.5rem;
+  --as-space-md: 1rem;
+  --as-space-lg: 1.5rem;
+  --as-space-xl: 2.5rem;
+}
+
+/* ============================================
+   CSS Variables - Dark Mode (Tskit Theme)
+   ============================================ */
+html[data-theme="dark"] {
+  /* Core colors - tskit dark theme */
+  --as-background: #03303E;
+  --as-container-bg: rgba(3, 48, 62, 0.9);
+  --as-text: #f0f0f0;
+  --as-text-secondary: #a0c0cc;
+  --as-text-muted: #7a9aa5;
+
+  /* Accent colors */
+  --as-accent-primary: #14E2A8;
+  --as-accent-secondary: #38BDF8;
+  --as-accent-light: #60A0B7;
+
+  /* Link colors */
+  --as-link: #14E2A8;
+  --as-link-hover: #38BDF8;
+
+  /* Glass effect colors - adapted for dark */
+  --as-glass-shadow-primary: rgba(20, 226, 168, 0.15);
+  --as-glass-shadow-secondary: rgba(0, 0, 0, 0.3);
+  --as-glass-bg: rgba(3, 48, 62, 0.9);
+  --as-glass-border: rgba(20, 226, 168, 0.15);
+  --as-glass-shimmer: rgba(20, 226, 168, 0.1);
+
+  /* UI colors */
+  --as-border: rgba(20, 226, 168, 0.15);
+  --as-border-subtle: rgba(20, 226, 168, 0.08);
+  --as-hover-overlay: rgba(20, 226, 168, 0.1);
+
+  /* Code colors */
+  --as-code-bg: rgba(20, 226, 168, 0.08);
+  --as-code-border: rgba(20, 226, 168, 0.12);
+
+  /* Semantic colors */
+  --as-success: #14E2A8;
+  --as-warning: #f59e0b;
+  --as-error: #ef4444;
+  --as-info: #38BDF8;
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+html {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 17px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+}
+
+body {
+  background-color: var(--as-background) !important;
+  color: var(--as-text);
+}
+
+/* ============================================
+   Sidebar (Left Navigation)
+   ============================================ */
+.bd-sidebar {
+  background: var(--as-glass-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-right: 1px solid var(--as-border-subtle) !important;
+}
+
+.bd-sidebar-primary {
+  background: transparent !important;
+}
+
+/* Sidebar navigation links */
+.bd-sidebar .nav-link {
+  color: var(--as-text-secondary) !important;
+  border-radius: var(--as-radius-sm);
+  transition: all 0.15s ease;
+  padding: 0.5rem 0.75rem !important;
+  margin: 0.125rem 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 450;
+}
+
+.bd-sidebar .nav-link:hover {
+  background: var(--as-hover-overlay) !important;
+  color: var(--as-text) !important;
+}
+
+.bd-sidebar .nav-link.active {
+  background: rgba(10, 157, 126, 0.1) !important;
+  color: var(--as-accent-primary) !important;
+  font-weight: 500;
+}
+
+/* Sidebar section titles - cleaner dividers */
+.bd-sidebar .caption-text {
+  color: var(--as-text-muted) !important;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1.25rem 0.75rem 0.375rem !important;
+  margin-top: 0;
+  border-top: 1px solid var(--as-border-subtle);
+}
+
+.bd-sidebar .caption-text:first-child,
+.bd-sidebar nav > .caption-text:first-of-type {
+  border-top: none;
+  padding-top: 0.5rem !important;
+}
+
+/* Collapsible navigation - smooth expand/collapse */
+.bd-sidebar .nav {
+  transition: max-height 0.2s ease-out;
+}
+
+.bd-sidebar .toctree-checkbox {
+  display: none;
+}
+
+/* Collapse toggle button styling */
+.bd-sidebar .label-parts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.bd-sidebar .label-parts .caption-text {
+  flex: 1;
+}
+
+/* Nested navigation indentation */
+.bd-sidebar .nav .nav {
+  padding-left: 0.75rem;
+  border-left: 1px solid var(--as-border-subtle);
+  margin-left: 0.75rem;
+}
+
+
+/* Expand/collapse arrow indicator */
+.bd-sidebar .toctree-toggle {
+  color: var(--as-text-muted);
+  transition: transform 0.2s ease;
+  font-size: 0.75rem;
+  padding: 0.25rem;
+  border-radius: var(--as-radius-sm);
+}
+
+.bd-sidebar .toctree-toggle:hover {
+  background: var(--as-hover-overlay);
+  color: var(--as-text);
+}
+
+/* Rotate arrow when expanded */
+.bd-sidebar .toctree-checkbox:checked ~ label .toctree-toggle {
+  transform: rotate(90deg);
+}
+
+/* ============================================
+   Main Content Area
+   ============================================ */
+.bd-content {
+  background: transparent !important;
+}
+
+/* Article content - wider, more breathing room */
+.bd-article-container {
+  background: var(--as-glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--as-radius-lg);
+  border: 1px solid var(--as-border-subtle);
+  box-shadow:
+    0 1px 3px var(--as-glass-shadow-secondary),
+    0 4px 16px var(--as-glass-shadow-primary);
+  padding: var(--as-space-xl) 3rem;
+  margin: var(--as-space-lg);
+  max-width: none !important;
+}
+
+/* ============================================
+   Typography - Clear Heading Hierarchy
+   ============================================ */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--as-text) !important;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+/* Page title - largest, heaviest, with underline */
+h1 {
+  font-size: 2.25rem;
+  font-weight: 700;
+  margin-bottom: var(--as-space-xl);
+  margin-top: 0;
+  padding-bottom: var(--as-space-md);
+  border-bottom: 2px solid var(--as-accent-primary);
+}
+
+/* Major sections - large, heavy, clear top separation */
+h2 {
+  font-size: 1.6rem;
+  font-weight: 650;
+  margin-top: 3rem;
+  margin-bottom: var(--as-space-md);
+  padding-top: var(--as-space-lg);
+  border-top: 1px solid var(--as-border);
+}
+
+/* First h2 after h1 doesn't need top border */
+h1 + h2,
+h1 + * + h2 {
+  border-top: none;
+  margin-top: var(--as-space-xl);
+  padding-top: 0;
+}
+
+/* Subsections - medium weight, moderate spacing */
+h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: var(--as-space-xl);
+  margin-bottom: var(--as-space-sm);
+  color: var(--as-text) !important;
+}
+
+/* Minor subsections - lighter weight, compact */
+h4 {
+  font-size: 1.05rem;
+  font-weight: 550;
+  margin-top: var(--as-space-lg);
+  margin-bottom: var(--as-space-xs);
+  color: var(--as-text-secondary) !important;
+}
+
+h5, h6 {
+  font-size: 0.95rem;
+  font-weight: 550;
+  margin-top: var(--as-space-md);
+  margin-bottom: var(--as-space-xs);
+  color: var(--as-text-secondary) !important;
+}
+
+p {
+  color: var(--as-text);
+  margin-bottom: var(--as-space-md);
+}
+
+li {
+  color: var(--as-text);
+  margin-bottom: var(--as-space-xs);
+}
+
+ul, ol {
+  margin-bottom: var(--as-space-md);
+  padding-left: 1.5rem;
+}
+
+/* Links - muted, professional */
+a {
+  color: var(--as-link) !important;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+a:hover {
+  color: var(--as-link-hover) !important;
+  text-decoration: underline;
+}
+
+/* Strong/Bold */
+strong, b {
+  font-weight: 600;
+}
+
+/* ============================================
+   Code Blocks
+   ============================================ */
+code {
+  font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', 'Monaco', monospace;
+  font-size: 0.875em;
+  font-feature-settings: "liga" 0;
+}
+
+/* Inline code */
+p code, li code, td code {
+  background: var(--as-code-bg) !important;
+  color: var(--as-accent-primary) !important;
+  padding: 0.125rem 0.375rem;
+  border-radius: var(--as-radius-sm);
+  border: 1px solid var(--as-code-border);
+  font-size: 0.85em;
+}
+
+/* Code blocks */
+div.highlight {
+  background: var(--as-code-bg) !important;
+  border: 1px solid var(--as-code-border) !important;
+  border-radius: var(--as-radius) !important;
+  box-shadow: none;
+  margin: var(--as-space-md) 0;
+}
+
+div.highlight pre {
+  background: transparent !important;
+  padding: var(--as-space-md) !important;
+  margin: 0 !important;
+  border-radius: var(--as-radius) !important;
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+/* Copy button on code blocks */
+button.copybtn {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  border-radius: var(--as-radius-sm) !important;
+  color: var(--as-text-muted) !important;
+  transition: all 0.15s ease;
+  opacity: 0.7;
+}
+
+button.copybtn:hover {
+  background: var(--as-accent-primary) !important;
+  color: white !important;
+  border-color: var(--as-accent-primary) !important;
+  opacity: 1;
+}
+
+/* ============================================
+   Tables
+   ============================================ */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--as-border);
+  border-radius: var(--as-radius);
+  overflow: hidden;
+  background: var(--as-glass-bg);
+  margin: var(--as-space-md) 0;
+  font-size: 0.95rem;
+}
+
+th {
+  background: rgba(10, 157, 126, 0.05) !important;
+  color: var(--as-text) !important;
+  font-weight: 600;
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid var(--as-border);
+  font-size: 0.9rem;
+}
+
+td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--as-border-subtle);
+}
+
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover td {
+  background: var(--as-hover-overlay);
+}
+
+/* ============================================
+   Admonitions (Note, Warning, Tip, etc.)
+   ============================================ */
+.admonition {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  border-radius: var(--as-radius) !important;
+  box-shadow: none;
+  padding: var(--as-space-md) var(--as-space-lg) !important;
+  margin: var(--as-space-lg) 0;
+}
+
+.admonition-title {
+  font-weight: 600 !important;
+  font-size: 0.9rem;
+  margin-bottom: var(--as-space-sm) !important;
+  padding-bottom: var(--as-space-sm) !important;
+  border-bottom: 1px solid var(--as-border-subtle) !important;
+  background: transparent !important;
+}
+
+/* Note */
+.admonition.note {
+  border-left: 3px solid var(--as-info) !important;
+}
+
+.admonition.note .admonition-title {
+  color: var(--as-info) !important;
+}
+
+/* Tip / Hint */
+.admonition.tip, .admonition.hint {
+  border-left: 3px solid var(--as-success) !important;
+}
+
+.admonition.tip .admonition-title,
+.admonition.hint .admonition-title {
+  color: var(--as-success) !important;
+}
+
+/* Warning */
+.admonition.warning, .admonition.caution {
+  border-left: 3px solid var(--as-warning) !important;
+}
+
+.admonition.warning .admonition-title,
+.admonition.caution .admonition-title {
+  color: var(--as-warning) !important;
+}
+
+/* Danger / Error */
+.admonition.danger, .admonition.error {
+  border-left: 3px solid var(--as-error) !important;
+}
+
+.admonition.danger .admonition-title,
+.admonition.error .admonition-title {
+  color: var(--as-error) !important;
+}
+
+/* Important */
+.admonition.important {
+  border-left: 3px solid var(--as-accent-primary) !important;
+}
+
+.admonition.important .admonition-title {
+  color: var(--as-accent-primary) !important;
+}
+
+/* ============================================
+   Layout - Full Width with Fixed Sidebars
+   ============================================ */
+.bd-page-width {
+  max-width: 100% !important;
+}
+
+/* Container uses full width */
+.bd-container {
+  max-width: 100% !important;
+}
+
+/* Main area is flex, content grows to fill */
+.bd-main {
+  display: flex;
+  width: 100%;
+  background: var(--as-background) !important;
+}
+
+.bd-main .bd-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100% !important;
+}
+
+.bd-article-container {
+  max-width: 100% !important;
+}
+
+/* Left sidebar - fixed width, left aligned */
+.bd-sidebar-primary {
+  flex: 0 0 280px;
+  width: 280px;
+  max-width: 280px;
+}
+
+/* Right sidebar - fixed width, right aligned */
+.bd-sidebar-secondary {
+  flex: 0 0 220px;
+  width: 220px;
+  max-width: 220px;
+  background: transparent !important;
+  border-left: 1px solid var(--as-border-subtle);
+  padding-top: var(--as-space-lg);
+  position: sticky;
+  top: 4rem;
+  height: fit-content;
+  max-height: calc(100vh - 5rem);
+  overflow-y: auto;
+}
+
+/* ============================================
+   Right Sidebar - Page TOC Styling
+   ============================================ */
+.bd-toc {
+  padding: 0 var(--as-space-md);
+}
+
+/* "On this page" title */
+.bd-toc .toc-title,
+.bd-toc-title,
+.toc-h2 {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--as-text-muted) !important;
+  margin-bottom: var(--as-space-sm);
+  padding-bottom: var(--as-space-xs);
+  border-bottom: 1px solid var(--as-border-subtle);
+}
+
+/* TOC links */
+.bd-toc .nav-link {
+  font-size: 0.825rem;
+  color: var(--as-text-secondary) !important;
+  padding: 0.3rem 0 !important;
+  border-left: 2px solid transparent;
+  padding-left: var(--as-space-sm) !important;
+  transition: all 0.15s ease;
+}
+
+.bd-toc .nav-link:hover {
+  color: var(--as-text) !important;
+  border-left-color: var(--as-border);
+}
+
+.bd-toc .nav-link.active {
+  color: var(--as-accent-primary) !important;
+  border-left-color: var(--as-accent-primary);
+  font-weight: 500;
+}
+
+/* Nested TOC levels */
+.bd-toc .nav .nav {
+  padding-left: var(--as-space-sm);
+}
+
+.bd-toc .nav .nav .nav-link {
+  font-size: 0.8rem;
+  color: var(--as-text-muted) !important;
+}
+
+/* ============================================
+   Header/Navbar
+   ============================================ */
+.bd-header {
+  background: var(--as-glass-bg) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--as-border-subtle) !important;
+  box-shadow: 0 1px 3px var(--as-glass-shadow-secondary);
+}
+
+.bd-header .navbar-brand {
+  color: var(--as-text) !important;
+  font-weight: 600;
+}
+
+/* Header buttons */
+.bd-header .btn {
+  color: var(--as-text-secondary) !important;
+  border-radius: var(--as-radius-sm);
+  transition: all 0.15s ease;
+}
+
+.bd-header .btn:hover {
+  color: var(--as-accent-primary) !important;
+  background: var(--as-hover-overlay);
+}
+
+/* ============================================
+   Footer
+   ============================================ */
+.bd-footer {
+  background: var(--as-glass-bg) !important;
+  border-top: 1px solid var(--as-border-subtle) !important;
+  padding: var(--as-space-lg);
+}
+
+.bd-footer p {
+  color: var(--as-text-muted) !important;
+  font-size: 0.85rem;
+}
+
+.footer-content {
+  text-align: center;
+}
+
+.footer-content a {
+  color: var(--as-link) !important;
+}
+
+/* ============================================
+   Buttons & Interactive Elements
+   ============================================ */
+.btn-primary,
+button.primary,
+.download-button {
+  background: var(--as-accent-primary) !important;
+  color: white !important;
+  border: none !important;
+  border-radius: var(--as-radius) !important;
+  padding: 0.5rem 1rem;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.btn-primary:hover,
+button.primary:hover,
+.download-button:hover {
+  background: var(--as-accent-secondary) !important;
+}
+
+/* ============================================
+   Search
+   ============================================ */
+.search-button {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  border-radius: var(--as-radius) !important;
+  color: var(--as-text-muted) !important;
+}
+
+.search-button:hover {
+  border-color: var(--as-accent-primary) !important;
+  color: var(--as-accent-primary) !important;
+}
+
+/* ============================================
+   Jupyter Notebook Cells
+   ============================================ */
+.cell {
+  border: 1px solid var(--as-border);
+  border-radius: var(--as-radius);
+  margin: var(--as-space-md) 0;
+  overflow: hidden;
+}
+
+.cell_input {
+  background: var(--as-code-bg) !important;
+  border-bottom: 1px solid var(--as-border);
+}
+
+.cell_output {
+  background: var(--as-glass-bg) !important;
+  padding: var(--as-space-md);
+}
+
+/* Input/Output prompts */
+.prompt {
+  color: var(--as-text-muted) !important;
+  font-size: 0.75rem;
+}
+
+/* ============================================
+   Sphinx Design Cards & Grids
+   ============================================ */
+.sd-card {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  border-radius: var(--as-radius) !important;
+  box-shadow: 0 1px 3px var(--as-glass-shadow-secondary);
+  transition: all 0.15s ease;
+}
+
+.sd-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px var(--as-glass-shadow-primary);
+}
+
+.sd-card-header {
+  background: rgba(10, 157, 126, 0.04) !important;
+  border-bottom: 1px solid var(--as-border-subtle) !important;
+}
+
+.sd-card-title {
+  color: var(--as-text) !important;
+  font-weight: 600;
+}
+
+/* ============================================
+   Tabs
+   ============================================ */
+.sd-tab-set > input:checked + label {
+  background: var(--as-glass-bg) !important;
+  border-color: var(--as-accent-primary) !important;
+  color: var(--as-accent-primary) !important;
+}
+
+.sd-tab-set > label {
+  color: var(--as-text-secondary) !important;
+  border-radius: var(--as-radius-sm) var(--as-radius-sm) 0 0 !important;
+  transition: all 0.15s ease;
+}
+
+.sd-tab-set > label:hover {
+  background: var(--as-hover-overlay);
+}
+
+.sd-tab-content {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  border-radius: 0 0 var(--as-radius) var(--as-radius) !important;
+}
+
+/* ============================================
+   Blockquotes
+   ============================================ */
+blockquote {
+  background: var(--as-code-bg);
+  border-left: 3px solid var(--as-accent-primary);
+  border-radius: 0 var(--as-radius) var(--as-radius) 0;
+  padding: var(--as-space-md) var(--as-space-lg);
+  margin: var(--as-space-md) 0;
+  color: var(--as-text-secondary);
+  font-style: italic;
+}
+
+/* ============================================
+   Images
+   ============================================ */
+img {
+  border-radius: var(--as-radius);
+  max-width: 100%;
+}
+
+figure {
+  text-align: center;
+  margin: var(--as-space-lg) 0;
+}
+
+figcaption {
+  color: var(--as-text-muted);
+  font-size: 0.85rem;
+  margin-top: var(--as-space-sm);
+}
+
+/* ============================================
+   Horizontal Rules
+   ============================================ */
+hr {
+  border: none;
+  border-top: 1px solid var(--as-border);
+  margin: var(--as-space-xl) 0;
+}
+
+/* ============================================
+   Scrollbar Styling
+   ============================================ */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ============================================
+   Responsive Adjustments
+   ============================================ */
+@media (max-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+
+  .bd-article-container {
+    margin: var(--as-space-sm);
+    padding: var(--as-space-md);
+    border-radius: var(--as-radius);
+  }
+
+  h1 {
+    font-size: 1.75rem;
+  }
+
+  h2 {
+    font-size: 1.4rem;
+    margin-top: 2rem;
+  }
+
+  h3 {
+    font-size: 1.15rem;
+  }
+
+  h4 {
+    font-size: 1rem;
+  }
+}
+
+/* ============================================
+   Print Styles
+   ============================================ */
+@media print {
+  .bd-sidebar,
+  .bd-sidebar-secondary,
+  .bd-header {
+    display: none !important;
+  }
+
+  .bd-article-container {
+    background: white !important;
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  a {
+    color: var(--as-text) !important;
+  }
+
+  a::after {
+    content: " (" attr(href) ")";
+    font-size: 0.8em;
+    color: var(--as-text-secondary);
+  }
+}
+
+/* ============================================
+   Dark Mode Overrides (Tskit Theme)
+   ============================================ */
+html[data-theme="dark"] body {
+  background-color: var(--as-background) !important;
+  color: var(--as-text);
+}
+
+/* Dark mode code blocks */
+html[data-theme="dark"] div.highlight {
+  background: var(--as-code-bg) !important;
+  border: 1px solid var(--as-code-border) !important;
+}
+
+html[data-theme="dark"] div.highlight pre {
+  color: var(--as-text) !important;
+}
+
+/* Dark mode inline code */
+html[data-theme="dark"] p code,
+html[data-theme="dark"] li code,
+html[data-theme="dark"] td code {
+  background: var(--as-code-bg) !important;
+  color: var(--as-accent-primary) !important;
+  border: 1px solid var(--as-code-border);
+}
+
+/* Dark mode jupyter cells */
+html[data-theme="dark"] .cell_input {
+  background: var(--as-code-bg) !important;
+}
+
+html[data-theme="dark"] .cell_output {
+  background: var(--as-glass-bg) !important;
+}
+
+/* Dark mode tables */
+html[data-theme="dark"] th {
+  background: rgba(20, 226, 168, 0.1) !important;
+  color: var(--as-text) !important;
+}
+
+html[data-theme="dark"] td {
+  border-bottom-color: var(--as-border-subtle);
+}
+
+html[data-theme="dark"] tr:hover td {
+  background: var(--as-hover-overlay);
+}
+
+/* Dark mode scrollbar */
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(20, 226, 168, 0.3);
+}
+
+html[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 226, 168, 0.5);
+}
+
+/* Dark mode sidebar active states */
+html[data-theme="dark"] .bd-sidebar .nav-link.active {
+  background: rgba(20, 226, 168, 0.12) !important;
+  color: var(--as-accent-primary) !important;
+}
+
+/* Dark mode heading colors */
+html[data-theme="dark"] h4,
+html[data-theme="dark"] h5,
+html[data-theme="dark"] h6 {
+  color: var(--as-text-secondary) !important;
+}
+
+/* Dark mode copy button */
+html[data-theme="dark"] button.copybtn {
+  background: var(--as-glass-bg) !important;
+  border: 1px solid var(--as-border) !important;
+  color: var(--as-text-muted) !important;
+}
+
+html[data-theme="dark"] button.copybtn:hover {
+  background: var(--as-accent-primary) !important;
+  color: var(--as-background) !important;
+}

@@ -1,0 +1,1306 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>argscape.visualize() &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=5a416a86" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'python-api/visualize';</script>
+    <link rel="canonical" href="/documentation/python-api/visualize.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="VizResult" href="vizresult.html" />
+    <link rel="prev" title="Python API Overview" href="overview.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/themes.html">Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Python API Overview</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">argscape.visualize()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inference.html">argscape.infer()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inferresult.html">InferResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="themes.html">Theme Functions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fpython-api/visualize.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>argscape.visualize()</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> On this page </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mode">Mode</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#data-selection">Data Selection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#focal-node">Focal Node</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#appearance">Appearance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-colors">Custom Colors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nodes">Nodes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edges">Edges</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mutations">Mutations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-2d-force-graph">Layout (2D Force Graph)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-order-options">Sample Order Options</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-3d">Spatial (3D)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#geographic-base-options">Geographic Base Options</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shapefileinput-type">ShapefileInput Type</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#returns">Returns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#raises">Raises</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-example">Complete Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="argscape-visualize">
+<h1>argscape.visualize()<a class="headerlink" href="#argscape-visualize" title="Link to this heading">#</a></h1>
+<p>The <code class="docutils literal notranslate"><span class="pre">visualize()</span></code> function is the main entry point for creating ARGscape visualizations from tree sequences.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tskit</span>
+
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;example.trees&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>  <span class="c1"># Opens in browser</span>
+</pre></div>
+</div>
+<details class="sd-sphinx-override sd-dropdown sd-card sd-mb-3">
+<summary class="sd-summary-title sd-card-header">
+<span class="sd-summary-text">Full Function Signature</span><span class="sd-summary-state-marker sd-summary-chevron-right"><svg version="1.1" width="1.5em" height="1.5em" class="sd-octicon sd-octicon-chevron-right" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.72 18.78a.75.75 0 0 1 0-1.06L14.44 12 8.72 6.28a.751.751 0 0 1 .018-1.042.751.751 0 0 1 1.042-.018l6.25 6.25a.75.75 0 0 1 0 1.06l-6.25 6.25a.75.75 0 0 1-1.06 0Z"></path></svg></span></summary><div class="sd-summary-content sd-card-body docutils">
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">def</span><span class="w"> </span><span class="nf">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">:</span> <span class="n">tskit</span><span class="o">.</span><span class="n">TreeSequence</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="c1"># Mode</span>
+    <span class="n">mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;force_graph&quot;</span><span class="p">,</span> <span class="s2">&quot;spatial_3d&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;force_graph&quot;</span><span class="p">,</span>
+    <span class="c1"># Data selection</span>
+    <span class="n">max_samples</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;even&quot;</span><span class="p">,</span> <span class="s2">&quot;random&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;even&quot;</span><span class="p">,</span>
+    <span class="n">subset_seed</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">samples</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">temporal_range</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="c1"># Focal node</span>
+    <span class="n">focal_node</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">focal_mode</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;subarg&quot;</span><span class="p">,</span> <span class="s2">&quot;ancestors&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;subarg&quot;</span><span class="p">,</span>
+    <span class="c1"># Appearance</span>
+    <span class="n">theme</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Theme</span> <span class="o">=</span> <span class="s2">&quot;liquid&quot;</span><span class="p">,</span>
+    <span class="n">width</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1200</span><span class="p">,</span>
+    <span class="n">height</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">800</span><span class="p">,</span>
+    <span class="n">show_controls</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="c1"># Custom colors (override theme)</span>
+    <span class="n">sample_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">internal_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">root_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">edge_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">background_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mutation_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">text_color</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="c1"># Nodes</span>
+    <span class="n">sample_node_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">8</span><span class="p">,</span>
+    <span class="n">internal_node_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span><span class="p">,</span>
+    <span class="n">root_node_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">show_internal_ids</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">show_root_ids</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">color_by_population</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="c1"># Edges</span>
+    <span class="n">edge_width</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1.0</span><span class="p">,</span>
+    <span class="n">edge_opacity</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.6</span><span class="p">,</span>
+    <span class="n">show_edge_labels</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="c1"># Mutations</span>
+    <span class="n">show_mutations</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">mutation_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">6</span><span class="p">,</span>
+    <span class="c1"># Layout (2D)</span>
+    <span class="n">sample_order</span><span class="p">:</span> <span class="n">SampleOrderType</span> <span class="o">=</span> <span class="s2">&quot;consensus_minlex&quot;</span><span class="p">,</span>
+    <span class="n">temporal_spacing</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;equal&quot;</span><span class="p">,</span> <span class="s2">&quot;linear&quot;</span><span class="p">,</span> <span class="s2">&quot;log&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;equal&quot;</span><span class="p">,</span>
+    <span class="n">vertical_spacing</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span><span class="p">,</span>
+    <span class="n">horizontal_spacing</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">100.0</span><span class="p">,</span>
+    <span class="c1"># Spatial (3D)</span>
+    <span class="n">shapefile</span><span class="p">:</span> <span class="n">ShapefileInput</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">location_crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">shapefile_crs</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">geographic_base</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;unit_grid&quot;</span><span class="p">,</span> <span class="s2">&quot;eastern_hemisphere&quot;</span><span class="p">,</span> <span class="s2">&quot;world&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;unit_grid&quot;</span><span class="p">,</span>
+    <span class="n">temporal_multiplier</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">12.0</span><span class="p">,</span>
+    <span class="n">spatial_multiplier</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">160.0</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VizResult</span>
+</pre></div>
+</div>
+</div>
+</details><section id="parameters">
+<h2>Parameters<a class="headerlink" href="#parameters" title="Link to this heading">#</a></h2>
+<section id="mode">
+<h3>Mode<a class="headerlink" href="#mode" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Literal[&quot;force_graph&quot;,</span> <span class="pre">&quot;spatial_3d&quot;]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;force_graph&quot;</span></code></p></td>
+<td><p>Visualization mode. <code class="docutils literal notranslate"><span class="pre">&quot;force_graph&quot;</span></code> creates a 2D network visualization with D3.js force-directed layout. <code class="docutils literal notranslate"><span class="pre">&quot;spatial_3d&quot;</span></code> creates a 3D visualization using Three.js, ideal for data with geographic coordinates.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="data-selection">
+<h3>Data Selection<a class="headerlink" href="#data-selection" title="Link to this heading">#</a></h3>
+<p>These parameters control which data from the tree sequence is included in the visualization.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">max_samples</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Maximum number of samples to include. If <code class="docutils literal notranslate"><span class="pre">None</span></code>, all samples are used. Useful for large tree sequences.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">subset_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Literal[&quot;even&quot;,</span> <span class="pre">&quot;random&quot;]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;even&quot;</span></code></p></td>
+<td><p>How to select samples when <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> is set. <code class="docutils literal notranslate"><span class="pre">&quot;even&quot;</span></code> selects evenly spaced samples; <code class="docutils literal notranslate"><span class="pre">&quot;random&quot;</span></code> selects randomly.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">subset_seed</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Random seed for reproducibility when using <code class="docutils literal notranslate"><span class="pre">subset_mode=&quot;random&quot;</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">genomic_range</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tuple[float,</span> <span class="pre">float]</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Genomic position range <code class="docutils literal notranslate"><span class="pre">(start,</span> <span class="pre">end)</span></code> to filter the tree sequence. Only edges within this range are shown.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temporal_range</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tuple[float,</span> <span class="pre">float]</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Time range <code class="docutils literal notranslate"><span class="pre">(min_time,</span> <span class="pre">max_time)</span></code> to filter nodes. Sample nodes are always kept regardless of this filter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">samples</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">list[int]</span> <span class="pre">|</span> <span class="pre">tuple[int,</span> <span class="pre">int]</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Direct sample selection. Provide a list of sample node IDs, or a <code class="docutils literal notranslate"><span class="pre">(start,</span> <span class="pre">end)</span></code> tuple for index range. Overrides <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> when provided.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualize 50 evenly-spaced samples from a specific genomic region</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;even&quot;</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">10000</span><span class="p">,</span> <span class="mi">20000</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Visualize specific samples by node ID</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">])</span>
+
+<span class="c1"># Visualize a range of samples (indices 10-50)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="p">(</span><span class="mi">10</span><span class="p">,</span> <span class="mi">50</span><span class="p">))</span>
+
+<span class="c1"># Random subset with reproducible seed</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span> <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;random&quot;</span><span class="p">,</span> <span class="n">subset_seed</span><span class="o">=</span><span class="mi">42</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="focal-node">
+<h3>Focal Node<a class="headerlink" href="#focal-node" title="Link to this heading">#</a></h3>
+<p>These parameters control focused views that show a node and its related nodes (descendants or ancestors).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">focal_node</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Node ID to focus on. If set, shows only this node and its descendants or ancestors based on <code class="docutils literal notranslate"><span class="pre">focal_mode</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">focal_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Literal[&quot;subarg&quot;,</span> <span class="pre">&quot;ancestors&quot;]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;subarg&quot;</span></code></p></td>
+<td><p>View mode when <code class="docutils literal notranslate"><span class="pre">focal_node</span></code> is set. <code class="docutils literal notranslate"><span class="pre">&quot;subarg&quot;</span></code> shows descendants (subtree); <code class="docutils literal notranslate"><span class="pre">&quot;ancestors&quot;</span></code> shows the path to roots.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Show node 42 and all its descendants (subARG)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">focal_node</span><span class="o">=</span><span class="mi">42</span><span class="p">,</span> <span class="n">focal_mode</span><span class="o">=</span><span class="s2">&quot;subarg&quot;</span><span class="p">)</span>
+
+<span class="c1"># Show node 10 and all its ancestors</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">focal_node</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span> <span class="n">focal_mode</span><span class="o">=</span><span class="s2">&quot;ancestors&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>You can also select focal nodes interactively: left-click a node for subARG view, right-click for ancestors view. See <a class="reference internal" href="../tutorials/focal-nodes.html"><span class="doc">Focal Node Selection</span></a> for details.</p>
+</div>
+</section>
+<section id="appearance">
+<h3>Appearance<a class="headerlink" href="#appearance" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">theme</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">Theme</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;liquid&quot;</span></code></p></td>
+<td><p>Color theme. Can be a name (<code class="docutils literal notranslate"><span class="pre">&quot;tskit&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;liquid&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;grayscale&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;paper&quot;</span></code>) or a custom <code class="docutils literal notranslate"><span class="pre">Theme</span></code> object from <code class="docutils literal notranslate"><span class="pre">argscape.customize_theme()</span></code>. See <a class="reference internal" href="themes.html"><span class="doc">Theme Functions</span></a> for details.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">width</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1200</span></code></p></td>
+<td><p>Visualization width in pixels.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">height</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">800</span></code></p></td>
+<td><p>Visualization height in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">show_controls</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Show quick actions bar and legend in notebook display. When <code class="docutils literal notranslate"><span class="pre">True</span></code>, enables the interactive control panel with theme switcher, statistics, layout settings, and export options. Always shown in browser via <code class="docutils literal notranslate"><span class="pre">.show()</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Create a wide, publication-ready visualization</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">1600</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">600</span><span class="p">)</span>
+
+<span class="c1"># Enable interactive controls in Jupyter notebook</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">show_controls</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>  <span class="c1"># Shows with quick actions bar</span>
+</pre></div>
+</div>
+</section>
+<section id="custom-colors">
+<h3>Custom Colors<a class="headerlink" href="#custom-colors" title="Link to this heading">#</a></h3>
+<p>Override specific colors from the chosen theme. All color values should be hex strings (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;#ff0000&quot;</span></code>).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sample_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for sample (leaf) nodes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">internal_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for internal nodes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for root nodes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">edge_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for edges.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">background_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override background color.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mutation_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for mutation markers.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">text_color</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override color for text labels.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Use paper theme but with custom sample color</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+    <span class="n">sample_color</span><span class="o">=</span><span class="s2">&quot;#e63946&quot;</span><span class="p">,</span>  <span class="c1"># Red samples</span>
+    <span class="n">edge_color</span><span class="o">=</span><span class="s2">&quot;#457b9d&quot;</span><span class="p">,</span>    <span class="c1"># Blue-gray edges</span>
+<span class="p">)</span>
+
+<span class="c1"># Custom colors on dark background</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;tskit&quot;</span><span class="p">,</span>
+    <span class="n">sample_color</span><span class="o">=</span><span class="s2">&quot;#ffd166&quot;</span><span class="p">,</span>  <span class="c1"># Gold samples</span>
+    <span class="n">mutation_color</span><span class="o">=</span><span class="s2">&quot;#06d6a0&quot;</span><span class="p">,</span> <span class="c1"># Teal mutations</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>For more advanced theme customization, see <a class="reference internal" href="themes.html"><span class="doc">Theme Functions</span></a>.</p>
+</div>
+</section>
+<section id="nodes">
+<h3>Nodes<a class="headerlink" href="#nodes" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sample_node_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">8</span></code></p></td>
+<td><p>Size of sample nodes in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">internal_node_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">4</span></code></p></td>
+<td><p>Size of internal (non-sample, non-root) nodes in pixels.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">root_node_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">6</span></code></p></td>
+<td><p>Size of root nodes in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">show_sample_ids</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to display labels on sample nodes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">show_internal_ids</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to display labels on internal nodes.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">show_root_ids</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to display labels on root nodes.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">color_by_population</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Color nodes by their population assignment instead of by node type (sample/internal/root). Requires tree sequence to have population data assigned to nodes. When enabled, each unique population gets a distinct color using golden-ratio-based hue distribution for visual separation.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Larger sample nodes with visible IDs</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+
+<span class="c1"># Color nodes by population</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">color_by_population</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="edges">
+<h3>Edges<a class="headerlink" href="#edges" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">edge_width</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
+<td><p>Width of edge lines in pixels.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">edge_opacity</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">0.6</span></code></p></td>
+<td><p>Opacity of edges (0.0 to 1.0).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">show_edge_labels</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to display labels on edges showing genomic span.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Thicker, more visible edges</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">edge_width</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span> <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.8</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="mutations">
+<h3>Mutations<a class="headerlink" href="#mutations" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">show_mutations</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>Whether to display mutation markers on edges.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mutation_size</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">6</span></code></p></td>
+<td><p>Size of mutation markers in pixels.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Display mutations</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">show_mutations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">mutation_size</span><span class="o">=</span><span class="mi">8</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="layout-2d-force-graph">
+<h3>Layout (2D Force Graph)<a class="headerlink" href="#layout-2d-force-graph" title="Link to this heading">#</a></h3>
+<p>These parameters control the layout of the 2D force graph visualization.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">sample_order</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SampleOrderType</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;consensus_minlex&quot;</span></code></p></td>
+<td><p>Algorithm for ordering sample nodes horizontally. See sample ordering options below.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temporal_spacing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Literal[&quot;equal&quot;,</span> <span class="pre">&quot;linear&quot;,</span> <span class="pre">&quot;log&quot;]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;equal&quot;</span></code></p></td>
+<td><p>How to space nodes vertically by time. <code class="docutils literal notranslate"><span class="pre">&quot;equal&quot;</span></code> gives equal spacing between time points; <code class="docutils literal notranslate"><span class="pre">&quot;linear&quot;</span></code> is proportional to time; <code class="docutils literal notranslate"><span class="pre">&quot;log&quot;</span></code> uses logarithmic scaling.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">vertical_spacing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">100.0</span></code></p></td>
+<td><p>Vertical spacing as percentage of available height (0-100).</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">horizontal_spacing</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">100.0</span></code></p></td>
+<td><p>Horizontal spacing as percentage of available width (0-100).</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="sample-order-options">
+<h4>Sample Order Options<a class="headerlink" href="#sample-order-options" title="Link to this heading">#</a></h4>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;numeric&quot;</span></code></p></td>
+<td><p>Samples ordered by node ID (0, 1, 2, …)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;first_minlex&quot;</span></code></p></td>
+<td><p>Minlex postorder traversal of the first tree</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;center_minlex&quot;</span></code></p></td>
+<td><p>Minlex postorder traversal of the center tree</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;consensus_minlex&quot;</span></code></p></td>
+<td><p>Consensus ordering from multiple trees (default, recommended)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;ancestral_path&quot;</span></code></p></td>
+<td><p>Orders by ancestral path similarity</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;coalescence&quot;</span></code></p></td>
+<td><p>Orders by coalescence patterns</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;dagre&quot;</span></code></p></td>
+<td><p>Minimizes edge crossings using barycenter heuristic</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Custom layout with log temporal spacing</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>
+    <span class="n">temporal_spacing</span><span class="o">=</span><span class="s2">&quot;log&quot;</span><span class="p">,</span>
+    <span class="n">vertical_spacing</span><span class="o">=</span><span class="mf">80.0</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="spatial-3d">
+<h3>Spatial (3D)<a class="headerlink" href="#spatial-3d" title="Link to this heading">#</a></h3>
+<p>These parameters control the 3D spatial visualization mode. They are only relevant when <code class="docutils literal notranslate"><span class="pre">mode=&quot;spatial_3d&quot;</span></code>.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">shapefile</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ShapefileInput</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Custom shapefile for geographic background. Can be a file path (str/Path), GeoDataFrame, or GeoJSON dict.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">location_crs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Coordinate Reference System of the tree sequence locations (e.g., <code class="docutils literal notranslate"><span class="pre">&quot;EPSG:4326&quot;</span></code> for lat/lon).</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">shapefile_crs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">str</span> <span class="pre">|</span> <span class="pre">None</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">None</span></code></p></td>
+<td><p>Override CRS for the shapefile if it’s missing or incorrect.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">geographic_base</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">Literal[&quot;unit_grid&quot;,</span> <span class="pre">&quot;eastern_hemisphere&quot;,</span> <span class="pre">&quot;world&quot;]</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&quot;unit_grid&quot;</span></code></p></td>
+<td><p>Built-in geographic shape to use when no shapefile is provided.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temporal_multiplier</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">12.0</span></code></p></td>
+<td><p>Scaling factor for the Z-axis (time dimension) in 3D view.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spatial_multiplier</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">float</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">160.0</span></code></p></td>
+<td><p>Scaling factor for the X-Y plane (spatial dimensions) in 3D view.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<section id="geographic-base-options">
+<h4>Geographic Base Options<a class="headerlink" href="#geographic-base-options" title="Link to this heading">#</a></h4>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>CRS</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;unit_grid&quot;</span></code></p></td>
+<td><p>Abstract 10x10 grid for simulated data</p></td>
+<td><p>None</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;eastern_hemisphere&quot;</span></code></p></td>
+<td><p>Eastern hemisphere map</p></td>
+<td><p>EPSG:4326</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;world&quot;</span></code></p></td>
+<td><p>World map</p></td>
+<td><p>EPSG:4326</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="shapefileinput-type">
+<h4>ShapefileInput Type<a class="headerlink" href="#shapefileinput-type" title="Link to this heading">#</a></h4>
+<p>The <code class="docutils literal notranslate"><span class="pre">shapefile</span></code> parameter accepts several input types:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+
+<span class="c1"># File path (string)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span> <span class="n">shapefile</span><span class="o">=</span><span class="s2">&quot;countries.shp&quot;</span><span class="p">)</span>
+
+<span class="c1"># File path (Path object)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span> <span class="n">shapefile</span><span class="o">=</span><span class="n">Path</span><span class="p">(</span><span class="s2">&quot;countries.shp&quot;</span><span class="p">))</span>
+
+<span class="c1"># GeoDataFrame</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;countries.shp&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span> <span class="n">shapefile</span><span class="o">=</span><span class="n">gdf</span><span class="p">)</span>
+
+<span class="c1"># GeoJSON dictionary</span>
+<span class="n">geojson</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;FeatureCollection&quot;</span><span class="p">,</span> <span class="s2">&quot;features&quot;</span><span class="p">:</span> <span class="p">[</span><span class="o">...</span><span class="p">]}</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span> <span class="n">shapefile</span><span class="o">=</span><span class="n">geojson</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>Example:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># 3D visualization with custom shapefile</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span>
+    <span class="n">shapefile</span><span class="o">=</span><span class="s2">&quot;europe.shp&quot;</span><span class="p">,</span>
+    <span class="n">location_crs</span><span class="o">=</span><span class="s2">&quot;EPSG:4326&quot;</span><span class="p">,</span>
+    <span class="n">temporal_multiplier</span><span class="o">=</span><span class="mf">20.0</span><span class="p">,</span>
+    <span class="n">spatial_multiplier</span><span class="o">=</span><span class="mf">200.0</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+<section id="returns">
+<h2>Returns<a class="headerlink" href="#returns" title="Link to this heading">#</a></h2>
+<p>Returns a <a class="reference internal" href="vizresult.html"><span class="doc">VizResult</span></a> object with methods to display or export the visualization.</p>
+</section>
+<section id="raises">
+<h2>Raises<a class="headerlink" href="#raises" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">ValueError</span></code> - If an unknown theme name is provided</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">FileNotFoundError</span></code> - If a shapefile path doesn’t exist</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">ImportError</span></code> - If geopandas is required but not installed (for shapefile loading)</p></li>
+</ul>
+</section>
+<section id="complete-example">
+<h2>Complete Example<a class="headerlink" href="#complete-example" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tskit</span>
+
+<span class="c1"># Load tree sequence</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;example.trees&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create a fully customized visualization</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="c1"># Mode</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;force_graph&quot;</span><span class="p">,</span>
+    <span class="c1"># Data selection</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;even&quot;</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">50000</span><span class="p">),</span>
+    <span class="c1"># Appearance</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1400</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span>
+    <span class="c1"># Nodes</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">internal_node_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="c1"># Edges</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="c1"># Mutations</span>
+    <span class="n">show_mutations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">mutation_size</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+    <span class="c1"># Layout</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;consensus_minlex&quot;</span><span class="p">,</span>
+    <span class="n">temporal_spacing</span><span class="o">=</span><span class="s2">&quot;linear&quot;</span><span class="p">,</span>
+    <span class="n">vertical_spacing</span><span class="o">=</span><span class="mf">90.0</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Interactive exploration in browser</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+
+<span class="c1"># Also display in notebook</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+
+<span class="c1"># Export multiple formats for publication</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figures/arg_overview.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figures/arg_overview.svg&quot;</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figures/arg_overview.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="vizresult.html"><span class="doc">VizResult</span></a> - VizResult class methods (show, display, export)</p></li>
+<li><p><a class="reference internal" href="../tutorials/focal-nodes.html"><span class="doc">Focal Node Selection</span></a> - Focal node selection for subARGs and ancestors</p></li>
+<li><p><a class="reference internal" href="../tutorials/themes.html"><span class="doc">Themes</span></a> - Available themes and styling options</p></li>
+<li><p><a class="reference internal" href="../advanced/shapefiles-crs.html"><span class="doc">Custom Shapefiles and Coordinate Reference Systems</span></a> - Advanced geographic configuration</p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./python-api"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="overview.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Python API Overview</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="vizresult.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">VizResult</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#parameters">Parameters</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mode">Mode</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#data-selection">Data Selection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#focal-node">Focal Node</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#appearance">Appearance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-colors">Custom Colors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#nodes">Nodes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#edges">Edges</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#mutations">Mutations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-2d-force-graph">Layout (2D Force Graph)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-order-options">Sample Order Options</a></li>
+</ul>
+</li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-3d">Spatial (3D)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#geographic-base-options">Geographic Base Options</a></li>
+<li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#shapefileinput-type">ShapefileInput Type</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#returns">Returns</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#raises">Raises</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-example">Complete Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 23, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

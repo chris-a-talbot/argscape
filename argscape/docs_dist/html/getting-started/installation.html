@@ -1,0 +1,687 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Installation &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=5a416a86" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'getting-started/installation';</script>
+    <link rel="canonical" href="/documentation/getting-started/installation.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Quickstart" href="quickstart.html" />
+    <link rel="prev" title="ARGscape Documentation" href="../intro.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/themes.html">Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">argscape.infer()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inferresult.html">InferResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Theme Functions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fgetting-started/installation.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Installation</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> On this page </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lightweight-installation-pip">Lightweight Installation (pip)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-installation-conda-recommended">Full Installation (conda recommended)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-installation-with-pip">Full Installation with pip</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-static-export">Optional: Static Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-installation">Verifying Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-dependencies-not-installed">“Spatial dependencies not installed”</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#geospatial-library-errors">Geospatial Library Errors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#import-errors">Import Errors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#playwright-issues">Playwright Issues</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
+<p>ARGscape has two installation options to fit different use cases:</p>
+<ul class="simple">
+<li><p><strong>Base installation</strong> (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">argscape</span></code>): Lightweight package for 2D visualization only. No geospatial dependencies required.</p></li>
+<li><p><strong>Full installation</strong> (<code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">argscape[spatial]</span></code>): Includes 3D spatial visualization, web application, and spatial inference tools. Requires geospatial libraries.</p></li>
+</ul>
+<section id="lightweight-installation-pip">
+<h2>Lightweight Installation (pip)<a class="headerlink" href="#lightweight-installation-pip" title="Link to this heading">#</a></h2>
+<p>For 2D visualization only, install the base package:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>argscape
+</pre></div>
+</div>
+<p>This provides:</p>
+<ul class="simple">
+<li><p>2D force-directed graph visualization</p></li>
+<li><p>Python API: <code class="docutils literal notranslate"><span class="pre">argscape.visualize(ts)</span></code> (2D only)</p></li>
+<li><p>CLI: <code class="docutils literal notranslate"><span class="pre">argscape</span> <span class="pre">viz</span></code> (2D only)</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tskit</span>
+
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;example.trees&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>  <span class="c1"># 2D force graph</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>  <span class="c1"># Opens in browser</span>
+</pre></div>
+</div>
+</section>
+<section id="full-installation-conda-recommended">
+<h2>Full Installation (conda recommended)<a class="headerlink" href="#full-installation-conda-recommended" title="Link to this heading">#</a></h2>
+<p>For 3D spatial visualization, the web application, and inference tools, you need geospatial dependencies. Conda handles these automatically:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Download environment file</span>
+curl<span class="w"> </span>-O<span class="w"> </span>https://argscape.com/environment.yml
+
+<span class="c1"># Create and activate environment</span>
+conda<span class="w"> </span>env<span class="w"> </span>create<span class="w"> </span>-f<span class="w"> </span>environment.yml
+conda<span class="w"> </span>activate<span class="w"> </span>argscape
+</pre></div>
+</div>
+<p>This installs <code class="docutils literal notranslate"><span class="pre">argscape[spatial]</span></code> with all dependencies for:</p>
+<ul class="simple">
+<li><p>3D spatial visualization with geographic mapping</p></li>
+<li><p>Web application (<code class="docutils literal notranslate"><span class="pre">argscape</span> <span class="pre">serve</span></code>)</p></li>
+<li><p>Spatial inference tools (<code class="docutils literal notranslate"><span class="pre">argscape</span> <span class="pre">infer</span></code>)</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>If you already have a conda environment, you can install the conda dependencies manually and then <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">argscape[spatial]</span></code>. See the <a class="reference external" href="https://argscape.com/environment.yml">environment.yml</a> for the required packages.</p>
+</div>
+<section id="full-installation-with-pip">
+<h3>Full Installation with pip<a class="headerlink" href="#full-installation-with-pip" title="Link to this heading">#</a></h3>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><strong>Windows users must use conda.</strong> Several dependencies (including msprime) do not support pip installation on Windows.</p>
+</div>
+<p>For macOS and Linux, pip may work without additional setup:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>argscape<span class="o">[</span>spatial<span class="o">]</span>
+</pre></div>
+</div>
+<p>If installation fails with errors mentioning GDAL, GEOS, PROJ, or fiona, install system libraries first:</p>
+<p><strong>macOS (Homebrew):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>brew<span class="w"> </span>install<span class="w"> </span>gdal<span class="w"> </span>geos<span class="w"> </span>proj
+pip<span class="w"> </span>install<span class="w"> </span>argscape<span class="o">[</span>spatial<span class="o">]</span><span class="w"> </span>--no-binary<span class="w"> </span>fiona
+</pre></div>
+</div>
+<p><strong>Linux (Debian/Ubuntu):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>apt-get<span class="w"> </span>update
+sudo<span class="w"> </span>apt-get<span class="w"> </span>install<span class="w"> </span>libgdal-dev<span class="w"> </span>libgeos-dev<span class="w"> </span>libproj-dev
+pip<span class="w"> </span>install<span class="w"> </span>argscape<span class="o">[</span>spatial<span class="o">]</span><span class="w"> </span>--no-binary<span class="w"> </span>fiona
+</pre></div>
+</div>
+<p><strong>Linux (Fedora/RHEL):</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>sudo<span class="w"> </span>dnf<span class="w"> </span>install<span class="w"> </span>gdal-devel<span class="w"> </span>geos-devel<span class="w"> </span>proj-devel
+pip<span class="w"> </span>install<span class="w"> </span>argscape<span class="o">[</span>spatial<span class="o">]</span><span class="w"> </span>--no-binary<span class="w"> </span>fiona
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The <code class="docutils literal notranslate"><span class="pre">--no-binary</span> <span class="pre">fiona</span></code> flag forces fiona to build against your system GDAL rather than using bundled binaries, which can resolve version conflicts.</p>
+</div>
+</section>
+</section>
+<section id="optional-static-export">
+<h2>Optional: Static Export<a class="headerlink" href="#optional-static-export" title="Link to this heading">#</a></h2>
+<p>For exporting visualizations as PNG, SVG, or PDF, install Playwright:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>playwright
+playwright<span class="w"> </span>install<span class="w"> </span>chromium
+</pre></div>
+</div>
+<p>This enables <code class="docutils literal notranslate"><span class="pre">viz.export(&quot;figure.png&quot;)</span></code> and <code class="docutils literal notranslate"><span class="pre">argscape</span> <span class="pre">viz</span> <span class="pre">-o</span> <span class="pre">figure.png</span></code>.</p>
+</section>
+<section id="verifying-installation">
+<h2>Verifying Installation<a class="headerlink" href="#verifying-installation" title="Link to this heading">#</a></h2>
+<p>Test that ARGscape is installed correctly:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">argscape</span><span class="o">.</span><span class="n">__version__</span><span class="p">)</span>
+
+<span class="c1"># Check what features are available</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Spatial available: </span><span class="si">{</span><span class="n">argscape</span><span class="o">.</span><span class="n">is_spatial_available</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Playwright available: </span><span class="si">{</span><span class="n">argscape</span><span class="o">.</span><span class="n">is_playwright_available</span><span class="p">()</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>If you have the spatial extras installed, launch the web application:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>serve<span class="w">  </span><span class="c1"># Opens browser at http://localhost:8000 - may take a few minutes to load</span>
+</pre></div>
+</div>
+</section>
+<section id="system-requirements">
+<h2>System Requirements<a class="headerlink" href="#system-requirements" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><strong>Python</strong>: 3.8 or higher</p></li>
+<li><p><strong>Memory</strong>: 3GB+ recommended for large tree sequences</p></li>
+<li><p><strong>Browser</strong>: Modern browser (Chrome, Firefox, Safari, Edge) for web interface and visualization export</p></li>
+</ul>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="spatial-dependencies-not-installed">
+<h3>“Spatial dependencies not installed”<a class="headerlink" href="#spatial-dependencies-not-installed" title="Link to this heading">#</a></h3>
+<p>If you see this error when trying to use 3D visualization or the web app:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">Spatial</span> <span class="n">dependencies</span> <span class="ow">not</span> <span class="n">installed</span><span class="o">.</span> <span class="n">Install</span> <span class="k">with</span><span class="p">:</span> <span class="n">pip</span> <span class="n">install</span> <span class="n">argscape</span><span class="p">[</span><span class="n">spatial</span><span class="p">]</span>
+</pre></div>
+</div>
+<p>You need the full installation. See the “Full Installation” section above.</p>
+</section>
+<section id="geospatial-library-errors">
+<h3>Geospatial Library Errors<a class="headerlink" href="#geospatial-library-errors" title="Link to this heading">#</a></h3>
+<p>If you see errors mentioning GDAL, GEOS, PROJ, or fiona when installing <code class="docutils literal notranslate"><span class="pre">argscape[spatial]</span></code>:</p>
+<ol class="arabic simple">
+<li><p><strong>Use conda</strong> (recommended) - This is the most reliable solution</p></li>
+<li><p><strong>Install system libraries</strong> - See the platform-specific instructions above</p></li>
+<li><p><strong>Use <code class="docutils literal notranslate"><span class="pre">--no-binary</span> <span class="pre">fiona</span></code></strong> - Forces building against system GDAL to avoid version conflicts</p></li>
+</ol>
+</section>
+<section id="import-errors">
+<h3>Import Errors<a class="headerlink" href="#import-errors" title="Link to this heading">#</a></h3>
+<p>If you encounter import errors after installation:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>--upgrade<span class="w"> </span>argscape
+</pre></div>
+</div>
+</section>
+<section id="playwright-issues">
+<h3>Playwright Issues<a class="headerlink" href="#playwright-issues" title="Link to this heading">#</a></h3>
+<p>If visualization export fails with “Playwright is required”, install it:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>playwright
+playwright<span class="w"> </span>install<span class="w"> </span>chromium
+</pre></div>
+</div>
+<p>To reinstall Playwright browsers:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>playwright<span class="w"> </span>install<span class="w"> </span>--force<span class="w"> </span>chromium
+</pre></div>
+</div>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="quickstart.html"><span class="doc">Quickstart</span></a> - Create your first visualization</p></li>
+<li><p><a class="reference internal" href="web-vs-python.html"><span class="doc">Web App vs Python API</span></a> - Choose the right interface for your workflow</p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./getting-started"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../intro.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">ARGscape Documentation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="quickstart.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Quickstart</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#lightweight-installation-pip">Lightweight Installation (pip)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-installation-conda-recommended">Full Installation (conda recommended)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#full-installation-with-pip">Full Installation with pip</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#optional-static-export">Optional: Static Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#verifying-installation">Verifying Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#system-requirements">System Requirements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-dependencies-not-installed">“Spatial dependencies not installed”</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#geospatial-library-errors">Geospatial Library Errors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#import-errors">Import Errors</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#playwright-issues">Playwright Issues</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 23, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

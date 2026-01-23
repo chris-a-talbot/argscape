@@ -1,0 +1,877 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Themes &amp; Styling &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=0a64f592" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/themes-styling';</script>
+    <link rel="canonical" href="/documentation/tutorials/themes-styling.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Exporting Visualizations" href="exporting.html" />
+    <link rel="prev" title="Focal Node Selection" href="focal-nodes.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 22, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Themes &amp; Styling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualization.html">Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">Inference API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Ftutorials/themes-styling.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Themes & Styling</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#available-themes">Available Themes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-details">Theme Details</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#tskit">tskit</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#liquid">liquid</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#grayscale">grayscale</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#paper">paper</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-comparison">Theme Comparison</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-themes">Using Themes</a><ul class="nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-usage">Basic Usage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#list-available-themes">List Available Themes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#invalid-theme-names">Invalid Theme Names</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommendations-by-use-case">Recommendations by Use Case</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#example-export-with-different-themes">Example: Export with Different Themes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="themes-styling">
+<h1>Themes &amp; Styling<a class="headerlink" href="#themes-styling" title="Link to this heading">#</a></h1>
+<p>ARGscape includes four built-in themes designed for different use cases: interactive exploration, presentations, and publication figures. Each theme defines colors for all visualization elements including nodes, edges, mutations, and text.</p>
+<section id="available-themes">
+<h2>Available Themes<a class="headerlink" href="#available-themes" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 15.0%" />
+<col style="width: 25.0%" />
+<col style="width: 60.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Theme</p></th>
+<th class="head"><p>Best For</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tskit</span></code></p></td>
+<td><p>Interactive exploration</p></td>
+<td><p>Dark theme with cyan and green accents. The original ARGscape look.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">liquid</span></code></p></td>
+<td><p>General use, presentations</p></td>
+<td><p>Light Apple-inspired theme with glass effects. Clean and modern.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">grayscale</span></code></p></td>
+<td><p>Publications (print)</p></td>
+<td><p>No colors, high contrast. Reproduces well in black-and-white.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">paper</span></code></p></td>
+<td><p>Publications (color)</p></td>
+<td><p>Optimized for print figures with distinct, accessible colors.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="theme-details">
+<h2>Theme Details<a class="headerlink" href="#theme-details" title="Link to this heading">#</a></h2>
+<section id="tskit">
+<h3>tskit<a class="headerlink" href="#tskit" title="Link to this heading">#</a></h3>
+<p>The <strong>tskit</strong> theme is a dark theme inspired by the original ARGscape web application. It features cyan and green accents on a dark teal background.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;tskit&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>When to use:</strong> Interactive data exploration, presentations in dark environments, matching the ARGscape web application aesthetic.</p>
+<p><strong>Color Palette:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Element</p></th>
+<th class="head"><p>Color</p></th>
+<th class="head"><p>Hex</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Background</p></td>
+<td><p>Dark teal</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#03303E</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Sample nodes</p></td>
+<td><p>Pale green</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Internal nodes</p></td>
+<td><p>Light blue</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#60A0B7</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Root nodes</p></td>
+<td><p>Cyan</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#38BDF8</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Edges</p></td>
+<td><p>Gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#999999</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Text</p></td>
+<td><p>White</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ffffff</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Mutations</p></td>
+<td><p>Indigo</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#4F46E5</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="liquid">
+<h3>liquid<a class="headerlink" href="#liquid" title="Link to this heading">#</a></h3>
+<p>The <strong>liquid</strong> theme is a light, Apple-inspired theme with a clean, modern aesthetic. It is the default theme.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span><span class="p">)</span>  <span class="c1"># Default</span>
+</pre></div>
+</div>
+<p><strong>When to use:</strong> General purpose, presentations with light backgrounds, screen-based viewing.</p>
+<p><strong>Color Palette:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Element</p></th>
+<th class="head"><p>Color</p></th>
+<th class="head"><p>Hex</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Background</p></td>
+<td><p>Light gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#f5f5f7</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Sample nodes</p></td>
+<td><p>ARGscape green</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Internal nodes</p></td>
+<td><p>Slate</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#94A3B8</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Root nodes</p></td>
+<td><p>ARGscape green</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Edges</p></td>
+<td><p>Slate</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#94A3B8</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Text</p></td>
+<td><p>Near-black</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#1d1d1f</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Mutations</p></td>
+<td><p>Indigo</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#4F46E5</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<hr class="docutils" />
+<section id="grayscale">
+<h3>grayscale<a class="headerlink" href="#grayscale" title="Link to this heading">#</a></h3>
+<p>The <strong>grayscale</strong> theme uses only shades of gray, making it ideal for publications that may be printed in black-and-white.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;grayscale&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>When to use:</strong> Publications requiring black-and-white compatibility, print figures where color reproduction is uncertain, accessibility.</p>
+<p><strong>Color Palette:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Element</p></th>
+<th class="head"><p>Color</p></th>
+<th class="head"><p>Hex</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Background</p></td>
+<td><p>White</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ffffff</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Sample nodes</p></td>
+<td><p>Dark gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#464646</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Internal nodes</p></td>
+<td><p>Medium gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#646464</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Root nodes</p></td>
+<td><p>Dark gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#323232</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Edges</p></td>
+<td><p>Light gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#8C8C8C</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Text</p></td>
+<td><p>Near-black</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#212529</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Mutations</p></td>
+<td><p>Gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#4a4a4a</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>When using the grayscale theme, consider increasing node sizes slightly to maintain visibility without color differentiation.</p>
+</div>
+</section>
+<hr class="docutils" />
+<section id="paper">
+<h3>paper<a class="headerlink" href="#paper" title="Link to this heading">#</a></h3>
+<p>The <strong>paper</strong> theme is optimized for publication figures with distinct, print-friendly colors that maintain their appearance in both digital and print formats.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p><strong>When to use:</strong> Academic publications, journal figures, posters, any print media where color is available.</p>
+<p><strong>Color Palette:</strong></p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Element</p></th>
+<th class="head"><p>Color</p></th>
+<th class="head"><p>Hex</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Background</p></td>
+<td><p>White</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ffffff</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Sample nodes</p></td>
+<td><p>Blue</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#2563eb</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Internal nodes</p></td>
+<td><p>Gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#6b7280</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Root nodes</p></td>
+<td><p>Red</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#dc2626</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Edges</p></td>
+<td><p>Dark gray</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#374151</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Text</p></td>
+<td><p>Near-black</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#111827</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Mutations</p></td>
+<td><p>Orange</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ea580c</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>The paper theme uses blue for samples and red for roots, providing clear visual distinction between node types that works well for colorblind readers.</p>
+</div>
+</section>
+</section>
+<hr class="docutils" />
+<section id="theme-comparison">
+<h2>Theme Comparison<a class="headerlink" href="#theme-comparison" title="Link to this heading">#</a></h2>
+<p>Here’s a side-by-side comparison of key colors across all themes:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Element</p></th>
+<th class="head"><p>tskit</p></th>
+<th class="head"><p>liquid</p></th>
+<th class="head"><p>grayscale</p></th>
+<th class="head"><p>paper</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Background</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#03303E</span></code> (dark teal)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#f5f5f7</span></code> (light gray)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ffffff</span></code> (white)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#ffffff</span></code> (white)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Sample nodes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code> (green)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code> (green)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#464646</span></code> (gray)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#2563eb</span></code> (blue)</p></td>
+</tr>
+<tr class="row-even"><td><p>Root nodes</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#38BDF8</span></code> (cyan)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#14E2A8</span></code> (green)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#323232</span></code> (gray)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#dc2626</span></code> (red)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Edges</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#999999</span></code> (gray)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#94A3B8</span></code> (slate)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#8C8C8C</span></code> (gray)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">#374151</span></code> (dark gray)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="using-themes">
+<h2>Using Themes<a class="headerlink" href="#using-themes" title="Link to this heading">#</a></h2>
+<section id="basic-usage">
+<h3>Basic Usage<a class="headerlink" href="#basic-usage" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Use any theme by name</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;tskit&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;grayscale&quot;</span><span class="p">)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="list-available-themes">
+<h3>List Available Themes<a class="headerlink" href="#list-available-themes" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">argscape.viz.themes</span><span class="w"> </span><span class="kn">import</span> <span class="n">list_themes</span>
+
+<span class="nb">print</span><span class="p">(</span><span class="n">list_themes</span><span class="p">())</span>
+<span class="c1"># Output: [&#39;tskit&#39;, &#39;liquid&#39;, &#39;grayscale&#39;, &#39;paper&#39;]</span>
+</pre></div>
+</div>
+</section>
+<section id="invalid-theme-names">
+<h3>Invalid Theme Names<a class="headerlink" href="#invalid-theme-names" title="Link to this heading">#</a></h3>
+<p>If you specify an unknown theme name, a <code class="docutils literal notranslate"><span class="pre">ValueError</span></code> is raised:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;unknown&quot;</span><span class="p">)</span>
+<span class="c1"># Raises: ValueError: Unknown theme: unknown. Available: tskit, liquid, grayscale, paper</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="recommendations-by-use-case">
+<h2>Recommendations by Use Case<a class="headerlink" href="#recommendations-by-use-case" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Use Case</p></th>
+<th class="head"><p>Recommended Theme</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Data exploration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tskit</span></code> or <code class="docutils literal notranslate"><span class="pre">liquid</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Conference presentation (dark room)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">tskit</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Conference presentation (lit room)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">liquid</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Journal figure (color)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">paper</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Journal figure (black-and-white)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">grayscale</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Poster</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">paper</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Documentation/tutorial</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">liquid</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Web embedding</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">liquid</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="example-export-with-different-themes">
+<h2>Example: Export with Different Themes<a class="headerlink" href="#example-export-with-different-themes" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tskit</span>
+
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;example.trees&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create the same visualization with different themes</span>
+<span class="k">for</span> <span class="n">theme_name</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;tskit&quot;</span><span class="p">,</span> <span class="s2">&quot;liquid&quot;</span><span class="p">,</span> <span class="s2">&quot;grayscale&quot;</span><span class="p">,</span> <span class="s2">&quot;paper&quot;</span><span class="p">]:</span>
+    <span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">theme</span><span class="o">=</span><span class="n">theme_name</span><span class="p">,</span> <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">)</span>
+    <span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;figure_</span><span class="si">{</span><span class="n">theme_name</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../python-api/visualization.html"><span class="doc">Visualization</span></a> - Main visualization function and parameters</p></li>
+<li><p><a class="reference internal" href="exporting.html"><span class="doc">Exporting Visualizations</span></a> - Exporting figures in various formats</p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./tutorials"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="focal-nodes.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Focal Node Selection</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="exporting.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Exporting Visualizations</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,991 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Benchmark Datasets &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=4b9cba5a" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'benchmarking/datasets';</script>
+    <link rel="canonical" href="/documentation/benchmarking/datasets.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Custom Shapefiles and Coordinate Reference Systems" href="../advanced/shapefiles-crs.html" />
+    <link rel="prev" title="Interpreting Benchmark Results" href="interpreting-results.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 22, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/custom-themes.html">Custom Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">Inference API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Themes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-benchmark.html">argscape benchmark</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Benchmarking</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Benchmarking Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Benchmark Datasets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fbenchmarking/datasets.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/benchmarking/datasets.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Benchmark Datasets</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-datasets">Generating Datasets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#command-options">Command Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-dataset-configuration">Standard Dataset Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-scaling-series">Sample Scaling Series</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sequence-length-scaling-series">Sequence Length Scaling Series</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-dataset-generation">Custom Dataset Generation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#different-sample-counts">Different Sample Counts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#different-sequence-lengths">Different Sequence Lengths</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#combined-customization">Combined Customization</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-parameters">Simulation Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-locations">Spatial Locations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ground-truth">Ground Truth</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-constitutes-ground-truth">What Constitutes Ground Truth</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-accuracy-is-measured">How Accuracy is Measured</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-metadata">Dataset Metadata</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-your-own-datasets">Using Your Own Datasets</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-metadata-for-custom-datasets">Adding Metadata for Custom Datasets</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-organization">Dataset Organization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reproducibility">Reproducibility</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ensuring-identical-datasets">Ensuring Identical Datasets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#version-considerations">Version Considerations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-considerations">Memory Considerations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tips-for-dataset-selection">Tips for Dataset Selection</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-method-comparison">For Method Comparison</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-accuracy-analysis">For Accuracy Analysis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-publication">For Publication</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="benchmark-datasets">
+<h1>Benchmark Datasets<a class="headerlink" href="#benchmark-datasets" title="Link to this heading">#</a></h1>
+<p>The benchmarking system includes tools for generating standardized datasets with known ground truth. These datasets enable fair comparison of inference methods and measurement of accuracy.</p>
+<section id="generating-datasets">
+<h2>Generating Datasets<a class="headerlink" href="#generating-datasets" title="Link to this heading">#</a></h2>
+<p>Use the <code class="docutils literal notranslate"><span class="pre">generate-datasets</span></code> subcommand to create benchmark datasets:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets
+</pre></div>
+</div>
+<p>This creates simulated tree sequences with spatial locations assigned to samples.</p>
+</section>
+<section id="command-options">
+<h2>Command Options<a class="headerlink" href="#command-options" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets<span class="w"> </span><span class="o">[</span>OPTIONS<span class="o">]</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Option</p></th>
+<th class="head"><p>Short</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Default</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--output</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">-o</span></code></p></td>
+<td><p>Output directory</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">datasets/simulated</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--samples</span></code></p></td>
+<td><p></p></td>
+<td><p>Comma-separated sample counts</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">50,100,250,500</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--sequence-lengths</span></code></p></td>
+<td><p></p></td>
+<td><p>Comma-separated sequence lengths</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1e5,1e6,1e7</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">--seed</span></code></p></td>
+<td><p></p></td>
+<td><p>Random seed for reproducibility</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">42</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">--quiet</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">-q</span></code></p></td>
+<td><p>Suppress progress output</p></td>
+<td><p>False</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="standard-dataset-configuration">
+<h2>Standard Dataset Configuration<a class="headerlink" href="#standard-dataset-configuration" title="Link to this heading">#</a></h2>
+<p>By default, the system generates two series of datasets:</p>
+<section id="sample-scaling-series">
+<h3>Sample Scaling Series<a class="headerlink" href="#sample-scaling-series" title="Link to this heading">#</a></h3>
+<p>Datasets with varying numbers of samples but fixed sequence length (1 Mb):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Dataset Name</p></th>
+<th class="head"><p>Samples</p></th>
+<th class="head"><p>Sequence Length</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">samples_50</span></code></p></td>
+<td><p>50</p></td>
+<td><p>1,000,000 bp</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">samples_100</span></code></p></td>
+<td><p>100</p></td>
+<td><p>1,000,000 bp</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">samples_250</span></code></p></td>
+<td><p>250</p></td>
+<td><p>1,000,000 bp</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">samples_500</span></code></p></td>
+<td><p>500</p></td>
+<td><p>1,000,000 bp</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>This series tests how methods scale with the number of individuals.</p>
+</section>
+<section id="sequence-length-scaling-series">
+<h3>Sequence Length Scaling Series<a class="headerlink" href="#sequence-length-scaling-series" title="Link to this heading">#</a></h3>
+<p>Datasets with fixed sample count (100) but varying sequence lengths:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Dataset Name</p></th>
+<th class="head"><p>Samples</p></th>
+<th class="head"><p>Sequence Length</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">seqlen_100000</span></code></p></td>
+<td><p>100</p></td>
+<td><p>100,000 bp</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">seqlen_1000000</span></code></p></td>
+<td><p>100</p></td>
+<td><p>1,000,000 bp</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">seqlen_10000000</span></code></p></td>
+<td><p>100</p></td>
+<td><p>10,000,000 bp</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>This series tests how methods scale with genome size (and consequently, the number of local trees).</p>
+</section>
+</section>
+<section id="custom-dataset-generation">
+<h2>Custom Dataset Generation<a class="headerlink" href="#custom-dataset-generation" title="Link to this heading">#</a></h2>
+<section id="different-sample-counts">
+<h3>Different Sample Counts<a class="headerlink" href="#different-sample-counts" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets<span class="w"> </span>--samples<span class="w"> </span><span class="m">25</span>,50,75,100,150,200
+</pre></div>
+</div>
+</section>
+<section id="different-sequence-lengths">
+<h3>Different Sequence Lengths<a class="headerlink" href="#different-sequence-lengths" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets<span class="w"> </span>--sequence-lengths<span class="w"> </span>5e4,1e5,5e5,1e6
+</pre></div>
+</div>
+</section>
+<section id="combined-customization">
+<h3>Combined Customization<a class="headerlink" href="#combined-customization" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--output<span class="w"> </span>my_datasets<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--samples<span class="w"> </span><span class="m">50</span>,100,200<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--sequence-lengths<span class="w"> </span>1e5,1e6<span class="w"> </span><span class="se">\</span>
+<span class="w">    </span>--seed<span class="w"> </span><span class="m">12345</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="simulation-parameters">
+<h2>Simulation Parameters<a class="headerlink" href="#simulation-parameters" title="Link to this heading">#</a></h2>
+<p>Datasets are generated using msprime with the following parameters:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Value</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Recombination rate</p></td>
+<td><p>1e-8</p></td>
+<td><p>Per-base per-generation</p></td>
+</tr>
+<tr class="row-odd"><td><p>Mutation rate</p></td>
+<td><p>1e-8</p></td>
+<td><p>Per-base per-generation</p></td>
+</tr>
+<tr class="row-even"><td><p>Population size</p></td>
+<td><p>10,000</p></td>
+<td><p>Effective population size</p></td>
+</tr>
+<tr class="row-odd"><td><p>Random seed</p></td>
+<td><p>42 (default)</p></td>
+<td><p>For reproducibility</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These parameters produce realistic tree sequences representative of human genetic data.</p>
+</section>
+<section id="spatial-locations">
+<h2>Spatial Locations<a class="headerlink" href="#spatial-locations" title="Link to this heading">#</a></h2>
+<p>Sample individuals are assigned spatial locations using a uniform distribution within a square area (100 x 100 coordinate units by default).</p>
+<p>The spatial distribution options include:</p>
+<ul class="simple">
+<li><p><strong>uniform_square</strong>: Uniform random locations in a square area</p></li>
+<li><p><strong>uniform_globe</strong>: Random latitude/longitude coordinates (avoiding extreme latitudes)</p></li>
+</ul>
+</section>
+<section id="ground-truth">
+<h2>Ground Truth<a class="headerlink" href="#ground-truth" title="Link to this heading">#</a></h2>
+<p>Each generated dataset includes known ground truth for accuracy testing:</p>
+<section id="what-constitutes-ground-truth">
+<h3>What Constitutes Ground Truth<a class="headerlink" href="#what-constitutes-ground-truth" title="Link to this heading">#</a></h3>
+<p>For simulated datasets:</p>
+<ul class="simple">
+<li><p><strong>Sample locations</strong>: The assigned spatial coordinates</p></li>
+<li><p><strong>Ancestor times</strong>: The true coalescence times from the simulation</p></li>
+<li><p><strong>Tree topology</strong>: The true genealogical relationships</p></li>
+</ul>
+</section>
+<section id="how-accuracy-is-measured">
+<h3>How Accuracy is Measured<a class="headerlink" href="#how-accuracy-is-measured" title="Link to this heading">#</a></h3>
+<p>During benchmarking, inferred values are compared to ground truth:</p>
+<ul class="simple">
+<li><p><strong>Spatial inference</strong>: Inferred ancestor locations are compared to the simulation’s internal locations (if available) or the expected locations based on the dispersal model</p></li>
+<li><p><strong>Temporal inference</strong>: Inferred node times are compared to true coalescence times</p></li>
+</ul>
+</section>
+</section>
+<section id="dataset-metadata">
+<h2>Dataset Metadata<a class="headerlink" href="#dataset-metadata" title="Link to this heading">#</a></h2>
+<p>Each <code class="docutils literal notranslate"><span class="pre">.trees</span></code> file has an accompanying <code class="docutils literal notranslate"><span class="pre">.json</span></code> metadata file:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;samples_100&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_samples&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">100</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sequence_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1000000.0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_trees&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">1523</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_nodes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">2534</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;recombination_rate&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">1e-08</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;population_size&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">10000</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;random_seed&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">42</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;spatial_distribution&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;uniform_square&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;has_ground_truth&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>This metadata is used during benchmarking to:</p>
+<ul class="simple">
+<li><p>Report dataset characteristics in results</p></li>
+<li><p>Determine if accuracy metrics can be computed</p></li>
+<li><p>Ensure reproducibility</p></li>
+</ul>
+</section>
+<section id="using-your-own-datasets">
+<h2>Using Your Own Datasets<a class="headerlink" href="#using-your-own-datasets" title="Link to this heading">#</a></h2>
+<p>You can benchmark against your own datasets by specifying a directory:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>run<span class="w"> </span>--datasets<span class="w"> </span>/path/to/your/datasets
+</pre></div>
+</div>
+<p>Requirements for custom datasets:</p>
+<ul class="simple">
+<li><p>Files must have <code class="docutils literal notranslate"><span class="pre">.trees</span></code> extension</p></li>
+<li><p>Files must be valid tskit tree sequences</p></li>
+<li><p>For accuracy testing, samples should have locations in individual metadata</p></li>
+</ul>
+<section id="adding-metadata-for-custom-datasets">
+<h3>Adding Metadata for Custom Datasets<a class="headerlink" href="#adding-metadata-for-custom-datasets" title="Link to this heading">#</a></h3>
+<p>Create a <code class="docutils literal notranslate"><span class="pre">.json</span></code> file with the same base name as your <code class="docutils literal notranslate"><span class="pre">.trees</span></code> file:</p>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;my_dataset&quot;</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_samples&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">150</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;sequence_length&quot;</span><span class="p">:</span><span class="w"> </span><span class="mf">5000000.0</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_trees&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">3200</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;num_nodes&quot;</span><span class="p">:</span><span class="w"> </span><span class="mi">4500</span><span class="p">,</span>
+<span class="w">  </span><span class="nt">&quot;has_ground_truth&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">false</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+<p>Set <code class="docutils literal notranslate"><span class="pre">has_ground_truth</span></code> to <code class="docutils literal notranslate"><span class="pre">true</span></code> only if your dataset includes known true locations/times for accuracy comparison.</p>
+</section>
+</section>
+<section id="dataset-organization">
+<h2>Dataset Organization<a class="headerlink" href="#dataset-organization" title="Link to this heading">#</a></h2>
+<p>The default directory structure:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span><span class="n">datasets</span><span class="o">/</span>
+  <span class="n">simulated</span><span class="o">/</span>
+    <span class="n">samples_50</span><span class="o">.</span><span class="n">trees</span>
+    <span class="n">samples_50</span><span class="o">.</span><span class="n">json</span>
+    <span class="n">samples_100</span><span class="o">.</span><span class="n">trees</span>
+    <span class="n">samples_100</span><span class="o">.</span><span class="n">json</span>
+    <span class="o">...</span>
+  <span class="n">real</span><span class="o">/</span>
+    <span class="p">(</span><span class="k">for</span> <span class="n">real</span><span class="o">-</span><span class="n">world</span> <span class="n">datasets</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The benchmark runner searches both <code class="docutils literal notranslate"><span class="pre">simulated/</span></code> and <code class="docutils literal notranslate"><span class="pre">real/</span></code> subdirectories by default.</p>
+</section>
+<section id="reproducibility">
+<h2>Reproducibility<a class="headerlink" href="#reproducibility" title="Link to this heading">#</a></h2>
+<section id="ensuring-identical-datasets">
+<h3>Ensuring Identical Datasets<a class="headerlink" href="#ensuring-identical-datasets" title="Link to this heading">#</a></h3>
+<p>Use the same random seed to generate identical datasets:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape_benchmark<span class="w"> </span>generate-datasets<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
+</pre></div>
+</div>
+<p>Different seeds produce different random topologies and locations.</p>
+</section>
+<section id="version-considerations">
+<h3>Version Considerations<a class="headerlink" href="#version-considerations" title="Link to this heading">#</a></h3>
+<p>Dataset characteristics may vary slightly between msprime versions. Record the msprime version (stored in <code class="docutils literal notranslate"><span class="pre">summary.json</span></code>) for reproducibility.</p>
+</section>
+</section>
+<section id="memory-considerations">
+<h2>Memory Considerations<a class="headerlink" href="#memory-considerations" title="Link to this heading">#</a></h2>
+<p>Large datasets require more memory for both generation and benchmarking:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Samples</p></th>
+<th class="head"><p>Sequence Length</p></th>
+<th class="head"><p>Approx. File Size</p></th>
+<th class="head"><p>Memory for Inference</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>50</p></td>
+<td><p>1 Mb</p></td>
+<td><p>~1 MB</p></td>
+<td><p>~100-200 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>100</p></td>
+<td><p>1 Mb</p></td>
+<td><p>~3 MB</p></td>
+<td><p>~200-400 MB</p></td>
+</tr>
+<tr class="row-even"><td><p>250</p></td>
+<td><p>1 Mb</p></td>
+<td><p>~10 MB</p></td>
+<td><p>~500-800 MB</p></td>
+</tr>
+<tr class="row-odd"><td><p>500</p></td>
+<td><p>1 Mb</p></td>
+<td><p>~30 MB</p></td>
+<td><p>~1-2 GB</p></td>
+</tr>
+<tr class="row-even"><td><p>100</p></td>
+<td><p>10 Mb</p></td>
+<td><p>~25 MB</p></td>
+<td><p>~500 MB - 1 GB</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Plan your benchmark suite according to available system resources.</p>
+</section>
+<section id="tips-for-dataset-selection">
+<h2>Tips for Dataset Selection<a class="headerlink" href="#tips-for-dataset-selection" title="Link to this heading">#</a></h2>
+<section id="for-method-comparison">
+<h3>For Method Comparison<a class="headerlink" href="#for-method-comparison" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Use multiple sample counts to understand scaling behavior</p></li>
+<li><p>Include both small datasets (fast iteration) and large datasets (stress testing)</p></li>
+<li><p>Use consistent random seeds across benchmark runs</p></li>
+</ul>
+</section>
+<section id="for-accuracy-analysis">
+<h3>For Accuracy Analysis<a class="headerlink" href="#for-accuracy-analysis" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Simulated datasets provide ground truth for quantitative accuracy metrics</p></li>
+<li><p>Real datasets may be used for qualitative evaluation but lack ground truth</p></li>
+<li><p>Consider the spatial extent and distribution when interpreting spatial errors</p></li>
+</ul>
+</section>
+<section id="for-publication">
+<h3>For Publication<a class="headerlink" href="#for-publication" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Document all simulation parameters</p></li>
+<li><p>Use consistent seeds for reproducibility</p></li>
+<li><p>Generate datasets covering the range of interest for your research question</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./benchmarking"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="interpreting-results.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Interpreting Benchmark Results</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../advanced/shapefiles-crs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Custom Shapefiles and Coordinate Reference Systems</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#generating-datasets">Generating Datasets</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#command-options">Command Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#standard-dataset-configuration">Standard Dataset Configuration</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-scaling-series">Sample Scaling Series</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#sequence-length-scaling-series">Sequence Length Scaling Series</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#custom-dataset-generation">Custom Dataset Generation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#different-sample-counts">Different Sample Counts</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#different-sequence-lengths">Different Sequence Lengths</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#combined-customization">Combined Customization</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#simulation-parameters">Simulation Parameters</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-locations">Spatial Locations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#ground-truth">Ground Truth</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-constitutes-ground-truth">What Constitutes Ground Truth</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-accuracy-is-measured">How Accuracy is Measured</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-metadata">Dataset Metadata</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#using-your-own-datasets">Using Your Own Datasets</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#adding-metadata-for-custom-datasets">Adding Metadata for Custom Datasets</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-organization">Dataset Organization</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#reproducibility">Reproducibility</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#ensuring-identical-datasets">Ensuring Identical Datasets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#version-considerations">Version Considerations</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-considerations">Memory Considerations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tips-for-dataset-selection">Tips for Dataset Selection</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-method-comparison">For Method Comparison</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-accuracy-analysis">For Accuracy Analysis</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-publication">For Publication</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By ARGscape Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

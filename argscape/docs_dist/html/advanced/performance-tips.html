@@ -1,0 +1,1225 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Performance Optimization Guide &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=5a416a86" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'advanced/performance-tips';</script>
+    <link rel="canonical" href="/documentation/advanced/performance-tips.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Benchmarking Overview" href="benchmarking/overview.html" />
+    <link rel="prev" title="Inference Algorithms" href="inference-algorithms.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/themes.html">Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">argscape.infer()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inferresult.html">InferResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Theme Functions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fadvanced/performance-tips.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Performance Optimization Guide</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> On this page </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-performance-constraints">Understanding Performance Constraints</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-limits-with-max-samples">Sample Limits with <code class="docutils literal notranslate"><span class="pre">max_samples</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subset-modes">Subset Modes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-sample-selection">Direct Sample Selection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-sample-count">Choosing Sample Count</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#genomic-range-filtering">Genomic Range Filtering</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use">When to Use</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#temporal-range-filtering">Temporal Range Filtering</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#combining-filters">Combining Filters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-considerations">Memory Considerations</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-memory-limits">Browser Memory Limits</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#estimating-memory-usage">Estimating Memory Usage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-memory-is-exceeded">When Memory Is Exceeded</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#web-app-vs-python-api">Web App vs. Python API</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-the-web-app">When to Use the Web App</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-the-python-api">When to Use the Python API</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#comparison-table">Comparison Table</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-algorithm-performance">Layout Algorithm Performance</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-comparison">Algorithm Comparison</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-dagre-for-performance">Using Dagre for Performance</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-rendering-optimization">Browser Rendering Optimization</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reducing-visual-complexity">Reducing Visual Complexity</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-spatial-performance">3D Spatial Performance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#shapefile-performance">Shapefile Performance</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-processing-strategies">Batch Processing Strategies</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#processing-multiple-datasets">Processing Multiple Datasets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-sweeps">Parameter Sweeps</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-bottlenecks">Common Bottlenecks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-configurations">Recommended Configurations</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-exploration">Quick Exploration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#publication-figure">Publication Figure</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#large-dataset-overview">Large Dataset Overview</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-geographic">3D Geographic</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="performance-optimization-guide">
+<h1>Performance Optimization Guide<a class="headerlink" href="#performance-optimization-guide" title="Link to this heading">#</a></h1>
+<p>This guide covers strategies for optimizing ARGscape performance when working with large tree sequences, including sample limits, subsetting strategies, filtering, and choosing between the web app and Python API.</p>
+<section id="understanding-performance-constraints">
+<h2>Understanding Performance Constraints<a class="headerlink" href="#understanding-performance-constraints" title="Link to this heading">#</a></h2>
+<p>Coming soon…</p>
+</section>
+<section id="sample-limits-with-max-samples">
+<h2>Sample Limits with <code class="docutils literal notranslate"><span class="pre">max_samples</span></code><a class="headerlink" href="#sample-limits-with-max-samples" title="Link to this heading">#</a></h2>
+<p>The most effective way to visualize large tree sequences is to limit the number of samples.</p>
+<section id="how-it-works">
+<h3>How It Works<a class="headerlink" href="#how-it-works" title="Link to this heading">#</a></h3>
+<p>When <code class="docutils literal notranslate"><span class="pre">max_samples</span></code> is set, ARGscape:</p>
+<ol class="arabic simple">
+<li><p>Selects a subset of samples using the specified <code class="docutils literal notranslate"><span class="pre">subset_mode</span></code></p></li>
+<li><p>Calls <code class="docutils literal notranslate"><span class="pre">ts.simplify()</span></code> to create a smaller tree sequence</p></li>
+<li><p>Extracts the graph from the simplified version</p></li>
+</ol>
+</section>
+<section id="subset-modes">
+<h3>Subset Modes<a class="headerlink" href="#subset-modes" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Mode</p></th>
+<th class="head"><p>Description</p></th>
+<th class="head"><p>Best For</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;even&quot;</span></code></p></td>
+<td><p>Evenly spaced samples (0, k, 2k, …)</p></td>
+<td><p>Representative overview</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;random&quot;</span></code></p></td>
+<td><p>Random selection</p></td>
+<td><p>Unbiased sampling</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="direct-sample-selection">
+<h3>Direct Sample Selection<a class="headerlink" href="#direct-sample-selection" title="Link to this heading">#</a></h3>
+<p>For precise control, use the <code class="docutils literal notranslate"><span class="pre">samples</span></code> parameter instead of <code class="docutils literal notranslate"><span class="pre">max_samples</span></code>:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Select specific samples by node ID</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">10</span><span class="p">,</span> <span class="mi">15</span><span class="p">,</span> <span class="mi">20</span><span class="p">,</span> <span class="mi">25</span><span class="p">])</span>
+
+<span class="c1"># Select a range of samples by index</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">samples</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">50</span><span class="p">))</span>  <span class="c1"># First 50 samples</span>
+</pre></div>
+</div>
+<p>This is useful when:</p>
+<ul class="simple">
+<li><p>Samples are grouped by population or phenotype</p></li>
+<li><p>You need to track specific individuals</p></li>
+<li><p>You want consistent sample selection across analyses</p></li>
+</ul>
+</section>
+<section id="examples">
+<h3>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Large tree sequence with 5000 samples</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;large_dataset.trees&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Original: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_samples</span><span class="si">}</span><span class="s2"> samples, </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_nodes</span><span class="si">}</span><span class="s2"> nodes&quot;</span><span class="p">)</span>
+
+<span class="c1"># Visualize 100 evenly-spaced samples</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;even&quot;</span>
+<span class="p">)</span>
+
+<span class="c1"># Random subset (reproducible with seed)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;random&quot;</span><span class="p">,</span>
+    <span class="n">subset_seed</span><span class="o">=</span><span class="mi">42</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="choosing-sample-count">
+<h3>Choosing Sample Count<a class="headerlink" href="#choosing-sample-count" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Sample Count</p></th>
+<th class="head"><p>Rendering Speed</p></th>
+<th class="head"><p>Visual Clarity</p></th>
+<th class="head"><p>Use Case</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>10-50</p></td>
+<td><p>Instant</p></td>
+<td><p>Excellent</p></td>
+<td><p>Detailed inspection</p></td>
+</tr>
+<tr class="row-odd"><td><p>50-100</p></td>
+<td><p>Fast</p></td>
+<td><p>Very good</p></td>
+<td><p>General exploration</p></td>
+</tr>
+<tr class="row-even"><td><p>100-200</p></td>
+<td><p>Moderate</p></td>
+<td><p>Good</p></td>
+<td><p>Overview of structure</p></td>
+</tr>
+<tr class="row-odd"><td><p>200-500+</p></td>
+<td><p>Slow</p></td>
+<td><p>Crowded</p></td>
+<td><p>Maximum detail</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="genomic-range-filtering">
+<h2>Genomic Range Filtering<a class="headerlink" href="#genomic-range-filtering" title="Link to this heading">#</a></h2>
+<p>Focus on specific genomic regions to reduce complexity.</p>
+<section id="id1">
+<h3>How It Works<a class="headerlink" href="#id1" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">genomic_range</span></code> parameter:</p>
+<ol class="arabic simple">
+<li><p>Calls <code class="docutils literal notranslate"><span class="pre">ts.keep_intervals([[start,</span> <span class="pre">end]])</span></code></p></li>
+<li><p>Trims the tree sequence to the specified region</p></li>
+<li><p>Results in fewer trees and potentially fewer nodes</p></li>
+</ol>
+</section>
+<section id="id2">
+<h3>Examples<a class="headerlink" href="#id2" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Visualize only the first 10kb</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">10000</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Focus on a specific gene region</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">150000</span><span class="p">,</span> <span class="mi">200000</span><span class="p">),</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span>
+<span class="p">)</span>
+
+<span class="c1"># Combine with sample limiting for very large sequences</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100000</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="when-to-use">
+<h3>When to Use<a class="headerlink" href="#when-to-use" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Tree sequence has many local trees (&gt;100)</p></li>
+<li><p>Investigating a specific genomic region</p></li>
+<li><p>Reducing overall complexity</p></li>
+</ul>
+</section>
+</section>
+<section id="temporal-range-filtering">
+<h2>Temporal Range Filtering<a class="headerlink" href="#temporal-range-filtering" title="Link to this heading">#</a></h2>
+<p>Filter by node times to focus on specific time periods.</p>
+<section id="id3">
+<h3>How It Works<a class="headerlink" href="#id3" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">temporal_range</span></code> parameter:</p>
+<ol class="arabic simple">
+<li><p>Keeps all sample nodes regardless of time</p></li>
+<li><p>Removes internal nodes outside the time range</p></li>
+<li><p>Removes edges connecting to removed nodes</p></li>
+</ol>
+</section>
+<section id="id4">
+<h3>Examples<a class="headerlink" href="#id4" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Focus on recent history (last 100 generations)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">temporal_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Examine deep ancestry (1000-5000 generations ago)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">temporal_range</span><span class="o">=</span><span class="p">(</span><span class="mi">1000</span><span class="p">,</span> <span class="mi">5000</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="combining-filters">
+<h3>Combining Filters<a class="headerlink" href="#combining-filters" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Combined filtering for complex datasets</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;even&quot;</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">50000</span><span class="p">),</span>
+    <span class="n">temporal_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">500</span><span class="p">)</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="memory-considerations">
+<h2>Memory Considerations<a class="headerlink" href="#memory-considerations" title="Link to this heading">#</a></h2>
+<section id="browser-memory-limits">
+<h3>Browser Memory Limits<a class="headerlink" href="#browser-memory-limits" title="Link to this heading">#</a></h3>
+<p>Modern browsers typically allow 1-4 GB of JavaScript heap memory. ARGscape memory usage depends on:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Factor</p></th>
+<th class="head"><p>Memory Impact</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Node count</p></td>
+<td><p>~100 bytes per node</p></td>
+</tr>
+<tr class="row-odd"><td><p>Edge count</p></td>
+<td><p>~80 bytes per edge</p></td>
+</tr>
+<tr class="row-even"><td><p>Mutation data</p></td>
+<td><p>~200 bytes per mutation (when shown)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Rendering buffers</p></td>
+<td><p>~10 MB base + proportional to visual elements</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="estimating-memory-usage">
+<h3>Estimating Memory Usage<a class="headerlink" href="#estimating-memory-usage" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Check tree sequence size before visualizing</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;data.trees&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Samples: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_samples</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Nodes: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_nodes</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Edges: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_edges</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Trees: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_trees</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Mutations: </span><span class="si">{</span><span class="n">ts</span><span class="o">.</span><span class="n">num_mutations</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+<span class="c1"># Rough memory estimate (bytes)</span>
+<span class="n">estimated_memory</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">ts</span><span class="o">.</span><span class="n">num_nodes</span> <span class="o">*</span> <span class="mi">100</span> <span class="o">+</span>
+    <span class="n">ts</span><span class="o">.</span><span class="n">num_edges</span> <span class="o">*</span> <span class="mi">80</span> <span class="o">+</span>
+    <span class="n">ts</span><span class="o">.</span><span class="n">num_mutations</span> <span class="o">*</span> <span class="mi">200</span> <span class="o">+</span>
+    <span class="mi">10_000_000</span>  <span class="c1"># Base rendering overhead</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Estimated memory: </span><span class="si">{</span><span class="n">estimated_memory</span><span class="w"> </span><span class="o">/</span><span class="w"> </span><span class="mi">1_000_000</span><span class="si">:</span><span class="s2">.1f</span><span class="si">}</span><span class="s2"> MB&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="when-memory-is-exceeded">
+<h3>When Memory Is Exceeded<a class="headerlink" href="#when-memory-is-exceeded" title="Link to this heading">#</a></h3>
+<p>Symptoms:</p>
+<ul class="simple">
+<li><p>Browser tab crashes</p></li>
+<li><p>Visualization freezes during loading</p></li>
+<li><p>“Out of memory” console errors</p></li>
+</ul>
+<p>Solutions:</p>
+<ol class="arabic simple">
+<li><p>Reduce <code class="docutils literal notranslate"><span class="pre">max_samples</span></code></p></li>
+<li><p>Apply <code class="docutils literal notranslate"><span class="pre">genomic_range</span></code> filter</p></li>
+<li><p>Use the Python API for static exports</p></li>
+</ol>
+</section>
+</section>
+<section id="web-app-vs-python-api">
+<h2>Web App vs. Python API<a class="headerlink" href="#web-app-vs-python-api" title="Link to this heading">#</a></h2>
+<section id="when-to-use-the-web-app">
+<h3>When to Use the Web App<a class="headerlink" href="#when-to-use-the-web-app" title="Link to this heading">#</a></h3>
+<p>The web app at <a class="reference external" href="https://argscape.com">argscape.com</a> is best for:</p>
+<ul class="simple">
+<li><p>Quick exploration of small to medium datasets</p></li>
+<li><p>Interactive analysis with dynamic filtering</p></li>
+<li><p>Sharing visualizations (Railway links)</p></li>
+<li><p>Users without Python environment</p></li>
+</ul>
+<p><strong>Limits</strong>: 50 MB files, 500 samples, 10 Mb sequences</p>
+</section>
+<section id="when-to-use-the-python-api">
+<h3>When to Use the Python API<a class="headerlink" href="#when-to-use-the-python-api" title="Link to this heading">#</a></h3>
+<p>The Python API (<code class="docutils literal notranslate"><span class="pre">argscape.visualize()</span></code>) is best for:</p>
+<ul class="simple">
+<li><p>Large datasets exceeding web limits</p></li>
+<li><p>Automated pipelines and batch processing</p></li>
+<li><p>Publication-quality exports</p></li>
+<li><p>Local processing without upload</p></li>
+</ul>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Process large dataset locally</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;very_large.trees&quot;</span><span class="p">)</span>  <span class="c1"># 100MB file</span>
+
+<span class="c1"># Subset and visualize</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">100000</span><span class="p">)</span>
+<span class="p">)</span>
+
+<span class="c1"># Export to file (no browser rendering limits)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="comparison-table">
+<h3>Comparison Table<a class="headerlink" href="#comparison-table" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Aspect</p></th>
+<th class="head"><p>Web App</p></th>
+<th class="head"><p>Python API</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Max file size</p></td>
+<td><p>50 MB</p></td>
+<td><p>Unlimited (local memory)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Max samples</p></td>
+<td><p>500</p></td>
+<td><p>Limited by browser memory</p></td>
+</tr>
+<tr class="row-even"><td><p>Interactive exploration</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes (with <code class="docutils literal notranslate"><span class="pre">.show()</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Batch processing</p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-even"><td><p>Jupyter integration</p></td>
+<td><p>Via upload</p></td>
+<td><p>Native (<code class="docutils literal notranslate"><span class="pre">.display()</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Static export</p></td>
+<td><p>Limited</p></td>
+<td><p>Full control</p></td>
+</tr>
+<tr class="row-even"><td><p>Requires Python</p></td>
+<td><p>No</p></td>
+<td><p>Yes</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="layout-algorithm-performance">
+<h2>Layout Algorithm Performance<a class="headerlink" href="#layout-algorithm-performance" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">sample_order</span></code> parameter affects both layout quality and computation time.</p>
+<section id="algorithm-comparison">
+<h3>Algorithm Comparison<a class="headerlink" href="#algorithm-comparison" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Algorithm</p></th>
+<th class="head"><p>Speed</p></th>
+<th class="head"><p>Edge Crossings</p></th>
+<th class="head"><p>Best For</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;dagre&quot;</span></code></p></td>
+<td><p>Fastest</p></td>
+<td><p>Minimal</p></td>
+<td><p>Publication figures, clean layouts</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;consensus_minlex&quot;</span></code></p></td>
+<td><p>Fast</p></td>
+<td><p>Few</p></td>
+<td><p>General use (default)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;numeric&quot;</span></code></p></td>
+<td><p>Fast</p></td>
+<td><p>Many</p></td>
+<td><p>Quick previews</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;first_minlex&quot;</span></code></p></td>
+<td><p>Fast</p></td>
+<td><p>Variable</p></td>
+<td><p>Single-tree focus</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;ancestral_path&quot;</span></code></p></td>
+<td><p>Moderate</p></td>
+<td><p>Few</p></td>
+<td><p>Ancestry-focused analysis</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="using-dagre-for-performance">
+<h3>Using Dagre for Performance<a class="headerlink" href="#using-dagre-for-performance" title="Link to this heading">#</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">dagre</span></code> algorithm uses a barycenter heuristic to minimize edge crossings. It’s both fast and produces clean layouts, making it ideal for publication figures:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Fast, clean layout with dagre</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>For large datasets, <code class="docutils literal notranslate"><span class="pre">dagre</span></code> can be significantly faster than algorithms like <code class="docutils literal notranslate"><span class="pre">ancestral_path</span></code> while still producing visually clear results.</p>
+</section>
+</section>
+<section id="browser-rendering-optimization">
+<h2>Browser Rendering Optimization<a class="headerlink" href="#browser-rendering-optimization" title="Link to this heading">#</a></h2>
+<section id="reducing-visual-complexity">
+<h3>Reducing Visual Complexity<a class="headerlink" href="#reducing-visual-complexity" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Minimal rendering for performance</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="c1"># Hide labels (significant performance impact)</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">show_internal_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">show_root_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="c1"># Hide mutations if not needed</span>
+    <span class="n">show_mutations</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="c1"># Hide edge labels</span>
+    <span class="n">show_edge_labels</span><span class="o">=</span><span class="kc">False</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="d-spatial-performance">
+<h3>3D Spatial Performance<a class="headerlink" href="#d-spatial-performance" title="Link to this heading">#</a></h3>
+<p>3D rendering with Three.js/Deck.GL has additional considerations:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Optimized 3D visualization</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>  <span class="c1"># Fewer samples for 3D</span>
+    <span class="c1"># Smaller node sizes render faster</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">6</span><span class="p">,</span>
+    <span class="n">internal_node_size</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+    <span class="c1"># Lower edge opacity reduces blend calculations</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.4</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="shapefile-performance">
+<h3>Shapefile Performance<a class="headerlink" href="#shapefile-performance" title="Link to this heading">#</a></h3>
+<p>Complex shapefiles slow 3D rendering:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">geopandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">gpd</span>
+
+<span class="c1"># Simplify shapefile before use</span>
+<span class="n">gdf</span> <span class="o">=</span> <span class="n">gpd</span><span class="o">.</span><span class="n">read_file</span><span class="p">(</span><span class="s2">&quot;detailed_map.shp&quot;</span><span class="p">)</span>
+<span class="n">gdf</span><span class="p">[</span><span class="s2">&quot;geometry&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">gdf</span><span class="o">.</span><span class="n">geometry</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="mf">0.01</span><span class="p">)</span>  <span class="c1"># Degrees for WGS84</span>
+
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span>
+    <span class="n">shapefile</span><span class="o">=</span><span class="n">gdf</span>  <span class="c1"># Simplified version</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="batch-processing-strategies">
+<h2>Batch Processing Strategies<a class="headerlink" href="#batch-processing-strategies" title="Link to this heading">#</a></h2>
+<section id="processing-multiple-datasets">
+<h3>Processing Multiple Datasets<a class="headerlink" href="#processing-multiple-datasets" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="c1"># Process all tree sequences in a directory</span>
+<span class="n">input_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;tree_sequences/&quot;</span><span class="p">)</span>
+<span class="n">output_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;visualizations/&quot;</span><span class="p">)</span>
+
+<span class="k">for</span> <span class="n">ts_file</span> <span class="ow">in</span> <span class="n">input_dir</span><span class="o">.</span><span class="n">glob</span><span class="p">(</span><span class="s2">&quot;*.trees&quot;</span><span class="p">):</span>
+    <span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="n">ts_file</span><span class="p">)</span>
+
+    <span class="c1"># Apply consistent subsetting</span>
+    <span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+        <span class="n">ts</span><span class="p">,</span>
+        <span class="n">max_samples</span><span class="o">=</span><span class="nb">min</span><span class="p">(</span><span class="mi">100</span><span class="p">,</span> <span class="n">ts</span><span class="o">.</span><span class="n">num_samples</span><span class="p">),</span>
+        <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span>
+    <span class="p">)</span>
+
+    <span class="c1"># Export with matching filename</span>
+    <span class="n">output_path</span> <span class="o">=</span> <span class="n">output_dir</span> <span class="o">/</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">ts_file</span><span class="o">.</span><span class="n">stem</span><span class="si">}</span><span class="s2">.png&quot;</span>
+    <span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">output_path</span><span class="p">),</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Exported: </span><span class="si">{</span><span class="n">output_path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="parameter-sweeps">
+<h3>Parameter Sweeps<a class="headerlink" href="#parameter-sweeps" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Compare different sample counts</span>
+<span class="k">for</span> <span class="n">n_samples</span> <span class="ow">in</span> <span class="p">[</span><span class="mi">25</span><span class="p">,</span> <span class="mi">50</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="mi">200</span><span class="p">]:</span>
+    <span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+        <span class="n">ts</span><span class="p">,</span>
+        <span class="n">max_samples</span><span class="o">=</span><span class="n">n_samples</span><span class="p">,</span>
+        <span class="n">subset_seed</span><span class="o">=</span><span class="mi">42</span>  <span class="c1"># Reproducible subset</span>
+    <span class="p">)</span>
+    <span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;comparison_</span><span class="si">{</span><span class="n">n_samples</span><span class="si">}</span><span class="s2">_samples.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="common-bottlenecks">
+<h2>Common Bottlenecks<a class="headerlink" href="#common-bottlenecks" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Bottleneck</p></th>
+<th class="head"><p>Symptom</p></th>
+<th class="head"><p>Solution</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Large node count</p></td>
+<td><p>Slow data extraction</p></td>
+<td><p>Reduce <code class="docutils literal notranslate"><span class="pre">max_samples</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Many edges</p></td>
+<td><p>Slow rendering</p></td>
+<td><p>Apply <code class="docutils literal notranslate"><span class="pre">genomic_range</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Complex shapefiles</p></td>
+<td><p>Slow 3D init</p></td>
+<td><p>Simplify geometry</p></td>
+</tr>
+<tr class="row-odd"><td><p>Many mutations</p></td>
+<td><p>Memory issues</p></td>
+<td><p>Set <code class="docutils literal notranslate"><span class="pre">show_mutations=False</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Label rendering</p></td>
+<td><p>Slow interaction</p></td>
+<td><p>Disable ID labels</p></td>
+</tr>
+<tr class="row-odd"><td><p>Slow layout algorithm</p></td>
+<td><p>Long initial render</p></td>
+<td><p>Use <code class="docutils literal notranslate"><span class="pre">sample_order=&quot;dagre&quot;</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="recommended-configurations">
+<h2>Recommended Configurations<a class="headerlink" href="#recommended-configurations" title="Link to this heading">#</a></h2>
+<section id="quick-exploration">
+<h3>Quick Exploration<a class="headerlink" href="#quick-exploration" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="publication-figure">
+<h3>Publication Figure<a class="headerlink" href="#publication-figure" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>  <span class="c1"># Minimizes edge crossings</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1400</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.7</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="large-dataset-overview">
+<h3>Large Dataset Overview<a class="headerlink" href="#large-dataset-overview" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">200</span><span class="p">,</span>
+    <span class="n">subset_mode</span><span class="o">=</span><span class="s2">&quot;even&quot;</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">show_internal_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.4</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="d-geographic">
+<h3>3D Geographic<a class="headerlink" href="#d-geographic" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;spatial_3d&quot;</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">100</span><span class="p">,</span>
+    <span class="n">geographic_base</span><span class="o">=</span><span class="s2">&quot;eastern_hemisphere&quot;</span><span class="p">,</span>
+    <span class="n">temporal_multiplier</span><span class="o">=</span><span class="mf">15.0</span><span class="p">,</span>
+    <span class="n">spatial_multiplier</span><span class="o">=</span><span class="mf">180.0</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="see-also">
+<h2>See Also<a class="headerlink" href="#see-also" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="../python-api/visualize.html"><span class="doc">argscape.visualize()</span></a> - Full parameter reference</p></li>
+<li><p><a class="reference internal" href="shapefiles-crs.html"><span class="doc">Custom Shapefiles and Coordinate Reference Systems</span></a> - Geographic configuration</p></li>
+<li><p><a class="reference internal" href="inference-algorithms.html"><span class="doc">Inference Algorithms</span></a> - Algorithm performance characteristics</p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./advanced"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="inference-algorithms.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Inference Algorithms</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="benchmarking/overview.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Benchmarking Overview</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#understanding-performance-constraints">Understanding Performance Constraints</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sample-limits-with-max-samples">Sample Limits with <code class="docutils literal notranslate"><span class="pre">max_samples</span></code></a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#how-it-works">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#subset-modes">Subset Modes</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#direct-sample-selection">Direct Sample Selection</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#choosing-sample-count">Choosing Sample Count</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#genomic-range-filtering">Genomic Range Filtering</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id1">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id2">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use">When to Use</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#temporal-range-filtering">Temporal Range Filtering</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id3">How It Works</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#id4">Examples</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#combining-filters">Combining Filters</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-considerations">Memory Considerations</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-memory-limits">Browser Memory Limits</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#estimating-memory-usage">Estimating Memory Usage</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-memory-is-exceeded">When Memory Is Exceeded</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#web-app-vs-python-api">Web App vs. Python API</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-the-web-app">When to Use the Web App</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#when-to-use-the-python-api">When to Use the Python API</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#comparison-table">Comparison Table</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-algorithm-performance">Layout Algorithm Performance</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#algorithm-comparison">Algorithm Comparison</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#using-dagre-for-performance">Using Dagre for Performance</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#browser-rendering-optimization">Browser Rendering Optimization</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#reducing-visual-complexity">Reducing Visual Complexity</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-spatial-performance">3D Spatial Performance</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#shapefile-performance">Shapefile Performance</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-processing-strategies">Batch Processing Strategies</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#processing-multiple-datasets">Processing Multiple Datasets</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#parameter-sweeps">Parameter Sweeps</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-bottlenecks">Common Bottlenecks</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-configurations">Recommended Configurations</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#quick-exploration">Quick Exploration</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#publication-figure">Publication Figure</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#large-dataset-overview">Large Dataset Overview</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#d-geographic">3D Geographic</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#see-also">See Also</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 23, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

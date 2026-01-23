@@ -31,6 +31,7 @@ class GraphNode:
     """A node in the ARG visualization graph."""
 
     id: int
+    original_id: int  # Original node ID before subsetting (same as id if no subset)
     time: float
     is_sample: bool
     is_root: bool
@@ -359,26 +360,55 @@ def _extract_mutations(ts: tskit.TreeSequence) -> dict[tuple[int, int], list[dic
 
 def _subset_samples(
     ts: tskit.TreeSequence,
-    max_samples: int,
+    max_samples: int | None,
     mode: Literal["even", "random"],
     seed: int | None,
-) -> tskit.TreeSequence:
-    """Subset tree sequence to max_samples using specified mode.
+    samples: list[int] | tuple[int, int] | None = None,
+) -> tuple[tskit.TreeSequence, np.ndarray | None]:
+    """Subset tree sequence to selected samples.
 
     Args:
         ts: The tree sequence to subset
-        max_samples: Maximum number of samples to keep
+        max_samples: Maximum number of samples to keep (used with mode)
         mode: "even" for evenly spaced samples, "random" for random selection
         seed: Random seed for reproducibility (only used in "random" mode)
+        samples: Direct sample selection - either a list of sample node IDs,
+                 or a tuple (start, end) for a range of sample indices.
+                 Takes precedence over max_samples when provided.
 
     Returns:
-        A simplified tree sequence with at most max_samples samples
+        Tuple of (simplified tree sequence, node_id_mapping).
+        node_id_mapping maps new node IDs to original node IDs (None if no subsetting).
     """
     sample_ids = ts.samples()
     num_samples = len(sample_ids)
 
-    if num_samples <= max_samples:
-        return ts
+    # Direct sample selection takes precedence
+    if samples is not None:
+        if isinstance(samples, tuple) and len(samples) == 2:
+            # Range selection: (start_index, end_index)
+            start, end = samples
+            start = max(0, start)
+            end = min(num_samples, end)
+            selected_samples = sample_ids[start:end]
+        elif isinstance(samples, (list, np.ndarray)):
+            # List of sample node IDs
+            sample_set = set(sample_ids)
+            selected_samples = np.array([s for s in samples if s in sample_set])
+            if len(selected_samples) == 0:
+                raise ValueError("None of the specified sample IDs exist in the tree sequence")
+        else:
+            raise ValueError(f"samples must be a list of IDs or a (start, end) tuple, got {type(samples)}")
+
+        if len(selected_samples) == num_samples:
+            return ts, None
+        # Use map_nodes=True to preserve original IDs
+        simplified_ts, node_map = ts.simplify(samples=selected_samples, map_nodes=True)
+        return simplified_ts, node_map
+
+    # Fall back to max_samples with mode
+    if max_samples is None or num_samples <= max_samples:
+        return ts, None
 
     if mode == "even":
         # Select evenly spaced samples using linspace indices
@@ -388,12 +418,15 @@ def _subset_samples(
         rng = np.random.default_rng(seed)
         selected_samples = rng.choice(sample_ids, size=max_samples, replace=False)
 
-    return ts.simplify(samples=selected_samples)
+    # Use map_nodes=True to preserve original IDs
+    simplified_ts, node_map = ts.simplify(samples=selected_samples, map_nodes=True)
+    return simplified_ts, node_map
 
 
 def _extract_nodes(
     ts: tskit.TreeSequence,
     order_map: dict[int, int] | None = None,
+    node_id_mapping: np.ndarray | None = None,
 ) -> list[GraphNode]:
     """Extract GraphNode list from tree sequence.
 
@@ -403,12 +436,23 @@ def _extract_nodes(
     Args:
         ts: The tree sequence to extract nodes from
         order_map: Optional mapping from sample ID to order position
+        node_id_mapping: Optional mapping from new node IDs to original node IDs
+                         (from ts.simplify with map_nodes=True)
 
     Returns:
         List of GraphNode objects
     """
     # Find all nodes that are children in edges (i.e., have parents)
     child_nodes = set(ts.edges_child)
+
+    # Build reverse mapping: new_id -> original_id
+    # node_id_mapping from simplify is: original_id -> new_id (with -1 for removed nodes)
+    # We need to invert it to get: new_id -> original_id
+    original_id_lookup: dict[int, int] = {}
+    if node_id_mapping is not None:
+        for original_id, new_id in enumerate(node_id_mapping):
+            if new_id >= 0:  # -1 means node was removed
+                original_id_lookup[int(new_id)] = original_id
 
     nodes = []
     for node in ts.nodes():
@@ -438,9 +482,13 @@ def _extract_nodes(
         is_sample = bool(node.flags & tskit.NODE_IS_SAMPLE)
         order_position = order_map.get(node.id) if (order_map and is_sample) else None
 
+        # Get original ID (from before subsetting)
+        original_id = original_id_lookup.get(node.id, node.id)
+
         nodes.append(
             GraphNode(
                 id=node.id,
+                original_id=original_id,
                 time=float(node.time),
                 is_sample=is_sample,
                 is_root=is_root,
@@ -670,6 +718,14 @@ def _build_metadata(
     # Compute population genetics statistics
     popgen_stats = _compute_popgen_stats(ts)
 
+    # Extract unique populations from nodes
+    populations = set()
+    for node in ts.nodes():
+        if node.population != tskit.NULL:
+            populations.add(int(node.population))
+    populations_list = sorted(populations) if populations else []
+    has_populations = len(populations_list) > 0
+
     metadata = {
         "num_nodes": ts.num_nodes,
         "num_edges": ts.num_edges,
@@ -683,6 +739,8 @@ def _build_metadata(
         "min_time": min_time,
         "max_time": max_time,
         "popgen_stats": popgen_stats,
+        "has_populations": has_populations,
+        "populations": populations_list,
     }
 
     if is_subset:
@@ -702,6 +760,7 @@ def extract_graph(
     max_samples: int | None = None,
     subset_mode: Literal["even", "random"] = "even",
     subset_seed: int | None = None,
+    samples: list[int] | tuple[int, int] | None = None,
     genomic_range: tuple[float, float] | None = None,
     temporal_range: tuple[float, float] | None = None,
     include_mutations: bool = False,
@@ -716,6 +775,9 @@ def extract_graph(
         max_samples: Maximum number of samples to include (None for all)
         subset_mode: How to select samples when subsetting ("even" or "random")
         subset_seed: Random seed for reproducibility in random mode
+        samples: Direct sample selection - either a list of sample node IDs,
+                 or a tuple (start, end) for a range of sample indices.
+                 Takes precedence over max_samples when provided.
         genomic_range: Optional (start, end) genomic positions to filter to
         temporal_range: Optional (min_time, max_time) to filter nodes by time
         include_mutations: Whether to include mutation information on edges
@@ -725,10 +787,11 @@ def extract_graph(
         GraphData containing nodes, edges, and metadata for visualization
     """
     original_ts = ts
+    node_id_mapping = None
 
-    # Apply sample subsetting first
-    if max_samples is not None:
-        ts = _subset_samples(ts, max_samples, subset_mode, subset_seed)
+    # Apply sample subsetting first (samples param takes precedence over max_samples)
+    if samples is not None or max_samples is not None:
+        ts, node_id_mapping = _subset_samples(ts, max_samples, subset_mode, subset_seed, samples)
 
     # Apply genomic range filter
     if genomic_range is not None:
@@ -742,7 +805,7 @@ def extract_graph(
     order_map = all_orderings.get(sample_order, all_orderings["consensus_minlex"])
 
     # Extract nodes and edges
-    nodes = _extract_nodes(ts, order_map)
+    nodes = _extract_nodes(ts, order_map, node_id_mapping)
     edges = _extract_edges(ts, include_mutations=include_mutations)
 
     # Apply temporal filter post-extraction (filter nodes by time)

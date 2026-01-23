@@ -60,6 +60,13 @@ export interface SpatialState {
   showAxisLines: boolean
   gridOpacity: number      // Opacity for temporal grid lines (0-1)
   shapeOpacity: number     // Opacity for geographic shape/shapefile (0-1)
+  autoFitTemporal: boolean // Auto-fit temporal spacing to viewport
+  autoFitSpatial: boolean  // Auto-fit spatial spacing to viewport
+}
+
+export interface FocalState {
+  nodeId: number | null
+  mode: ViewMode | null
 }
 
 export interface InitialState {
@@ -69,6 +76,7 @@ export interface InitialState {
   layout: LayoutState
   filter?: FilterState
   spatial?: SpatialState
+  focal?: FocalState
 }
 
 export interface VizOptions {

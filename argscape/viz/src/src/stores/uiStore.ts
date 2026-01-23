@@ -89,6 +89,8 @@ const defaultSpatial: SpatialState = {
   showAxisLines: true,  // Show temporal axis lines by default
   gridOpacity: 0.25,    // 25% opacity for temporal grid
   shapeOpacity: 0.6,    // 60% opacity for geographic shape
+  autoFitTemporal: true,  // Auto-fit temporal spacing to viewport by default
+  autoFitSpatial: true,   // Auto-fit spatial spacing to viewport by default
 }
 
 export const useUIStore = create<UIState>((set) => ({

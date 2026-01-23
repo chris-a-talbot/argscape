@@ -1,0 +1,60 @@
+# Table of contents for ARGscape Documentation
+# See https://jupyterbook.org/en/stable/structure/toc.html
+
+format: jb-book
+root: intro
+
+parts:
+  - caption: Getting Started
+    chapters:
+      - file: getting-started/installation
+      - file: getting-started/quickstart
+      - file: getting-started/web-vs-python
+
+  - caption: Tutorials
+    chapters:
+      - file: tutorials/first-visualization
+        title: First Visualization
+      - file: tutorials/spatial-3d
+        title: 3D Spatial Visualization
+      - file: tutorials/filtering-data
+        title: Filtering Data
+      - file: tutorials/focal-nodes
+        title: Focal Node Selection
+      - file: tutorials/themes
+        title: Themes
+      - file: tutorials/exporting
+
+  - caption: Python API
+    chapters:
+      - file: python-api/overview
+      - file: python-api/visualize
+        title: argscape.visualize()
+      - file: python-api/vizresult
+        title: VizResult
+      - file: python-api/inference
+        title: argscape.infer()
+      - file: python-api/inferresult
+        title: InferResult
+      - file: python-api/themes
+        title: Theme Functions
+
+  - caption: CLI Reference
+    chapters:
+      - file: cli-reference/argscape
+      - file: cli-reference/argscape-serve
+      - file: cli-reference/argscape-viz
+      - file: cli-reference/argscape-infer
+      - file: cli-reference/argscape-load
+
+  - caption: Advanced
+    chapters:
+      - file: advanced/shapefiles-crs
+      - file: advanced/inference-algorithms
+      - file: advanced/performance-tips
+      - file: advanced/benchmarking/overview
+        title: Benchmarking
+        sections:
+          - file: advanced/benchmarking/running-benchmarks
+          - file: advanced/benchmarking/interpreting-results
+          - file: advanced/benchmarking/datasets
