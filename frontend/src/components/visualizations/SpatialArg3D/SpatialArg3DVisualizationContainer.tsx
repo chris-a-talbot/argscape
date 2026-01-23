@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { downloadPythonScript, PythonScriptOptions } from '../../../utils/pythonScriptGenerator';
 import { useSearchParams } from 'react-router-dom';
 import SpatialArg3DVisualization from './SpatialArg3DVisualization';
 import { SpatialArg3DControls } from './SpatialArg3DControls';
@@ -392,7 +393,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   treeEndIdx,
   initialHeatmapMode = false
 }) => {
-  const { colors } = useColorTheme();
+  const { colors, theme } = useColorTheme();
   const {
     treeSequence,
     sampleSubsetMode,
@@ -614,10 +615,55 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     }
   }, []);
 
+  // Python script download handler
+  const handleDownloadPython = useCallback(() => {
+    const options: PythonScriptOptions = {
+      filename,
+      mode: 'spatial_3d',
+      // Data selection
+      maxSamples: max_samples,
+      subsetMode: sampleSubsetMode === 'even' || sampleSubsetMode === 'random' ? sampleSubsetMode : 'even',
+      subsetSeed: randomSeed ?? undefined,
+      samples: sampleSubsetMode === 'ids' ? sampleIds :
+               sampleSubsetMode === 'range' && sampleRange ? sampleRange : undefined,
+      genomicRange: filterState.isActive && filterState.mode === 'genomic' && genomicFilterMode === 'subset'
+          ? filterState.genomicRange
+          : undefined,
+      temporalRange: temporalFilterEnabled && temporalFilterMode === 'subset'
+          ? temporalState.range
+          : undefined,
+      // Theme
+      theme: theme,
+      // Node settings
+      sampleNodeSize: visualSettings.nodeSizes.sample,
+      internalNodeSize: visualSettings.nodeSizes.other,
+      rootNodeSize: visualSettings.nodeSizes.root,
+      showSampleIds: nodeIdSettings.showSampleIds,
+      showInternalIds: nodeIdSettings.showInternalIds,
+      showRootIds: nodeIdSettings.showRootIds,
+      // Edge settings
+      edgeWidth: visualSettings.edgeThickness,
+      edgeOpacity: visualSettings.edgeOpacity / 100, // Convert from 0-100 to 0-1
+      // Mutations
+      showMutations: edgeMutationSettings.showMutationMarkers,
+      mutationSize: Math.round(edgeMutationSettings.markerSize / 10), // Scale down from UI size
+      // Spatial (3D specific)
+      geographicBase: geoState.mode === 'unit_grid' ? 'unit_grid' :
+                      geoState.mode === 'eastern_hemisphere' ? 'eastern_hemisphere' : 'world',
+      temporalMultiplier: visualSettings.temporalSpacing,
+      spatialMultiplier: visualSettings.spatialSpacing,
+    };
+    downloadPythonScript(options);
+  }, [
+    filename, max_samples, sampleSubsetMode, sampleIds, sampleRange, randomSeed,
+    filterState, genomicFilterMode, temporalFilterEnabled, temporalFilterMode, temporalState.range,
+    theme, visualSettings, nodeIdSettings, edgeMutationSettings, geoState.mode
+  ]);
+
   const loadGeographicData = useCallback(async () => {
     try {
       setGeoState(prev => ({ ...prev, isLoading: true }));
-      
+
       if (geoState.mode === 'unit_grid') {
         const { createUnitGridShape } = await import('../SpatialArgUtils/GeographicUtils');
         const gridShape = createUnitGridShape(CONTAINER_CONSTANTS.UNIT_GRID_SIZE);
@@ -1479,6 +1525,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 
                 // Export props
                 filename={filename}
+                onDownloadPython={handleDownloadPython}
 
                 // Camera props
                 currentRotationX={viewState.rotationX}

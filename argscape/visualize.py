@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     import geopandas as gpd
 
 from .viz.data import extract_graph, SampleOrderType
-from .viz.themes import get_theme, list_themes, TSKIT
+from .viz.themes import get_theme, list_themes, customize_theme, TSKIT, Theme
 from .spatial import is_spatial_available, require_spatial
 
 # Type alias for shapefile input (avoids importing from shapes.py which needs geopandas)
@@ -160,12 +160,25 @@ def visualize(
     max_samples: int | None = None,
     subset_mode: Literal["even", "random"] = "even",
     subset_seed: int | None = None,
+    samples: list[int] | tuple[int, int] | None = None,
     genomic_range: tuple[float, float] | None = None,
     temporal_range: tuple[float, float] | None = None,
+    # Focal node (subARG or ancestors view)
+    focal_node: int | None = None,
+    focal_mode: Literal["subarg", "ancestors"] = "subarg",
     # Appearance
-    theme: str = "liquid",
+    theme: str | Theme = "liquid",
     width: int = 1200,
     height: int = 800,
+    show_controls: bool = False,
+    # Custom colors (override theme)
+    sample_color: str | None = None,
+    internal_color: str | None = None,
+    root_color: str | None = None,
+    edge_color: str | None = None,
+    background_color: str | None = None,
+    mutation_color: str | None = None,
+    text_color: str | None = None,
     # Nodes
     sample_node_size: int = 8,
     internal_node_size: int = 4,
@@ -173,6 +186,7 @@ def visualize(
     show_sample_ids: bool = False,
     show_internal_ids: bool = False,
     show_root_ids: bool = False,
+    color_by_population: bool = False,
     # Edges
     edge_width: float = 1.0,
     edge_opacity: float = 0.6,
@@ -205,17 +219,34 @@ def visualize(
         max_samples: Maximum samples to include (None for all)
         subset_mode: How to select samples ("even" or "random")
         subset_seed: Random seed for reproducibility
+        samples: Direct sample selection - list of sample node IDs, or
+                 (start, end) tuple for index range. Overrides max_samples.
         genomic_range: (start, end) genomic positions to filter
         temporal_range: (min_time, max_time) to filter nodes
+        focal_node: Node ID to focus on (shows subARG or ancestors)
+        focal_mode: "subarg" for descendants or "ancestors" for ancestors
         theme: Color theme ("tskit", "liquid", "grayscale", "paper")
         width: Visualization width in pixels
         height: Visualization height in pixels
+        show_controls: Show quick actions bar and legend in notebook display.
+            Default False for minimal notebook output; set True for interactive
+            controls (theme switcher, statistics panel, export options, etc.).
+        sample_color: Override sample node color (hex, e.g., "#ff0000")
+        internal_color: Override internal node color
+        root_color: Override root node color
+        edge_color: Override edge color
+        background_color: Override background color
+        mutation_color: Override mutation marker color
+        text_color: Override text color
         sample_node_size: Size of sample nodes in pixels
         internal_node_size: Size of internal nodes in pixels
         root_node_size: Size of root nodes in pixels
         show_sample_ids: Show labels on sample nodes
         show_internal_ids: Show labels on internal nodes
         show_root_ids: Show labels on root nodes
+        color_by_population: Color nodes by their population assignment instead
+            of by node type (sample/internal/root). Requires tree sequence to
+            have population data assigned to nodes.
         edge_width: Edge line width
         edge_opacity: Edge opacity (0-1)
         show_edge_labels: Show labels on edges
@@ -258,6 +289,7 @@ def visualize(
         max_samples=max_samples,
         subset_mode=subset_mode,
         subset_seed=subset_seed,
+        samples=samples,
         genomic_range=genomic_range,
         temporal_range=temporal_range,
         include_mutations=show_mutations,
@@ -298,14 +330,34 @@ def visualize(
     data["metadata"]["location_crs"] = effective_crs
     data["metadata"]["location_bounds"] = list(shape_bounds)
 
-    # Build options
-    theme_obj = get_theme(theme)
+    # Build theme - apply custom color overrides if any are specified
+    has_color_overrides = any([
+        sample_color, internal_color, root_color, edge_color,
+        background_color, mutation_color, text_color
+    ])
+
+    if has_color_overrides:
+        theme_obj = customize_theme(
+            theme,
+            sample_color=sample_color,
+            internal_color=internal_color,
+            root_color=root_color,
+            edge_color=edge_color,
+            background_color=background_color,
+            mutation_color=mutation_color,
+            text_color=text_color,
+        )
+    elif isinstance(theme, Theme):
+        theme_obj = theme
+    else:
+        theme_obj = get_theme(theme)
 
     options = {
         "mode": mode,
         "theme": theme_obj.to_dict(),
         "width": width,
         "height": height,
+        "showControls": show_controls,
         "initialState": {
             "nodes": {
                 "sampleSize": sample_node_size,
@@ -314,6 +366,7 @@ def visualize(
                 "showSampleIds": show_sample_ids,
                 "showInternalIds": show_internal_ids,
                 "showRootIds": show_root_ids,
+                "colorByPopulation": color_by_population,
             },
             "edges": {
                 "width": edge_width,
@@ -334,6 +387,13 @@ def visualize(
                 "geoBase": geographic_base,
                 "temporalMultiplier": temporal_multiplier,
                 "spatialMultiplier": spatial_multiplier,
+                # Auto-fit flags: True if user didn't explicitly set values
+                "autoFitTemporal": temporal_multiplier == 12.0,
+                "autoFitSpatial": spatial_multiplier == 160.0,
+            },
+            "focal": {
+                "nodeId": focal_node,
+                "mode": focal_mode if focal_node is not None else None,
             },
         },
     }

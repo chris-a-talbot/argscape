@@ -36,7 +36,7 @@ export interface ViewState {
 
 export const DEFAULT_VIEW_STATE: ViewState = {
   target: [0, 0, 0],
-  zoom: 1.8,  // AUTO_FIT_ZOOM matching web app
+  zoom: 1.4,  // Slightly zoomed out to prevent clipping bottom corner
   minZoom: 0.001,  // Match web app BASE_MIN_ZOOM
   maxZoom: 500,    // Match web app BASE_MAX_ZOOM
   rotationX: 30,   // Angle from above (30 degrees from horizontal)

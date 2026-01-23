@@ -3,6 +3,7 @@ import * as d3 from 'd3'
 import * as dagre from 'dagre'
 import { useDataStore, useUIStore, useFilterStore } from '@/stores'
 import { getNodeOpacity, getEdgeOpacity, type OpacityParams } from '@/utils/opacityCalculations'
+import { generatePopulationColors, rgbToHex } from '@/utils/colorUtils'
 import type { GraphNode, GraphEdge, MutationData } from '@/types'
 
 // Dagre layout constants
@@ -216,6 +217,17 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
   const uniqueTimes = useMemo(() => {
     return [...new Set(displayedNodes.map(n => n.time))].sort((a, b) => a - b)
   }, [displayedNodes])
+
+  // Generate population colors when colorByPopulation is enabled
+  const populationColors = useMemo(() => {
+    if (!nodeSettings.colorByPopulation || !rawData?.metadata?.has_populations) {
+      return null
+    }
+    const populations = rawData.metadata.populations ?? []
+    // Determine if dark theme based on background color
+    const isDarkTheme = theme?.background !== '#ffffff' && theme?.background !== '#f5f5f7'
+    return generatePopulationColors(populations, isDarkTheme)
+  }, [nodeSettings.colorByPopulation, rawData?.metadata?.has_populations, rawData?.metadata?.populations, theme?.background])
 
   // Initialize nodes with positions
   useEffect(() => {
@@ -822,6 +834,14 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
         return nodeSettings.internalSize
       })
       .attr('fill', d => {
+        // Use population colors when enabled and population data is available
+        if (populationColors && d.population !== null && d.population !== undefined) {
+          const rgb = populationColors.get(d.population)
+          if (rgb) {
+            return rgbToHex(rgb[0], rgb[1], rgb[2])
+          }
+        }
+        // Fall back to node type colors
         if (d.is_sample) return theme.nodes.sample
         if (d.is_root) return theme.nodes.root
         return theme.nodes.internal
@@ -853,7 +873,7 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
             y: event.clientY - rect.top,
             content: (
               <div>
-                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Node {d.id}</div>
+                <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Node {d.original_id}</div>
                 <div>Time: {d.time.toFixed(4)}</div>
                 <div>Type: {d.is_sample ? 'Sample' : d.is_root ? 'Root' : 'Internal'}</div>
                 {d.population !== null && <div>Population: {d.population}</div>}
@@ -912,7 +932,7 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
       .attr('font-size', '11px')
       .attr('font-family', 'system-ui, -apple-system, sans-serif')
       .attr('pointer-events', 'none')
-      .text(d => d.id)
+      .text(d => d.original_id)
 
     // Update positions on simulation tick
     if (simulation) {
@@ -954,7 +974,7 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
         }
       })
     }
-  }, [theme, nodeSettings, edgeSettings, mutationSettings, setViewMode, genomicMode, genomicRange, genomicDimOpacity, temporalRange, temporalDimOpacity, treeIntervals, displayedNodes, displayedEdges])
+  }, [theme, nodeSettings, edgeSettings, mutationSettings, setViewMode, genomicMode, genomicRange, genomicDimOpacity, temporalRange, temporalDimOpacity, treeIntervals, displayedNodes, displayedEdges, populationColors])
 
   // Set up zoom
   useEffect(() => {

@@ -25,6 +25,8 @@ export interface ExportPanelProps {
   onDownloadSVG?: () => void;
   /** Handler for JSON data export */
   onDownloadJSON?: () => void;
+  /** Handler for Python script export */
+  onDownloadPython?: () => void;
   /** Handler for copying shareable URL */
   onCopyURL?: () => void;
   /** Current filename for tree sequence operations */
@@ -49,6 +51,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   onDownloadPNG,
   onDownloadSVG,
   onDownloadJSON,
+  onDownloadPython,
   onCopyURL,
   filename,
   pngAvailable = true,
@@ -291,7 +294,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   };
 
   const hasVisualizationExport =
-    (pngAvailable && onDownloadPNG) || (svgAvailable && onDownloadSVG);
+    (pngAvailable && onDownloadPNG) || (svgAvailable && onDownloadSVG) || onDownloadPython;
   const hasDataExport = jsonAvailable && onDownloadJSON;
   const hasTreeSequenceExport = !!filename;
   const hasIntermediateData = availableIntermediateData.length > 0;
@@ -331,6 +334,16 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
                 title="Download graph data as JSON"
               >
                 JSON
+              </button>
+            )}
+            {onDownloadPython && (
+              <button
+                style={buttonStyle}
+                onClick={onDownloadPython}
+                disabled={isDownloading}
+                title="Download Python script to recreate this visualization"
+              >
+                Python
               </button>
             )}
           </div>

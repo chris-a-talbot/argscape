@@ -1,0 +1,757 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>argscape viz &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=5a416a86" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'cli-reference/argscape-viz';</script>
+    <link rel="canonical" href="/documentation/cli-reference/argscape-viz.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="argscape infer" href="argscape-infer.html" />
+    <link rel="prev" title="argscape serve" href="argscape-serve.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/themes.html">Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">argscape.infer()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inferresult.html">InferResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Theme Functions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fcli-reference/argscape-viz.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>argscape viz</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> On this page </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#synopsis">Synopsis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#description">Description</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#positional-arguments">Positional Arguments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-options">Output Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mode-options">Mode Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sizing-options">Sizing Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-options">Theme Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#subsetting-options">Subsetting Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#filtering-options">Filtering Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-options">Node Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-options">Edge Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mutation-options">Mutation Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-options-2d-force-graph">Layout Options (2D Force Graph)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-options-3d-mode">Spatial Options (3D Mode)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exit-codes">Exit Codes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#related">Related</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="argscape-viz">
+<h1>argscape viz<a class="headerlink" href="#argscape-viz" title="Link to this heading">#</a></h1>
+<p>Standalone visualization of tree sequences without requiring a server.</p>
+<section id="synopsis">
+<h2>Synopsis<a class="headerlink" href="#synopsis" title="Link to this heading">#</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>INPUT<span class="w"> </span><span class="o">[</span>-o<span class="w"> </span>OUTPUT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--format<span class="w"> </span>FORMAT<span class="o">]</span><span class="w"> </span><span class="o">[</span>--mode<span class="w"> </span>MODE<span class="o">]</span><span class="w"> </span><span class="o">[</span>options...<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="description">
+<h2>Description<a class="headerlink" href="#description" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">argscape</span> <span class="pre">viz</span></code> command provides a standalone way to visualize tree sequences without starting the full ARGscape web server. It can either open an interactive visualization in a web browser or export static images (PNG, SVG, PDF).</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>2D visualization (<code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">force_graph</span></code>) works with the base installation.
+3D visualization (<code class="docutils literal notranslate"><span class="pre">--mode</span> <span class="pre">spatial_3d</span></code>) requires <code class="docutils literal notranslate"><span class="pre">argscape[spatial]</span></code>.
+Static export (<code class="docutils literal notranslate"><span class="pre">-o</span> <span class="pre">file.png</span></code>) requires Playwright: <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">playwright</span> <span class="pre">&amp;&amp;</span> <span class="pre">playwright</span> <span class="pre">install</span> <span class="pre">chromium</span></code></p>
+</div>
+<p>This is useful for:</p>
+<ul class="simple">
+<li><p>Quick visualization of tree sequence files</p></li>
+<li><p>Generating publication-ready figures</p></li>
+<li><p>Batch processing of multiple files</p></li>
+<li><p>Integration with analysis pipelines</p></li>
+</ul>
+</section>
+<section id="positional-arguments">
+<h2>Positional Arguments<a class="headerlink" href="#positional-arguments" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">INPUT</span></code></dt><dd><p>Path to the input tree sequence file. Supported formats: <code class="docutils literal notranslate"><span class="pre">.trees</span></code>, <code class="docutils literal notranslate"><span class="pre">.ts</span></code>, <code class="docutils literal notranslate"><span class="pre">.tsz</span></code> (compressed).</p>
+</dd>
+</dl>
+</section>
+<section id="output-options">
+<h2>Output Options<a class="headerlink" href="#output-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">-o,</span> <span class="pre">--output</span> <span class="pre">PATH</span></code></dt><dd><p>Output file path for static export. Supported extensions: <code class="docutils literal notranslate"><span class="pre">.png</span></code>, <code class="docutils literal notranslate"><span class="pre">.svg</span></code>, <code class="docutils literal notranslate"><span class="pre">.pdf</span></code>. If not specified, opens the visualization in a web browser for interactive exploration.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--format</span> <span class="pre">FORMAT</span></code></dt><dd><p>Output format when exporting. Choices: <code class="docutils literal notranslate"><span class="pre">png</span></code>, <code class="docutils literal notranslate"><span class="pre">svg</span></code>, <code class="docutils literal notranslate"><span class="pre">pdf</span></code>. Default: inferred from output filename extension.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--dpi</span> <span class="pre">DPI</span></code></dt><dd><p>Resolution for raster output (PNG). Default: <code class="docutils literal notranslate"><span class="pre">150</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="mode-options">
+<h2>Mode Options<a class="headerlink" href="#mode-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">-m,</span> <span class="pre">--mode</span> <span class="pre">MODE</span></code></dt><dd><p>Visualization mode. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">force_graph</span></code> - 2D force-directed graph layout (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">spatial_3d</span></code> - 3D spatial visualization with geographic/temporal dimensions</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--interactive</span></code></dt><dd><p>Open visualization in browser for interactive exploration (implied when no output file is specified).</p>
+</dd>
+</dl>
+</section>
+<section id="sizing-options">
+<h2>Sizing Options<a class="headerlink" href="#sizing-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">-W,</span> <span class="pre">--width</span> <span class="pre">PIXELS</span></code></dt><dd><p>Visualization width in pixels. Default: <code class="docutils literal notranslate"><span class="pre">1200</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">-H,</span> <span class="pre">--height</span> <span class="pre">PIXELS</span></code></dt><dd><p>Visualization height in pixels. Default: <code class="docutils literal notranslate"><span class="pre">800</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="theme-options">
+<h2>Theme Options<a class="headerlink" href="#theme-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--theme</span> <span class="pre">THEME</span></code></dt><dd><p>Color theme for the visualization. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">tskit</span></code> - Default tskit-inspired colors (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">liquid</span></code> - Blue-green fluid theme</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">grayscale</span></code> - Black and white for publications</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">paper</span></code> - Light theme optimized for print</p></li>
+</ul>
+</dd>
+</dl>
+</section>
+<section id="subsetting-options">
+<h2>Subsetting Options<a class="headerlink" href="#subsetting-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--max-samples</span> <span class="pre">N</span></code></dt><dd><p>Maximum number of samples to include in the visualization. Useful for large tree sequences that would be too dense to visualize effectively.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--subset-mode</span> <span class="pre">MODE</span></code></dt><dd><p>Method for selecting samples when subsetting. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">even</span></code> - Evenly spaced samples across the sample range (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">random</span></code> - Randomly selected samples</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--seed</span> <span class="pre">SEED</span></code></dt><dd><p>Random seed for reproducibility when using <code class="docutils literal notranslate"><span class="pre">--subset-mode</span> <span class="pre">random</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="filtering-options">
+<h2>Filtering Options<a class="headerlink" href="#filtering-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--genomic-range</span> <span class="pre">START,END</span></code></dt><dd><p>Filter to a specific genomic position range. Format: two comma-separated numbers (e.g., <code class="docutils literal notranslate"><span class="pre">0,50000</span></code>). Only edges overlapping this range will be displayed.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--temporal-range</span> <span class="pre">MIN,MAX</span></code></dt><dd><p>Filter to a specific time range. Format: two comma-separated numbers (e.g., <code class="docutils literal notranslate"><span class="pre">0,1000</span></code>). Only nodes within this time range will be displayed.</p>
+</dd>
+</dl>
+</section>
+<section id="node-options">
+<h2>Node Options<a class="headerlink" href="#node-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--sample-node-size</span> <span class="pre">SIZE</span></code></dt><dd><p>Size of sample (leaf) nodes in pixels. Default: <code class="docutils literal notranslate"><span class="pre">8</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--internal-node-size</span> <span class="pre">SIZE</span></code></dt><dd><p>Size of internal nodes in pixels. Default: <code class="docutils literal notranslate"><span class="pre">4</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--root-node-size</span> <span class="pre">SIZE</span></code></dt><dd><p>Size of root nodes in pixels. Default: <code class="docutils literal notranslate"><span class="pre">6</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--show-sample-ids</span></code></dt><dd><p>Display labels on sample nodes showing their node IDs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--show-internal-ids</span></code></dt><dd><p>Display labels on internal nodes showing their node IDs.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--show-root-ids</span></code></dt><dd><p>Display labels on root nodes showing their node IDs.</p>
+</dd>
+</dl>
+</section>
+<section id="edge-options">
+<h2>Edge Options<a class="headerlink" href="#edge-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--edge-width</span> <span class="pre">WIDTH</span></code></dt><dd><p>Line width for edges. Default: <code class="docutils literal notranslate"><span class="pre">1.0</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--edge-opacity</span> <span class="pre">OPACITY</span></code></dt><dd><p>Opacity for edges (0.0 to 1.0). Default: <code class="docutils literal notranslate"><span class="pre">0.6</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--show-edge-labels</span></code></dt><dd><p>Display labels on edges.</p>
+</dd>
+</dl>
+</section>
+<section id="mutation-options">
+<h2>Mutation Options<a class="headerlink" href="#mutation-options" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--show-mutations</span></code></dt><dd><p>Show mutation markers on edges where mutations occur.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--mutation-size</span> <span class="pre">SIZE</span></code></dt><dd><p>Size of mutation markers in pixels. Default: <code class="docutils literal notranslate"><span class="pre">6</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="layout-options-2d-force-graph">
+<h2>Layout Options (2D Force Graph)<a class="headerlink" href="#layout-options-2d-force-graph" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--sample-order</span> <span class="pre">ORDER</span></code></dt><dd><p>Algorithm for ordering samples along the x-axis. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">numeric</span></code> - Order by node ID</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">first_minlex</span></code> - Minimize crossings using first tree</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">center_minlex</span></code> - Minimize crossings using center tree</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">consensus_minlex</span></code> - Consensus ordering across all trees (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">dagre</span></code> - Use Dagre graph layout algorithm</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--temporal-spacing</span> <span class="pre">MODE</span></code></dt><dd><p>How to space nodes vertically by time. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">equal</span></code> - Equal spacing between time points</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">linear</span></code> - Proportional to actual time values (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">log</span></code> - Logarithmic scaling of time</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--vertical-spacing</span> <span class="pre">FACTOR</span></code></dt><dd><p>Multiplier for vertical spacing between time layers. Default: <code class="docutils literal notranslate"><span class="pre">1.0</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--horizontal-spacing</span> <span class="pre">FACTOR</span></code></dt><dd><p>Multiplier for horizontal spacing between nodes. Default: <code class="docutils literal notranslate"><span class="pre">100.0</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="spatial-options-3d-mode">
+<h2>Spatial Options (3D Mode)<a class="headerlink" href="#spatial-options-3d-mode" title="Link to this heading">#</a></h2>
+<dl class="simple myst">
+<dt><code class="docutils literal notranslate"><span class="pre">--geo-base</span> <span class="pre">BASE</span></code></dt><dd><p>Geographic base map for 3D visualization. Choices:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">unit_grid</span></code> - Simple unit coordinate grid (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">eastern_hemisphere</span></code> - Eastern hemisphere map projection</p></li>
+</ul>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--temporal-multiplier</span> <span class="pre">FACTOR</span></code></dt><dd><p>Scaling factor for the Z-axis (time dimension) in 3D view. Default: <code class="docutils literal notranslate"><span class="pre">1.0</span></code>.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">--spatial-multiplier</span> <span class="pre">FACTOR</span></code></dt><dd><p>Scaling factor for X-Y spatial coordinates in 3D view. Default: <code class="docutils literal notranslate"><span class="pre">100.0</span></code>.</p>
+</dd>
+</dl>
+</section>
+<section id="examples">
+<h2>Examples<a class="headerlink" href="#examples" title="Link to this heading">#</a></h2>
+<p>Open a tree sequence in the browser for interactive exploration:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>simulation.trees
+</pre></div>
+</div>
+<p>Export a high-resolution PNG:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>simulation.trees<span class="w"> </span>-o<span class="w"> </span>figure.png<span class="w"> </span>--dpi<span class="w"> </span><span class="m">300</span>
+</pre></div>
+</div>
+<p>Export an SVG for publication with grayscale theme:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>simulation.trees<span class="w"> </span>-o<span class="w"> </span>figure.svg<span class="w"> </span>--theme<span class="w"> </span>grayscale
+</pre></div>
+</div>
+<p>Visualize with mutations shown and custom node sizes:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>simulation.trees<span class="w"> </span>-o<span class="w"> </span>output.png<span class="w"> </span>--show-mutations<span class="w"> </span>--sample-node-size<span class="w"> </span><span class="m">12</span>
+</pre></div>
+</div>
+<p>Visualize a specific genomic region:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>large_genome.trees<span class="w"> </span>-o<span class="w"> </span>region.png<span class="w"> </span>--genomic-range<span class="w"> </span><span class="m">0</span>,100000
+</pre></div>
+</div>
+<p>Subset a large tree sequence to 100 samples:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>large.trees<span class="w"> </span>-o<span class="w"> </span>subset.png<span class="w"> </span>--max-samples<span class="w"> </span><span class="m">100</span><span class="w"> </span>--subset-mode<span class="w"> </span>random<span class="w"> </span>--seed<span class="w"> </span><span class="m">42</span>
+</pre></div>
+</div>
+<p>3D spatial visualization:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>spatial_data.trees<span class="w"> </span>-o<span class="w"> </span>spatial.png<span class="w"> </span>--mode<span class="w"> </span>spatial_3d<span class="w"> </span>--temporal-multiplier<span class="w"> </span><span class="m">2</span>.0
+</pre></div>
+</div>
+<p>Create a wide figure with custom dimensions:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>argscape<span class="w"> </span>viz<span class="w"> </span>data.trees<span class="w"> </span>-o<span class="w"> </span>wide_figure.png<span class="w"> </span>--width<span class="w"> </span><span class="m">2400</span><span class="w"> </span>--height<span class="w"> </span><span class="m">600</span>
+</pre></div>
+</div>
+</section>
+<section id="exit-codes">
+<h2>Exit Codes<a class="headerlink" href="#exit-codes" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">0</span></code> - Success</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">1</span></code> - Error (file not found, visualization error, export error)</p></li>
+</ul>
+</section>
+<section id="related">
+<h2>Related<a class="headerlink" href="#related" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="argscape-serve.html"><span class="doc">argscape serve</span></a> - Full web application server</p></li>
+<li><p><a class="reference internal" href="../python-api/visualize.html"><span class="doc">argscape.visualize()</span></a> - Python API: <code class="docutils literal notranslate"><span class="pre">argscape.visualize()</span></code> and <code class="docutils literal notranslate"><span class="pre">VizResult</span></code></p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./cli-reference"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="argscape-serve.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">argscape serve</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="argscape-infer.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">argscape infer</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#synopsis">Synopsis</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#description">Description</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#positional-arguments">Positional Arguments</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-options">Output Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mode-options">Mode Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sizing-options">Sizing Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-options">Theme Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#subsetting-options">Subsetting Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#filtering-options">Filtering Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#node-options">Node Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#edge-options">Edge Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mutation-options">Mutation Options</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#layout-options-2d-force-graph">Layout Options (2D Force Graph)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-options-3d-mode">Spatial Options (3D Mode)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#examples">Examples</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#exit-codes">Exit Codes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#related">Related</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 23, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, forwardRef, ForwardedRef, useRef, useMemo } from 'react';
+import { downloadPythonScript, PythonScriptOptions } from '../../../utils/pythonScriptGenerator';
 import { useSearchParams } from 'react-router-dom';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
 import { ForceDirectedGraphControls } from './ForceDirectedGraphControls';
@@ -221,6 +222,52 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
 
     // Animation popout visibility
     const [animationPopoutOpen, setAnimationPopoutOpen] = useState(false);
+
+    // Python script download handler
+    const handleDownloadPython = useCallback(() => {
+        const options: PythonScriptOptions = {
+            filename,
+            mode: 'force_graph',
+            // Data selection
+            maxSamples: max_samples,
+            subsetMode: sampleSubsetMode === 'even' || sampleSubsetMode === 'random' ? sampleSubsetMode : 'even',
+            subsetSeed: randomSeed,
+            samples: sampleSubsetMode === 'ids' ? sampleIds :
+                     sampleSubsetMode === 'range' && sampleRange ? sampleRange : undefined,
+            genomicRange: filteringState.filterMode === 'genomic' && filteringState.genomicFilterMode === 'subset'
+                ? [filteringState.debouncedGenomicRange[0], filteringState.debouncedGenomicRange[1]]
+                : undefined,
+            temporalRange: temporalFilterEnabled && filteringState.temporalFilterMode === 'subset'
+                ? [filteringState.temporalState.range[0], filteringState.temporalState.range[1]]
+                : undefined,
+            // Theme
+            theme: theme,
+            // Node settings
+            sampleNodeSize: visualizationSettings.nodeSizes.sample,
+            internalNodeSize: visualizationSettings.nodeSizes.other,
+            rootNodeSize: visualizationSettings.nodeSizes.root,
+            showSampleIds: visualizationSettings.nodeIdSettings.showSampleIds,
+            showInternalIds: visualizationSettings.nodeIdSettings.showInternalIds,
+            showRootIds: visualizationSettings.nodeIdSettings.showRootIds,
+            // Edge settings
+            edgeWidth: visualizationSettings.edgeThickness,
+            edgeOpacity: visualizationSettings.edgeOpacity / 100, // Convert from 0-100 to 0-1
+            // Mutations
+            showMutations: visualizationSettings.edgeMutationSettings.showMutationMarkers,
+            mutationSize: Math.round(visualizationSettings.edgeMutationSettings.markerSize / 10), // Scale down from UI size
+            // Layout
+            sampleOrder: sampleOrderControls.sampleOrder,
+            temporalSpacing: visualizationSettings.temporalSpacingMode,
+            verticalSpacing: visualizationSettings.temporalSpacing,
+            horizontalSpacing: visualizationSettings.sampleSpacing,
+        };
+        downloadPythonScript(options);
+    }, [
+        filename, max_samples, sampleSubsetMode, sampleIds, sampleRange, randomSeed,
+        filteringState.filterMode, filteringState.genomicFilterMode, filteringState.debouncedGenomicRange,
+        filteringState.temporalFilterMode, filteringState.temporalState.range, temporalFilterEnabled,
+        theme, visualizationSettings, sampleOrderControls.sampleOrder
+    ]);
 
     // Sync filteringState temporalState with graphDataState when data loads
     useEffect(() => {
@@ -620,6 +667,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 filename={filename}
                                 onDownloadPNG={handleDownloadPNG}
                                 onDownloadSVG={handleDownloadSVG}
+                                onDownloadPython={handleDownloadPython}
                                 // Layout
                                 floating={true}
                             />

@@ -21,7 +21,7 @@ export default function App({ data, options }: AppProps) {
   const graphData = data as GraphData
   const vizOptions = options as ExtendedVizOptions
 
-  const { setRawData } = useDataStore()
+  const { setRawData, setViewMode } = useDataStore()
   const { setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial } = useUIStore()
   const theme = useUIStore(state => state.theme)
   const mode = useUIStore(state => state.mode)
@@ -67,12 +67,17 @@ export default function App({ data, options }: AppProps) {
     setTheme(vizOptions.theme)
 
     if (vizOptions.initialState) {
-      const { nodes, edges, mutations, layout, spatial } = vizOptions.initialState
+      const { nodes, edges, mutations, layout, spatial, focal } = vizOptions.initialState
       if (nodes) setNodes(nodes)
       if (edges) setEdges(edges)
       if (mutations) setMutations(mutations)
       if (layout) setLayout(layout)
       if (spatial) setSpatial(spatial)
+
+      // Initialize focal node view if specified
+      if (focal?.nodeId !== null && focal?.nodeId !== undefined && focal?.mode) {
+        setViewMode(focal.mode, focal.nodeId)
+      }
     }
 
     // Initialize filter bounds from metadata
@@ -89,7 +94,7 @@ export default function App({ data, options }: AppProps) {
     if (vizOptions.filtersExpanded !== undefined) {
       setFiltersExpanded(vizOptions.filtersExpanded)
     }
-  }, [graphData, vizOptions, setRawData, setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial, setBounds, setFiltersExpanded])
+  }, [graphData, vizOptions, setRawData, setViewMode, setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial, setBounds, setFiltersExpanded])
 
   // Use measured container size, falling back to vizOptions or defaults
   const width = containerSize.width || vizOptions.width || 1200

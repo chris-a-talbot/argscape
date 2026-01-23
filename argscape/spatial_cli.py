@@ -13,9 +13,10 @@ Usage examples:
   argscape infer run --input /path/data.trees --method midpoint --output /tmp/outdir
   argscape infer run --name mydata --method gaia-quadratic --output /tmp/outdir
   argscape infer run --name mydata --method fastgaia --output /tmp/outdir
-  argscape infer run --name mydata --method spacetrees --output /tmp/outdir --st-ne 1000.0
-  argscape infer run --name mydata --method spacetrees --output /tmp/outdir --st-tcutoff 50.0 --st-atimes "10.0,20.0,30.0"
+  argscape infer run --name mydata --method sparg --output /tmp/outdir
   argscape infer  # interactive mode
+
+Note: Spacetrees is available in the ARGscape web application but not in the CLI.
 """
 
 import argparse
@@ -56,18 +57,17 @@ _preload_started = False
 _preload_lock = threading.Lock()
 
 # Cache for inference functions (populated by background preload or on-demand)
+# Note: spacetrees is disabled in CLI; use the web app for spacetrees inference
 _inference_cache = {
     "run_midpoint_inference": None,
     "run_fastgaia_inference": None,
     "run_gaia_quadratic_inference": None,
     "run_gaia_linear_inference": None,
     "run_sparg_inference": None,
-    "run_spacetrees_inference": None,
     "MIDPOINT_AVAILABLE": None,
     "FASTGAIA_AVAILABLE": None,
     "GEOANCESTRY_AVAILABLE": None,
     "SPARG_AVAILABLE": None,
-    "SPACETREES_AVAILABLE": None,
 }
 _inference_cache_lock = threading.Lock()
 
@@ -108,12 +108,10 @@ def _background_preload_inference_modules():
                     run_gaia_linear_inference,
                     run_midpoint_inference,
                     run_sparg_inference,
-                    run_spacetrees_inference,
                     FASTGAIA_AVAILABLE,
                     GEOANCESTRY_AVAILABLE,
                     MIDPOINT_AVAILABLE,
                     SPARG_AVAILABLE,
-                    SPACETREES_AVAILABLE,
                 )
                 # Cache the imported functions and flags
                 with _inference_cache_lock:
@@ -122,12 +120,10 @@ def _background_preload_inference_modules():
                     _inference_cache["run_gaia_linear_inference"] = run_gaia_linear_inference
                     _inference_cache["run_midpoint_inference"] = run_midpoint_inference
                     _inference_cache["run_sparg_inference"] = run_sparg_inference
-                    _inference_cache["run_spacetrees_inference"] = run_spacetrees_inference
                     _inference_cache["FASTGAIA_AVAILABLE"] = FASTGAIA_AVAILABLE
                     _inference_cache["GEOANCESTRY_AVAILABLE"] = GEOANCESTRY_AVAILABLE
                     _inference_cache["MIDPOINT_AVAILABLE"] = MIDPOINT_AVAILABLE
                     _inference_cache["SPARG_AVAILABLE"] = SPARG_AVAILABLE
-                    _inference_cache["SPACETREES_AVAILABLE"] = SPACETREES_AVAILABLE
             except Exception:
                 pass  # Some modules may not be available, that's fine
             
@@ -260,19 +256,16 @@ def _require_sample_spatial(ts: "tskit.TreeSequence", method_label: str) -> None
 
 
 def _run_inference(
-    ts: "tskit.TreeSequence", 
-    method: str, 
-    weight_span: bool = True, 
+    ts: "tskit.TreeSequence",
+    method: str,
+    weight_span: bool = True,
     weight_branch_length: bool = True,
     midpoint_weight_by_span: Optional[bool] = None,
     midpoint_weight_branch_length: Optional[bool] = None,
-    spacetrees_params: Optional[Dict] = None
 ) -> Tuple["tskit.TreeSequence", Dict, str]:  # type: ignore
     """Run inference with a specific method, using cached imports when available."""
     global _inference_cache
     method_key = method.lower()
-    if spacetrees_params is None:
-        spacetrees_params = {}
     
     if method_key in {"midpoint"}:
         # Check cache first, then import if needed
@@ -399,31 +392,9 @@ def _run_inference(
         _require_sample_spatial(ts, "SPARG")
         ts_out, info = run_fn(ts)  # type: ignore[misc]
         return ts_out, info, "sparg"
-    
-    if method_key in {"spacetrees", "spacetree"}:
-        with _inference_cache_lock:
-            run_fn = _inference_cache["run_spacetrees_inference"]
-            available = _inference_cache["SPACETREES_AVAILABLE"]
-        
-        if run_fn is None or available is None:
-            try:
-                from argscape.api.inference import run_spacetrees_inference, SPACETREES_AVAILABLE
-                with _inference_cache_lock:
-                    _inference_cache["run_spacetrees_inference"] = run_spacetrees_inference
-                    _inference_cache["SPACETREES_AVAILABLE"] = SPACETREES_AVAILABLE
-                run_fn = run_spacetrees_inference
-                available = SPACETREES_AVAILABLE
-            except ImportError:
-                raise RuntimeError("spacetrees not available. Install spacetrees dependencies.")
-        
-        if not available:
-            raise RuntimeError("spacetrees not available. Install spacetrees dependencies.")
-        _require_sample_spatial(ts, "spacetrees")
-        ts_out, info = run_fn(ts, **spacetrees_params)  # type: ignore[misc]
-        return ts_out, info, "spacetrees"
-    
+
     raise ValueError(
-        "Unknown method. Choose from: midpoint, fastgaia, gaia-quadratic, gaia-linear, sparg, spacetrees"
+        "Unknown method. Choose from: midpoint, fastgaia, gaia-quadratic, gaia-linear, sparg"
     )
 
 
@@ -489,55 +460,6 @@ def cmd_run(args: argparse.Namespace) -> int:
             ts = _load_ts_from_session(args.name)
             input_label = args.name
 
-        # Build spacetrees parameters if method is spacetrees
-        spacetrees_params = {}
-        if args.method.lower() in {"spacetrees", "spacetree"}:
-            # Parse comma-separated ancestor times
-            ancestor_times = None
-            if hasattr(args, "spacetrees_ancestor_times") and args.spacetrees_ancestor_times:
-                try:
-                    ancestor_times = [float(x.strip()) for x in args.spacetrees_ancestor_times.split(",")]
-                except ValueError:
-                    print("Warning: Invalid ancestor_times format, using default", file=sys.stderr)
-            
-            # Parse comma-separated Ne epochs
-            ne_epochs = None
-            if hasattr(args, "spacetrees_ne_epochs") and args.spacetrees_ne_epochs:
-                try:
-                    ne_epochs = [float(x.strip()) for x in args.spacetrees_ne_epochs.split(",")]
-                except ValueError:
-                    print("Warning: Invalid ne_epochs format, using default", file=sys.stderr)
-            
-            # Parse comma-separated Nes
-            nes = None
-            if hasattr(args, "spacetrees_nes") and args.spacetrees_nes:
-                try:
-                    nes = [float(x.strip()) for x in args.spacetrees_nes.split(",")]
-                except ValueError:
-                    print("Warning: Invalid nes format, using default", file=sys.stderr)
-            
-            # Handle boolean flags - use True as default if not explicitly set
-            # argparse sets these only if flags are provided, so we need to check with getattr
-            use_importance_sampling = getattr(args, "spacetrees_use_importance_sampling", True)
-            require_common_ancestor = getattr(args, "spacetrees_require_common_ancestor", True)
-            
-            spacetrees_params = {
-                "time_cutoff": getattr(args, "spacetrees_time_cutoff", None),
-                "ancestor_times": ancestor_times,
-                "use_importance_sampling": use_importance_sampling,
-                "require_common_ancestor": require_common_ancestor,
-                "quiet": getattr(args, "spacetrees_quiet", False),
-                "Ne": getattr(args, "spacetrees_ne", None),
-                "Ne_epochs": ne_epochs,
-                "Nes": nes,
-                "num_loci": getattr(args, "spacetrees_num_loci", None),
-                "locus_size": getattr(args, "spacetrees_locus_size", None),
-                "use_blup": getattr(args, "spacetrees_use_blup", False),
-                "blup_var": getattr(args, "spacetrees_blup_var", False),
-            }
-            # Remove None values to use defaults
-            spacetrees_params = {k: v for k, v in spacetrees_params.items() if v is not None}
-        
         ts_out, info, suffix = _run_inference(
             ts,
             method=args.method,
@@ -545,7 +467,6 @@ def cmd_run(args: argparse.Namespace) -> int:
             weight_branch_length=args.weight_branch_length,
             midpoint_weight_by_span=getattr(args, "midpoint_weight_by_span", None),
             midpoint_weight_branch_length=getattr(args, "midpoint_weight_branch_length", None),
-            spacetrees_params=spacetrees_params,
         )
 
         # Generate output filename with unique naming
@@ -628,13 +549,13 @@ def cmd_interactive(_: argparse.Namespace) -> int:
         return 0
 
     # Show all available methods (hardcoded list - availability checked when actually used)
+    # Note: spacetrees is disabled in CLI; use the web app for spacetrees inference
     method_options = [
         "midpoint",
         "fastgaia",
         "gaia-quadratic",
         "gaia-linear",
         "sparg",
-        "spacetrees",
     ]
     method_options = tuple(method_options)
 
@@ -659,87 +580,6 @@ def cmd_interactive(_: argparse.Namespace) -> int:
         
         print()  # Empty line for readability
 
-    # Collect spacetrees parameters if method is spacetrees
-    spacetrees_params = {}
-    if selected_method.lower() in {"spacetrees", "spacetree"}:
-        print("\n=== Spacetrees Parameters ===")
-        print("(Press Enter to use defaults)")
-        
-        # Time cutoff
-        time_cutoff_str = input("Time cutoff (optional, float): ").strip()
-        if time_cutoff_str:
-            try:
-                spacetrees_params["time_cutoff"] = float(time_cutoff_str)
-            except ValueError:
-                print("Warning: Invalid time_cutoff, using default")
-        
-        # Ancestor times
-        ancestor_times_str = input("Ancestor times (optional, comma-separated floats, e.g., 10.0,20.0,30.0): ").strip()
-        if ancestor_times_str:
-            try:
-                spacetrees_params["ancestor_times"] = [float(x.strip()) for x in ancestor_times_str.split(",")]
-            except ValueError:
-                print("Warning: Invalid ancestor_times, using default")
-        
-        # Use importance sampling
-        use_is_str = input("Use importance sampling? [Y/n]: ").strip().lower()
-        spacetrees_params["use_importance_sampling"] = use_is_str not in {"n", "no"}
-        
-        # Require common ancestor
-        require_ca_str = input("Require common ancestor? [Y/n]: ").strip().lower()
-        spacetrees_params["require_common_ancestor"] = require_ca_str not in {"n", "no"}
-        
-        # Quiet
-        quiet_str = input("Quiet mode (suppress progress)? [y/N]: ").strip().lower()
-        spacetrees_params["quiet"] = quiet_str in {"y", "yes"}
-        
-        # Ne (constant)
-        ne_str = input("Effective population size Ne (optional, float): ").strip()
-        if ne_str:
-            try:
-                spacetrees_params["Ne"] = float(ne_str)
-            except ValueError:
-                print("Warning: Invalid Ne, using default")
-        
-        # Ne epochs (time-varying)
-        ne_epochs_str = input("Ne epoch boundaries (optional, comma-separated floats): ").strip()
-        if ne_epochs_str:
-            try:
-                spacetrees_params["Ne_epochs"] = [float(x.strip()) for x in ne_epochs_str.split(",")]
-                nes_str = input("Ne values for each epoch (comma-separated floats, same number as epochs): ").strip()
-                if nes_str:
-                    spacetrees_params["Nes"] = [float(x.strip()) for x in nes_str.split(",")]
-                else:
-                    print("Warning: Ne epochs specified but no Nes provided, ignoring epochs")
-                    spacetrees_params.pop("Ne_epochs", None)
-            except ValueError:
-                print("Warning: Invalid Ne epochs, using default")
-        
-        # Locus grouping
-        num_loci_str = input("Number of loci (optional, int): ").strip()
-        if num_loci_str:
-            try:
-                spacetrees_params["num_loci"] = int(num_loci_str)
-            except ValueError:
-                print("Warning: Invalid num_loci, using default")
-        else:
-            locus_size_str = input("Locus size in bp (optional, float): ").strip()
-            if locus_size_str:
-                try:
-                    spacetrees_params["locus_size"] = float(locus_size_str)
-                except ValueError:
-                    print("Warning: Invalid locus_size, using default")
-        
-        # BLUP
-        use_blup_str = input("Use BLUP instead of MLE? [y/N]: ").strip().lower()
-        spacetrees_params["use_blup"] = use_blup_str in {"y", "yes"}
-        
-        if spacetrees_params.get("use_blup"):
-            blup_var_str = input("Return BLUP variance estimates? [y/N]: ").strip().lower()
-            spacetrees_params["blup_var"] = blup_var_str in {"y", "yes"}
-        
-        print()  # Empty line for readability
-
     # Choose output directory
     default_dir = os.getcwd()
     out_dir = input(f"Output directory [{default_dir}]: ").strip() or default_dir
@@ -749,13 +589,12 @@ def cmd_interactive(_: argparse.Namespace) -> int:
     try:
         ts = _load_ts_from_session(selected_name)
         ts_out, _, suffix = _run_inference(
-            ts, 
-            selected_method, 
-            weight_span=True, 
+            ts,
+            selected_method,
+            weight_span=True,
             weight_branch_length=True,
             midpoint_weight_by_span=midpoint_weight_by_span,
             midpoint_weight_branch_length=midpoint_weight_branch_length,
-            spacetrees_params=spacetrees_params
         )
         
         # Generate unique output filename
@@ -807,7 +646,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument(
         "--method",
         required=True,
-        help="Inference method: midpoint | fastgaia | gaia-quadratic | gaia-linear | sparg | spacetrees",
+        help="Inference method: midpoint | fastgaia | gaia-quadratic | gaia-linear | sparg",
     )
     p_run.add_argument("--output", required=True, help="Output directory to save result")
     p_run.add_argument("--output-filename", required=False, help="Optional exact output filename")
@@ -853,91 +692,6 @@ def build_parser() -> argparse.ArgumentParser:
         dest="midpoint_weight_branch_length",
         action="store_false",
         help="(midpoint) Disable weighting by branch lengths"
-    )
-    # Spacetrees-specific arguments (--st- prefix for shorter typing)
-    p_run.add_argument(
-        "--st-tcutoff",
-        dest="spacetrees_time_cutoff",
-        type=float,
-        help="(spacetrees) Time cutoff for inference (float)",
-    )
-    p_run.add_argument(
-        "--st-atimes",
-        dest="spacetrees_ancestor_times",
-        type=str,
-        help="(spacetrees) Comma-separated list of ancestor times to locate (e.g., '10.0,20.0,30.0')",
-    )
-    p_run.add_argument(
-        "--st-is",
-        dest="spacetrees_use_importance_sampling",
-        action="store_true",
-        help="(spacetrees) Use importance sampling with branching times (default: True)",
-    )
-    p_run.add_argument(
-        "--st-no-is",
-        dest="spacetrees_use_importance_sampling",
-        action="store_false",
-        help="(spacetrees) Disable importance sampling",
-    )
-    p_run.add_argument(
-        "--st-rca",
-        dest="spacetrees_require_common_ancestor",
-        action="store_true",
-        help="(spacetrees) Skip trees where not all samples share a common ancestor (default: True)",
-    )
-    p_run.add_argument(
-        "--st-no-rca",
-        dest="spacetrees_require_common_ancestor",
-        action="store_false",
-        help="(spacetrees) Use all trees even if not all samples share a common ancestor",
-    )
-    p_run.add_argument(
-        "--st-quiet",
-        dest="spacetrees_quiet",
-        action="store_true",
-        help="(spacetrees) Suppress progress output",
-    )
-    p_run.add_argument(
-        "--st-ne",
-        dest="spacetrees_ne",
-        type=float,
-        help="(spacetrees) Constant effective population size Ne (float)",
-    )
-    p_run.add_argument(
-        "--st-epochs",
-        dest="spacetrees_ne_epochs",
-        type=str,
-        help="(spacetrees) Comma-separated list of epoch boundaries for time-varying Ne (e.g., '10.0,20.0,30.0')",
-    )
-    p_run.add_argument(
-        "--st-nes",
-        dest="spacetrees_nes",
-        type=str,
-        help="(spacetrees) Comma-separated list of Ne values for each epoch (e.g., '1000.0,2000.0,3000.0')",
-    )
-    p_run.add_argument(
-        "--st-loci",
-        dest="spacetrees_num_loci",
-        type=int,
-        help="(spacetrees) Number of loci to group trees into (int)",
-    )
-    p_run.add_argument(
-        "--st-lsize",
-        dest="spacetrees_locus_size",
-        type=float,
-        help="(spacetrees) Size of each locus in base pairs (float)",
-    )
-    p_run.add_argument(
-        "--st-blup",
-        dest="spacetrees_use_blup",
-        action="store_true",
-        help="(spacetrees) Use Best Linear Unbiased Predictor instead of MLE",
-    )
-    p_run.add_argument(
-        "--st-blup-var",
-        dest="spacetrees_blup_var",
-        action="store_true",
-        help="(spacetrees) Return variance estimates (only if --st-blup is set)",
     )
     p_run.set_defaults(func=cmd_run)
 

@@ -1,0 +1,1064 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Exporting Visualizations &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=5a416a86" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorials/exporting';</script>
+    <link rel="canonical" href="/documentation/tutorials/exporting.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Python API Overview" href="../python-api/overview.html" />
+    <link rel="prev" title="Themes" href="themes.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="focal-nodes.html">Focal Node Selection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="themes.html">Themes</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">argscape.infer()</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inferresult.html">InferResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Theme Functions</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../advanced/benchmarking/overview.html">Benchmarking</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/interpreting-results.html">Interpreting Benchmark Results</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../advanced/benchmarking/datasets.html">Benchmark Datasets</a></li>
+</ul>
+</details></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Ftutorials/exporting.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Exporting Visualizations</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> On this page </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-export">Basic Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-formats">Supported Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resolution-dpi">Resolution (DPI)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#explicit-format">Explicit Format</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sizing-for-publications">Sizing for Publications</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-publication-sizes">Common Publication Sizes</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-workflow">Export Workflow</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-publications">For Publications</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-presentations">For Presentations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-web">For Web</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-export">Batch Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-comparison-exports">Theme Comparison Exports</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#technical-requirements">Technical Requirements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-quality-tips">Export Quality Tips</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-clarity">For Clarity</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-print">For Print</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-accessibility">For Accessibility</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-recommendations">Format Recommendations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-as-python-script">Export as Python Script</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-web-app">From the Web App</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#use-cases">Use Cases</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-captured">What’s Captured</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#low-quality-output">Low quality output</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#playwright-errors">Playwright errors</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="exporting-visualizations">
+<h1>Exporting Visualizations<a class="headerlink" href="#exporting-visualizations" title="Link to this heading">#</a></h1>
+<p>This tutorial covers ARGscape’s export capabilities for creating publication-quality figures. Learn how to export in different formats, control resolution, and optimize for various use cases.</p>
+<section id="basic-export">
+<h2>Basic Export<a class="headerlink" href="#basic-export" title="Link to this heading">#</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">export()</span></code> method saves visualizations to files:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.png&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The format is automatically detected from the file extension.</p>
+</section>
+<section id="supported-formats">
+<h2>Supported Formats<a class="headerlink" href="#supported-formats" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Format</p></th>
+<th class="head"><p>Extension</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Best For</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>PNG</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.png</span></code></p></td>
+<td><p>Raster</p></td>
+<td><p>Web, presentations, general use</p></td>
+</tr>
+<tr class="row-odd"><td><p>SVG</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.svg</span></code></p></td>
+<td><p>Vector</p></td>
+<td><p>Web, scalable graphics</p></td>
+</tr>
+<tr class="row-even"><td><p>PDF</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.pdf</span></code></p></td>
+<td><p>Vector</p></td>
+<td><p>Publications, print</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># PNG - raster image</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.png&quot;</span><span class="p">)</span>
+
+<span class="c1"># SVG - scalable vector graphics</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.svg&quot;</span><span class="p">)</span>
+
+<span class="c1"># PDF - vector for print</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="resolution-dpi">
+<h2>Resolution (DPI)<a class="headerlink" href="#resolution-dpi" title="Link to this heading">#</a></h2>
+<p>Control the resolution of PNG exports with the <code class="docutils literal notranslate"><span class="pre">dpi</span></code> parameter:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Default resolution (150 DPI)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.png&quot;</span><span class="p">)</span>
+
+<span class="c1"># High resolution for publications (300 DPI)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure_hires.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+
+<span class="c1"># Lower resolution for web (96 DPI)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure_web.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">96</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>DPI</p></th>
+<th class="head"><p>Use Case</p></th>
+<th class="head"><p>File Size</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>72-96</p></td>
+<td><p>Web display, previews</p></td>
+<td><p>Smallest</p></td>
+</tr>
+<tr class="row-odd"><td><p>150</p></td>
+<td><p>Default, presentations</p></td>
+<td><p>Medium</p></td>
+</tr>
+<tr class="row-even"><td><p>300</p></td>
+<td><p>Print publications</p></td>
+<td><p>Large</p></td>
+</tr>
+<tr class="row-odd"><td><p>600</p></td>
+<td><p>High-quality print</p></td>
+<td><p>Very large</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>DPI only affects PNG exports. SVG and PDF are vector formats that scale infinitely.</p>
+</div>
+</section>
+<section id="explicit-format">
+<h2>Explicit Format<a class="headerlink" href="#explicit-format" title="Link to this heading">#</a></h2>
+<p>Override format detection with the <code class="docutils literal notranslate"><span class="pre">format</span></code> parameter:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Force PNG format regardless of extension</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;my_figure&quot;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;png&quot;</span><span class="p">)</span>
+
+<span class="c1"># Force PDF format</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;output&quot;</span><span class="p">,</span> <span class="nb">format</span><span class="o">=</span><span class="s2">&quot;pdf&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="sizing-for-publications">
+<h2>Sizing for Publications<a class="headerlink" href="#sizing-for-publications" title="Link to this heading">#</a></h2>
+<p>Control visualization dimensions before export:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Standard figure (fits journal column)</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>   <span class="c1"># ~3.5 inches at 300 DPI</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">700</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+
+<span class="c1"># Full-page figure</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">2400</span><span class="p">,</span>   <span class="c1"># ~8 inches at 300 DPI</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">1800</span><span class="p">,</span>  <span class="c1"># ~6 inches at 300 DPI</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure_full.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+</pre></div>
+</div>
+<section id="common-publication-sizes">
+<h3>Common Publication Sizes<a class="headerlink" href="#common-publication-sizes" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Journal Type</p></th>
+<th class="head"><p>Width (px &#64; 300 DPI)</p></th>
+<th class="head"><p>Inches</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Single column</p></td>
+<td><p>900-1050</p></td>
+<td><p>3-3.5”</p></td>
+</tr>
+<tr class="row-odd"><td><p>1.5 column</p></td>
+<td><p>1350-1500</p></td>
+<td><p>4.5-5”</p></td>
+</tr>
+<tr class="row-even"><td><p>Full width</p></td>
+<td><p>1800-2100</p></td>
+<td><p>6-7”</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Single column figure</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">1050</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">750</span><span class="p">)</span>
+
+<span class="c1"># Full width figure</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">width</span><span class="o">=</span><span class="mi">2100</span><span class="p">,</span> <span class="n">height</span><span class="o">=</span><span class="mi">1200</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="export-workflow">
+<h2>Export Workflow<a class="headerlink" href="#export-workflow" title="Link to this heading">#</a></h2>
+<section id="for-publications">
+<h3>For Publications<a class="headerlink" href="#for-publications" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Create visualization with publication settings</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="c1"># Publication theme</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+
+    <span class="c1"># Appropriate size</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1000</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">700</span><span class="p">,</span>
+
+    <span class="c1"># Clear styling</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.8</span><span class="p">,</span>
+
+    <span class="c1"># Layout - dagre minimizes edge crossings for cleaner figures</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>
+
+    <span class="c1"># Data filtering for clarity</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Export as PDF (vector, scales perfectly)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure_1.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+
+<span class="c1"># Also export PNG for review</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;figure_1_preview.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>Use <code class="docutils literal notranslate"><span class="pre">sample_order=&quot;dagre&quot;</span></code> for publication figures. The dagre algorithm arranges samples to minimize edge crossings, producing cleaner, more readable layouts.</p>
+</div>
+</section>
+<section id="for-presentations">
+<h3>For Presentations<a class="headerlink" href="#for-presentations" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Full HD slide</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;tskit&quot;</span><span class="p">,</span>  <span class="c1"># Dark theme for slides</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1920</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">1080</span><span class="p">,</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>  <span class="c1"># Larger for visibility</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;slide_figure.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Also consider using the web application to create animations of your ARG through space and time!</p>
+</section>
+<section id="for-web">
+<h3>For Web<a class="headerlink" href="#for-web" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Web-optimized</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span><span class="p">,</span>
+    <span class="n">width</span><span class="o">=</span><span class="mi">1200</span><span class="p">,</span>
+    <span class="n">height</span><span class="o">=</span><span class="mi">800</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;web_figure.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">96</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="batch-export">
+<h2>Batch Export<a class="headerlink" href="#batch-export" title="Link to this heading">#</a></h2>
+<p>Export visualizations for different data views:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="c1"># Export different genomic regions</span>
+<span class="n">regions</span> <span class="o">=</span> <span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="mi">25000</span><span class="p">),</span> <span class="p">(</span><span class="mi">25000</span><span class="p">,</span> <span class="mi">50000</span><span class="p">),</span> <span class="p">(</span><span class="mi">50000</span><span class="p">,</span> <span class="mi">75000</span><span class="p">)]</span>
+
+<span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">regions</span><span class="p">):</span>
+    <span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+        <span class="n">ts</span><span class="p">,</span>
+        <span class="n">genomic_range</span><span class="o">=</span><span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">),</span>
+        <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;region_</span><span class="si">{</span><span class="n">i</span><span class="si">}</span><span class="s2">.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="theme-comparison-exports">
+<h2>Theme Comparison Exports<a class="headerlink" href="#theme-comparison-exports" title="Link to this heading">#</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+
+<span class="n">themes</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;tskit&quot;</span><span class="p">,</span> <span class="s2">&quot;liquid&quot;</span><span class="p">,</span> <span class="s2">&quot;grayscale&quot;</span><span class="p">,</span> <span class="s2">&quot;paper&quot;</span><span class="p">]</span>
+
+<span class="k">for</span> <span class="n">theme_name</span> <span class="ow">in</span> <span class="n">themes</span><span class="p">:</span>
+    <span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+        <span class="n">ts</span><span class="p">,</span>
+        <span class="n">theme</span><span class="o">=</span><span class="n">theme_name</span><span class="p">,</span>
+        <span class="n">max_samples</span><span class="o">=</span><span class="mi">30</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;theme_</span><span class="si">{</span><span class="n">theme_name</span><span class="si">}</span><span class="s2">.png&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">150</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="technical-requirements">
+<h2>Technical Requirements<a class="headerlink" href="#technical-requirements" title="Link to this heading">#</a></h2>
+<p>Export uses Playwright for headless browser rendering:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Install Playwright (included in argscape[viz])</span>
+pip<span class="w"> </span>install<span class="w"> </span>argscape<span class="o">[</span>viz<span class="o">]</span>
+
+<span class="c1"># Install browser</span>
+playwright<span class="w"> </span>install<span class="w"> </span>chromium
+</pre></div>
+</div>
+<p>If Playwright is not installed, export will raise an <code class="docutils literal notranslate"><span class="pre">ImportError</span></code> with installation instructions.</p>
+</section>
+<section id="export-quality-tips">
+<h2>Export Quality Tips<a class="headerlink" href="#export-quality-tips" title="Link to this heading">#</a></h2>
+<section id="for-clarity">
+<h3>For Clarity<a class="headerlink" href="#for-clarity" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="c1"># Reduce clutter</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">show_sample_ids</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+
+    <span class="c1"># Minimize edge crossings</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>
+
+    <span class="c1"># Clean edges</span>
+    <span class="n">edge_opacity</span><span class="o">=</span><span class="mf">0.7</span><span class="p">,</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">1.2</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="for-print">
+<h3>For Print<a class="headerlink" href="#for-print" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="c1"># Print-friendly theme</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>  <span class="c1"># or &quot;grayscale&quot;</span>
+
+    <span class="c1"># Appropriate line weights</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">1.5</span><span class="p">,</span>
+
+    <span class="c1"># Visible node sizes</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">10</span><span class="p">,</span>
+    <span class="n">internal_node_size</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">export</span><span class="p">(</span><span class="s2">&quot;print.pdf&quot;</span><span class="p">,</span> <span class="n">dpi</span><span class="o">=</span><span class="mi">300</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="for-accessibility">
+<h3>For Accessibility<a class="headerlink" href="#for-accessibility" title="Link to this heading">#</a></h3>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="c1"># Paper theme has distinct colors</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;paper&quot;</span><span class="p">,</span>
+
+    <span class="c1"># Larger elements</span>
+    <span class="n">sample_node_size</span><span class="o">=</span><span class="mi">12</span><span class="p">,</span>
+    <span class="n">edge_width</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="format-recommendations">
+<h2>Format Recommendations<a class="headerlink" href="#format-recommendations" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Use Case</p></th>
+<th class="head"><p>Format</p></th>
+<th class="head"><p>DPI</p></th>
+<th class="head"><p>Theme</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Journal main figure</p></td>
+<td><p>PDF</p></td>
+<td><p>300</p></td>
+<td><p>paper, grayscale</p></td>
+</tr>
+<tr class="row-odd"><td><p>Journal supplement</p></td>
+<td><p>PNG</p></td>
+<td><p>300</p></td>
+<td><p>paper, grayscale</p></td>
+</tr>
+<tr class="row-even"><td><p>Presentation</p></td>
+<td><p>PNG</p></td>
+<td><p>150</p></td>
+<td><p>tskit, liquid</p></td>
+</tr>
+<tr class="row-odd"><td><p>Web display</p></td>
+<td><p>PNG</p></td>
+<td><p>96</p></td>
+<td><p>liquid</p></td>
+</tr>
+<tr class="row-even"><td><p>Poster</p></td>
+<td><p>PDF</p></td>
+<td><p>300+</p></td>
+<td><p>paper</p></td>
+</tr>
+<tr class="row-odd"><td><p>Archive/scalable</p></td>
+<td><p>SVG</p></td>
+<td><p>N/A</p></td>
+<td><p>any</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="export-as-python-script">
+<h2>Export as Python Script<a class="headerlink" href="#export-as-python-script" title="Link to this heading">#</a></h2>
+<p>The web app can export your current visualization settings as a Python script. This bridges the gap between interactive exploration and reproducible code.</p>
+<section id="from-the-web-app">
+<h3>From the Web App<a class="headerlink" href="#from-the-web-app" title="Link to this heading">#</a></h3>
+<ol class="arabic simple">
+<li><p>Configure your visualization in the web app (filters, theme, styling, etc.)</p></li>
+<li><p>Open the <strong>Export</strong> tab in the Quick Actions Bar</p></li>
+<li><p>Click <strong>Python</strong> to download a script</p></li>
+</ol>
+<p>The generated script captures your current settings:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">ARGscape visualization script</span>
+<span class="sd">Generated from web app on 2024-01-23</span>
+<span class="sd">&quot;&quot;&quot;</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">argscape</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">tskit</span>
+
+<span class="c1"># Load your tree sequence (update this path)</span>
+<span class="n">ts</span> <span class="o">=</span> <span class="n">tskit</span><span class="o">.</span><span class="n">load</span><span class="p">(</span><span class="s2">&quot;your_file.trees&quot;</span><span class="p">)</span>
+
+<span class="c1"># Create visualization with the same settings as the web app</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">mode</span><span class="o">=</span><span class="s2">&quot;force_graph&quot;</span><span class="p">,</span>
+    <span class="n">max_samples</span><span class="o">=</span><span class="mi">50</span><span class="p">,</span>
+    <span class="n">theme</span><span class="o">=</span><span class="s2">&quot;liquid&quot;</span><span class="p">,</span>
+    <span class="n">show_mutations</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">sample_order</span><span class="o">=</span><span class="s2">&quot;dagre&quot;</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="c1"># Display (choose one)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>       <span class="c1"># Opens in browser</span>
+<span class="c1"># viz.display()  # Jupyter notebook</span>
+<span class="c1"># viz.export(&quot;output.png&quot;)  # Save to file</span>
+</pre></div>
+</div>
+</section>
+<section id="use-cases">
+<h3>Use Cases<a class="headerlink" href="#use-cases" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p><strong>Reproducibility</strong>: Save the exact parameters used for a figure</p></li>
+<li><p><strong>Batch processing</strong>: Use the web app to prototype, then script for multiple files</p></li>
+<li><p><strong>Documentation</strong>: Include visualization code in research repositories</p></li>
+<li><p><strong>Collaboration</strong>: Share visualization settings with colleagues</p></li>
+</ul>
+</section>
+<section id="what-s-captured">
+<h3>What’s Captured<a class="headerlink" href="#what-s-captured" title="Link to this heading">#</a></h3>
+<p>The script includes all non-default settings:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Category</p></th>
+<th class="head"><p>Parameters</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Mode</p></td>
+<td><p>2D force graph or 3D spatial</p></td>
+</tr>
+<tr class="row-odd"><td><p>Data selection</p></td>
+<td><p>max_samples, genomic_range, temporal_range</p></td>
+</tr>
+<tr class="row-even"><td><p>Theme</p></td>
+<td><p>theme name</p></td>
+</tr>
+<tr class="row-odd"><td><p>Nodes</p></td>
+<td><p>sizes, show IDs</p></td>
+</tr>
+<tr class="row-even"><td><p>Edges</p></td>
+<td><p>width, opacity</p></td>
+</tr>
+<tr class="row-odd"><td><p>Mutations</p></td>
+<td><p>visibility, size</p></td>
+</tr>
+<tr class="row-even"><td><p>Layout (2D)</p></td>
+<td><p>sample_order, spacing</p></td>
+</tr>
+<tr class="row-odd"><td><p>Spatial (3D)</p></td>
+<td><p>geographic_base, multipliers</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The script only includes parameters that differ from defaults, keeping the code clean and readable.</p>
+</div>
+</section>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">#</a></h2>
+<section id="low-quality-output">
+<h3>Low quality output<a class="headerlink" href="#low-quality-output" title="Link to this heading">#</a></h3>
+<ul class="simple">
+<li><p>Increase <code class="docutils literal notranslate"><span class="pre">dpi</span></code> for PNG</p></li>
+<li><p>Use PDF or SVG for print</p></li>
+<li><p>Ensure source dimensions are adequate</p></li>
+</ul>
+</section>
+<section id="playwright-errors">
+<h3>Playwright errors<a class="headerlink" href="#playwright-errors" title="Link to this heading">#</a></h3>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Reinstall browsers</span>
+playwright<span class="w"> </span>install<span class="w"> </span>chromium
+
+<span class="c1"># Or install specific version</span>
+pip<span class="w"> </span>install<span class="w"> </span>playwright<span class="w"> </span>--upgrade
+playwright<span class="w"> </span>install
+</pre></div>
+</div>
+</section>
+</section>
+<section id="next-steps">
+<h2>Next Steps<a class="headerlink" href="#next-steps" title="Link to this heading">#</a></h2>
+<ul class="simple">
+<li><p><a class="reference internal" href="first-visualization.html"><span class="doc">First Visualization</span></a> - Visualization options for better exports</p></li>
+<li><p><a class="reference internal" href="themes.html"><span class="doc">Themes</span></a> - Choose the right theme for your use case</p></li>
+<li><p><a class="reference internal" href="filtering-data.html"><span class="doc">Filtering Data</span></a> - Simplify data before export</p></li>
+</ul>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./tutorials"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="themes.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Themes</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../python-api/overview.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Python API Overview</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> On this page
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#basic-export">Basic Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#supported-formats">Supported Formats</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resolution-dpi">Resolution (DPI)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#explicit-format">Explicit Format</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#sizing-for-publications">Sizing for Publications</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#common-publication-sizes">Common Publication Sizes</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-workflow">Export Workflow</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-publications">For Publications</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-presentations">For Presentations</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-web">For Web</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#batch-export">Batch Export</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#theme-comparison-exports">Theme Comparison Exports</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#technical-requirements">Technical Requirements</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-quality-tips">Export Quality Tips</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-clarity">For Clarity</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-print">For Print</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#for-accessibility">For Accessibility</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#format-recommendations">Format Recommendations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#export-as-python-script">Export as Python Script</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#from-the-web-app">From the Web App</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#use-cases">Use Cases</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#what-s-captured">What’s Captured</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#troubleshooting">Troubleshooting</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#low-quality-output">Low quality output</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#playwright-errors">Playwright errors</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#next-steps">Next Steps</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Christopher Talbot
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 23, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

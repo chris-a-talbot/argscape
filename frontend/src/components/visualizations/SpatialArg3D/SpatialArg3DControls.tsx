@@ -139,6 +139,7 @@ export interface SpatialArg3DControlsProps {
   onDownloadPNG?: () => void;
   onDownloadSVG?: () => void;
   onDownloadJSON?: () => void;
+  onDownloadPython?: () => void;
   onCopyURL?: () => void;
   filename?: string;
   pngAvailable?: boolean;
@@ -254,6 +255,7 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
   onDownloadPNG,
   onDownloadSVG,
   onDownloadJSON,
+  onDownloadPython,
   onCopyURL,
   filename,
   pngAvailable = true,
@@ -439,6 +441,7 @@ export const SpatialArg3DControls: React.FC<SpatialArg3DControlsProps> = ({
           onDownloadPNG={onDownloadPNG}
           onDownloadSVG={onDownloadSVG}
           onDownloadJSON={onDownloadJSON}
+          onDownloadPython={onDownloadPython}
           onCopyURL={onCopyURL}
           filename={filename}
           pngAvailable={pngAvailable}

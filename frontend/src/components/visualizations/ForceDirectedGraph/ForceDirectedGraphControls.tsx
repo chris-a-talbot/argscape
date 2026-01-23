@@ -152,6 +152,7 @@ export interface ForceDirectedGraphControlsProps {
   filename?: string;
   onDownloadPNG?: () => void;
   onDownloadSVG?: () => void;
+  onDownloadPython?: () => void;
   onError?: (error: Error) => void;
 
   // Layout
@@ -257,6 +258,7 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
   filename,
   onDownloadPNG,
   onDownloadSVG,
+  onDownloadPython,
   onError,
 
   // Layout
@@ -537,6 +539,7 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
           filename={filename}
           onDownloadPNG={onDownloadPNG}
           onDownloadSVG={onDownloadSVG}
+          onDownloadPython={onDownloadPython}
           pngAvailable={!!onDownloadPNG}
           svgAvailable={!!onDownloadSVG}
           onError={onError}

@@ -1,0 +1,111 @@
+Traceback (most recent call last):
+  File "/opt/miniconda3/lib/python3.13/site-packages/jupyter_cache/executors/utils.py", line 58, in single_nb_execution
+    executenb(
+    ~~~~~~~~~^
+        nb,
+        ^^^
+    ...<4 lines>...
+        **kwargs,
+        ^^^^^^^^^
+    )
+    ^
+  File "/opt/miniconda3/lib/python3.13/site-packages/nbclient/client.py", line 1323, in execute
+    return NotebookClient(nb=nb, resources=resources, km=km, **kwargs).execute()
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/miniconda3/lib/python3.13/site-packages/jupyter_core/utils/__init__.py", line 165, in wrapped
+    return loop.run_until_complete(inner)
+           ~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^
+  File "/opt/miniconda3/lib/python3.13/asyncio/base_events.py", line 725, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/opt/miniconda3/lib/python3.13/site-packages/nbclient/client.py", line 709, in async_execute
+    await self.async_execute_cell(
+        cell, index, execution_count=self.code_cells_executed + 1
+    )
+  File "/opt/miniconda3/lib/python3.13/site-packages/nbclient/client.py", line 1062, in async_execute_cell
+    await self._check_raise_for_error(cell, cell_index, exec_reply)
+  File "/opt/miniconda3/lib/python3.13/site-packages/nbclient/client.py", line 918, in _check_raise_for_error
+    raise CellExecutionError.from_cell_and_msg(cell, exec_reply_content)
+nbclient.exceptions.CellExecutionError: An error occurred while executing the following cell:
+------------------
+# First 50kb only
+viz = argscape.visualize(
+    ts,
+    genomic_range=(0, 50_000),
+    max_samples=25,
+    theme="liquid",
+    width=900,
+    height=400
+)
+viz.display()
+------------------
+
+
+[31m---------------------------------------------------------------------------[39m
+[31mValueError[39m                                Traceback (most recent call last)
+[36mCell[39m[36m [39m[32mIn[7][39m[32m, line 2[39m
+[32m      1[39m [38;5;66;03m# First 50kb only[39;00m
+[32m----> [39m[32m2[39m viz = [43margscape[49m[43m.[49m[43mvisualize[49m[43m([49m
+[32m      3[39m [43m    [49m[43mts[49m[43m,[49m
+[32m      4[39m [43m    [49m[43mgenomic_range[49m[43m=[49m[43m([49m[32;43m0[39;49m[43m,[49m[43m [49m[32;43m50_000[39;49m[43m)[49m[43m,[49m
+[32m      5[39m [43m    [49m[43mmax_samples[49m[43m=[49m[32;43m25[39;49m[43m,[49m
+[32m      6[39m [43m    [49m[43mtheme[49m[43m=[49m[33;43m"[39;49m[33;43mliquid[39;49m[33;43m"[39;49m[43m,[49m
+[32m      7[39m [43m    [49m[43mwidth[49m[43m=[49m[32;43m900[39;49m[43m,[49m
+[32m      8[39m [43m    [49m[43mheight[49m[43m=[49m[32;43m400[39;49m
+[32m      9[39m [43m)[49m
+[32m     10[39m viz.display()
+
+[36mFile [39m[32m~/Documents/argscape/argscape/visualize.py:264[39m, in [36mvisualize[39m[34m(ts, mode, max_samples, subset_mode, subset_seed, samples, genomic_range, temporal_range, focal_node, focal_mode, theme, width, height, sample_node_size, internal_node_size, root_node_size, show_sample_ids, show_internal_ids, show_root_ids, edge_width, edge_opacity, show_edge_labels, show_mutations, mutation_size, sample_order, temporal_spacing, vertical_spacing, horizontal_spacing, shapefile, location_crs, shapefile_crs, geographic_base, temporal_multiplier, spatial_multiplier)[39m
+[32m    261[39m     require_spatial([33m"[39m[33m3D spatial visualization (mode=[39m[33m'[39m[33mspatial_3d[39m[33m'[39m[33m)[39m[33m"[39m)
+[32m    263[39m [38;5;66;03m# Extract graph data[39;00m
+[32m--> [39m[32m264[39m graph_data = [43mextract_graph[49m[43m([49m
+[32m    265[39m [43m    [49m[43mts[49m[43m,[49m
+[32m    266[39m [43m    [49m[43mmax_samples[49m[43m=[49m[43mmax_samples[49m[43m,[49m
+[32m    267[39m [43m    [49m[43msubset_mode[49m[43m=[49m[43msubset_mode[49m[43m,[49m
+[32m    268[39m [43m    [49m[43msubset_seed[49m[43m=[49m[43msubset_seed[49m[43m,[49m
+[32m    269[39m [43m    [49m[43msamples[49m[43m=[49m[43msamples[49m[43m,[49m
+[32m    270[39m [43m    [49m[43mgenomic_range[49m[43m=[49m[43mgenomic_range[49m[43m,[49m
+[32m    271[39m [43m    [49m[43mtemporal_range[49m[43m=[49m[43mtemporal_range[49m[43m,[49m
+[32m    272[39m [43m    [49m[43minclude_mutations[49m[43m=[49m[43mshow_mutations[49m[43m,[49m
+[32m    273[39m [43m    [49m[43msample_order[49m[43m=[49m[43msample_order[49m[43m,[49m
+[32m    274[39m [43m[49m[43m)[49m
+[32m    276[39m [38;5;66;03m# Load geographic shape (handles spatial availability gracefully)[39;00m
+[32m    277[39m [38;5;28;01mtry[39;00m:
+
+[36mFile [39m[32m~/Documents/argscape/argscape/viz/data.py:766[39m, in [36mextract_graph[39m[34m(ts, max_samples, subset_mode, subset_seed, samples, genomic_range, temporal_range, include_mutations, sample_order)[39m
+[32m    764[39m [38;5;28;01mif[39;00m genomic_range [38;5;129;01mis[39;00m [38;5;129;01mnot[39;00m [38;5;28;01mNone[39;00m:
+[32m    765[39m     start, end = genomic_range
+[32m--> [39m[32m766[39m     ts = [43mts[49m[43m.[49m[43mkeep_intervals[49m[43m([49m[43m[[49m[43m[[49m[43mstart[49m[43m,[49m[43m [49m[43mend[49m[43m][49m[43m][49m[43m)[49m.trim()
+[32m    768[39m [38;5;66;03m# Compute ALL sample orderings for dynamic switching in frontend[39;00m
+[32m    769[39m all_orderings = _compute_all_sample_orderings(ts)
+
+[36mFile [39m[32m/opt/miniconda3/lib/python3.13/site-packages/tskit/trees.py:7024[39m, in [36mTreeSequence.keep_intervals[39m[34m(self, intervals, simplify, record_provenance)[39m
+[32m   6996[39m [38;5;250m[39m[33;03m"""[39;00m
+[32m   6997[39m [33;03mReturns a copy of this tree sequence which includes only information in[39;00m
+[32m   6998[39m [33;03mthe specified list of genomic intervals. Edges are truncated to lie within[39;00m
+[32m   (...)[39m[32m   7021[39m [33;03m:rtype: tskit.TreeSequence[39;00m
+[32m   7022[39m [33;03m"""[39;00m
+[32m   7023[39m tables = [38;5;28mself[39m.dump_tables()
+[32m-> [39m[32m7024[39m [43mtables[49m[43m.[49m[43mkeep_intervals[49m[43m([49m[43mintervals[49m[43m,[49m[43m [49m[43msimplify[49m[43m,[49m[43m [49m[43mrecord_provenance[49m[43m)[49m
+[32m   7025[39m [38;5;28;01mreturn[39;00m tables.tree_sequence()
+
+[36mFile [39m[32m/opt/miniconda3/lib/python3.13/site-packages/tskit/tables.py:3834[39m, in [36mTableCollection.keep_intervals[39m[34m(self, intervals, simplify, record_provenance)[39m
+[32m   3817[39m [38;5;28;01mdef[39;00m[38;5;250m [39m[34mkeep_intervals[39m([38;5;28mself[39m, intervals, simplify=[38;5;28;01mTrue[39;00m, record_provenance=[38;5;28;01mTrue[39;00m):
+[32m   3818[39m [38;5;250m    [39m[33;03m"""[39;00m
+[32m   3819[39m [33;03m    Delete all information from this set of tables which lies *outside* the[39;00m
+[32m   3820[39m [33;03m    specified list of genomic intervals. This is identical to[39;00m
+[32m   (...)[39m[32m   3832[39m [33;03m        to the provenance table in this TableCollection. (Default: ``True``).[39;00m
+[32m   3833[39m [33;03m    """[39;00m
+[32m-> [39m[32m3834[39m     intervals = [43mutil[49m[43m.[49m[43mintervals_to_np_array[49m[43m([49m[43mintervals[49m[43m,[49m[43m [49m[32;43m0[39;49m[43m,[49m[43m [49m[38;5;28;43mself[39;49m[43m.[49m[43msequence_length[49m[43m)[49m
+[32m   3836[39m     edges = [38;5;28mself[39m.edges.copy()
+[32m   3837[39m     [38;5;28mself[39m.edges.clear()
+
+[36mFile [39m[32m/opt/miniconda3/lib/python3.13/site-packages/tskit/util.py:279[39m, in [36mintervals_to_np_array[39m[34m(intervals, start, end)[39m
+[32m    277[39m [38;5;28;01mfor[39;00m left, right [38;5;129;01min[39;00m intervals:
+[32m    278[39m     [38;5;28;01mif[39;00m left < start [38;5;129;01mor[39;00m right > end:
+[32m--> [39m[32m279[39m         [38;5;28;01mraise[39;00m [38;5;167;01mValueError[39;00m([33mf[39m[33m"[39m[33mIntervals must be within [39m[38;5;132;01m{[39;00mstart[38;5;132;01m}[39;00m[33m and [39m[38;5;132;01m{[39;00mend[38;5;132;01m}[39;00m[33m"[39m)
+[32m    280[39m     [38;5;28;01mif[39;00m right <= left:
+[32m    281[39m         [38;5;28;01mraise[39;00m [38;5;167;01mValueError[39;00m([33m"[39m[33mBad interval: right <= left[39m[33m"[39m)
+
+[31mValueError[39m: Intervals must be within 0 and 10000.0
+

@@ -1,0 +1,84 @@
+# Jupyter Book configuration for ARGscape Documentation
+# See https://jupyterbook.org/en/stable/customize/config.html
+
+title: ARGscape Documentation
+author: Christopher Talbot
+copyright: "2024-2026"
+logo: _static/logo.svg
+
+# Execute notebooks during build
+# Set to 'cache' to execute and cache results
+execute:
+  execute_notebooks: "cache"
+  timeout: 600
+  allow_errors: false
+  exclude_patterns:
+    - "_build/*"
+
+# Parse settings
+parse:
+  myst_enable_extensions:
+    - colon_fence
+    - deflist
+    - dollarmath
+    - html_admonition
+    - html_image
+    - linkify
+    - substitution
+    - tasklist
+
+# HTML output settings
+html:
+  favicon: _static/favicon.ico
+  use_edit_page_button: false
+  use_repository_button: true
+  use_issues_button: true
+  use_multitoc_numbering: false
+  home_page_in_navbar: true
+  baseurl: /documentation/
+  extra_navbar: ""
+  extra_footer: |
+    <div class="footer-content">
+      <p>ARGscape - Interactive visualization of ancestral recombination graphs</p>
+      <p><a href="/">Back to ARGscape</a> | <a href="https://arxiv.org/abs/2510.07255">Paper</a> | <a href="https://github.com/argscape/argscape">GitHub</a></p>
+    </div>
+  announcement: ""
+
+# Repository settings
+repository:
+  url: https://github.com/argscape/argscape
+  path_to_book: docs/book
+  branch: dev
+
+# Sphinx settings
+sphinx:
+  config:
+    html_theme: sphinx_book_theme
+    html_theme_options:
+      repository_url: https://github.com/argscape/argscape
+      use_repository_button: true
+      use_issues_button: true
+      use_download_button: false
+      use_fullscreen_button: false
+      home_page_in_toc: true
+      show_navbar_depth: 2
+      show_toc_level: 3
+      navigation_with_keys: true
+      collapse_navigation: false
+      toc_title: "On this page"
+    html_css_files:
+      - css/liquid-glass.css
+    pygments_style: friendly
+    html_show_copyright: true
+    html_last_updated_fmt: "%b %d, %Y"
+    suppress_warnings:
+      - myst.header
+      - ref.python
+      - ref.doc
+
+# Launch buttons (for Binder/Colab)
+launch_buttons:
+  notebook_interface: classic
+  binderhub_url: ""
+  colab_url: https://colab.research.google.com
+  thebe: false

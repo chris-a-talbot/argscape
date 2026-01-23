@@ -1,5 +1,6 @@
 export interface GraphNode {
   id: number
+  original_id: number  // Original node ID before subsetting (same as id if no subset)
   time: number
   is_sample: boolean
   is_root: boolean
@@ -75,6 +76,9 @@ export interface GraphMetadata {
   // Geographic/CRS metadata
   location_crs?: string | null
   location_bounds?: [number, number, number, number] | null
+  // Population data
+  has_populations?: boolean
+  populations?: number[]
 }
 
 // Geographic shape for 3D visualization overlays

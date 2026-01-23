@@ -156,8 +156,14 @@ document.body.appendChild(ready);
         except ImportError:
             raise ImportError("IPython required for notebook display")
 
-        # For notebook, use minimal mode (no QuickActionsBar) and collapsed filters
-        options_with_minimal = {**self.options, "minimal": True, "filtersExpanded": False}
+        # For notebook, use minimal mode by default (no QuickActionsBar/Legend)
+        # unless user explicitly requested controls via show_controls=True
+        show_controls = self.options.get("showControls", False)
+        options_with_minimal = {
+            **self.options,
+            "minimal": not show_controls,
+            "filtersExpanded": False,
+        }
         original_options = self.options
         self.options = options_with_minimal
         html = self._generate_html()

@@ -35,7 +35,9 @@ class InferResult:
 
 
 # Valid method names
-SPATIAL_METHODS = ["midpoint", "fastgaia", "gaia-quadratic", "gaia-linear", "sparg", "spacetrees"]
+# Note: SPARG and Spacetrees are available in the web app but disabled in the Python API
+# due to stability/maintenance concerns. Use the web app for these methods.
+SPATIAL_METHODS = ["midpoint", "fastgaia", "gaia-quadratic", "gaia-linear"]
 TEMPORAL_METHODS = ["tsdate"]
 ALL_METHODS = SPATIAL_METHODS + TEMPORAL_METHODS
 
@@ -65,8 +67,6 @@ def available_methods() -> Dict[str, bool]:
             FASTGAIA_AVAILABLE,
             GEOANCESTRY_AVAILABLE,
             MIDPOINT_AVAILABLE,
-            SPARG_AVAILABLE,
-            SPACETREES_AVAILABLE,
             TSDATE_AVAILABLE,
         )
 
@@ -75,8 +75,6 @@ def available_methods() -> Dict[str, bool]:
             "fastgaia": FASTGAIA_AVAILABLE,
             "gaia-quadratic": GEOANCESTRY_AVAILABLE,
             "gaia-linear": GEOANCESTRY_AVAILABLE,
-            "sparg": SPARG_AVAILABLE,
-            "spacetrees": SPACETREES_AVAILABLE,
             "tsdate": TSDATE_AVAILABLE,
         }
     except ImportError:
@@ -94,19 +92,6 @@ def infer(
     weight_by_span: Optional[bool] = None,
     # GAIA options
     use_branch_lengths: bool = False,
-    # Spacetrees options
-    time_cutoff: Optional[float] = None,
-    ancestor_times: Optional[List[float]] = None,
-    use_importance_sampling: bool = True,
-    require_common_ancestor: bool = True,
-    quiet: bool = False,
-    Ne: Optional[float] = None,
-    Ne_epochs: Optional[List[float]] = None,
-    Nes: Optional[List[float]] = None,
-    num_loci: Optional[int] = None,
-    locus_size: Optional[float] = None,
-    use_blup: bool = False,
-    blup_var: bool = False,
     # Tsdate options
     mutation_rate: float = 1e-8,
     progress: bool = True,
@@ -121,7 +106,7 @@ def infer(
     """
     Run spatial or temporal inference on a tree sequence.
 
-    This function provides a unified interface to all ARGscape inference methods,
+    This function provides a unified interface to ARGscape inference methods,
     including spatial location inference and temporal dating.
 
     Args:
@@ -132,8 +117,6 @@ def infer(
             - "fastgaia": Fast GAIA algorithm (requires fastgaia package)
             - "gaia-quadratic": GAIA with quadratic cost (requires geoancestry)
             - "gaia-linear": GAIA with linear cost (requires geoancestry)
-            - "sparg": SPARG spatial inference
-            - "spacetrees": Spacetrees MLE/BLUP inference
             - "tsdate": Temporal inference using tsdate
 
         FastGAIA/Midpoint options:
@@ -144,20 +127,6 @@ def infer(
 
         GAIA options:
             use_branch_lengths: Use branch lengths in parsimony. Default False.
-
-        Spacetrees options:
-            time_cutoff: Time cutoff for inference.
-            ancestor_times: Specific times to locate ancestors.
-            use_importance_sampling: Use importance sampling. Default True.
-            require_common_ancestor: Skip trees without common ancestor. Default True.
-            quiet: Suppress progress output. Default False.
-            Ne: Constant effective population size.
-            Ne_epochs: Epoch boundaries for time-varying Ne.
-            Nes: Ne values for each epoch.
-            num_loci: Number of loci to group trees into.
-            locus_size: Size of each locus in bp.
-            use_blup: Use BLUP instead of MLE. Default False.
-            blup_var: Return variance estimates (only with use_blup). Default False.
 
         Tsdate options:
             mutation_rate: Mutation rate for dating. Default 1e-8.
@@ -185,11 +154,14 @@ def infer(
         >>> result.info  # {'method': 'midpoint', 'num_inferred': 45, ...}
 
         >>> # With method-specific options
-        >>> result = argscape.infer(ts, method="spacetrees", Ne=1000.0, time_cutoff=50.0)
+        >>> result = argscape.infer(ts, method="fastgaia", weight_span=True)
 
     Note:
         Requires argscape[spatial] to be installed:
             pip install argscape[spatial]
+
+        SPARG and Spacetrees are available in the ARGscape web application
+        but are not exposed in the Python API.
     """
     require_spatial("argscape.infer()")
 
@@ -214,8 +186,6 @@ def infer(
         run_gaia_linear_inference,
         run_gaia_quadratic_inference,
         run_midpoint_inference,
-        run_sparg_inference,
-        run_spacetrees_inference,
         run_tsdate_inference,
     )
 
@@ -246,26 +216,6 @@ def infer(
         ts_out, info, _ = run_gaia_linear_inference(
             ts,
             use_branch_lengths=use_branch_lengths,
-        )
-
-    elif method == "sparg":
-        ts_out, info, _ = run_sparg_inference(ts)
-
-    elif method == "spacetrees":
-        ts_out, info, _ = run_spacetrees_inference(
-            ts,
-            time_cutoff=time_cutoff,
-            ancestor_times=ancestor_times,
-            use_importance_sampling=use_importance_sampling,
-            require_common_ancestor=require_common_ancestor,
-            quiet=quiet,
-            Ne=Ne,
-            Ne_epochs=Ne_epochs,
-            Nes=Nes,
-            num_loci=num_loci,
-            locus_size=locus_size,
-            use_blup=use_blup,
-            blup_var=blup_var,
         )
 
     elif method == "tsdate":

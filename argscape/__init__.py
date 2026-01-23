@@ -14,11 +14,12 @@ Then:
     result = argscape.infer(ts, method="fastgaia")
 """
 
-__version__ = "0.6.2"
+__version__ = "0.7.0"
 
 from .visualize import visualize, VizResult
 from .spatial import is_spatial_available, is_playwright_available
 from .infer import infer, InferResult, available_methods
+from .viz.themes import list_themes, get_theme, customize_theme
 
 __all__ = [
     "visualize",
@@ -26,6 +27,9 @@ __all__ = [
     "infer",
     "InferResult",
     "available_methods",
+    "list_themes",
+    "get_theme",
+    "customize_theme",
     "is_spatial_available",
     "is_playwright_available",
     "__version__",

@@ -1,0 +1,1040 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Interpreting Benchmark Results &#8212; ARGscape Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=d75fae25" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/togglebutton.css?v=9c3e77be" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/mystnb.8ecb98da25f57f5357bf6f572d296f466b2cfe2517ffebfabe82451661e28f02.css?v=6644e6bb" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-thebe.css?v=4fa983c6" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/liquid-glass.css?v=4b9cba5a" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=c73c0f3e"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script>let toggleHintShow = 'Click to show';</script>
+    <script>let toggleHintHide = 'Click to hide';</script>
+    <script>let toggleOpenOnPrint = 'true';</script>
+    <script src="../_static/togglebutton.js?v=1ae7504c"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script async="async" src="../_static/sphinx-thebe.js?v=c100c467"></script>
+    <script>var togglebuttonSelector = '.toggle, .admonition.dropdown';</script>
+    <script>const THEBE_JS_URL = "https://unpkg.com/thebe@0.8.2/lib/index.js"; const thebe_selector = ".thebe,.cell"; const thebe_selector_input = "pre"; const thebe_selector_output = ".output, .cell_output"</script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'benchmarking/interpreting-results';</script>
+    <link rel="canonical" href="/documentation/benchmarking/interpreting-results.html" />
+    <link rel="icon" href="../_static/favicon.ico"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Benchmark Datasets" href="datasets.html" />
+    <link rel="prev" title="Running Benchmarks" href="running-benchmarks.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+    <meta name="docbuild:last-update" content="Jan 22, 2026"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../intro.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.svg" class="logo__image only-light" alt="ARGscape Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.svg" class="logo__image only-dark" alt="ARGscape Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../intro.html">
+                    ARGscape Documentation
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting Started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/quickstart.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting-started/web-vs-python.html">Web App vs Python API</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/custom-themes.html">Custom Themes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/exporting.html">Exporting Visualizations</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Python API Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../python-api/overview.html">Python API Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/visualize.html">argscape.visualize</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/inference.html">Inference API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../python-api/themes.html">Themes</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">CLI Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape.html">argscape</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-serve.html">argscape serve</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-viz.html">argscape viz</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-infer.html">argscape infer</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-load.html">argscape load</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../cli-reference/argscape-benchmark.html">argscape benchmark</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Benchmarking</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="overview.html">Benchmarking Overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="running-benchmarks.html">Running Benchmarks</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Interpreting Benchmark Results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="datasets.html">Benchmark Datasets</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Advanced Topics</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../advanced/shapefiles-crs.html">Custom Shapefiles and Coordinate Reference Systems</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/inference-algorithms.html">Inference Algorithms</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../advanced/performance-tips.html">Performance Optimization Guide</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/argscape/argscape/issues/new?title=Issue%20on%20page%20%2Fbenchmarking/interpreting-results.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/benchmarking/interpreting-results.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Interpreting Benchmark Results</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-files-overview">Output Files Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-metrics-inference-raw-metrics-csv">Inference Metrics (<code class="docutils literal notranslate"><span class="pre">inference/raw_metrics.csv</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identification-columns">Identification Columns</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-metrics">Performance Metrics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-characteristics">Dataset Characteristics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-metrics-spatial">Accuracy Metrics (Spatial)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-metrics-temporal">Accuracy Metrics (Temporal)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-column">Error Column</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-output">Example Output</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-metrics-visualization-raw-metrics-csv">Visualization Metrics (<code class="docutils literal notranslate"><span class="pre">visualization/raw_metrics.csv</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#columns">Columns</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interpreting-visualization-metrics">Interpreting Visualization Metrics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-json-summary-json">Summary JSON (<code class="docutils literal notranslate"><span class="pre">summary.json</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-information">System Information</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-results">Complete Results</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-interpretation">Accuracy Interpretation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-accuracy">Spatial Accuracy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#temporal-accuracy">Temporal Accuracy</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scaling-analysis">Scaling Analysis</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#time-scaling">Time Scaling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-scaling">Memory Scaling</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#latex-tables">LaTeX Tables</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-analysis-tasks">Common Analysis Tasks</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding-the-fastest-method">Finding the Fastest Method</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding-the-most-accurate-method">Finding the Most Accurate Method</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-failed-benchmarks">Identifying Failed Benchmarks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#comparing-methods-across-dataset-sizes">Comparing Methods Across Dataset Sizes</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="interpreting-benchmark-results">
+<h1>Interpreting Benchmark Results<a class="headerlink" href="#interpreting-benchmark-results" title="Link to this heading">#</a></h1>
+<p>This guide explains the output files generated by the benchmarking system and how to interpret the metrics.</p>
+<section id="output-files-overview">
+<h2>Output Files Overview<a class="headerlink" href="#output-files-overview" title="Link to this heading">#</a></h2>
+<p>After running benchmarks, results are stored in several files:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Contents</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">inference/raw_metrics.csv</span></code></p></td>
+<td><p>Detailed inference performance metrics</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">visualization/raw_metrics.csv</span></code></p></td>
+<td><p>Visualization performance metrics</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">summary.json</span></code></p></td>
+<td><p>Complete results with system information</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tables/inference_comparison.tex</span></code></p></td>
+<td><p>LaTeX table for publications</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">figures/scaling_plots.png</span></code></p></td>
+<td><p>Performance scaling visualizations</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="inference-metrics-inference-raw-metrics-csv">
+<h2>Inference Metrics (<code class="docutils literal notranslate"><span class="pre">inference/raw_metrics.csv</span></code>)<a class="headerlink" href="#inference-metrics-inference-raw-metrics-csv" title="Link to this heading">#</a></h2>
+<p>This CSV file contains one row per method-dataset combination with the following columns:</p>
+<section id="identification-columns">
+<h3>Identification Columns<a class="headerlink" href="#identification-columns" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">method</span></code></p></td>
+<td><p>Inference method name (e.g., <code class="docutils literal notranslate"><span class="pre">fastgaia</span></code>, <code class="docutils literal notranslate"><span class="pre">midpoint</span></code>, <code class="docutils literal notranslate"><span class="pre">tsdate</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dataset</span></code></p></td>
+<td><p>Dataset name (e.g., <code class="docutils literal notranslate"><span class="pre">samples_100</span></code>, <code class="docutils literal notranslate"><span class="pre">seqlen_1000000</span></code>)</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="performance-metrics">
+<h3>Performance Metrics<a class="headerlink" href="#performance-metrics" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Unit</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">wall_time_s</span></code></p></td>
+<td><p>seconds</p></td>
+<td><p>Total elapsed time from start to finish</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">cpu_time_s</span></code></p></td>
+<td><p>seconds</p></td>
+<td><p>CPU time consumed (may differ from wall time due to I/O waits)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">peak_memory_mb</span></code></p></td>
+<td><p>megabytes</p></td>
+<td><p>Maximum memory usage during inference</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="dataset-characteristics">
+<h3>Dataset Characteristics<a class="headerlink" href="#dataset-characteristics" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">num_nodes</span></code></p></td>
+<td><p>Total number of nodes in the tree sequence</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">num_samples</span></code></p></td>
+<td><p>Number of sample nodes</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">num_trees</span></code></p></td>
+<td><p>Number of local trees</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="accuracy-metrics-spatial">
+<h3>Accuracy Metrics (Spatial)<a class="headerlink" href="#accuracy-metrics-spatial" title="Link to this heading">#</a></h3>
+<p>For spatial inference methods (fastgaia, gaia-quadratic, gaia-linear, midpoint, sparg, spacetrees):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Unit</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spatial_mean_error</span></code></p></td>
+<td><p>km (or coord units)</p></td>
+<td><p>Mean distance between inferred and true locations</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">spatial_median_error</span></code></p></td>
+<td><p>km (or coord units)</p></td>
+<td><p>Median distance error</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">spatial_rmse</span></code></p></td>
+<td><p>km (or coord units)</p></td>
+<td><p>Root mean squared error</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="accuracy-metrics-temporal">
+<h3>Accuracy Metrics (Temporal)<a class="headerlink" href="#accuracy-metrics-temporal" title="Link to this heading">#</a></h3>
+<p>For temporal inference (tsdate):</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">temporal_mean_error</span></code></p></td>
+<td><p>Mean absolute difference between inferred and true node times</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">temporal_correlation</span></code></p></td>
+<td><p>Pearson correlation between inferred and true times</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="error-column">
+<h3>Error Column<a class="headerlink" href="#error-column" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">error</span></code></p></td>
+<td><p>Error message if inference failed, empty otherwise</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="example-output">
+<h3>Example Output<a class="headerlink" href="#example-output" title="Link to this heading">#</a></h3>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>method,dataset,wall_time_s,cpu_time_s,peak_memory_mb,num_nodes,num_samples,num_trees,spatial_mean_error,spatial_median_error,spatial_rmse,error
+fastgaia,samples_50,1.23,1.15,156.2,1247,50,892,12.5,10.2,15.8,
+fastgaia,samples_100,3.45,3.21,245.8,2534,100,1523,11.8,9.5,14.2,
+midpoint,samples_50,0.45,0.42,89.3,1247,50,892,18.7,16.4,22.1,
+tsdate,samples_50,2.87,2.65,198.4,1247,50,892,,,,,
+</pre></div>
+</div>
+</section>
+</section>
+<section id="visualization-metrics-visualization-raw-metrics-csv">
+<h2>Visualization Metrics (<code class="docutils literal notranslate"><span class="pre">visualization/raw_metrics.csv</span></code>)<a class="headerlink" href="#visualization-metrics-visualization-raw-metrics-csv" title="Link to this heading">#</a></h2>
+<p>This CSV file contains visualization performance measurements:</p>
+<section id="columns">
+<h3>Columns<a class="headerlink" href="#columns" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Column</p></th>
+<th class="head"><p>Unit</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tool</span></code></p></td>
+<td><p></p></td>
+<td><p>Visualization tool name (<code class="docutils literal notranslate"><span class="pre">argscape-2d</span></code>, <code class="docutils literal notranslate"><span class="pre">argscape-3d</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dataset</span></code></p></td>
+<td><p></p></td>
+<td><p>Dataset name</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">render_time_ms</span></code></p></td>
+<td><p>milliseconds</p></td>
+<td><p>Time to initial render</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">time_to_interactive_ms</span></code></p></td>
+<td><p>milliseconds</p></td>
+<td><p>Time until visualization responds to input</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fps_pan</span></code></p></td>
+<td><p>frames/second</p></td>
+<td><p>Frame rate during pan operations</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fps_zoom</span></code></p></td>
+<td><p>frames/second</p></td>
+<td><p>Frame rate during zoom operations</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">heap_size_mb</span></code></p></td>
+<td><p>megabytes</p></td>
+<td><p>JavaScript heap memory usage</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">num_nodes</span></code></p></td>
+<td><p></p></td>
+<td><p>Number of nodes in the tree sequence</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">num_samples</span></code></p></td>
+<td><p></p></td>
+<td><p>Number of samples</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">error</span></code></p></td>
+<td><p></p></td>
+<td><p>Error message if benchmark failed</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="interpreting-visualization-metrics">
+<h3>Interpreting Visualization Metrics<a class="headerlink" href="#interpreting-visualization-metrics" title="Link to this heading">#</a></h3>
+<p><strong>Render time and time to interactive:</strong></p>
+<ul class="simple">
+<li><p>Lower values indicate faster loading</p></li>
+<li><p>Large datasets may have significantly longer load times</p></li>
+<li><p>Time to interactive should be close to render time for responsive UIs</p></li>
+</ul>
+<p><strong>Frame rates (FPS):</strong></p>
+<ul class="simple">
+<li><p>60 FPS is ideal for smooth interaction</p></li>
+<li><p>30+ FPS is acceptable</p></li>
+<li><p>Below 15 FPS indicates performance issues</p></li>
+<li><p>FPS typically decreases with larger datasets</p></li>
+</ul>
+<p><strong>Heap size:</strong></p>
+<ul class="simple">
+<li><p>Indicates browser memory consumption</p></li>
+<li><p>Higher values may cause browser performance issues</p></li>
+<li><p>Track this metric to identify memory leaks</p></li>
+</ul>
+</section>
+</section>
+<section id="summary-json-summary-json">
+<h2>Summary JSON (<code class="docutils literal notranslate"><span class="pre">summary.json</span></code>)<a class="headerlink" href="#summary-json-summary-json" title="Link to this heading">#</a></h2>
+<p>The summary file contains:</p>
+<section id="system-information">
+<h3>System Information<a class="headerlink" href="#system-information" title="Link to this heading">#</a></h3>
+<div class="highlight-json notranslate"><div class="highlight"><pre><span></span><span class="p">{</span>
+<span class="w">  </span><span class="nt">&quot;system_info&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">    </span><span class="nt">&quot;timestamp&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;2024-01-15T10:30:00.000000&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;argscape_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.0.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;python_version&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.11.0&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;platform&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;macOS-14.0-arm64&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;processor&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;arm&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;machine&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;arm64&quot;</span><span class="p">,</span>
+<span class="w">    </span><span class="nt">&quot;dependencies&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+<span class="w">      </span><span class="nt">&quot;tskit&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.5.6&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;msprime&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.3.0&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;fastgaia&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.2.0&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;gaiapy&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span><span class="p">,</span>
+<span class="w">      </span><span class="nt">&quot;playwright&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;1.40.0&quot;</span>
+<span class="w">    </span><span class="p">}</span>
+<span class="w">  </span><span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="complete-results">
+<h3>Complete Results<a class="headerlink" href="#complete-results" title="Link to this heading">#</a></h3>
+<p>The JSON also contains the complete <code class="docutils literal notranslate"><span class="pre">inference_results</span></code> and <code class="docutils literal notranslate"><span class="pre">visualization_results</span></code> arrays, matching the CSV contents but in JSON format for programmatic access.</p>
+</section>
+</section>
+<section id="accuracy-interpretation">
+<h2>Accuracy Interpretation<a class="headerlink" href="#accuracy-interpretation" title="Link to this heading">#</a></h2>
+<section id="spatial-accuracy">
+<h3>Spatial Accuracy<a class="headerlink" href="#spatial-accuracy" title="Link to this heading">#</a></h3>
+<p>Spatial accuracy metrics compare inferred ancestor locations to ground truth:</p>
+<ul class="simple">
+<li><p><strong>Mean error</strong>: Average distance error across all compared nodes. Lower is better.</p></li>
+<li><p><strong>Median error</strong>: Middle value of errors. Less sensitive to outliers than mean.</p></li>
+<li><p><strong>RMSE</strong>: Penalizes large errors more heavily. Useful for identifying methods with occasional large mistakes.</p></li>
+</ul>
+<p>Spatial accuracy is only computed for non-sample nodes (samples have known locations used as input).</p>
+<p>When interpreting spatial errors:</p>
+<ul class="simple">
+<li><p>Units depend on the coordinate system (km for geographic, coordinate units otherwise)</p></li>
+<li><p>Compare methods on the same dataset for fair comparison</p></li>
+<li><p>Consider the spatial extent of your data when evaluating error magnitudes</p></li>
+</ul>
+</section>
+<section id="temporal-accuracy">
+<h3>Temporal Accuracy<a class="headerlink" href="#temporal-accuracy" title="Link to this heading">#</a></h3>
+<p>Temporal accuracy metrics compare inferred node times to ground truth:</p>
+<ul class="simple">
+<li><p><strong>Mean/Median error</strong>: Average time difference. Units match the tree sequence time units.</p></li>
+<li><p><strong>Correlation</strong>: How well inferred times track true times. Values close to 1.0 indicate good relative ordering even if absolute times differ.</p></li>
+</ul>
+<p>A high correlation with moderate mean error suggests the method captures the relative timing well but may have systematic bias.</p>
+</section>
+</section>
+<section id="scaling-analysis">
+<h2>Scaling Analysis<a class="headerlink" href="#scaling-analysis" title="Link to this heading">#</a></h2>
+<p>The benchmarking system generates scaling plots showing how performance changes with dataset size:</p>
+<section id="time-scaling">
+<h3>Time Scaling<a class="headerlink" href="#time-scaling" title="Link to this heading">#</a></h3>
+<p>The time scaling plot shows wall time vs. number of samples on log-log axes. Look for:</p>
+<ul class="simple">
+<li><p><strong>Linear scaling (slope ~1)</strong>: Time grows proportionally with input size</p></li>
+<li><p><strong>Quadratic scaling (slope ~2)</strong>: Time grows with the square of input size</p></li>
+<li><p><strong>Methods with better scaling</strong>: Lines with lower slopes are more efficient for large datasets</p></li>
+</ul>
+</section>
+<section id="memory-scaling">
+<h3>Memory Scaling<a class="headerlink" href="#memory-scaling" title="Link to this heading">#</a></h3>
+<p>The memory scaling plot shows peak memory vs. number of samples:</p>
+<ul class="simple">
+<li><p>Memory usage often correlates with the number of nodes</p></li>
+<li><p>Some methods have higher base memory requirements</p></li>
+<li><p>Look for methods that remain practical for your target dataset sizes</p></li>
+</ul>
+</section>
+</section>
+<section id="latex-tables">
+<h2>LaTeX Tables<a class="headerlink" href="#latex-tables" title="Link to this heading">#</a></h2>
+<p>The generated LaTeX table (<code class="docutils literal notranslate"><span class="pre">tables/inference_comparison.tex</span></code>) summarizes method performance:</p>
+<div class="highlight-latex notranslate"><div class="highlight"><pre><span></span><span class="k">\begin</span><span class="nb">{</span>table<span class="nb">}</span>[htbp]
+<span class="k">\centering</span>
+<span class="k">\caption</span><span class="nb">{</span>Inference Method Performance Comparison<span class="nb">}</span>
+<span class="k">\begin</span><span class="nb">{</span>tabular<span class="nb">}{</span>lrrrrr<span class="nb">}</span>
+<span class="k">\toprule</span>
+Method <span class="nb">&amp;</span> Time (s) <span class="nb">&amp;</span> Memory (MB) <span class="nb">&amp;</span> Mean Error <span class="nb">&amp;</span> Median Error <span class="k">\\</span>
+<span class="k">\midrule</span>
+fastgaia <span class="nb">&amp;</span> 2.34 <span class="nb">&amp;</span> 201.5 <span class="nb">&amp;</span> 12.15 <span class="nb">&amp;</span> 9.85 <span class="k">\\</span>
+midpoint <span class="nb">&amp;</span> 0.89 <span class="nb">&amp;</span> 112.3 <span class="nb">&amp;</span> 17.42 <span class="nb">&amp;</span> 15.21 <span class="k">\\</span>
+...
+<span class="k">\bottomrule</span>
+<span class="k">\end</span><span class="nb">{</span>tabular<span class="nb">}</span>
+<span class="k">\label</span><span class="nb">{</span>tab:inference-comparison<span class="nb">}</span>
+<span class="k">\end</span><span class="nb">{</span>table<span class="nb">}</span>
+</pre></div>
+</div>
+<p>Values are averaged across all datasets for each method.</p>
+</section>
+<section id="common-analysis-tasks">
+<h2>Common Analysis Tasks<a class="headerlink" href="#common-analysis-tasks" title="Link to this heading">#</a></h2>
+<section id="finding-the-fastest-method">
+<h3>Finding the Fastest Method<a class="headerlink" href="#finding-the-fastest-method" title="Link to this heading">#</a></h3>
+<p>Sort by <code class="docutils literal notranslate"><span class="pre">wall_time_s</span></code> for a given dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">pandas</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">pd</span>
+
+<span class="n">df</span> <span class="o">=</span> <span class="n">pd</span><span class="o">.</span><span class="n">read_csv</span><span class="p">(</span><span class="s2">&quot;results/inference/raw_metrics.csv&quot;</span><span class="p">)</span>
+<span class="n">dataset_results</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;dataset&quot;</span><span class="p">]</span> <span class="o">==</span> <span class="s2">&quot;samples_100&quot;</span><span class="p">]</span>
+<span class="n">fastest</span> <span class="o">=</span> <span class="n">dataset_results</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">&quot;wall_time_s&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Fastest: </span><span class="si">{</span><span class="n">fastest</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">fastest</span><span class="p">[</span><span class="s1">&#39;wall_time_s&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2">s)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="finding-the-most-accurate-method">
+<h3>Finding the Most Accurate Method<a class="headerlink" href="#finding-the-most-accurate-method" title="Link to this heading">#</a></h3>
+<p>Sort by accuracy metrics:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># For spatial methods</span>
+<span class="n">spatial</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;spatial_mean_error&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">()]</span>
+<span class="n">most_accurate</span> <span class="o">=</span> <span class="n">spatial</span><span class="o">.</span><span class="n">sort_values</span><span class="p">(</span><span class="s2">&quot;spatial_mean_error&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Most accurate: </span><span class="si">{</span><span class="n">most_accurate</span><span class="p">[</span><span class="s1">&#39;method&#39;</span><span class="p">]</span><span class="si">}</span><span class="s2"> (</span><span class="si">{</span><span class="n">most_accurate</span><span class="p">[</span><span class="s1">&#39;spatial_mean_error&#39;</span><span class="p">]</span><span class="si">:</span><span class="s2">.2f</span><span class="si">}</span><span class="s2"> units)&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="identifying-failed-benchmarks">
+<h3>Identifying Failed Benchmarks<a class="headerlink" href="#identifying-failed-benchmarks" title="Link to this heading">#</a></h3>
+<p>Filter for errors:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">failed</span> <span class="o">=</span> <span class="n">df</span><span class="p">[</span><span class="n">df</span><span class="p">[</span><span class="s2">&quot;error&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">notna</span><span class="p">()]</span>
+<span class="nb">print</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Failed benchmarks: </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">failed</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">failed</span><span class="p">[[</span><span class="s2">&quot;method&quot;</span><span class="p">,</span> <span class="s2">&quot;dataset&quot;</span><span class="p">,</span> <span class="s2">&quot;error&quot;</span><span class="p">]])</span>
+</pre></div>
+</div>
+</section>
+<section id="comparing-methods-across-dataset-sizes">
+<h3>Comparing Methods Across Dataset Sizes<a class="headerlink" href="#comparing-methods-across-dataset-sizes" title="Link to this heading">#</a></h3>
+<p>Pivot the data to compare scaling:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">pivot</span> <span class="o">=</span> <span class="n">df</span><span class="o">.</span><span class="n">pivot_table</span><span class="p">(</span>
+    <span class="n">values</span><span class="o">=</span><span class="s2">&quot;wall_time_s&quot;</span><span class="p">,</span>
+    <span class="n">index</span><span class="o">=</span><span class="s2">&quot;dataset&quot;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="s2">&quot;method&quot;</span><span class="p">,</span>
+    <span class="n">aggfunc</span><span class="o">=</span><span class="s2">&quot;mean&quot;</span>
+<span class="p">)</span>
+<span class="nb">print</span><span class="p">(</span><span class="n">pivot</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+    <script type="text/x-thebe-config">
+    {
+        requestKernel: true,
+        binderOptions: {
+            repo: "binder-examples/jupyter-stacks-datascience",
+            ref: "master",
+        },
+        codeMirrorConfig: {
+            theme: "abcdef",
+            mode: "python"
+        },
+        kernelOptions: {
+            name: "python3",
+            path: "./benchmarking"
+        },
+        predefinedOutput: true
+    }
+    </script>
+    <script>kernelName = 'python3'</script>
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="running-benchmarks.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Running Benchmarks</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="datasets.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Benchmark Datasets</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-files-overview">Output Files Overview</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#inference-metrics-inference-raw-metrics-csv">Inference Metrics (<code class="docutils literal notranslate"><span class="pre">inference/raw_metrics.csv</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identification-columns">Identification Columns</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#performance-metrics">Performance Metrics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-characteristics">Dataset Characteristics</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-metrics-spatial">Accuracy Metrics (Spatial)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-metrics-temporal">Accuracy Metrics (Temporal)</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#error-column">Error Column</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#example-output">Example Output</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#visualization-metrics-visualization-raw-metrics-csv">Visualization Metrics (<code class="docutils literal notranslate"><span class="pre">visualization/raw_metrics.csv</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#columns">Columns</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interpreting-visualization-metrics">Interpreting Visualization Metrics</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#summary-json-summary-json">Summary JSON (<code class="docutils literal notranslate"><span class="pre">summary.json</span></code>)</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#system-information">System Information</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#complete-results">Complete Results</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#accuracy-interpretation">Accuracy Interpretation</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#spatial-accuracy">Spatial Accuracy</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#temporal-accuracy">Temporal Accuracy</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#scaling-analysis">Scaling Analysis</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#time-scaling">Time Scaling</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#memory-scaling">Memory Scaling</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#latex-tables">LaTeX Tables</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#common-analysis-tasks">Common Analysis Tasks</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding-the-fastest-method">Finding the Fastest Method</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#finding-the-most-accurate-method">Finding the Most Accurate Method</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#identifying-failed-benchmarks">Identifying Failed Benchmarks</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#comparing-methods-across-dataset-sizes">Comparing Methods Across Dataset Sizes</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By ARGscape Team
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2024-2026.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Jan 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

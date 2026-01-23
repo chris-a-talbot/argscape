@@ -133,7 +133,8 @@ export function transformNodesToThreeD(
   temporalSpacing: number = 12,
   spatialSpacing: number = 160,
   temporalSpacingMode: 'equal' | 'linear' | 'log' = 'linear',
-  fullUniqueTimes?: number[]  // Optional: use full dataset times for consistent Z positioning
+  fullUniqueTimes?: number[],  // Optional: use full dataset times for consistent Z positioning
+  populationColors?: Map<number, [number, number, number]> | null  // Optional: population color map
 ): Node3D[] {
   // Get unique times sorted - use full dataset times if provided for consistent positioning
   const uniqueTimes = fullUniqueTimes ?? [...new Set(nodes.map(n => n.time))].sort((a, b) => a - b)
@@ -158,15 +159,37 @@ export function transformNodesToThreeD(
     let color: [number, number, number, number]
     let size: number
 
-    if (node.is_sample) {
-      color = hexToRgba(theme.nodes.sample, 230)
-      size = NODE_SIZES.SAMPLE
-    } else if (node.is_root) {
-      color = hexToRgba(theme.nodes.root, 230)
-      size = NODE_SIZES.ROOT
+    // Use population colors if available and node has population
+    if (populationColors && node.population !== null && node.population !== undefined) {
+      const rgb = populationColors.get(node.population)
+      if (rgb) {
+        color = [rgb[0], rgb[1], rgb[2], 230]
+        size = node.is_sample ? NODE_SIZES.SAMPLE : node.is_root ? NODE_SIZES.ROOT : NODE_SIZES.INTERNAL
+      } else {
+        // Fallback to theme colors
+        if (node.is_sample) {
+          color = hexToRgba(theme.nodes.sample, 230)
+          size = NODE_SIZES.SAMPLE
+        } else if (node.is_root) {
+          color = hexToRgba(theme.nodes.root, 230)
+          size = NODE_SIZES.ROOT
+        } else {
+          color = hexToRgba(theme.nodes.internal, 200)
+          size = NODE_SIZES.INTERNAL
+        }
+      }
     } else {
-      color = hexToRgba(theme.nodes.internal, 200)
-      size = NODE_SIZES.INTERNAL
+      // Use theme colors
+      if (node.is_sample) {
+        color = hexToRgba(theme.nodes.sample, 230)
+        size = NODE_SIZES.SAMPLE
+      } else if (node.is_root) {
+        color = hexToRgba(theme.nodes.root, 230)
+        size = NODE_SIZES.ROOT
+      } else {
+        color = hexToRgba(theme.nodes.internal, 200)
+        size = NODE_SIZES.INTERNAL
+      }
     }
 
     // Position: [X, Y, Z] in deck.gl with orbitAxis='Y' means Y is vertical
@@ -253,11 +276,70 @@ export function calculateInitialViewState(nodes: Node3D[]): {
   const centerY = (bounds.minY + bounds.maxY) / 2
   const centerZ = (bounds.minZ + bounds.maxZ) / 2  // True center, not 30% offset
 
-  // Use fixed AUTO_FIT_ZOOM matching web app (1.8)
-  const AUTO_FIT_ZOOM = 1.8
+  // Slightly zoomed out to prevent clipping bottom corner
+  const AUTO_FIT_ZOOM = 1.4
 
   return {
     target: [centerX, centerY, centerZ],
     zoom: AUTO_FIT_ZOOM,
   }
+}
+
+/**
+ * Auto-fit multiplier bounds
+ */
+const AUTO_FIT_TEMPORAL_MIN = 1
+const AUTO_FIT_TEMPORAL_MAX = 50
+const AUTO_FIT_SPATIAL_MIN = 50
+const AUTO_FIT_SPATIAL_MAX = 300
+
+/**
+ * Calculate auto-fit multipliers based on viewport and data characteristics.
+ *
+ * The goal is to scale the visualization so it fills ~80% of the viewport
+ * while maintaining readable temporal relationships.
+ *
+ * @param viewportWidth - Width of the viewport in pixels
+ * @param viewportHeight - Height of the viewport in pixels
+ * @param numTimeLevels - Number of unique time levels in the data
+ * @param defaultTemporal - Default temporal multiplier (used as reference)
+ * @param defaultSpatial - Default spatial multiplier (used as reference)
+ * @returns Object with calculated temporal and spatial multipliers
+ */
+export function calculateAutoFitMultipliers(
+  viewportWidth: number,
+  viewportHeight: number,
+  numTimeLevels: number,
+  defaultTemporal: number = 12
+): { temporalMultiplier: number; spatialMultiplier: number } {
+  // Target: fill ~80% of viewport dimensions
+  // Account for the OrbitView zoom level (default 1.8) and viewing angle
+  // The effective visible area is roughly viewport / (zoom * perspective factor)
+  const zoomFactor = 1.8
+  const perspectiveFactor = 2.5  // Approximate factor for 3D perspective viewing
+
+  // Calculate effective target dimensions
+  const effectiveHeight = (viewportHeight * 0.8) / (zoomFactor * perspectiveFactor)
+  const effectiveWidth = (viewportWidth * 0.8) / (zoomFactor * perspectiveFactor)
+
+  // Temporal multiplier: controls Z spread
+  // Z spread = numTimeLevels * temporalMultiplier (in 'equal' mode)
+  // So: temporalMultiplier = targetHeight / numTimeLevels
+  let temporalMultiplier: number
+  if (numTimeLevels <= 1) {
+    temporalMultiplier = defaultTemporal
+  } else {
+    temporalMultiplier = effectiveHeight / numTimeLevels
+    // Clamp to bounds
+    temporalMultiplier = Math.max(AUTO_FIT_TEMPORAL_MIN, Math.min(AUTO_FIT_TEMPORAL_MAX, temporalMultiplier))
+  }
+
+  // Spatial multiplier: controls XY spread
+  // Spatial coordinates are normalized to roughly [-0.5, 0.5] then multiplied
+  // So the spread is roughly spatialMultiplier
+  let spatialMultiplier = effectiveWidth
+  // Clamp to bounds
+  spatialMultiplier = Math.max(AUTO_FIT_SPATIAL_MIN, Math.min(AUTO_FIT_SPATIAL_MAX, spatialMultiplier))
+
+  return { temporalMultiplier, spatialMultiplier }
 }

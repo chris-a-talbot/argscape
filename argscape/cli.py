@@ -98,10 +98,31 @@ def _run_serve(args):
     import threading
     import time
     import os
+    import urllib.request
+    import urllib.error
 
     def open_browser(host, port):
-        time.sleep(1)
-        webbrowser.open(f"http://{host}:{port}")
+        """Wait for server to be ready, then open browser."""
+        url = f"http://{host}:{port}"
+        max_wait = 120  # Maximum seconds to wait
+        poll_interval = 0.5  # Seconds between checks
+        waited = 0
+
+        while waited < max_wait:
+            try:
+                # Try to connect to the server
+                urllib.request.urlopen(url, timeout=2)
+                # Server is ready, open browser
+                webbrowser.open(url)
+                return
+            except (urllib.error.URLError, urllib.error.HTTPError, OSError):
+                # Server not ready yet, wait and retry
+                time.sleep(poll_interval)
+                waited += poll_interval
+
+        # Server didn't start in time, open anyway (user can refresh)
+        print(f"Warning: Server may not be fully ready, opening browser anyway")
+        webbrowser.open(url)
 
     if not args.no_browser:
         threading.Thread(target=open_browser, args=(args.host, args.port), daemon=True).start()

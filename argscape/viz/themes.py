@@ -183,3 +183,80 @@ def get_theme(name: str) -> Theme:
 def list_themes() -> list[str]:
     """Return list of available theme names."""
     return list(THEMES.keys())
+
+
+def customize_theme(
+    base: str | Theme = "liquid",
+    *,
+    # Node colors
+    sample_color: str | None = None,
+    internal_color: str | None = None,
+    root_color: str | None = None,
+    # Edge colors
+    edge_color: str | None = None,
+    # Other colors
+    background_color: str | None = None,
+    mutation_color: str | None = None,
+    text_color: str | None = None,
+) -> Theme:
+    """Create a custom theme by overriding colors from a base theme.
+
+    This function allows you to create a custom theme by selectively
+    overriding specific colors while keeping all other colors from
+    the base theme.
+
+    Args:
+        base: Base theme name or Theme object to customize
+        sample_color: Color for sample (leaf) nodes
+        internal_color: Color for internal nodes
+        root_color: Color for root nodes
+        edge_color: Color for edges
+        background_color: Background color
+        mutation_color: Color for mutation markers
+        text_color: Color for text labels
+
+    Returns:
+        A new Theme object with the specified overrides
+
+    Example:
+        >>> from argscape.viz.themes import customize_theme
+        >>> my_theme = customize_theme(
+        ...     "paper",
+        ...     sample_color="#e63946",
+        ...     edge_color="#457b9d"
+        ... )
+    """
+    # Get base theme
+    if isinstance(base, str):
+        base_theme = get_theme(base)
+    else:
+        base_theme = base
+
+    # Build node colors with overrides
+    nodes = NodeColors(
+        sample=sample_color if sample_color is not None else base_theme.nodes.sample,
+        internal=internal_color if internal_color is not None else base_theme.nodes.internal,
+        root=root_color if root_color is not None else base_theme.nodes.root,
+        cluster=base_theme.nodes.cluster,
+        selected=base_theme.nodes.selected,
+    )
+
+    # Build edge colors with overrides
+    edges = EdgeColors(
+        default=edge_color if edge_color is not None else base_theme.edges.default,
+        highlight=base_theme.edges.highlight,
+        dimmed=base_theme.edges.dimmed,
+    )
+
+    # Build the custom theme
+    return Theme(
+        name="custom",
+        background=background_color if background_color is not None else base_theme.background,
+        nodes=nodes,
+        edges=edges,
+        text=text_color if text_color is not None else base_theme.text,
+        text_secondary=base_theme.text_secondary,
+        grid=base_theme.grid,
+        mutation=mutation_color if mutation_color is not None else base_theme.mutation,
+        mutation_unknown=base_theme.mutation_unknown,
+    )

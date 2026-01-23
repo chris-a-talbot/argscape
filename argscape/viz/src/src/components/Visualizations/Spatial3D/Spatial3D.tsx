@@ -9,7 +9,9 @@ import {
   transformEdgesToThreeD,
   calculateInitialViewState,
   getContrastColor,
+  calculateAutoFitMultipliers,
 } from './Spatial3D.utils'
+import { generatePopulationColors } from '@/utils/colorUtils'
 import type { Node3D, Edge3D, ViewState } from './Spatial3D.types'
 import { DEFAULT_VIEW_STATE, SHAPE_Z_OFFSET } from './Spatial3D.types'
 import {
@@ -90,6 +92,17 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
   const { theme, nodes: nodeSettings, edges: edgeSettings, mutations, spatial } = useUIStore()
   const { temporalRange, temporalFilterMode, temporalDimOpacity } = useFilterStore()
 
+  // Generate population colors when colorByPopulation is enabled
+  const populationColors = useMemo(() => {
+    if (!nodeSettings.colorByPopulation || !rawData?.metadata?.has_populations) {
+      return null
+    }
+    const populations = rawData.metadata.populations ?? []
+    // Determine if dark theme based on background color
+    const isDarkTheme = theme?.background !== '#ffffff' && theme?.background !== '#f5f5f7'
+    return generatePopulationColors(populations, isDarkTheme)
+  }, [nodeSettings.colorByPopulation, rawData?.metadata?.has_populations, rawData?.metadata?.populations, theme?.background])
+
   // Get geographic shape from raw data, or use built-in unit grid
   const geographicShape = rawData?.geographic_shape ?? null
   const locationCrs = rawData?.metadata?.location_crs ?? null
@@ -123,6 +136,30 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
     return [...new Set(fullNodes.map(n => n.time))].sort((a, b) => a - b)
   }, [rawData?.nodes, displayedNodes])
 
+  // Calculate effective multipliers (auto-fit or user-specified)
+  const { effectiveTemporalMultiplier, effectiveSpatialMultiplier } = useMemo(() => {
+    // If neither auto-fit is enabled, use the stored values directly
+    if (!spatial.autoFitTemporal && !spatial.autoFitSpatial) {
+      return {
+        effectiveTemporalMultiplier: spatial.temporalMultiplier,
+        effectiveSpatialMultiplier: spatial.spatialMultiplier,
+      }
+    }
+
+    // Calculate auto-fit values
+    const autoFit = calculateAutoFitMultipliers(
+      width,
+      height,
+      fullUniqueTimes.length,
+      spatial.temporalMultiplier
+    )
+
+    return {
+      effectiveTemporalMultiplier: spatial.autoFitTemporal ? autoFit.temporalMultiplier : spatial.temporalMultiplier,
+      effectiveSpatialMultiplier: spatial.autoFitSpatial ? autoFit.spatialMultiplier : spatial.spatialMultiplier,
+    }
+  }, [width, height, fullUniqueTimes.length, spatial.temporalMultiplier, spatial.spatialMultiplier, spatial.autoFitTemporal, spatial.autoFitSpatial])
+
   // Transform data to 3D with temporal filtering
   const { nodes3D, edges3D } = useMemo(() => {
     if (!theme || displayedNodes.length === 0) {
@@ -151,10 +188,11 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
       nodesToTransform,
       fullTransform,
       theme,
-      spatial.temporalMultiplier,
-      spatial.spatialMultiplier,
+      effectiveTemporalMultiplier,
+      effectiveSpatialMultiplier,
       'equal',  // Match web app default for discrete temporal layers
-      fullUniqueTimes  // Pass full unique times for consistent Z positioning
+      fullUniqueTimes,  // Pass full unique times for consistent Z positioning
+      populationColors  // Pass population colors for population-based coloring
     )
 
     // Apply dim opacity in dim mode
@@ -201,7 +239,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
     }
 
     return { nodes3D, edges3D }
-  }, [displayedNodes, displayedEdges, theme, spatial.temporalMultiplier, spatial.spatialMultiplier, edgeSettings.opacity, temporalRange, temporalFilterMode, temporalDimOpacity, fullTransform, fullUniqueTimes])
+  }, [displayedNodes, displayedEdges, theme, effectiveTemporalMultiplier, effectiveSpatialMultiplier, edgeSettings.opacity, temporalRange, temporalFilterMode, temporalDimOpacity, fullTransform, fullUniqueTimes, populationColors])
 
   // Calculate geographic grid lines and temporal back-panel grid
   // Coordinate system with orbitAxis='Y': deck.gl [X, Y, Z] = [spatialX, spatialY, temporal]
@@ -209,8 +247,8 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
     if (!theme || nodes3D.length === 0) return []
 
     // Use geographic shape from data if available, otherwise use built-in shape based on geoBase setting
-    const shapeToRender = geographicShape ?? getBuiltInShape(spatial.geoBase, spatial.spatialMultiplier)
-    const baseLines = convertShapeToLines(shapeToRender, spatial.spatialMultiplier)
+    const shapeToRender = geographicShape ?? getBuiltInShape(spatial.geoBase, effectiveSpatialMultiplier)
+    const baseLines = convertShapeToLines(shapeToRender, effectiveSpatialMultiplier)
 
     // Calculate shapefile bounds from the base lines for perfect alignment
     let shapeMinX = Infinity, shapeMaxX = -Infinity
@@ -259,7 +297,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
       // Add temporal grid lines on back faces at each time level
       if (numTimeSteps > 1) {
         for (let i = 0; i < numTimeSteps; i++) {
-          const z = i * spatial.temporalMultiplier
+          const z = i * effectiveTemporalMultiplier
 
           // Horizontal lines on Y faces (lines along X at fixed Y)
           if (showYMax) {
@@ -301,7 +339,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
 
       // Vertical edge lines at corners of back faces (Z direction)
       // Start from SHAPE_Z_OFFSET to connect with the ground shape
-      const zMax = (numTimeSteps - 1) * spatial.temporalMultiplier
+      const zMax = (numTimeSteps - 1) * effectiveTemporalMultiplier
       if (showYMax) {
         axisLines.push({ source: [shapeMinX, shapeMaxY, SHAPE_Z_OFFSET], target: [shapeMinX, shapeMaxY, zMax], color: edgeColor, width: LINE_WIDTHS.GEOGRAPHIC_NORMAL })
         axisLines.push({ source: [shapeMaxX, shapeMaxY, SHAPE_Z_OFFSET], target: [shapeMaxX, shapeMaxY, zMax], color: edgeColor, width: LINE_WIDTHS.GEOGRAPHIC_NORMAL })
@@ -321,7 +359,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
     }
 
     return [...groundShapeLines, ...axisLines]
-  }, [theme, nodes3D, fullUniqueTimes, spatial.spatialMultiplier, spatial.showAxisLines, spatial.temporalMultiplier, spatial.geoBase, spatial.gridOpacity, spatial.shapeOpacity, geographicShape, viewState.rotationOrbit])
+  }, [theme, nodes3D, fullUniqueTimes, effectiveSpatialMultiplier, spatial.showAxisLines, effectiveTemporalMultiplier, spatial.geoBase, spatial.gridOpacity, spatial.shapeOpacity, geographicShape, viewState.rotationOrbit])
 
   // Initialize view state when data first loads
   useEffect(() => {
@@ -448,7 +486,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
             id: 'labels',
             data: labelNodes,
             getPosition: (d: Node3D) => d.position,  // Render at node position
-            getText: (d: Node3D) => String(d.id),
+            getText: (d: Node3D) => String(d.original_id),
             // Contrasting color based on node color luminance
             getColor: (d: Node3D) => getContrastColor(d.color),
             // Larger labels for samples, proportional to node size
@@ -607,7 +645,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
 
           return {
             html: `<div style="padding: 8px; background: rgba(0,0,0,0.8); border-radius: 4px;">
-              <strong>Node ${object.id}</strong><br/>
+              <strong>Node ${object.original_id}</strong><br/>
               Time: ${object.time.toFixed(2)}<br/>
               Type: ${object.is_sample ? 'Sample' : object.is_root ? 'Root' : 'Internal'}${locationStr}
             </div>`,
