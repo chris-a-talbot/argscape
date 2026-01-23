@@ -59,6 +59,8 @@ argscape.visualize(result.ts, mode="spatial_3d").show()
 |-------|-------------|
 | {doc}`VizResult <vizresult>` | Visualization result with show/display/export methods |
 | {doc}`InferResult <inferresult>` | Inference result containing tree sequence and metadata |
+| {doc}`TemporalAnimation <animations>` | Configure time-based animations |
+| {doc}`GenomicAnimation <animations>` | Configure genomic sliding window animations |
 
 ## Visualization Modes
 
@@ -104,6 +106,27 @@ viz = argscape.visualize(ts, theme="paper")
 ```
 
 See {doc}`/tutorials/themes` for detailed theme information.
+
+## Animations
+
+Bring your visualizations to life with animated playback:
+
+```python
+from argscape import TemporalAnimation, GenomicAnimation
+
+# Temporal: watch lineages coalesce over time
+viz = argscape.visualize(ts, animation=TemporalAnimation(mode="glide", rate=1.0))
+
+# Genomic: slide through local trees across the genome
+viz = argscape.visualize(ts, animation=GenomicAnimation(window=10000, overlap=0.5))
+```
+
+| Animation Type | Description |
+|----------------|-------------|
+| `TemporalAnimation` | Reveals nodes through time (samples→roots or roots→samples) |
+| `GenomicAnimation` | Slides a window across the genome showing local tree variation |
+
+See {doc}`animations` for detailed animation options and examples.
 
 ## Workflow Examples
 
@@ -173,9 +196,27 @@ argscape.visualize(
 ).show()
 ```
 
+### Animated Presentation
+
+```python
+import argscape
+from argscape import TemporalAnimation
+
+# Create an animated visualization for presentations
+viz = argscape.visualize(
+    ts,
+    theme="tskit",
+    animation=TemporalAnimation(mode="glide", rate=0.5),
+    sample_node_size=12,
+    show_sample_ids=True,
+)
+viz.show()  # Play button appears in visualization
+```
+
 ## API Reference
 
 - {doc}`visualize` - Create visualizations from tree sequences
 - {doc}`vizresult` - Display and export visualizations
+- {doc}`animations` - Configure animated playback
 - {doc}`inference` - Run spatial/temporal inference
 - {doc}`inferresult` - Access inference results

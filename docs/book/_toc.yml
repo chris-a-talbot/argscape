@@ -17,6 +17,8 @@ parts:
         title: First Visualization
       - file: tutorials/spatial-3d
         title: 3D Spatial Visualization
+      - file: tutorials/animations
+        title: Animations
       - file: tutorials/filtering-data
         title: Filtering Data
       - file: tutorials/focal-nodes
@@ -32,6 +34,8 @@ parts:
         title: argscape.visualize()
       - file: python-api/vizresult
         title: VizResult
+      - file: python-api/animations
+        title: Animations
       - file: python-api/inference
         title: argscape.infer()
       - file: python-api/inferresult

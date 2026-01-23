@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { useDataStore, useUIStore, useFilterStore } from '@/stores'
+import { useDataStore, useUIStore, useFilterStore, useAnimationStore } from '@/stores'
 import { ForceGraph } from '@/components/Visualizations/ForceGraph'
 import { Spatial3D } from '@/components/Visualizations/Spatial3D'
 import { QuickActionsBar } from '@/components/QuickActionsBar'
 import { LegendCard, ViewModeHeader } from '@/components/FloatingElements'
 import { GenomicFilter, TemporalFilter } from '@/components/filters'
+import { AnimationPopout } from '@/components/AnimationPopout'
+import { useAnimationLoop } from '@/hooks/useAnimationLoop'
 import type { GraphData, VizOptions } from '@/types'
 
 interface AppProps {
@@ -29,6 +31,10 @@ export default function App({ data, options }: AppProps) {
   const { setBounds, setFiltersExpanded } = useFilterStore()
   const genomicExpanded = useFilterStore((state) => state.genomicExpanded)
   const temporalExpanded = useFilterStore((state) => state.temporalExpanded)
+
+  // Animation
+  useAnimationLoop()
+  const animationConfig = useAnimationStore(state => state.config)
 
   // Minimal mode hides the QuickActionsBar (for notebook display)
   const isMinimal = vizOptions.minimal === true
@@ -94,6 +100,11 @@ export default function App({ data, options }: AppProps) {
     if (vizOptions.filtersExpanded !== undefined) {
       setFiltersExpanded(vizOptions.filtersExpanded)
     }
+
+    // Initialize animation if configured
+    if ((vizOptions as any).animation) {
+      useAnimationStore.getState().setConfig((vizOptions as any).animation)
+    }
   }, [graphData, vizOptions, setRawData, setViewMode, setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial, setBounds, setFiltersExpanded])
 
   // Use measured container size, falling back to vizOptions or defaults
@@ -155,6 +166,9 @@ export default function App({ data, options }: AppProps) {
       {/* Filter components - always visible */}
       <TemporalFilter />
       <GenomicFilter />
+
+      {/* Animation controls */}
+      {animationConfig && <AnimationPopout minimal={isMinimal} />}
 
       {!isMinimal && <QuickActionsBar />}
       {!isMinimal && <LegendCard />}
