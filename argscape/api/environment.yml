@@ -14,18 +14,18 @@ channels:
   - conda-forge
 dependencies:
   # Core Python
-  - python>=3.8
+  - python>=3.10
   - pip
 
   # Geospatial stack (requires system libraries - conda handles this automatically)
   - gdal
-  - geopandas=0.14.1
-  - shapely=2.0.2
-  - pyproj=3.6.1
-  - fiona=1.9.5
+  - geopandas>=0.14.1
+  - shapely>=2.0.2
+  - pyproj>=3.4.0
+  - fiona>=1.9.5
 
   # Scientific computing
-  - numpy>=1.24.0,<2.0.0
+  - numpy>=1.24.0
   - pandas
   - scipy
   - scikit-learn
@@ -33,16 +33,15 @@ dependencies:
   - matplotlib
 
   # Tree sequence libraries
-  - tskit
+  - tskit>=0.5.0
   - tszip>=0.2.3
-  - msprime
+  - msprime>=1.0.0
 
   # Web framework
   - fastapi
-  - uvicorn=0.24.0
-  - python-multipart=0.0.6
-  - python-dotenv=1.0.0
-  - apscheduler=3.10.4
+  - uvicorn>=0.24.0
+  - python-multipart>=0.0.6
+  - apscheduler>=3.10.4
   - cryptography>=41.0.0
   - pydantic
 
