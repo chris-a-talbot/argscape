@@ -67,7 +67,7 @@
     <link rel="prev" title="Python API Overview" href="overview.html" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
-    <meta name="docbuild:last-update" content="Jan 23, 2026"/>
+    <meta name="docbuild:last-update" content="Jan 27, 2026"/>
   </head>
   
   
@@ -193,6 +193,7 @@
 <ul class="nav bd-sidenav">
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/first-visualization.html">First Visualization</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/spatial-3d.html">3D Spatial Visualization</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorials/animations.html">Animations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/filtering-data.html">Filtering Data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/focal-nodes.html">Focal Node Selection</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../tutorials/themes.html">Themes</a></li>
@@ -203,6 +204,7 @@
 <li class="toctree-l1"><a class="reference internal" href="overview.html">Python API Overview</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">argscape.visualize()</a></li>
 <li class="toctree-l1"><a class="reference internal" href="vizresult.html">VizResult</a></li>
+<li class="toctree-l1"><a class="reference internal" href="animations.html">Animations</a></li>
 <li class="toctree-l1"><a class="reference internal" href="inference.html">argscape.infer()</a></li>
 <li class="toctree-l1"><a class="reference internal" href="inferresult.html">InferResult</a></li>
 <li class="toctree-l1"><a class="reference internal" href="themes.html">Theme Functions</a></li>
@@ -379,6 +381,7 @@ document.write(`
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#animation-classes">Animation Classes</a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-filters">Interactive Filters</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#returns">Returns</a></li>
@@ -467,6 +470,9 @@ document.write(`
     <span class="n">spatial_multiplier</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">160.0</span><span class="p">,</span>
     <span class="c1"># Animation</span>
     <span class="n">animation</span><span class="p">:</span> <span class="n">TemporalAnimation</span> <span class="o">|</span> <span class="n">GenomicAnimation</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">TemporalAnimation</span><span class="p">,</span> <span class="n">GenomicAnimation</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="c1"># Interactive filters</span>
+    <span class="n">active_genomic_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">active_temporal_filter</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">VizResult</span>
 </pre></div>
 </div>
@@ -1228,6 +1234,60 @@ Similarly, specify either <code class="docutils literal notranslate"><span class
 </div>
 </section>
 </section>
+<section id="interactive-filters">
+<h3>Interactive Filters<a class="headerlink" href="#interactive-filters" title="Link to this heading">#</a></h3>
+<p>These parameters control whether the genomic and temporal filter sliders are active (showing a range selection) when the visualization first loads. This is useful for encouraging exploration of the data.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 50.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Parameter</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">active_genomic_filter</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>When <code class="docutils literal notranslate"><span class="pre">True</span></code>, the genomic filter slider is displayed as active with the full sequence range selected. Users can then adjust the range to explore different genomic regions.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">active_temporal_filter</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bool</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">False</span></code></p></td>
+<td><p>When <code class="docutils literal notranslate"><span class="pre">True</span></code>, the temporal filter slider is displayed as active with the full time range selected. Users can then adjust the range to explore different time periods.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Examples:</strong></p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># Start with genomic filter active for genome exploration</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">active_genomic_filter</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+
+<span class="c1"># Start with temporal filter active for time exploration</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span><span class="n">ts</span><span class="p">,</span> <span class="n">active_temporal_filter</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+
+<span class="c1"># Start with both filters active</span>
+<span class="n">viz</span> <span class="o">=</span> <span class="n">argscape</span><span class="o">.</span><span class="n">visualize</span><span class="p">(</span>
+    <span class="n">ts</span><span class="p">,</span>
+    <span class="n">active_genomic_filter</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+    <span class="n">active_temporal_filter</span><span class="o">=</span><span class="kc">True</span>
+<span class="p">)</span>
+<span class="n">viz</span><span class="o">.</span><span class="n">display</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>The filter sliders appear at the bottom (genomic) and left (temporal) edges of the visualization. When active, dragging the slider handles adjusts which nodes and edges are highlighted or visible.</p>
+</div>
+</section>
 </section>
 <section id="returns">
 <h2>Returns<a class="headerlink" href="#returns" title="Link to this heading">#</a></h2>
@@ -1388,6 +1448,7 @@ Similarly, specify either <code class="docutils literal notranslate"><span class
 <li class="toc-h4 nav-item toc-entry"><a class="reference internal nav-link" href="#animation-classes">Animation Classes</a></li>
 </ul>
 </li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-filters">Interactive Filters</a></li>
 </ul>
 </li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#returns">Returns</a></li>
@@ -1427,7 +1488,7 @@ By Christopher Talbot
   
   <div class="footer-item">
     <p class="last-updated">
-  Last updated on Jan 23, 2026.
+  Last updated on Jan 27, 2026.
   <br/>
 </p>
   </div>
