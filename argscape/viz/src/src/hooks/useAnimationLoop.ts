@@ -29,6 +29,8 @@ export function useAnimationLoop() {
   const {
     setTemporalRange,
     setGenomicRange,
+    setGenomicMode,
+    genomicMode,
     sequenceLength,
     numTrees,
   } = useFilterStore()
@@ -112,32 +114,44 @@ export function useAnimationLoop() {
 
     const genomicConfig = config.genomic
 
-    // Determine window size
-    let windowSize: number
-    let useTreeUnits = false
+    // Determine if using tree units
+    const useTreeUnits = genomicConfig.window_trees !== null
 
-    if (genomicConfig.window_trees !== null) {
-      // Convert tree count to approximate genomic positions
-      const treesPerBp = numTrees / sequenceLength
-      windowSize = genomicConfig.window_trees / treesPerBp
-      useTreeUnits = true
-    } else {
-      windowSize = genomicConfig.window ?? sequenceLength / 10
+    // Switch to tree mode if using tree units
+    if (useTreeUnits && genomicMode !== 'tree') {
+      setGenomicMode('tree')
+    } else if (!useTreeUnits && genomicMode !== 'position') {
+      setGenomicMode('position')
     }
 
-    // Determine step size
+    // Calculate window and step sizes in native units (trees or bp)
+    let windowSize: number
+    let maxValue: number
     let stepSize: number
+
+    if (useTreeUnits) {
+      // Work directly in tree indices
+      windowSize = genomicConfig.window_trees!
+      maxValue = numTrees - 1  // Trees are 0-indexed, so max index is numTrees - 1
+    } else {
+      // Work in genomic positions (bp)
+      windowSize = genomicConfig.window ?? sequenceLength / 10
+      maxValue = sequenceLength
+    }
+
+    // Determine step size in native units
     if (genomicConfig.step !== null) {
-      stepSize = useTreeUnits
-        ? genomicConfig.step / (numTrees / sequenceLength)
-        : genomicConfig.step
+      stepSize = genomicConfig.step
     } else if (genomicConfig.overlap !== null) {
       stepSize = windowSize * (1 - genomicConfig.overlap)
     } else {
       stepSize = windowSize  // No overlap
     }
 
-    const totalSteps = Math.ceil((sequenceLength - windowSize) / stepSize)
+    // Ensure step size is at least 1
+    stepSize = Math.max(1, stepSize)
+
+    const totalSteps = Math.ceil((maxValue - windowSize) / stepSize)
     const totalDuration = totalSteps / genomicRate
 
     // Resume from paused progress
@@ -155,9 +169,14 @@ export function useAnimationLoop() {
       const currentStep = Math.floor(newProgress * totalSteps)
       const position = currentStep * stepSize
       const rangeStart = Math.max(0, position)
-      const rangeEnd = Math.min(sequenceLength, position + windowSize)
+      const rangeEnd = Math.min(maxValue, position + windowSize)
 
-      setGenomicRange([rangeStart, rangeEnd])
+      // For tree mode, ensure we're using integer values
+      if (useTreeUnits) {
+        setGenomicRange([Math.round(rangeStart), Math.round(rangeEnd)])
+      } else {
+        setGenomicRange([rangeStart, rangeEnd])
+      }
       setCurrentGenomicPosition(position)
       setProgress(newProgress)
 
@@ -177,7 +196,7 @@ export function useAnimationLoop() {
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [isPlaying, activeType, genomicRate, config, sequenceLength, numTrees, setGenomicRange, setCurrentGenomicPosition, setProgress, reset])
+  }, [isPlaying, activeType, genomicRate, config, sequenceLength, numTrees, genomicMode, setGenomicMode, setGenomicRange, setCurrentGenomicPosition, setProgress, reset])
 
   // Handle pause - save progress
   useEffect(() => {
