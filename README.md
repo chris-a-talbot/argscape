@@ -18,7 +18,7 @@ viz.show()  # Opens interactive visualization in browser
 ## Links
 
 - **Web App**: [argscape.com](https://argscape.com)
-- **Documentation**: [argscape.com/docs](https://argscape.com/docs)
+- **Documentation**: [https://argscape.com/documentation](https://www.argscape.com/documentation/intro.html)
 - **Paper**: [arxiv.org/abs/2510.07255](https://arxiv.org/abs/2510.07255)
 
 ## Installation
