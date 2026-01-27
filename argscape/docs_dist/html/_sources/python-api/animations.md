@@ -166,6 +166,10 @@ animation = GenomicAnimation(window_trees=5)
 Specify either `window` or `window_trees`, not both. If neither is specified, defaults to 1/10th of sequence length.
 ```
 
+```{tip}
+When using `window_trees`, the genomic filter slider automatically switches to tree index mode, displaying "Tree N" instead of genomic positions. This makes it easier to track which local trees are currently visible during the animation.
+```
+
 ### Step/Overlap Options
 
 Control how the window advances:

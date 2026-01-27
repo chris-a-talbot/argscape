@@ -72,6 +72,9 @@ def visualize(
     spatial_multiplier: float = 160.0,
     # Animation
     animation: TemporalAnimation | GenomicAnimation | tuple[TemporalAnimation, GenomicAnimation] | None = None,
+    # Interactive filters
+    active_genomic_filter: bool = False,
+    active_temporal_filter: bool = False,
 ) -> VizResult
 ```
 
@@ -633,6 +636,52 @@ viz = argscape.visualize(
 
 ```{tip}
 When `show_controls=True`, a floating animation panel provides full controls including mode selection, speed adjustment, and progress display. In minimal mode (`show_controls=False`), only the play button is shown.
+```
+
+### Interactive Filters
+
+These parameters control whether the genomic and temporal filter sliders are active (showing a range selection) when the visualization first loads. This is useful for encouraging exploration of the data.
+
+```{list-table}
+:header-rows: 1
+:widths: 20 15 15 50
+
+* - Parameter
+  - Type
+  - Default
+  - Description
+* - `active_genomic_filter`
+  - `bool`
+  - `False`
+  - When `True`, the genomic filter slider is displayed as active with the full sequence range selected. Users can then adjust the range to explore different genomic regions.
+* - `active_temporal_filter`
+  - `bool`
+  - `False`
+  - When `True`, the temporal filter slider is displayed as active with the full time range selected. Users can then adjust the range to explore different time periods.
+```
+
+**Examples:**
+
+```python
+# Start with genomic filter active for genome exploration
+viz = argscape.visualize(ts, active_genomic_filter=True)
+viz.display()
+
+# Start with temporal filter active for time exploration
+viz = argscape.visualize(ts, active_temporal_filter=True)
+viz.display()
+
+# Start with both filters active
+viz = argscape.visualize(
+    ts,
+    active_genomic_filter=True,
+    active_temporal_filter=True
+)
+viz.display()
+```
+
+```{tip}
+The filter sliders appear at the bottom (genomic) and left (temporal) edges of the visualization. When active, dragging the slider handles adjusts which nodes and edges are highlighted or visible.
 ```
 
 ## Returns
