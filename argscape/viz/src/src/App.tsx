@@ -28,7 +28,7 @@ export default function App({ data, options }: AppProps) {
   const theme = useUIStore(state => state.theme)
   const mode = useUIStore(state => state.mode)
 
-  const { setBounds, setFiltersExpanded } = useFilterStore()
+  const { setBounds, setFiltersExpanded, setGenomicRange, setTemporalRange, setGenomicExpanded, setTemporalExpanded } = useFilterStore()
   const genomicExpanded = useFilterStore((state) => state.genomicExpanded)
   const temporalExpanded = useFilterStore((state) => state.temporalExpanded)
 
@@ -73,7 +73,7 @@ export default function App({ data, options }: AppProps) {
     setTheme(vizOptions.theme)
 
     if (vizOptions.initialState) {
-      const { nodes, edges, mutations, layout, spatial, focal } = vizOptions.initialState
+      const { nodes, edges, mutations, layout, spatial, focal, filters } = vizOptions.initialState
       if (nodes) setNodes(nodes)
       if (edges) setEdges(edges)
       if (mutations) setMutations(mutations)
@@ -83,6 +83,22 @@ export default function App({ data, options }: AppProps) {
       // Initialize focal node view if specified
       if (focal?.nodeId !== null && focal?.nodeId !== undefined && focal?.mode) {
         setViewMode(focal.mode, focal.nodeId)
+      }
+
+      // Initialize active filters if specified
+      if (filters) {
+        if (filters.activeGenomicFilter && graphData.metadata) {
+          // Set genomic range to full sequence and expand the filter
+          setGenomicRange([0, graphData.metadata.sequence_length])
+          setGenomicExpanded(true)
+        }
+        if (filters.activeTemporalFilter && graphData.metadata) {
+          // Set temporal range to full time range and expand the filter
+          const minTime = graphData.metadata.min_time ?? 0
+          const maxTime = graphData.metadata.max_time ?? 0
+          setTemporalRange([minTime, maxTime])
+          setTemporalExpanded(true)
+        }
       }
     }
 
@@ -105,7 +121,7 @@ export default function App({ data, options }: AppProps) {
     if ((vizOptions as any).animation) {
       useAnimationStore.getState().setConfig((vizOptions as any).animation)
     }
-  }, [graphData, vizOptions, setRawData, setViewMode, setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial, setBounds, setFiltersExpanded])
+  }, [graphData, vizOptions, setRawData, setViewMode, setMode, setTheme, setNodes, setEdges, setMutations, setLayout, setSpatial, setBounds, setFiltersExpanded, setGenomicRange, setTemporalRange, setGenomicExpanded, setTemporalExpanded])
 
   // Use measured container size, falling back to vizOptions or defaults
   const width = containerSize.width || vizOptions.width || 1200

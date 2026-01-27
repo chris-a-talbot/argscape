@@ -91,6 +91,11 @@ export interface FocalState {
   mode: ViewMode | null
 }
 
+export interface FiltersInitialState {
+  activeGenomicFilter?: boolean
+  activeTemporalFilter?: boolean
+}
+
 export interface InitialState {
   nodes: NodesState
   edges: EdgesState
@@ -99,6 +104,7 @@ export interface InitialState {
   filter?: FilterState
   spatial?: SpatialState
   focal?: FocalState
+  filters?: FiltersInitialState
 }
 
 export interface VizOptions {

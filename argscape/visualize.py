@@ -214,6 +214,9 @@ def visualize(
     spatial_multiplier: float = 160.0,
     # Animation
     animation: AnimationType = None,
+    # Interactive filters
+    active_genomic_filter: bool = False,
+    active_temporal_filter: bool = False,
 ) -> VizResult:
     """
     Create an ARGscape visualization from a tree sequence.
@@ -273,6 +276,12 @@ def visualize(
         animation: Animation configuration. Pass a TemporalAnimation for time-based
             layer reveal, GenomicAnimation for sliding window through genome, or a
             list containing both. See animation classes for configuration options.
+        active_genomic_filter: When True, displays the genomic filter slider as
+            active (showing the full range) when the visualization loads. Useful
+            for exploring different genomic regions interactively.
+        active_temporal_filter: When True, displays the temporal filter slider as
+            active (showing the full range) when the visualization loads. Useful
+            for exploring different time ranges interactively.
 
     Returns:
         VizResult with show(), display(), and export() methods
@@ -405,6 +414,10 @@ def visualize(
             "focal": {
                 "nodeId": focal_node,
                 "mode": focal_mode if focal_node is not None else None,
+            },
+            "filters": {
+                "activeGenomicFilter": active_genomic_filter,
+                "activeTemporalFilter": active_temporal_filter,
             },
         },
     }

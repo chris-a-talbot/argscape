@@ -570,7 +570,13 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
   }, [nodes3D, edges3D, displayedEdges, geographicLines, theme, nodeSettings, edgeSettings, mutations, onNodeClick])
 
   // Create view - matches web app configuration
-  const orbitView = useMemo(() => new OrbitView({ id: 'orbit' }), [])
+  // Configure clipping planes to prevent node clipping during animations
+  // when nodes span a large Z-range (temporal dimension)
+  const orbitView = useMemo(() => new OrbitView({
+    id: 'orbit',
+    near: 0.01,    // Smaller near plane prevents clipping nodes close to camera
+    far: 10000,    // Larger far plane prevents clipping distant nodes
+  }), [])
 
   if (!theme) {
     return (
