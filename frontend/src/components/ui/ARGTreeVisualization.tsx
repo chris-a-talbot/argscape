@@ -1,6 +1,7 @@
 import { ReactNode, useMemo } from 'react';
 import { useColorTheme } from '@/context/ColorThemeContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { APP_LOGO_FONT_FAMILY } from '@/lib/fonts';
 
 // SVG viewBox dimensions - these scale responsively with the container
 const SVG_WIDTH = 900;
@@ -136,7 +137,7 @@ export function ARGTreeVisualization({
             fontSize: `${LOGO_FONT_SIZE}px`,
             fontWeight: 800,
             letterSpacing: '-0.04em',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
+            fontFamily: APP_LOGO_FONT_FAMILY,
           }}
           onClick={onLogoClick}
           role="button"

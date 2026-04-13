@@ -33,7 +33,7 @@ dependencies:
   - matplotlib
 
   # Tree sequence libraries
-  - tskit>=0.5.0
+  - tskit>=1.0.0
   - tszip>=0.2.3
   - msprime>=1.0.0
 

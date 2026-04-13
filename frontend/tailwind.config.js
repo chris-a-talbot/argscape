@@ -1,3 +1,6 @@
+import defaultTheme from 'tailwindcss/defaultTheme'
+import tailwindcssAnimate from 'tailwindcss-animate'
+
 /** @type {import('tailwindcss').Config} */
 export default {
     darkMode: ["class"],
@@ -7,6 +10,10 @@ export default {
 	  ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['"Atkinson Hyperlegible Next"', ...defaultTheme.fontFamily.sans],
+  			logo: [...defaultTheme.fontFamily.sans]
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -62,6 +69,5 @@ export default {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [tailwindcssAnimate],
 }
-

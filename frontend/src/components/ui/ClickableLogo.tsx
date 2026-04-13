@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { APP_LOGO_FONT_FAMILY } from '../../lib/fonts';
 
 interface ClickableLogoProps {
   className?: string;
@@ -40,7 +41,7 @@ export default function ClickableLogo({
     <div className="cursor-pointer select-none" onClick={handleLogoClick}>
       <h1 
         className={`${getSizeClasses()} font-extrabold tracking-tight ${className}`}
-        style={{ letterSpacing: '-0.04em', ...style }}
+        style={{ fontFamily: APP_LOGO_FONT_FAMILY, letterSpacing: '-0.04em', ...style }}
       >
         ARG<span style={{ color: colors.accentPrimary }}>scape</span>
       </h1>

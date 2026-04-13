@@ -42,7 +42,7 @@ class BenchmarkConfig:
         InferenceMethodConfig("midpoint", params={"weighted": True}),
         InferenceMethodConfig("midpoint", params={"weighted": False}),
         InferenceMethodConfig("sparg"),
-        InferenceMethodConfig("spacetrees"),
+        # InferenceMethodConfig("spacetrees"),  # Temporarily disabled
         InferenceMethodConfig("tsdate"),
     ])
 

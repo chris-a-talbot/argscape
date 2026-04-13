@@ -184,7 +184,7 @@ async def download_tree_sequence(
     request: Request, 
     filename: str, 
     background_tasks: BackgroundTasks,
-    format: str = Query("trees", regex="^(trees|tsz)$")
+    format: str = Query("trees", pattern="^(trees|tsz)$")
 ):
     """Download a tree sequence file in either .trees or .tsz format."""
     try:
@@ -281,7 +281,8 @@ async def get_graph_data(
     Can filter by either:
     - Genomic range: genomic_start and genomic_end
     - Tree index range: tree_start_idx and tree_end_idx (inclusive)
-    - Temporal range: temporal_start and temporal_end
+    - Temporal range: temporal_start and temporal_end (accepted for URL compatibility;
+      current visualizers apply temporal filtering client-side)
     
     Pagination support:
     - page: Page number (0-indexed, default: None = return all)
@@ -294,7 +295,7 @@ async def get_graph_data(
     logger.info(f"Requesting graph data for file: {filename} with max_samples: {max_samples}, "
                f"pagination: page={page}, page_size={page_size}")
 
-    # Log sample subsetting parameters - CRITICAL for debugging ID mapping
+    # Log sample subsetting parameters for ID-mapping debugging
     logger.info(f"SAMPLE SUBSETTING PARAMS: mode={sample_subset_mode}, ids={sample_ids}, "
                f"range=[{sample_range_start}, {sample_range_end}], seed={random_seed}, pops={sample_populations}")
 
@@ -360,115 +361,9 @@ async def get_graph_data(
                 ts = ts.delete_intervals(intervals_to_delete, simplify=True)
             logger.info(f"After genomic filtering: {ts.num_nodes} nodes, {ts.num_edges} edges")
 
-        # Apply temporal filtering AFTER genomic/tree filtering to preserve tree structure
-        if temporal_start is not None or temporal_end is not None:
-            start_time = temporal_start if temporal_start is not None else 0
-            end_time = temporal_end if temporal_end is not None else max(node.time for node in ts.nodes())
-            
-            if start_time >= end_time:
-                raise HTTPException(status_code=400, detail="temporal_start must be less than temporal_end")
-            
-            logger.info(f"Applying temporal filter: {start_time} - {end_time}")
-            
-            try:
-                # Count nodes in temporal range
-                total_internal_nodes = sum(1 for node in ts.nodes() if not node.is_sample())
-                internal_nodes_in_range = sum(1 for node in ts.nodes() 
-                                            if not node.is_sample() and start_time <= node.time <= end_time)
-                
-                if internal_nodes_in_range < total_internal_nodes:
-                    logger.info(f"Temporal filtering: {internal_nodes_in_range}/{total_internal_nodes} internal nodes in range")
-                    
-                    # Use a table-based approach to filter by time while preserving structure
-                    tables = ts.dump_tables()
-                    
-                    # Create new node table with only nodes in temporal range (plus all samples)
-                    old_nodes = tables.nodes
-                    new_nodes = old_nodes.copy()
-                    new_nodes.clear()
-                    
-                    # Map old node IDs to new node IDs
-                    old_to_new = {}
-                    new_node_id = 0
-                    
-                    # First pass: add all samples (always keep samples)
-                    for i, node in enumerate(ts.nodes()):
-                        if node.is_sample():
-                            old_to_new[node.id] = new_node_id
-                            new_nodes.add_row(
-                                flags=node.flags,
-                                time=node.time,
-                                population=node.population,
-                                individual=node.individual,
-                                metadata=node.metadata
-                            )
-                            new_node_id += 1
-                    
-                    # Second pass: add internal nodes in temporal range
-                    for i, node in enumerate(ts.nodes()):
-                        if not node.is_sample() and start_time <= node.time <= end_time:
-                            old_to_new[node.id] = new_node_id
-                            new_nodes.add_row(
-                                flags=node.flags,
-                                time=node.time,
-                                population=node.population,
-                                individual=node.individual,
-                                metadata=node.metadata
-                            )
-                            new_node_id += 1
-                    
-                    # Update edges to only include edges between kept nodes
-                    old_edges = tables.edges
-                    new_edges = old_edges.copy()
-                    new_edges.clear()
-                    
-                    for edge in ts.edges():
-                        if edge.parent in old_to_new and edge.child in old_to_new:
-                            new_edges.add_row(
-                                left=edge.left,
-                                right=edge.right,
-                                parent=old_to_new[edge.parent],
-                                child=old_to_new[edge.child],
-                                metadata=edge.metadata
-                            )
-                    
-                    # Update mutations to only include mutations on kept nodes
-                    old_mutations = tables.mutations
-                    new_mutations = old_mutations.copy()
-                    new_mutations.clear()
-                    
-                    for mutation in ts.mutations():
-                        if mutation.node in old_to_new:
-                            new_mutations.add_row(
-                                site=mutation.site,
-                                node=old_to_new[mutation.node],
-                                time=mutation.time,
-                                derived_state=mutation.derived_state,
-                                parent=mutation.parent,
-                                metadata=mutation.metadata
-                            )
-                    
-                    # Replace tables
-                    tables.nodes.replace_with(new_nodes)
-                    tables.edges.replace_with(new_edges)
-                    tables.mutations.replace_with(new_mutations)
-                    
-                    # Create new tree sequence
-                    ts_filtered = tables.tree_sequence()
-                    
-                    # Verify the filtered tree sequence has the same sequence length
-                    if ts_filtered.sequence_length == ts.sequence_length and ts_filtered.num_trees > 0:
-                        ts = ts_filtered
-                        logger.info(f"After temporal filtering: {ts.num_nodes} nodes, {ts.num_edges} edges, {ts.num_trees} trees")
-                    else:
-                        logger.warning("Temporal filtering broke tree structure - keeping original")
-                        
-                else:
-                    logger.info("No temporal filtering needed - all internal nodes within range")
-                    
-            except Exception as e:
-                logger.warning(f"Temporal filtering failed: {e} - keeping original tree sequence")
-                # On any error, continue with original tree sequence
+        # Temporal filtering is handled purely client-side (opacity-based dimming)
+        # to avoid breaking tree structure by severing sample-parent edges.
+        # The temporalStart/temporalEnd params are accepted but ignored server-side.
 
         # Apply sample subsetting last (after all other filtering)
         sample_nodes = [node for node in ts.nodes() if node.is_sample()]
@@ -971,5 +866,4 @@ async def get_windowed_statistics(
     except Exception as e:
         logger.error(f"Error getting windowed statistics: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get windowed statistics: {str(e)}")
-
 

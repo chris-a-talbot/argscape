@@ -7,7 +7,6 @@ import { useColorTheme } from '../../../context/ColorThemeContext';
 import { generatePopulationColors } from '../../../utils/colorUtils';
 import { convertShapeToLines, createShapeLines, GeographicLine3D } from '../SpatialArgUtils/GeographicUtils';
 import { combineSpatiallyColocatedNodes } from '../../../utils/nodeCombining';
-import { isRootNode } from '../../../utils/graphTraversal';
 import { TemporalSpacingMode, NodeIdSettings, EdgeLabelSettings, 
   EdgeMutationSettings, LabelConnectingLine3D, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { 
@@ -39,6 +38,7 @@ import { VISUALIZATION_CONSTANTS_REG } from '../SpatialArgUtils/SpatialArg.const
 import { GeographicMode, EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
 import { Node3D, Edge3D, NodeLabel3D } from './SpatialArg3D.types';
 import { LINE_WIDTHS } from './SpatialArg3D.constants';
+import { APP_SANS_FONT_FAMILY } from '../../../lib/fonts';
 
 interface SpatialArg3DProps {
   data: GraphData | null;
@@ -80,6 +80,7 @@ interface SpatialArg3DProps {
   edgeMutationSettings?: EdgeMutationSettings;
   heatmapSettings?: AncestryHeatmapSettings;
   colorByPopulation?: boolean;
+  onRenderComplete?: () => void;
   // Spatial filter props for dim mode
   genomicRange?: [number, number] | null;
   genomicDimOpacity?: number;
@@ -118,6 +119,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
   edgeMutationSettings,
   heatmapSettings,
   colorByPopulation = false,
+  onRenderComplete,
   // Spatial filter props for dim mode
   genomicRange,
   genomicDimOpacity = 0.15,
@@ -161,6 +163,40 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     window.addEventListener('pointerdown', handlePointerDown, { capture: true });
     return () => window.removeEventListener('pointerdown', handlePointerDown, { capture: true });
   }, []);
+
+  const renderCompleteNotifiedRef = useRef(false);
+  useEffect(() => {
+    renderCompleteNotifiedRef.current = false;
+  }, [
+    data,
+    width,
+    height,
+    selectedNode,
+    temporalRange,
+    showTemporalPlanes,
+    temporalFilterMode,
+    temporalSpacing,
+    spatialSpacing,
+    geographicShape,
+    geographicMode,
+    temporalGridOpacity,
+    geographicShapeOpacity,
+    nodeSizes,
+    nodeIdSettings,
+    edgeThickness,
+    edgeOpacity,
+    edgeLabelSettings,
+    edgeMutationSettings,
+    heatmapSettings,
+    colorByPopulation,
+    genomicRange,
+    genomicDimOpacity,
+    treeRange,
+    treeIntervals,
+    treeDimOpacity,
+    temporalDimOpacity,
+    externalViewState,
+  ]);
 
   // Cleanup DeckGL instance on unmount to release WebGL resources
   useEffect(() => {
@@ -239,6 +275,22 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     return calculateCoordinateTransform(combinedNodesForCoordinateTransform, geographicMode, geographicShape);
   }, [combinedNodesForCoordinateTransform, geographicMode, geographicShape?.bounds]);
 
+  const rootNodeIds = useMemo(() => {
+    if (!combinedNodesForTransform.length) return new Set<number>();
+
+    const childNodeIds = new Set<number>();
+    combinedEdgesForTransform.forEach((edge) => {
+      const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+      childNodeIds.add(targetId);
+    });
+
+    return new Set(
+      combinedNodesForTransform
+        .filter((node) => !childNodeIds.has(node.id))
+        .map((node) => node.id)
+    );
+  }, [combinedNodesForTransform, combinedEdgesForTransform]);
+
   const { nodes3D: allNodes3D, edges3D, bounds } = useMemo(() => {
     if (!coordinateTransform || !combinedNodesForTransform.length) {
       return { nodes3D: [], edges3D: [], bounds: null };
@@ -266,7 +318,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       combinedEdges,
       uniqueTimes,
       temporalSpacingMode,
-      populationColors
+      populationColors,
+      rootNodeIds
     );
 
     const nodeMap = new Map<number, Node3D>();
@@ -314,7 +367,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     } : null;
 
     return { nodes3D: transformedNodes, edges3D: transformedEdges, bounds: finalBounds };
-  }, [coordinateTransform, combinedNodesForTransform, combinedEdgesForTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors, edgeOpacity, populationColors, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity]);
+  }, [coordinateTransform, combinedNodesForTransform, combinedEdgesForTransform, temporalSpacing, spatialSpacing, temporalSpacingMode, temporalFilterMode, temporalRange, colors, edgeOpacity, populationColors, genomicRange, genomicDimOpacity, treeRange, treeIntervals, treeDimOpacity, rootNodeIds]);
 
   // Keep all nodes for calculations, but we'll control visibility in the layer
   const nodes3D = allNodes3D;
@@ -337,6 +390,11 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       }));
     }
   }, [bounds, calculateZoomLimits]);
+
+  useEffect(() => {
+    setCustomLabelPositions(new Map());
+    setIsDragging(null);
+  }, [data, combinedNodesForTransform]);
 
   // No auto-center logic here - the container handles it
 
@@ -445,11 +503,12 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       colors,
       customLabelPositions,
       temporalRange,
-      temporalFilterMode
+      temporalFilterMode,
+      rootNodeIds
     );
     
     return { nodeLabels: result.labels, labelConnectingLines: result.connectingLines };
-  }, [nodes3D, nodeIdSettings, combinedNodesForTransform, combinedEdgesForTransform, nodeSizes, colors, customLabelPositions, temporalRange, temporalFilterMode]);
+  }, [nodes3D, nodeIdSettings, combinedNodesForTransform, combinedEdgesForTransform, nodeSizes, colors, customLabelPositions, temporalRange, temporalFilterMode, rootNodeIds]);
 
   // Create edge labels with genomic spans
   const edgeLabels = useMemo(() => {
@@ -681,7 +740,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         }
         
         const isSelected = selectedNode && d.id === selectedNode.id;
-        const isRoot = isRootNode(d, data?.nodes || [], data?.edges || []);
+        const isRoot = rootNodeIds.has(d.id);
         const baseRadius = calculateNodeBaseRadius(d, nodeSizes, isRoot);
         
         return isSelected ? baseRadius * VISUALIZATION_CONSTANTS_REG.SELECTED_NODE_SCALE : baseRadius;
@@ -698,7 +757,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         if (shouldHideNodeByHeatmap(d, heatmapSettings)) {
           return [0, 0, 0, 0];
         }
-        return calculateNodeOutlineColor(d, selectedNode || null, data, temporalRange || null, temporalFilterMode, colors);
+        return calculateNodeOutlineColor(d, selectedNode || null, data, temporalRange || null, temporalFilterMode, colors, rootNodeIds);
       },
       getLineWidth: (d: Node3D) => {
         // Hide nodes based on heatmap visibility settings
@@ -706,8 +765,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
           return 0;
         }
         
-        const outlineWidth = calculateNodeOutlineWidth(d, selectedNode || null, data);
-        const isRoot = isRootNode(d, data?.nodes || [], data?.edges || []);
+        const outlineWidth = calculateNodeOutlineWidth(d, selectedNode || null, data, rootNodeIds);
+        const isRoot = rootNodeIds.has(d.id);
         const baseRadius = calculateNodeBaseRadius(d, nodeSizes, isRoot);
         
         // Make outline width a fraction of the node's radius
@@ -761,7 +820,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
       },
       getTextAnchor: 'middle' as const,
       getAlignmentBaseline: 'center' as const,
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: APP_SANS_FONT_FAMILY,
       fontWeight: 'bold',
       billboard: false, // Text lays flat, not facing camera
       // Drag functionality for sample labels only
@@ -932,7 +991,8 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
     edgeMutationSettings,
     customLabelPositions,
     isDragging,
-    data?.metadata.sequence_length
+    data?.metadata.sequence_length,
+    rootNodeIds
   ]);
 
   if (!data || nodes3D.length === 0) {
@@ -993,6 +1053,13 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
         }}
         controller={true}
         layers={layers}
+        onAfterRender={() => {
+          if (renderCompleteNotifiedRef.current) {
+            return;
+          }
+          renderCompleteNotifiedRef.current = true;
+          onRenderComplete?.();
+        }}
         getCursor={({ isDragging: isHovering, pickedInfos }: any) => {
           // Show grabbing cursor when dragging sample labels
           if (isDragging !== null) return 'grabbing';
@@ -1016,7 +1083,7 @@ const SpatialArg3DVisualization = React.forwardRef<HTMLDivElement, SpatialArg3DP
           
           // Only show tooltips for nodes, not labels
           if (layer?.id === 'nodes') {
-            return createTooltipContent(object as Node3D, data, geographicMode, colors);
+            return createTooltipContent(object as Node3D, data, geographicMode, colors, rootNodeIds);
           }
           
           // For mutation markers, show detailed mutation info

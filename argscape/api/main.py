@@ -38,10 +38,12 @@ try:
 except ImportError:
     SPARG_AVAILABLE = False
 
-try:
-    from argscape.api.inference import SPACETREES_AVAILABLE
-except ImportError:
-    SPACETREES_AVAILABLE = False
+# Spacetrees temporarily disabled
+# try:
+#     from argscape.api.inference import SPACETREES_AVAILABLE
+# except ImportError:
+#     SPACETREES_AVAILABLE = False
+SPACETREES_AVAILABLE = False
 
 try:
     import gaiapy as gp

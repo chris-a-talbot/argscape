@@ -158,7 +158,7 @@ def extract_node_locations_csv(
 async def download_locations_csv(
     request: Request,
     filename: str,
-    node_type: str = Query("all", regex="^(all|samples|internal)$"),
+    node_type: str = Query("all", pattern="^(all|samples|internal)$"),
     include_columns: Optional[str] = Query(None, description="Comma-separated list of columns: time,individual_id,pedigree_id,population,is_sample,z")
 ):
     """
@@ -212,7 +212,7 @@ async def download_intermediate_data(
     filename: str,
     background_tasks: BackgroundTasks,
     data_type: str = Query(..., description="Type of intermediate data: mpr_result, spatial_arg, dispersal_params, ancestor_locations"),
-    format: str = Query("pkl", regex="^(pkl|csv|npy|zip)$", description="Export format: pkl (pickle), csv (CSV files), npy (NumPy arrays), zip (all as zip)")
+    format: str = Query("pkl", pattern="^(pkl|csv|npy|zip)$", description="Export format: pkl (pickle), csv (CSV files), npy (NumPy arrays), zip (all as zip)")
 ):
     """
     Download intermediate inference data objects.
@@ -646,7 +646,7 @@ async def download_diff_statistics(
     request: Request,
     first_filename: str,
     second_filename: str = Query(..., description="Second tree sequence filename for comparison"),
-    format: str = Query("csv", regex="^(csv|json)$", description="Export format: csv (full node locations) or json (average statistics)")
+    format: str = Query("csv", pattern="^(csv|json)$", description="Export format: csv (full node locations) or json (average statistics)")
 ):
     """
     Download diff statistics between two tree sequences.
@@ -817,4 +817,3 @@ async def download_diff_statistics(
     except Exception as e:
         logger.error(f"Error generating diff statistics for {first_filename} vs {second_filename}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to generate diff statistics: {str(e)}")
-

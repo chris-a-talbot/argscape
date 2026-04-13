@@ -57,19 +57,32 @@ export const GRAPH_CONSTANTS = {
         BOTTOM_MARGIN_RATIO: 0.15 // Reserve 15% of height for footer/bottom margin
     },
     DAGRE: {
-        NODE_SEPARATION: 80,        // Horizontal spacing between nodes at same rank (increased for less crossings)
-        RANK_SEPARATION: 100,       // Vertical spacing between ranks/layers (increased for clarity)
-        MARGIN_X: 60,              // Left/right margins (increased)
-        MARGIN_Y: 40,              // Top/bottom margins
-        MAX_SCALE: 1.0,            // Maximum scale factor (reduced to prevent overcrowding)
+        NODE_SEPARATION: 40,        // Horizontal spacing between nodes at same rank
+        RANK_SEPARATION: 60,        // Vertical spacing between ranks/layers
+        MARGIN_X: 30,              // Left/right margins
+        MARGIN_Y: 20,              // Top/bottom margins
+        MAX_SCALE: 1.0,            // Maximum scale factor
         MIN_SCALE: 0.2,            // Minimum scale factor for dagre layout
-        NODE_SIZE_MULTIPLIER: 6    // Multiplier for node size (increased for better spacing)
+        NODE_SIZE_MULTIPLIER: 4,   // Multiplier for node size in dagre graph
+        TARGET_ASPECT_RATIO: 1.15, // Target width/height ratio (slightly wider than square)
     },
     PERFORMANCE: {
         TICK_SKIP_DESCENDANT: 3,
         TICK_SKIP_CROSSING: 5,
         MAX_NODES_TO_CHECK: 10,
-        ALPHA_THRESHOLD: 0.1
+        ALPHA_THRESHOLD: 0.1,
+        LARGE_GRAPH_NODE_THRESHOLD: 300,
+        LARGE_GRAPH_EDGE_THRESHOLD: 700,
+        HEAVY_FORCE_NODE_THRESHOLD: 450,
+        HEAVY_FORCE_EDGE_THRESHOLD: 1100,
+        LABEL_LAYOUT_NODE_THRESHOLD: 180,
+        LABEL_LAYOUT_TICK_SKIP: 3,
+        OVERLAY_UPDATE_TICK_SKIP: 2
+    },
+    DRAG: {
+        ALPHA_TARGET: 0.08,
+        LARGE_GRAPH_ALPHA_TARGET: 0.035,
+        END_ALPHA: 0.01
     },
     EDGE_CROSSING: {
         SAMPLE_RATE: 0.3,          // Check 30% of edges each tick for performance
@@ -174,7 +187,7 @@ export const setupInitialNodePositions = (
         // Run dagre layout
         dagre.layout(g);
 
-        // Apply spacing-respecting scaling for dagre - preserve user spacing intent
+        // Rescale dagre output to target a near-square aspect ratio that fits the viewport
         const dagreNodes = g.nodes().map(nodeId => g.node(nodeId));
         if (dagreNodes.length === 0) return { timeSpacing: 0, uniqueTimes: [] };
 
@@ -182,65 +195,51 @@ export const setupInitialNodePositions = (
         const maxX = Math.max(...dagreNodes.map(n => n.x + n.width / 2));
         const minY = Math.min(...dagreNodes.map(n => n.y - n.height / 2));
         const maxY = Math.max(...dagreNodes.map(n => n.y + n.height / 2));
-        
-        const dagreWidth = maxX - minX;
-        const dagreHeight = maxY - minY;
 
-        // Calculate base scale to fit the standard layout
-        // For X-axis: don't compress if samples are dense - allow scrolling/panning instead
-        // Only scale down if the layout is genuinely too wide
-        const baseScaleX = Math.min(availableWidth / Math.max(dagreWidth, 1), 3.0); // Increased max scale
-        const baseScaleY = Math.min(availableHeight / Math.max(dagreHeight, 1), 2.0);
-        
-        // Apply effective spacing preferences as multipliers to the base scale
-        const userSampleMultiplier = sampleSpacing / 20; // Normalize to default
-        const userTemporalMultiplier = temporalSpacing / 12; // Normalize to default
-        
-        // For X-axis: if we have many samples at the same rank, allow the layout to exceed viewport width
-        // This prevents compression and maintains readability
-        const sampleNodes = combinedNodes.filter(n => n.is_sample || n.is_sample_cluster);
-        const samplesPerRank = Math.max(...Array.from(uniqueTimes).map(time => 
-            sampleNodes.filter(n => n.time === time).length
-        ));
-        
-        // If sample layer is very dense, reduce X scaling to preserve spacing
-        const densityFactor = Math.max(1.0, samplesPerRank / 10); // Reduce scale for dense sample layers
-        
-        // Final scales incorporate user spacing preferences and density
-        const finalScaleX = Math.max(0.5, baseScaleX / densityFactor * userSampleMultiplier);
-        const finalScaleY = baseScaleY * userTemporalMultiplier;
-        
-        // Apply base scaling first
-        const baseScaledWidth = dagreWidth * finalScaleX;
-        const baseScaledHeight = dagreHeight * finalScaleY;
-        const baseOffsetX = (actualWidth - baseScaledWidth) / 2;
-        const baseOffsetY = (actualHeight - baseScaledHeight) / 2;
+        const dagreWidth = Math.max(maxX - minX, 1);
+        const dagreHeight = Math.max(maxY - minY, 1);
+        const dagreAspect = dagreWidth / dagreHeight;
+        const targetAspect = GRAPH_CONSTANTS.DAGRE.TARGET_ASPECT_RATIO;
 
-        // Apply dagre positions with base scaling, then apply user spacing effects
+        // Reshape dagre output toward target aspect ratio
+        let scaleX: number, scaleY: number;
+        if (dagreAspect > targetAspect) {
+            // Too wide: compress X
+            scaleX = targetAspect / dagreAspect;
+            scaleY = 1;
+        } else {
+            // Too tall: compress Y
+            scaleX = 1;
+            scaleY = dagreAspect / targetAspect;
+        }
+
+        // Fit into viewport while preserving the corrected aspect ratio
+        // Do NOT apply user spacing multipliers here - they're applied as relative
+        // adjustments in the updateSpacing function when the user moves sliders
+        const correctedWidth = dagreWidth * scaleX;
+        const correctedHeight = dagreHeight * scaleY;
+        const fitScale = Math.min(
+            availableWidth / Math.max(correctedWidth, 1),
+            availableHeight / Math.max(correctedHeight, 1),
+            2.0
+        );
+
+        const totalScaleX = scaleX * fitScale;
+        const totalScaleY = scaleY * fitScale;
+        const scaledWidth = dagreWidth * totalScaleX;
+        const scaledHeight = dagreHeight * totalScaleY;
+        const offsetX = (actualWidth - scaledWidth) / 2;
+        const offsetY = (actualHeight - scaledHeight) / 2;
+
+        // Apply rescaled positions: dagre Y is top-down, we flip so samples are at bottom
         combinedNodes.forEach(node => {
             const dagreNode = g.node(node.id.toString());
-            // Base scaled position
-            const baseX = (dagreNode.x - minX) * finalScaleX + baseOffsetX;
-            const baseY = baseOffsetY + baseScaledHeight - ((dagreNode.y - minY) * finalScaleY);
-            
-            // Store original positions for spacing calculations
-            node.originalX = baseX;
-            node.originalY = baseY;
-            
-            // Apply user spacing multipliers relative to center
-            const centerX = actualWidth / 2;
-            const centerY = actualHeight / 2;
-            
-            // Apply sample spacing to horizontal positioning
-            const deltaX = baseX - centerX;
-            node.x = centerX + (deltaX * userSampleMultiplier);
-            
-            // Apply temporal spacing to vertical positioning  
-            const deltaY = baseY - centerY;
-            node.y = centerY + (deltaY * userTemporalMultiplier);
-            
-            node.fx = node.x; // Fix positions completely
-            node.fy = node.y; // Fix Y positions too - don't let simulation override
+            node.x = (dagreNode.x - minX) * totalScaleX + offsetX;
+            node.y = offsetY + scaledHeight - ((dagreNode.y - minY) * totalScaleY);
+            node.originalX = node.x;
+            node.originalY = node.y;
+            node.fx = node.x;
+            node.fy = node.y;
         });
     } else {
         // Position sample nodes first

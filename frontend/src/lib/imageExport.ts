@@ -2,6 +2,8 @@
  * Utility functions for high-resolution image export with content-aware cropping
  */
 
+import { APP_SANS_FONT_FAMILY } from './fonts';
+
 export interface ContentBounds {
   minX: number;
   maxX: number;
@@ -297,52 +299,58 @@ export async function exportSVGAsImage(
 
     // Load and draw SVG at high resolution
     const img = new Image();
-    
-    // Set up timeout for SVG loading
-    const timeoutId = setTimeout(() => {
-      URL.revokeObjectURL(svgUrl);
-      throw new Error('SVG loading timed out');
-    }, 10000); // 10 second timeout
-    
-    img.onload = () => {
-      clearTimeout(timeoutId);
-      
-      try {
-        // Clear and refill background to ensure no transparency issues
-        ctx.fillStyle = backgroundColor;
-        ctx.fillRect(0, 0, finalWidth, finalHeight);
-        
-        // Draw SVG with proper blending
-        ctx.globalCompositeOperation = 'source-over';
-        ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
-        
-        // Add watermark if specified
-        if (watermark) {
-          addWatermark(ctx, finalWidth, finalHeight, watermark);
-        }
-        
-        // Convert to PNG and download with maximum quality
-        canvas.toBlob((blob) => {
-          if (!blob) throw new Error('Failed to create image blob');
+
+    await new Promise<void>((resolve, reject) => {
+      let settled = false;
+      const timeoutId = setTimeout(() => {
+        cleanup();
+        reject(new Error('SVG loading timed out'));
+      }, 10000);
+
+      const cleanup = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeoutId);
+        img.onload = null;
+        img.onerror = null;
+        img.src = '';
+        URL.revokeObjectURL(svgUrl);
+      };
+
+      img.onload = async () => {
+        try {
+          // Clear and refill background to ensure no transparency issues
+          ctx.fillStyle = backgroundColor;
+          ctx.fillRect(0, 0, finalWidth, finalHeight);
+
+          // Draw SVG with proper blending
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.drawImage(img, 0, 0, finalWidth, finalHeight);
+
+          // Add watermark if specified
+          if (watermark) {
+            addWatermark(ctx, finalWidth, finalHeight, watermark);
+          }
+
+          const blob = await canvasToBlob(canvas, 'image/png', 1.0);
+          cleanup();
           downloadBlob(blob, filename);
-        }, 'image/png', 1.0); // Maximum quality
-        
-        URL.revokeObjectURL(svgUrl);
-      } catch (drawError) {
-        URL.revokeObjectURL(svgUrl);
-        throw new Error(`Failed to draw SVG to canvas: ${drawError}`);
-      }
-    };
-    
-    img.onerror = (error) => {
-      clearTimeout(timeoutId);
-      URL.revokeObjectURL(svgUrl);
-      throw new Error(`Failed to load SVG image: ${error}`);
-    };
-    
-    // Ensure cross-origin images are handled properly
-    img.crossOrigin = 'anonymous';
-    img.src = svgUrl;
+          resolve();
+        } catch (drawError) {
+          cleanup();
+          reject(new Error(`Failed to draw SVG to canvas: ${drawError}`));
+        }
+      };
+
+      img.onerror = () => {
+        cleanup();
+        reject(new Error('Failed to load SVG image'));
+      };
+
+      // Ensure cross-origin images are handled properly
+      img.crossOrigin = 'anonymous';
+      img.src = svgUrl;
+    });
   } catch (error) {
     console.error('Error exporting SVG image:', error);
     throw error;
@@ -515,10 +523,8 @@ export async function export3DVisualizationAsImage(
       }
 
       // Convert to PNG and download
-      exportCanvas.toBlob((blob) => {
-        if (!blob) throw new Error('Failed to create image blob');
-        downloadBlob(blob, filename);
-      }, 'image/png', 1.0);
+      const blob = await canvasToBlob(exportCanvas, 'image/png', 1.0);
+      downloadBlob(blob, filename);
 
     } finally {
       // Restore original canvas size and view state
@@ -562,6 +568,22 @@ function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality?: number
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (!blob) {
+        reject(new Error('Failed to create image blob'));
+        return;
+      }
+      resolve(blob);
+    }, type, quality);
+  });
+}
+
 /**
  * Add a watermark to a canvas context
  */
@@ -578,7 +600,7 @@ function addWatermark(
     color = '#14E2A8',
     backgroundColor = 'rgba(3, 48, 62, 0.8)',
     fontSize = 24,
-    fontFamily = 'Arial, sans-serif',
+    fontFamily = APP_SANS_FONT_FAMILY,
     opacity = 0.9
   } = options;
 

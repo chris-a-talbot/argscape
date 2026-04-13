@@ -22,6 +22,8 @@ import {
   VisualizationType,
   WizardSettings,
   TreeSequenceStats,
+  WIZARD_THRESHOLDS,
+  estimateComplexity,
 } from '../ui/VisualizationWizard';
 
 // Use the TreeSequenceData type from the context
@@ -59,7 +61,7 @@ const locationInferenceMethods: LocationInferenceMethod[] = [
     github: 'https://github.com/osmond-lab/spacetrees',
     github2: '',
     speed: 2,
-    enabled: true
+    enabled: false
   },
   {
     id: 'gaia_quadratic',
@@ -2503,6 +2505,14 @@ export default function ResultPage() {
       params.append('heatmap_mode', 'true');
     }
 
+    // Default to dagre-d3 layout for large graphs (150+ estimated nodes)
+    if (wizardVisualizationType === '2d') {
+      const complexity = estimateComplexity(getTreeSequenceStats(), settings);
+      if (complexity.estimatedNodes >= WIZARD_THRESHOLDS.DAGRE_DEFAULT_NODES) {
+        params.append('layout', 'dagre');
+      }
+    }
+
     // Apply data scope settings by updating advanced settings directly
     if (settings.dataScope === 'subset') {
       // Update sample subset settings in TreeSequenceContext
@@ -2578,6 +2588,14 @@ export default function ResultPage() {
 
   // Add mutation data status check
   const hasMutations = data?.num_mutations !== undefined && data.num_mutations > 0;
+  const formatInferenceCpuTime = (cpuTimeSeconds?: number | null): string => {
+    if (cpuTimeSeconds === null || cpuTimeSeconds === undefined || !Number.isFinite(cpuTimeSeconds)) {
+      return '';
+    }
+
+    const precision = cpuTimeSeconds >= 1 ? 2 : 3;
+    return `\nCPU time: ${cpuTimeSeconds.toFixed(precision)}s`;
+  };
 
   // Handle FastGAIA inference with configuration
   const handleFastGAIAInference = async (params: {
@@ -2618,7 +2636,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `Fast location inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `Fast location inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
 
@@ -2686,7 +2704,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `GAIA quadratic inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `GAIA quadratic inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
 
@@ -2789,7 +2807,7 @@ export default function ResultPage() {
           setAlertModal({
             isOpen: true,
             title: 'Success!',
-            message: `sparg inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+            message: `sparg inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
             type: 'success'
           });
         } catch (error) {
@@ -2873,7 +2891,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `GAIA linear inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `GAIA linear inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
     } catch (error) {
@@ -2942,7 +2960,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `Midpoint inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `Midpoint inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
     } catch (error) {
@@ -3029,7 +3047,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `spacetrees inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `spacetrees inference completed successfully!\nInferred locations for ${resultData.num_inferred_locations} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
     } catch (error) {
@@ -3136,7 +3154,7 @@ export default function ResultPage() {
       setAlertModal({
         isOpen: true,
         title: 'Success!',
-        message: `tsdate inference completed successfully!${preprocessingInfo}\nInferred times for ${resultData.num_inferred_times} nodes.\nNew file: ${resultData.new_filename}`,
+        message: `tsdate inference completed successfully!${preprocessingInfo}\nInferred times for ${resultData.num_inferred_times} nodes.${formatInferenceCpuTime(resultData.cpu_time_seconds)}\nNew file: ${resultData.new_filename}`,
         type: 'success'
       });
 

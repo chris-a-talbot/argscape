@@ -1,6 +1,7 @@
 import { useCallback, RefObject } from 'react';
 import { exportSVGAsImage } from '../lib/imageExport';
 import { useColorTheme } from '../context/ColorThemeContext';
+import { APP_LOGO_FONT_FAMILY } from '../lib/fonts';
 
 export const useDownloadImage = (
     svgRef: RefObject<SVGSVGElement | null>,
@@ -27,7 +28,8 @@ export const useDownloadImage = (
                     subtext: decodedFilename,
                     position: 'bottom-center',
                     color: colors.accentPrimary,
-                    backgroundColor: colors.background + 'CC' // 80% opacity
+                    backgroundColor: colors.background + 'CC', // 80% opacity
+                    fontFamily: APP_LOGO_FONT_FAMILY
                 }
             });
 

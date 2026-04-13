@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { GraphNode, GraphData } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
-import { getDescendants, getAncestors } from '../utils/graphTraversal';
 
 type ViewMode = 'full' | 'subgraph' | 'ancestors';
 
@@ -42,6 +41,92 @@ export const useViewModeState = (
     const [resetTrigger, setLocalResetTrigger] = useState(0);
     const [initialFocusApplied, setInitialFocusApplied] = useState(false);
 
+    const viewModeGraphCache = useMemo(() => {
+        if (!data) return null;
+
+        const nodeMap = new Map<number, GraphNode>(data.nodes.map(node => [node.id, node]));
+        const outgoingMap = new Map<number, number[]>();
+        const incomingMap = new Map<number, number[]>();
+
+        for (const edge of data.edges) {
+            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+
+            const outgoing = outgoingMap.get(sourceId);
+            if (outgoing) {
+                outgoing.push(targetId);
+            } else {
+                outgoingMap.set(sourceId, [targetId]);
+            }
+
+            const incoming = incomingMap.get(targetId);
+            if (incoming) {
+                incoming.push(sourceId);
+            } else {
+                incomingMap.set(targetId, [sourceId]);
+            }
+        }
+
+        const descendantCache = new Map<number, Set<number>>();
+        const ancestorCache = new Map<number, Set<number>>();
+
+        const getDescendantIds = (nodeId: number): Set<number> => {
+            const cached = descendantCache.get(nodeId);
+            if (cached) return cached;
+
+            const descendants = new Set<number>();
+            const visited = new Set<number>();
+            const queue = [nodeId];
+
+            while (queue.length > 0) {
+                const currentId = queue.shift()!;
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
+
+                for (const childId of outgoingMap.get(currentId) ?? []) {
+                    if (!visited.has(childId)) {
+                        descendants.add(childId);
+                        queue.push(childId);
+                    }
+                }
+            }
+
+            descendantCache.set(nodeId, descendants);
+            return descendants;
+        };
+
+        const getAncestorIds = (nodeId: number): Set<number> => {
+            const cached = ancestorCache.get(nodeId);
+            if (cached) return cached;
+
+            const ancestors = new Set<number>();
+            const visited = new Set<number>();
+            const queue = [nodeId];
+
+            while (queue.length > 0) {
+                const currentId = queue.shift()!;
+                if (visited.has(currentId)) continue;
+                visited.add(currentId);
+
+                for (const parentId of incomingMap.get(currentId) ?? []) {
+                    if (!visited.has(parentId)) {
+                        ancestors.add(parentId);
+                        queue.push(parentId);
+                    }
+                }
+            }
+
+            ancestorCache.set(nodeId, ancestors);
+            return ancestors;
+        };
+
+        return {
+            nodeMap,
+            getDescendantIds,
+            getAncestorIds,
+        };
+    }, [data]);
+
     // Apply initial focus when data becomes available
     useEffect(() => {
         if (!data || initialFocusApplied) return;
@@ -49,7 +134,7 @@ export const useViewModeState = (
         const focusNodeId = initialFocus?.focusRoot ?? initialFocus?.focusSample;
         if (focusNodeId === undefined) return;
 
-        const targetNode = data.nodes.find(n => n.id === focusNodeId);
+        const targetNode = viewModeGraphCache?.nodeMap.get(focusNodeId) ?? data.nodes.find(n => n.id === focusNodeId);
         if (!targetNode) {
             console.warn(`Focus node ${focusNodeId} not found in graph data`);
             setInitialFocusApplied(true);
@@ -63,7 +148,7 @@ export const useViewModeState = (
         setSelectedNode(targetNode);
         setViewMode(initialFocus?.focusRoot !== undefined ? 'subgraph' : 'ancestors');
         setInitialFocusApplied(true);
-    }, [data, initialFocus, initialFocusApplied, saveClusteringStateIfNeeded, setClusteringEnabled]);
+    }, [data, initialFocus, initialFocusApplied, saveClusteringStateIfNeeded, setClusteringEnabled, viewModeGraphCache]);
 
     // Refs to avoid recreating callbacks on every state change
     const selectedNodeRef = useRef(selectedNode);
@@ -105,13 +190,13 @@ export const useViewModeState = (
         prevViewModeRef.current = viewMode;
         prevSelectedNodeIdRef.current = selectedNode?.id ?? null;
 
-        // Trigger reset to recalculate horizontal spacing and re-initialize simulation
-        // Small delay to let the filteredData update first
-        const timeoutId = setTimeout(() => {
+        // Trigger reset on the next animation frame so filteredData is already updated,
+        // without paying an extra fixed 100ms delay on every view transition.
+        const frameId = requestAnimationFrame(() => {
             setLocalResetTrigger(prev => prev + 1);
-        }, 100);
+        });
 
-        return () => clearTimeout(timeoutId);
+        return () => cancelAnimationFrame(frameId);
     }, [viewMode, selectedNode?.id]);
 
     // Update URL parameters when focal node is selected/deselected
@@ -141,11 +226,11 @@ export const useViewModeState = (
 
     // Memoize filtered data to prevent unnecessary re-renders
     const filteredData = useMemo(() => {
-        if (!data || !selectedNode) return data;
+        if (!data || !selectedNode || !viewModeGraphCache) return data;
 
         switch (viewMode) {
             case 'subgraph': {
-                const descendants = getDescendants(selectedNode, data.nodes, data.edges);
+                const descendants = new Set(viewModeGraphCache.getDescendantIds(selectedNode.id));
                 descendants.add(selectedNode.id);
 
                 const filteredNodes = data.nodes.filter(node => descendants.has(node.id));
@@ -172,7 +257,7 @@ export const useViewModeState = (
                 if (selectedNode.is_sample_cluster && selectedNode.cluster_nodes && selectedNode.cluster_nodes.length > 0) {
                     // Start with ancestors reachable through the cluster node
                     // (edges that were remapped from samples to point to the cluster node)
-                    allAncestors = getAncestors(selectedNode, data.nodes, data.edges);
+                    allAncestors = new Set(viewModeGraphCache.getAncestorIds(selectedNode.id));
 
                     // Add the cluster node itself
                     allAncestors.add(selectedNode.id);
@@ -180,10 +265,10 @@ export const useViewModeState = (
                     // Also try to find individual sample nodes that might still exist in data
                     // (in case some samples weren't fully clustered or are present for other reasons)
                     for (const sampleId of selectedNode.cluster_nodes) {
-                        const sampleNode = data.nodes.find(n => n.id === sampleId);
+                        const sampleNode = viewModeGraphCache.nodeMap.get(sampleId);
                         if (sampleNode) {
                             // Sample node exists - get its ancestors and add to union
-                            const sampleAncestors = getAncestors(sampleNode, data.nodes, data.edges);
+                            const sampleAncestors = viewModeGraphCache.getAncestorIds(sampleNode.id);
                             sampleAncestors.forEach(id => allAncestors.add(id));
                             allAncestors.add(sampleId);
                         } else {
@@ -194,7 +279,7 @@ export const useViewModeState = (
                     }
                 } else {
                     // Regular node (not a sample cluster) - use normal ancestor computation
-                    allAncestors = getAncestors(selectedNode, data.nodes, data.edges);
+                    allAncestors = new Set(viewModeGraphCache.getAncestorIds(selectedNode.id));
                     allAncestors.add(selectedNode.id);
                 }
 
@@ -218,7 +303,7 @@ export const useViewModeState = (
             default:
                 return data;
         }
-    }, [data, selectedNode, viewMode]);
+    }, [data, selectedNode, viewMode, viewModeGraphCache]);
 
     const handleNodeClick = useCallback((node: GraphNode) => {
         const currentViewMode = viewModeRef.current;

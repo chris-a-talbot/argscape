@@ -355,6 +355,7 @@ export function ViewControlsSection({
 interface LayoutSpacingSectionProps {
   sampleOrder: SampleOrderType;
   onSampleOrderChange: (order: SampleOrderType) => void;
+  forceDagre?: boolean;
   temporalSpacingMode: TemporalSpacingMode;
   onTemporalSpacingModeChange: (mode: TemporalSpacingMode) => void;
   temporalSpacing: number;
@@ -386,6 +387,7 @@ interface LayoutSpacingSectionProps {
 export function LayoutSpacingSection({
   sampleOrder,
   onSampleOrderChange,
+  forceDagre = false,
   temporalSpacingMode,
   onTemporalSpacingModeChange,
   temporalSpacing,
@@ -428,9 +430,10 @@ export function LayoutSpacingSection({
           </div>
         }
       >
-        <SampleOrderControl 
+        <SampleOrderControl
           value={sampleOrder}
           onChange={onSampleOrderChange}
+          forceDagre={forceDagre}
         />
         {(edgeCrossings !== null && edgeCrossings !== undefined) || isCalculatingEdgeCrossings ? (
           <div 

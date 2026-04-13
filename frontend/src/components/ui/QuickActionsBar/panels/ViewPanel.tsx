@@ -90,7 +90,9 @@ const ButtonGroup: React.FC<{
   options: { value: string; label: string }[];
   value: string;
   onChange: (value: string) => void;
-}> = ({ options, value, onChange }) => {
+  disabledValues?: Set<string>;
+  disabledTitle?: string;
+}> = ({ options, value, onChange, disabledValues, disabledTitle }) => {
   const { colors, theme } = useColorTheme();
   const isLiquid = theme === 'liquid';
 
@@ -98,10 +100,13 @@ const ButtonGroup: React.FC<{
     <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
       {options.map((opt) => {
         const isSelected = value === opt.value;
+        const isDisabled = disabledValues?.has(opt.value) ?? false;
         return (
           <button
             key={opt.value}
-            onClick={() => onChange(opt.value)}
+            onClick={() => !isDisabled && onChange(opt.value)}
+            disabled={isDisabled}
+            title={isDisabled ? disabledTitle : undefined}
             style={{
               padding: '0.375rem 0.625rem',
               fontSize: '0.75rem',
@@ -112,7 +117,8 @@ const ButtonGroup: React.FC<{
                 ? (isLiquid ? 'rgba(20, 226, 168, 0.15)' : `${colors.accentPrimary}20`)
                 : 'transparent',
               color: isSelected ? colors.accentPrimary : colors.text,
-              cursor: 'pointer',
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+              opacity: isDisabled ? 0.35 : 1,
               transition: 'all 0.15s ease',
             }}
           >
@@ -204,6 +210,7 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({
   onUnpinAllNodes,
   sampleOrder = 'consensus_minlex',
   onSampleOrderChange,
+  forceDagre = false,
   forceTuning,
   onForceTuningChange,
   // Clustering/Performance
@@ -235,6 +242,10 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({
     gap: '0.75rem',
     width: '100%',
   };
+
+  const disabledSampleOrders = forceDagre
+    ? new Set(SAMPLE_ORDER_OPTIONS.filter(o => o.value !== 'dagre').map(o => o.value))
+    : undefined;
 
   const sectionStyle: React.CSSProperties = {
     display: 'flex',
@@ -324,6 +335,8 @@ export const ViewPanel: React.FC<ViewPanelProps> = ({
                 options={SAMPLE_ORDER_OPTIONS}
                 value={sampleOrder}
                 onChange={(v) => onSampleOrderChange(v as SampleOrderType)}
+                disabledValues={disabledSampleOrders}
+                disabledTitle="Dagre-d3 is required for 500+ samples"
               />
               {edgeCrossings !== null && edgeCrossings !== undefined && (
                 <div style={infoTextStyle}>

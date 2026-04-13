@@ -137,10 +137,25 @@ When using `.show()` or `.display(show_controls=True)`:
 
 ## CLI Reference
 
-### `argscape` - Web Application
+All tools are accessed as subcommands of `argscape`. The `viz` command works with the base install; all others require `argscape[spatial]`.
+
+### `argscape serve` - Web Application
 
 ```bash
-argscape [--port PORT] [--no-browser] [--no-tsdate]
+argscape serve [--host HOST] [--port PORT] [--no-browser] [--no-tsdate] [--reload]
+```
+
+### `argscape viz` - Standalone Visualization
+
+```bash
+# Open interactive visualization in browser
+argscape viz data.trees
+
+# Export static image
+argscape viz data.trees -o figure.png --dpi 300
+
+# Options: --mode (force_graph/spatial_3d), --theme, --genomic-range, etc.
+argscape viz --help
 ```
 
 ### `argscape infer` - Spatial Inference
@@ -163,6 +178,14 @@ argscape infer list
 argscape load load --file data.trees --name mydata
 argscape load list
 argscape load rm --name mydata
+```
+
+### `argscape benchmark` - Performance Benchmarks
+
+```bash
+argscape benchmark run [options]
+argscape benchmark generate-datasets [options]
+argscape benchmark report [options]
 ```
 
 ## Development

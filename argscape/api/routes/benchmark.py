@@ -21,32 +21,49 @@ from argscape.api.inference import (
     run_gaia_linear_inference,
     run_midpoint_inference,
     run_sparg_inference,
-    run_spacetrees_inference,
 )
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+SUPPORTED_BENCHMARK_METHODS = (
+    "fastgaia",
+    "gaia-quadratic",
+    "gaia-linear",
+    "midpoint",
+    "sparg",
+    "tsdate",
+)
+SPATIAL_BENCHMARK_METHODS = {
+    "fastgaia",
+    "gaia-quadratic",
+    "gaia-linear",
+    "midpoint",
+    "sparg",
+}
+TEMPORARILY_DISABLED_BENCHMARK_METHODS = {
+    "spacetrees": "spacetrees benchmarking is temporarily disabled",
+}
+SUPPORTED_BENCHMARK_METHODS_DISPLAY = ", ".join(SUPPORTED_BENCHMARK_METHODS)
+
 # Will be set by main app
 FASTGAIA_AVAILABLE = False
 GEOANCESTRY_AVAILABLE = False
 MIDPOINT_AVAILABLE = False
 SPARG_AVAILABLE = False
-SPACETREES_AVAILABLE = False
 TSDATE_AVAILABLE = False
 DISABLE_TSDATE = False
 
 
-def set_availability_flags(fastgaia, geoancestry, midpoint, sparg, spacetrees, tsdate, disable_tsdate):
+def set_availability_flags(fastgaia, geoancestry, midpoint, sparg, _spacetrees, tsdate, disable_tsdate):
     """Set availability flags from main app initialization."""
     global FASTGAIA_AVAILABLE, GEOANCESTRY_AVAILABLE, MIDPOINT_AVAILABLE
-    global SPARG_AVAILABLE, SPACETREES_AVAILABLE, TSDATE_AVAILABLE, DISABLE_TSDATE
+    global SPARG_AVAILABLE, TSDATE_AVAILABLE, DISABLE_TSDATE
     FASTGAIA_AVAILABLE = fastgaia
     GEOANCESTRY_AVAILABLE = geoancestry
     MIDPOINT_AVAILABLE = midpoint
     SPARG_AVAILABLE = sparg
-    SPACETREES_AVAILABLE = spacetrees
     TSDATE_AVAILABLE = tsdate
     DISABLE_TSDATE = disable_tsdate
 
@@ -149,13 +166,16 @@ async def benchmark_inference(request: Request, benchmark_request: BenchmarkInfe
     This endpoint wraps the inference methods with timing and memory tracking,
     returning detailed metrics along with the inference results.
 
-    Supported methods: fastgaia, gaia-quadratic, gaia-linear, midpoint, sparg, spacetrees, tsdate
+    Supported methods: fastgaia, gaia-quadratic, gaia-linear, midpoint, sparg, tsdate
     """
     method = benchmark_request.method
     filename = benchmark_request.filename
     params = benchmark_request.params or {}
 
     logger.info(f"Benchmark inference request: {method} on {filename}")
+
+    if method in TEMPORARILY_DISABLED_BENCHMARK_METHODS:
+        raise HTTPException(status_code=503, detail=TEMPORARILY_DISABLED_BENCHMARK_METHODS[method])
 
     # Get session and tree sequence
     client_ip = get_client_ip(request)
@@ -166,8 +186,7 @@ async def benchmark_inference(request: Request, benchmark_request: BenchmarkInfe
         raise HTTPException(status_code=404, detail="File not found")
 
     # Check spatial completeness for spatial methods
-    spatial_methods = ["fastgaia", "gaia-quadratic", "gaia-linear", "midpoint", "sparg", "spacetrees"]
-    if method in spatial_methods:
+    if method in SPATIAL_BENCHMARK_METHODS:
         spatial_info = check_spatial_completeness(ts)
         if not spatial_info.get("has_sample_spatial", False):
             raise HTTPException(
@@ -253,30 +272,6 @@ async def benchmark_inference(request: Request, benchmark_request: BenchmarkInfe
             (ts_out, inference_info, _), metrics = await run_with_instrumentation_async(run_sparg)
             suffix = "_sparg"
 
-        elif method == "spacetrees":
-            if not SPACETREES_AVAILABLE:
-                raise HTTPException(status_code=503, detail="spacetrees not available")
-
-            def run_spacetrees():
-                return run_spacetrees_inference(
-                    ts,
-                    time_cutoff=params.get("time_cutoff"),
-                    ancestor_times=params.get("ancestor_times"),
-                    use_importance_sampling=params.get("use_importance_sampling", True),
-                    require_common_ancestor=params.get("require_common_ancestor", True),
-                    use_blup=params.get("use_blup", False),
-                    blup_var=params.get("blup_var"),
-                    Ne=params.get("ne"),
-                    Ne_epochs=params.get("ne_epochs"),
-                    Nes=params.get("nes"),
-                    num_loci=params.get("num_loci"),
-                    locus_size=params.get("locus_size"),
-                    quiet=True,
-                )
-
-            (ts_out, inference_info, _), metrics = await run_with_instrumentation_async(run_spacetrees)
-            suffix = "_spacetrees"
-
         elif method == "tsdate":
             if DISABLE_TSDATE:
                 raise HTTPException(status_code=503, detail="Temporal inference is disabled")
@@ -306,7 +301,7 @@ async def benchmark_inference(request: Request, benchmark_request: BenchmarkInfe
         else:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unknown method: {method}. Supported: fastgaia, gaia-quadratic, gaia-linear, midpoint, sparg, spacetrees, tsdate"
+                detail=f"Unknown method: {method}. Supported: {SUPPORTED_BENCHMARK_METHODS_DISPLAY}"
             )
 
         # Generate unique filename and store result

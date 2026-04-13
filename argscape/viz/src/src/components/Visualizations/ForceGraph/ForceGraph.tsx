@@ -4,6 +4,7 @@ import * as dagre from 'dagre'
 import { useDataStore, useUIStore, useFilterStore } from '@/stores'
 import { getNodeOpacity, getEdgeOpacity, type OpacityParams } from '@/utils/opacityCalculations'
 import { generatePopulationColors, rgbToHex } from '@/utils/colorUtils'
+import { APP_SANS_FONT_FAMILY } from '@/utils/fonts'
 import type { GraphNode, GraphEdge, MutationData } from '@/types'
 
 // Dagre layout constants
@@ -930,7 +931,7 @@ export function ForceGraph({ width, height }: ForceGraphProps) {
       .attr('text-anchor', 'middle')
       .attr('fill', theme.text)
       .attr('font-size', '11px')
-      .attr('font-family', 'system-ui, -apple-system, sans-serif')
+      .attr('font-family', APP_SANS_FONT_FAMILY)
       .attr('pointer-events', 'none')
       .text(d => d.original_id)
 

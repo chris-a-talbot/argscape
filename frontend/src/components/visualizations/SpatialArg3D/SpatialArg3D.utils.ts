@@ -23,13 +23,27 @@ export interface SpatialFilterConfig {
   treeDimOpacity?: number;
 }
 
+function isRootNodeFast(
+  node: GraphNode | Node3D,
+  combinedNodes: GraphNode[],
+  combinedEdges: GraphEdge[],
+  rootNodeIds?: ReadonlySet<number>
+): boolean {
+  return rootNodeIds ? rootNodeIds.has(node.id) : isRootNode(node as GraphNode, combinedNodes, combinedEdges);
+}
+
 /**
  * Calculate node size based on node type (using 3D constants)
  */
-export function calculateNodeSize(node: GraphNode, combinedNodes: GraphNode[], combinedEdges: GraphEdge[]): number {
+export function calculateNodeSize(
+  node: GraphNode,
+  combinedNodes: GraphNode[],
+  combinedEdges: GraphEdge[],
+  rootNodeIds?: ReadonlySet<number>
+): number {
   if (node.is_sample) return NODE_SIZES.SAMPLE;
   if (node.is_combined) return NODE_SIZES.COMBINED;
-  if (isRootNode(node, combinedNodes, combinedEdges)) return NODE_SIZES.ROOT;
+  if (isRootNodeFast(node, combinedNodes, combinedEdges, rootNodeIds)) return NODE_SIZES.ROOT;
   return NODE_SIZES.DEFAULT;
 }
 
@@ -92,7 +106,8 @@ export function transformNodesToThreeD(
   combinedEdges: GraphEdge[],
   uniqueTimes: number[],
   temporalSpacingMode: TemporalSpacingMode,
-  populationColors?: Map<number, [number, number, number]> | null
+  populationColors?: Map<number, [number, number, number]> | null,
+  rootNodeIds?: ReadonlySet<number>
 ): Node3D[] {
   if (!coordinateTransform) return [];
   
@@ -105,8 +120,15 @@ export function transformNodesToThreeD(
     const jitter = createNodeJitter(node.id, VISUALIZATION_CONSTANTS_REG.JITTER_SCALE, VISUALIZATION_CONSTANTS_REG.JITTER_RANGE, VISUALIZATION_CONSTANTS_REG.JITTER_OFFSET);
     const normalizedZ = calculateZPosition(node.time, uniqueTimes, temporalSpacing, temporalSpacingMode) + VISUALIZATION_CONSTANTS_REG.BASE_ELEVATION + jitter;
 
-    const size = calculateNodeSize(node, combinedNodes, combinedEdges);
-    const color = calculateNodeColorByType(node, combinedNodes, combinedEdges, colors, isRootNode, populationColors);
+    const size = calculateNodeSize(node, combinedNodes, combinedEdges, rootNodeIds);
+    const color = calculateNodeColorByType(
+      node,
+      combinedNodes,
+      combinedEdges,
+      colors,
+      (candidateNode, candidateNodes, candidateEdges) => isRootNodeFast(candidateNode, candidateNodes, candidateEdges, rootNodeIds),
+      populationColors
+    );
 
     return {
       ...node,
@@ -204,10 +226,11 @@ export function calculateNodeOutlineColor(
   data: GraphData | null,
   temporalRange: [number, number] | null,
   temporalFilterMode: string | null,
-  colors: any
+  colors: any,
+  rootNodeIds?: ReadonlySet<number>
 ): [number, number, number, number] {
   const isSelected = selectedNode && node.id === selectedNode.id;
-  const isRoot = isRootNode(node, data?.nodes || [], data?.edges || []);
+  const isRoot = rootNodeIds ? rootNodeIds.has(node.id) : isRootNode(node, data?.nodes || [], data?.edges || []);
   
   let opacityMultiplier = 1;
   if ((temporalFilterMode === 'planes' || temporalFilterMode === 'hybrid') && temporalRange) {
@@ -245,10 +268,11 @@ export function calculateNodeOutlineColor(
 export function calculateNodeOutlineWidth(
   node: Node3D,
   selectedNode: GraphNode | null,
-  data: GraphData | null
+  data: GraphData | null,
+  rootNodeIds?: ReadonlySet<number>
 ): number {
   const isSelected = selectedNode && node.id === selectedNode.id;
-  const isRoot = isRootNode(node, data?.nodes || [], data?.edges || []);
+  const isRoot = rootNodeIds ? rootNodeIds.has(node.id) : isRootNode(node, data?.nodes || [], data?.edges || []);
   const baseSize = isSelected ? node.size * VISUALIZATION_CONSTANTS_REG.SELECTED_NODE_SCALE : node.size;
   
   const sizeFactor = baseSize / NODE_SIZES.DEFAULT;
@@ -266,14 +290,15 @@ export function createTooltipContent(
   node: Node3D,
   data: GraphData | null,
   geographicMode: GeographicMode,
-  colors: any
+  colors: any,
+  rootNodeIds?: ReadonlySet<number>
 ) {
   let nodeTypeInfo = '';
   if (node.is_sample) {
     nodeTypeInfo = 'Sample Node';
   } else if (node.is_combined) {
     nodeTypeInfo = `Combined Node (contains: ${node.combined_nodes?.join(', ')})`;
-  } else if (isRootNode(node, data?.nodes || [], data?.edges || [])) {
+  } else if (rootNodeIds ? rootNodeIds.has(node.id) : isRootNode(node, data?.nodes || [], data?.edges || [])) {
     nodeTypeInfo = 'Root Node';
   } else {
     nodeTypeInfo = 'Internal Node';
@@ -508,7 +533,8 @@ export function createNodeLabels(
   colors: any,
   customLabelPositions?: Map<string, [number, number, number]>,
   temporalRange?: [number, number] | null,
-  temporalFilterMode?: string | null
+  temporalFilterMode?: string | null,
+  rootNodeIds?: ReadonlySet<number>
 ): { labels: NodeLabel3D[], connectingLines: LabelConnectingLine3D[] } {
   if (!nodeIdSettings) return { labels: [], connectingLines: [] };
   
@@ -520,11 +546,11 @@ export function createNodeLabels(
   );
   
   const rootNodes = nodes3D.filter(node => 
-    !node.is_sample && isRootNode(node, combinedNodes, combinedEdges) && nodeIdSettings.showRootIds
+    !node.is_sample && isRootNodeFast(node, combinedNodes, combinedEdges, rootNodeIds) && nodeIdSettings.showRootIds
   );
-  
+
   const internalNodes = nodes3D.filter(node => 
-    !node.is_sample && !isRootNode(node, combinedNodes, combinedEdges) && nodeIdSettings.showInternalIds
+    !node.is_sample && !isRootNodeFast(node, combinedNodes, combinedEdges, rootNodeIds) && nodeIdSettings.showInternalIds
   );
   
   sampleNodes.forEach(node => {
@@ -708,4 +734,3 @@ export function createEdgeLabels(
 
   return labels;
 }
-

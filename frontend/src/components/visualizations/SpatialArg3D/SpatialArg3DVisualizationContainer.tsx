@@ -15,6 +15,7 @@ import { useTreeSequence } from '../../../context/TreeSequenceContext';
 import { TemporalSpacingMode, NodeIdSettings, EdgeMutationSettings, AncestryHeatmapSettings } from './SpatialArg3DVisualization.types';
 import { KeyboardShortcutProvider } from '@/components/ui/QuickActionsBar/hooks/KeyboardShortcutProvider';
 import type { GeographicMode as QuickActionsGeographicMode, CameraPreset } from '@/components/ui/QuickActionsBar/panels';
+import { useVisualizationPerformance } from '../../../hooks/useVisualizationPerformance';
 import { getDescendants, getAncestors, isRootNode } from '../../../utils/graphTraversal';
 import { formatGenomicPosition } from '../../../utils/colorUtils';
 import { convertTreeIntervals, validateSpatialData, initializeTemporalState } from '../../../utils/dataHelpers';
@@ -270,6 +271,7 @@ const Spatial3DWrapper: React.FC<{
   heatmapSettings?: AncestryHeatmapSettings;
   onViewStateChange?: (viewState: any) => void;
   viewState?: any;
+  onRenderComplete?: () => void;
   // Spatial filter props for dim mode
   genomicRange?: [number, number] | null;
   genomicDimOpacity?: number;
@@ -303,6 +305,7 @@ const Spatial3DWrapper: React.FC<{
   heatmapSettings,
   onViewStateChange,
   viewState,
+  onRenderComplete,
   genomicRange,
   genomicDimOpacity,
   treeRange,
@@ -370,6 +373,7 @@ const Spatial3DWrapper: React.FC<{
         heatmapSettings={heatmapSettings}
         onViewStateChange={onViewStateChange}
         externalViewState={viewState}
+        onRenderComplete={onRenderComplete}
         temporalSpacingMode={temporalSpacingMode}
         genomicRange={genomicRange}
         genomicDimOpacity={genomicDimOpacity}
@@ -694,6 +698,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
   }, [loadGeographicData]);
 
   useEffect(() => {
+    const abortController = new AbortController();
+    let isActive = true;
+
     const fetchInitialData = async () => {
       try {
         setLoading(true);
@@ -710,8 +717,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           ...(sampleRange && { sampleRangeStart: sampleRange[0], sampleRangeEnd: sampleRange[1] }),
           randomSeed,
           samplePopulations: selectedPopulations,
+          signal: abortController.signal,
         };
-        
+
         // Add temporal filtering if provided via URL
         if (temporalStart !== undefined && temporalEnd !== undefined) {
           options.temporalStart = temporalStart;
@@ -732,6 +740,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         
         const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
+
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
         
         if (graphData.metadata.sequence_length) {
           setMetadata(prev => ({ ...prev, sequenceLength: graphData.metadata.sequence_length! }));
@@ -787,15 +799,25 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           });
         }
       } catch (err) {
+        if (!isActive || abortController.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+          return;
+        }
         console.error('Error fetching 3D graph data:', err);
         setError(err instanceof Error ? err.message : 'Unknown error occurred');
       } finally {
-        setLoading(false);
+        if (isActive && !abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     };
 
     fetchInitialData();
-  }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent]);
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, sampleSubsetMode, sampleIds, sampleRange, randomSeed, selectedPopulations]);
 
   // Calculate smart default for unary retention (max 250 nodes)
   useEffect(() => {
@@ -803,6 +825,9 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     if (unaryRetentionPercent !== null || isCalculatingDefault || !data || data.nodes.length === 0) {
       return;
     }
+
+    const abortController = new AbortController();
+    let isActive = true;
 
     const calculateDefault = async () => {
       const baseNodeCount = data.nodes.length;
@@ -825,6 +850,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           ...(sampleRange && { sampleRangeStart: sampleRange[0], sampleRangeEnd: sampleRange[1] }),
           randomSeed,
           samplePopulations: selectedPopulations,
+          signal: abortController.signal,
         };
         
         // Include same filters as initial load
@@ -842,6 +868,11 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
 
         const response = await api.getGraphData(filename, options);
         const fullGraphData = response.data as GraphData;
+
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
+
         const totalNodeCount = fullGraphData.nodes.length;
         const unaryNodeCount = totalNodeCount - baseNodeCount;
 
@@ -856,20 +887,33 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           console.log(`Calculated default unary retention: ${calculatedPercent.toFixed(1)}% (base: ${baseNodeCount}, total: ${totalNodeCount}, target: 250)`);
         }
       } catch (err) {
+        if (!isActive || abortController.signal.aborted || (err instanceof Error && err.name === 'AbortError')) {
+          return;
+        }
         console.error('Error calculating default unary retention:', err);
         setUnaryRetentionPercent(0); // Fallback to 0 on error
       } finally {
-        setIsCalculatingDefault(false);
+        if (isActive && !abortController.signal.aborted) {
+          setIsCalculatingDefault(false);
+        }
       }
     };
 
     calculateDefault();
-  }, [data, filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, isCalculatingDefault]);
+
+    return () => {
+      isActive = false;
+      abortController.abort();
+    };
+  }, [data, filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, isCalculatingDefault, sampleSubsetMode, sampleIds, sampleRange, randomSeed, selectedPopulations]);
 
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   
   useEffect(() => {
     if (!filterState.isActive || loading) return;
+
+    const abortController = new AbortController();
+    let isActive = true;
 
     if (loadingTimeoutRef.current) {
       clearTimeout(loadingTimeoutRef.current);
@@ -892,6 +936,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           selectedPopulations
         );
         options.unaryRetentionPercent = unaryRetentionPercent ?? 0;
+        options.signal = abortController.signal;
         
         // Always include URL parameters if present
         if (temporalStart !== undefined && temporalEnd !== undefined) {
@@ -912,6 +957,10 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
         
         const response = await api.getGraphData(filename, options);
         const graphData = response.data as GraphData;
+
+        if (!isActive || abortController.signal.aborted) {
+          return;
+        }
         
         if (!validateSpatialData(graphData)) {
           setError('No spatial data found in this range.');
@@ -933,19 +982,27 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
           });
         }
       } catch (e) {
+        if (!isActive || abortController.signal.aborted || (e instanceof Error && e.name === 'AbortError')) {
+          return;
+        }
         console.error('Error fetching filtered data:', e);
         setError(e instanceof Error ? e.message : 'An error occurred while fetching graph data');
       } finally {
-        setLoading(false);
+        if (isActive && !abortController.signal.aborted) {
+          setLoading(false);
+        }
       }
     }, CONTAINER_CONSTANTS.DEBOUNCE_DELAY);
 
     return () => {
       if (loadingTimeoutRef.current) {
         clearTimeout(loadingTimeoutRef.current);
+        loadingTimeoutRef.current = null;
       }
+      isActive = false;
+      abortController.abort();
     };
-  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, genomicFilterMode, treeFilterMode]);
+  }, [filterState, filename, max_samples, metadata.sequenceLength, metadata.treeIntervals.length, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx, unaryRetentionPercent, genomicFilterMode, treeFilterMode, sampleSubsetMode, sampleIds, sampleRange, randomSeed, selectedPopulations]);
 
   useEffect(() => {
     setVisualSettings(prev => ({
@@ -1238,6 +1295,39 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
     }
   };
 
+  const filteredData = getFilteredData();
+  const renderBenchmarkKey = useMemo(() => {
+    return [
+      filename,
+      viewMode,
+      selectedNode?.id ?? 'full',
+      filteredData?.nodes.length ?? 0,
+      filteredData?.edges.length ?? 0,
+      geoState.mode,
+      heatmapSettings.enabled ? 'heatmap' : 'graph',
+      spatialFilterEnabled ? filterState.mode : 'no-spatial-filter',
+      temporalFilterEnabled ? temporalState.mode : 'no-temporal-filter',
+      visualSettings.temporalSpacingMode,
+      visualSettings.temporalSpacing,
+      visualSettings.spatialSpacing,
+    ].join(':');
+  }, [
+    filename,
+    viewMode,
+    selectedNode?.id,
+    filteredData,
+    geoState.mode,
+    heatmapSettings.enabled,
+    spatialFilterEnabled,
+    filterState.mode,
+    temporalFilterEnabled,
+    temporalState.mode,
+    visualSettings.temporalSpacingMode,
+    visualSettings.temporalSpacing,
+    visualSettings.spatialSpacing,
+  ]);
+  const { performanceStats, markRenderComplete } = useVisualizationPerformance(renderBenchmarkKey);
+
   if (loading) {
     const elapsedTime = formatElapsedTime(elapsedSeconds);
     const showElapsedTime = elapsedSeconds > 5; // Show elapsed time after 5 seconds
@@ -1284,8 +1374,6 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
       </div>
     );
   }
-
-  const filteredData = getFilteredData();
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: colors.background }} data-testid="graph-ready">
@@ -1419,6 +1507,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
               heatmapSettings={heatmapSettings}
               onViewStateChange={handleViewStateChange}
               viewState={viewState}
+              onRenderComplete={markRenderComplete}
               // Spatial filter props for dim mode
               genomicRange={spatialFilterEnabled && filterState.mode === 'genomic' && genomicFilterMode === 'dim' ? filterState.genomicRange : null}
               genomicDimOpacity={genomicDimOpacity}
@@ -1522,6 +1611,7 @@ const SpatialArg3DVisualizationContainer: React.FC<SpatialArg3DVisualizationCont
                 windowPopGenStats={windowStatsResult.windowStats}
                 windowStatsLoading={windowStatsResult.isLoading}
                 isGenomicFilterActive={spatialFilterEnabled && (filterState.mode === 'genomic' || filterState.mode === 'tree')}
+                performanceStats={performanceStats}
 
                 // Export props
                 filename={filename}

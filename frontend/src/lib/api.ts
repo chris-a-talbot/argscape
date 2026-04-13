@@ -77,73 +77,97 @@ class ApiService {
     // On local, timeout is undefined = no timeout (browser/fetch default behavior)
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
+      const externalSignal = options.signal;
+      const controller = externalSignal || timeout !== undefined ? new AbortController() : null;
+      let timeoutId: NodeJS.Timeout | undefined;
+      let didTimeout = false;
+
+      const handleExternalAbort = () => {
+        controller?.abort();
+      };
+
       try {
-        // Add timeout only if specified (Railway or explicitly provided)
-        const controller = new AbortController();
-        let timeoutId: NodeJS.Timeout | undefined;
-        if (timeout !== undefined) {
-          timeoutId = setTimeout(() => controller.abort(), timeout);
-        }
-
-        const response = await fetch(url, {
-          ...options,
-          headers: {
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
-          signal: timeout !== undefined ? controller.signal : undefined,
-        });
-
-        if (timeoutId !== undefined) {
-          clearTimeout(timeoutId);
-        }
-
-        // Safely parse response as JSON if possible, else fallback to text
-        const contentType = response.headers.get('content-type') || '';
-        let data: any = null;
-        let rawText: string | null = null;
-
-        if (contentType.includes('application/json')) {
-          data = await response.json();
-        } else {
-          // Fallback to text and try JSON parse just in case
-          rawText = await response.text();
-          try {
-            data = JSON.parse(rawText);
-          } catch {
-            data = null;
+        if (externalSignal && controller) {
+          if (externalSignal.aborted) {
+            controller.abort();
+          } else {
+            externalSignal.addEventListener('abort', handleExternalAbort, { once: true });
           }
         }
 
-        if (!response.ok) {
-          const errorDetail = (data && (data.detail || data.message)) || rawText || `HTTP error! status: ${response.status}`;
-          const error = new Error(errorDetail);
-          
-          // Don't retry client errors (4xx) - these are not transient failures
-          // Only retry server errors (5xx) and network errors
-          // Throw immediately for client errors to prevent retries
-          if (response.status >= 400 && response.status < 500) {
-            log.api.error(endpoint, error, method);
-            throw error; // This will exit the try block and skip retry logic
-          }
-          
-          // For server errors, continue to retry logic below
-          throw error;
+        if (timeout !== undefined && controller) {
+          timeoutId = setTimeout(() => {
+            didTimeout = true;
+            controller.abort();
+          }, timeout);
         }
 
-        log.api.success(endpoint, method, data ?? rawText);
-        return { data: (data ?? (rawText as any)), status: response.status };
+        try {
+          const response = await fetch(url, {
+            ...options,
+            headers: {
+              'Content-Type': 'application/json',
+              ...options.headers,
+            },
+            signal: controller?.signal ?? externalSignal,
+          });
+
+          // Safely parse response as JSON if possible, else fallback to text
+          const contentType = response.headers.get('content-type') || '';
+          let data: any = null;
+          let rawText: string | null = null;
+
+          if (contentType.includes('application/json')) {
+            data = await response.json();
+          } else {
+            // Fallback to text and try JSON parse just in case
+            rawText = await response.text();
+            try {
+              data = JSON.parse(rawText);
+            } catch {
+              data = null;
+            }
+          }
+
+          if (!response.ok) {
+            const errorDetail = (data && (data.detail || data.message)) || rawText || `HTTP error! status: ${response.status}`;
+            const error = new Error(errorDetail);
+
+            // Don't retry client errors (4xx) - these are not transient failures
+            // Only retry server errors (5xx) and network errors
+            // Throw immediately for client errors to prevent retries
+            if (response.status >= 400 && response.status < 500) {
+              log.api.error(endpoint, error, method);
+              throw error; // This will exit the try block and skip retry logic
+            }
+
+            // For server errors, continue to retry logic below
+            throw error;
+          }
+
+          log.api.success(endpoint, method, data ?? rawText);
+          return { data: (data ?? (rawText as any)), status: response.status };
+        } finally {
+          if (timeoutId !== undefined) {
+            clearTimeout(timeoutId);
+          }
+          if (externalSignal) {
+            externalSignal.removeEventListener('abort', handleExternalAbort);
+          }
+        }
       } catch (error) {
         // If this is already an Error object with a message from our error handling above, use it
         lastError = error instanceof Error ? error : new Error(String(error));
         
-        if (error instanceof Error) {
-          if (error.name === 'AbortError') {
-            const timeoutSeconds = timeout !== undefined ? timeout / 1000 : 'unknown';
-            const timeoutError = new Error(`Request timed out after ${timeoutSeconds} seconds`);
-            log.api.error(endpoint, timeoutError, method);
-            throw timeoutError;
-          }
+        if (lastError.name === 'AbortError' && didTimeout) {
+          const timeoutSeconds = timeout! / 1000;
+          const timeoutError = new Error(`Request timed out after ${timeoutSeconds} seconds`);
+          log.api.error(endpoint, timeoutError, method);
+          throw timeoutError;
+        }
+
+        if (lastError.name === 'AbortError') {
+          throw lastError;
         }
         
         // Check if this is a client error (4xx) - don't retry these
@@ -423,6 +447,7 @@ class ApiService {
       sampleRangeEnd?: number;
       randomSeed?: number;
       samplePopulations?: number[];
+      signal?: AbortSignal;
     } = {}
   ) {
     const params = new URLSearchParams();
@@ -449,7 +474,9 @@ class ApiService {
     if (options.samplePopulations?.length) params.append('sample_populations', options.samplePopulations.join(','));
 
     const endpoint = `${API_CONFIG.ENDPOINTS.GRAPH_DATA}/${encodeURIComponent(filename)}?${params}`;
-    return this.request(endpoint);
+    return this.request(endpoint, {
+      signal: options.signal,
+    });
   }
 
   // Statistics endpoints

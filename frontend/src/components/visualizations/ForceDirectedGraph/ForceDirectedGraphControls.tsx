@@ -103,6 +103,7 @@ export interface ForceDirectedGraphControlsProps {
   // Layout / Sample Order
   sampleOrder?: SampleOrderType;
   onSampleOrderChange?: (order: SampleOrderType) => void;
+  forceDagre?: boolean;
   layoutPreset: string;
   onLayoutPresetChange: (preset: string) => void;
   edgeCrossings?: number | null;
@@ -219,6 +220,7 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
   // Layout / Sample Order
   sampleOrder = 'consensus_minlex',
   onSampleOrderChange,
+  forceDagre = false,
   edgeCrossings,
   isCalculatingEdgeCrossings,
 
@@ -490,6 +492,7 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
         <LayoutPanel
           sampleOrder={sampleOrder}
           onSampleOrderChange={onSampleOrderChange}
+          forceDagre={forceDagre}
           edgeCrossings={edgeCrossings}
           isCalculatingEdgeCrossings={isCalculatingEdgeCrossings}
           temporalSpacingMode={temporalSpacingMode}
@@ -522,7 +525,7 @@ export const ForceDirectedGraphControls: React.FC<ForceDirectedGraphControlsProp
             performanceStats={performanceStats}
             filterSummary={filterSummary}
             showExport={false}
-            showPerformance={false}
+            showPerformance={!!performanceStats}
           />
         ) : (
           <div style={{ padding: '1rem', textAlign: 'center', color: '#888' }}>

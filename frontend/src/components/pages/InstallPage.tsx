@@ -5,6 +5,7 @@ import { log } from '../../lib/logger';
 import EnvironmentDownloadErrorModal from '../ui/EnvironmentDownloadErrorModal';
 import ParticleBackground from '../ui/ParticleBackground';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { APP_LOGO_FONT_FAMILY } from '../../lib/fonts';
 
 export default function InstallPage() {
   const [isDownloading, setIsDownloading] = useState(false);
@@ -12,6 +13,7 @@ export default function InstallPage() {
   const [errorMessage, setErrorMessage] = useState('');
   const [isStep0Expanded, setIsStep0Expanded] = useState(false);
   const { colors } = useColorTheme();
+  const wordmarkStyle = { fontFamily: APP_LOGO_FONT_FAMILY } as const;
 
   // Detect user's operating system
   const detectPlatform = (): 'macos' | 'linux' | 'windows' | 'unknown' => {
@@ -30,7 +32,7 @@ export default function InstallPage() {
   const renderTextWithARGscape = (text: string) => {
     return text.split(/(ARGscape)/g).map((part, index) => 
       part === 'ARGscape' ? (
-        <span key={index}>
+        <span key={index} style={wordmarkStyle}>
           ARG<span style={{ color: colors.accentPrimary }}>scape</span>
         </span>
       ) : part
@@ -173,10 +175,10 @@ export default function InstallPage() {
           {/* Header */}
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold mb-4">
-              Install ARG<span style={{ color: colors.accentPrimary }}>scape</span> Locally
+              Install <span style={wordmarkStyle}>ARG<span style={{ color: colors.accentPrimary }}>scape</span></span> Locally
             </h1>
             <p className="text-xl max-w-2xl mx-auto" style={{ color: colors.textSecondary }}>
-              Install ARG<span style={{ color: colors.accentPrimary }}>scape</span> on your machine for better performance and offline use.
+              Install <span style={wordmarkStyle}>ARG<span style={{ color: colors.accentPrimary }}>scape</span></span> on your machine for better performance and offline use.
             </p>
           </div>
 
