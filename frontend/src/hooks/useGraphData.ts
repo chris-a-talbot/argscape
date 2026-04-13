@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 import { GraphData, SampleOrderType } from '../components/visualizations/ForceDirectedGraph/ForceDirectedGraph.types';
 import { convertTreeIntervals } from '../utils/dataHelpers';
@@ -33,8 +33,6 @@ export interface GraphDataOptions {
     filename: string;
     max_samples: number;
     sampleOrder: SampleOrderType;
-    temporalStart?: number;
-    temporalEnd?: number;
     genomicStart?: number;
     genomicEnd?: number;
     treeStartIdx?: number;
@@ -100,8 +98,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
         filename,
         max_samples,
         sampleOrder,
-        temporalStart,
-        temporalEnd,
         genomicStart,
         genomicEnd,
         treeStartIdx,
@@ -126,7 +122,7 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
         samplePopulations,
     } = options;
 
-    // Initial data loading (now including URL parameters for filtering)
+    // Initial data loading, including URL genomic/tree filters.
     useEffect(() => {
         // Create AbortController for this effect instance
         const abortController = new AbortController();
@@ -135,7 +131,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
         const fetchInitialData = async () => {
             try {
                 setLoading(true);
-                console.log('Fetching initial graph data for file:', filename, 'with max_samples:', max_samples);
 
                 // Build options including URL parameters
                 const apiOptions: any = { maxSamples: max_samples, sampleOrder, signal: abortController.signal };
@@ -160,43 +155,27 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                     apiOptions.samplePopulations = samplePopulations;
                 }
 
-                // Add temporal filtering if provided via URL
-                if (temporalStart !== undefined && temporalEnd !== undefined) {
-                    apiOptions.temporalStart = temporalStart;
-                    apiOptions.temporalEnd = temporalEnd;
-                    console.log('Applying temporal filtering:', temporalStart, '-', temporalEnd);
-                }
+                // Temporal filtering is handled purely client-side (opacity dimming).
+                // temporalStart/temporalEnd URL params are used by ForceDirectedGraphContainer
+                // to auto-enable the temporal filter UI, not sent to the API.
 
                 // Add genomic filtering if provided via URL
                 if (genomicStart !== undefined && genomicEnd !== undefined) {
                     apiOptions.genomicStart = genomicStart;
                     apiOptions.genomicEnd = genomicEnd;
-                    console.log('Applying genomic filtering:', genomicStart, '-', genomicEnd);
                 } else if (treeStartIdx !== undefined && treeEndIdx !== undefined) {
                     apiOptions.treeStartIdx = treeStartIdx;
                     apiOptions.treeEndIdx = treeEndIdx;
-                    console.log('Applying tree index filtering:', treeStartIdx, '-', treeEndIdx);
                 }
 
                 let response = await api.getGraphData(filename, apiOptions);
                 let graphData = response.data as GraphData;
-                console.log('Received initial graph data:', graphData);
-                // Debug: Check sample nodes
-                const sampleNodes = graphData.nodes.filter(n => n.is_sample);
-                console.log('Sample nodes in response:', sampleNodes.map(n => ({
-                    id: n.id,
-                    original_id: (n as any).original_id,
-                    display: ((n as any).original_id ?? n.id)
-                })));
 
-                // FALLBACK: Check metadata.original_num_nodes from response if context wasn't available
-                // This catches cases where treeSequence context wasn't loaded yet
-                // Only do this if clustering wasn't already enabled from context/URL
+                // Fall back to metadata if treeSequence context is still loading.
                 const originalNodeCount = graphData.metadata.original_num_nodes || graphData.nodes.length;
                 const shouldAutoEnableFromMetadata = originalNodeCount > 250;
 
                 if (shouldAutoEnableFromMetadata) {
-                    console.log(`Auto-enabling clustering for large graph (${originalNodeCount} nodes from metadata)`);
                     // Clustering state management should be handled by the clustering hook
                 }
 
@@ -246,17 +225,10 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                     throw new Error('Received empty or invalid graph data');
                 }
 
-                console.log('[ForceDirectedGraph] Data loaded successfully:', {
-                    nodes: graphData.nodes.length,
-                    edges: graphData.edges?.length || 0,
-                    filename
-                });
-
                 // Cache full graph data if this is full data (not a subset from URL parameters)
                 const isFullData = !genomicStart && !genomicEnd && !treeStartIdx && !treeEndIdx;
                 if (isFullData) {
                     const cacheKey = `${filename}-${sampleOrder}-${max_samples}`;
-                    console.log('Caching initial full graph data');
                     setFullGraphCache({
                         data: graphData,
                         key: cacheKey
@@ -270,7 +242,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
 
                 // Ensure loading is cleared after data is set
                 setLoading(false);
-                console.log('[ForceDirectedGraph] Loading cleared, data ready');
             } catch (e) {
                 // Ignore abort errors - they're expected during cleanup
                 if (e instanceof Error && e.name === 'AbortError') {
@@ -299,7 +270,7 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
             isMounted = false;
             abortController.abort();
         };
-    }, [filename, max_samples, temporalStart, temporalEnd, genomicStart, genomicEnd, treeStartIdx, treeEndIdx,
+    }, [filename, max_samples, genomicStart, genomicEnd, treeStartIdx, treeEndIdx,
         sampleSubsetMode, sampleIds, sampleRangeStart, sampleRangeEnd, randomSeed, samplePopulations]);
 
     // Data loading with filtering and sample order changes
@@ -382,7 +353,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                     currentData.edges.length < cachedFullData.data.edges.length ||
                     currentData.metadata.is_subset === true
                 )) {
-                    console.log('Switching to dim mode - restoring full graph from cache');
                     // Restore full graph from cache
                     const timeoutId = setTimeout(() => {
                         setData(cachedFullData.data);
@@ -396,9 +366,7 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
             if (!data || data.metadata.sample_order !== sampleOrder) {
                 needsApiCall = true;
                 isRequestingFullData = true; // Sample order change means we need full data
-                console.log('Making API call due to sample order change');
             } else {
-                console.log('Skipping API call - using existing data (full range or filter disabled)');
                 return;
             }
         }
@@ -414,7 +382,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                 currentData.metadata.sequence_length === cachedFullData.data.metadata.sequence_length;
 
             if (!isAlreadyCached) {
-                console.log('Restoring full graph from cache');
                 // Use setTimeout to delay the state update and prevent immediate re-trigger
                 const timeoutId = setTimeout(() => {
                     setData(cachedFullData.data);
@@ -453,18 +420,12 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                     options.samplePopulations = samplePopulations;
                 }
 
-                // Always include URL parameters if present
-                if (temporalStart !== undefined && temporalEnd !== undefined) {
-                    options.temporalStart = temporalStart;
-                    options.temporalEnd = temporalEnd;
-                }
+                // Temporal filtering is purely client-side; don't send to API.
 
                 if (genomicParams) {
-                    console.log('Fetching filtered graph data for genomic range:', debouncedGenomicRange);
                     options.genomicStart = genomicParams.genomic_start;
                     options.genomicEnd = genomicParams.genomic_end;
                 } else if (treeParams) {
-                    console.log('Fetching filtered graph data for tree range:', debouncedTreeRange);
                     options.treeStartIdx = treeParams.tree_start_idx;
                     options.treeEndIdx = treeParams.tree_end_idx;
                 } else if (genomicStart !== undefined && genomicEnd !== undefined) {
@@ -475,8 +436,6 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                     // Apply URL tree parameters if no local filter is active
                     options.treeStartIdx = treeStartIdx;
                     options.treeEndIdx = treeEndIdx;
-                } else {
-                    console.log('Fetching unfiltered graph data');
                 }
 
                 const response = await api.getGraphData(filename, options);
@@ -487,13 +446,11 @@ export const useGraphData = (options: GraphDataOptions): UseGraphDataResult => {
                 }
 
                 const graphData = response.data as GraphData;
-                console.log('Received graph data:', graphData);
 
                 // Cache full data if we just fetched it (no genomic/tree filtering)
                 if (!genomicParams && !treeParams &&
                     !genomicStart && !genomicEnd &&
                     !treeStartIdx && !treeEndIdx) {
-                    console.log('Caching full graph data');
                     const cacheEntry = {
                         data: graphData,
                         key: cacheKey

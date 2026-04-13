@@ -4,28 +4,19 @@
  * Displays real-time performance metrics in a compact inline format.
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useColorTheme } from '@/context/ColorThemeContext';
-import type { PerformanceStatsDisplayProps, PerformanceStats } from './StatsPanel.types';
+import type { PerformanceStatsDisplayProps } from './StatsPanel.types';
 
 export const PerformanceStatsDisplay: React.FC<PerformanceStatsDisplayProps> = ({
-  stats: initialStats,
+  stats,
   className = '',
   updateInterval = 1000,
   showMemory = true,
 }) => {
   const { colors, theme } = useColorTheme();
   const isLiquid = theme === 'liquid';
-  const [stats, setStats] = useState<PerformanceStats>(initialStats);
-
-  // Update stats at specified interval
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setStats(initialStats);
-    }, updateInterval);
-
-    return () => clearInterval(timer);
-  }, [initialStats, updateInterval]);
+  void updateInterval;
 
   const formatNumber = (num: number): string => {
     return num.toFixed(1);
@@ -97,6 +88,12 @@ export const PerformanceStatsDisplay: React.FC<PerformanceStatsDisplayProps> = (
           <span style={labelStyle}>FPS:</span>
           <span style={fpsValueStyle}>{formatNumber(stats.fps)}</span>
         </div>
+        {stats.renderTimeMs !== undefined && (
+          <div style={statStyle}>
+            <span style={labelStyle}>Render:</span>
+            <span style={valueStyle}>{formatNumber(stats.renderTimeMs)}ms</span>
+          </div>
+        )}
         {stats.avgFrameTime !== undefined && (
           <div style={statStyle}>
             <span style={labelStyle}>Avg:</span>
@@ -113,8 +110,5 @@ export const PerformanceStatsDisplay: React.FC<PerformanceStatsDisplayProps> = (
     </div>
   );
 };
-
-
-
 
 

@@ -61,3 +61,6 @@ docs/book/_build/
 CLAUDE.md
 .claude/
 LIQUID_GLASS_STYLE_GUIDE.md
+AGENTS.md
+
+manuscript/

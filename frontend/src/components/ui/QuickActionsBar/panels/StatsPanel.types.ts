@@ -96,6 +96,8 @@ export interface PerformanceStats {
   fps: number;
   /** Memory usage in MB (if available) */
   memoryMB?: number;
+  /** Wall-clock time until the current visualization finished rendering */
+  renderTimeMs?: number;
   /** Render time for last frame in ms */
   lastFrameTime?: number;
   /** Average frame time over recent window */
@@ -267,7 +269,6 @@ export interface StatGroup {
   /** Default expanded state (if collapsible) */
   defaultExpanded?: boolean;
 }
-
 
 
 

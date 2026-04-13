@@ -5,6 +5,7 @@ Location and temporal inference endpoints.
 import logging
 import os
 import asyncio
+import time
 
 import numpy as np
 import tskit
@@ -20,7 +21,7 @@ from argscape.api.inference import (
     run_midpoint_inference,
     run_tsdate_inference,
     run_sparg_inference,
-    run_spacetrees_inference,
+    # run_spacetrees_inference,  # Temporarily disabled
 )
 from argscape.api.models import (
     FastLocationInferenceRequest,
@@ -29,7 +30,7 @@ from argscape.api.models import (
     GAIALinearInferenceRequest,
     MidpointInferenceRequest,
     SpargInferenceRequest,
-    SpacetreesInferenceRequest,
+    # SpacetreesInferenceRequest,  # Temporarily disabled
     TsdateInferenceRequest,
     CustomLocationRequest,
     SimplifyTreeSequenceRequest,
@@ -46,6 +47,13 @@ from argscape.api.errors import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def build_inference_response(payload: dict, cpu_start: float) -> dict:
+    """Attach CPU timing metadata to successful inference responses."""
+    response = dict(payload)
+    response["cpu_time_seconds"] = max(0.0, time.process_time() - cpu_start)
+    return response
 
 def generate_unique_filename(session_id: str, base_filename: str, suffix: str) -> str:
     """
@@ -124,6 +132,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if running on Railway
     # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
@@ -170,7 +179,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
         # Check spatial completeness
         spatial_info = check_spatial_completeness(ts_with_locations)
 
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "Fast location inference completed successfully",
             "original_filename": inference_request.filename,
@@ -179,7 +188,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
             "num_samples": ts_with_locations.num_samples,
             **spatial_info,
             **inference_info
-        }
+        }, cpu_start)
 
     except HTTPException:
         raise
@@ -202,6 +211,7 @@ async def infer_locations_gaia(request: Request, inference_request: FastGAIAInfe
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
     spatial_info = check_spatial_completeness(ts)
@@ -224,12 +234,12 @@ async def infer_locations_gaia(request: Request, inference_request: FastGAIAInfe
         # Update spatial info for the new tree sequence
         updated_spatial_info = check_spatial_completeness(ts_with_locations)
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "GAIA location inference completed successfully",
             **inference_info,
             **updated_spatial_info
-        }
+        }, cpu_start)
         
     except Exception as e:
         logger.error(f"Error during GAIA location inference: {str(e)}")
@@ -249,6 +259,7 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
     spatial_info = check_spatial_completeness(ts)
@@ -307,13 +318,13 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
         
         logger.info(f"GAIA quadratic inference completed successfully: {new_filename}")
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "GAIA quadratic location inference completed successfully",
             "new_filename": new_filename,
             **inference_info,
             **updated_spatial_info
-        }
+        }, cpu_start)
         
     except HTTPException:
         raise
@@ -336,6 +347,7 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
     spatial_info = check_spatial_completeness(ts)
@@ -394,13 +406,13 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
         
         logger.info(f"GAIA linear inference completed successfully: {new_filename}")
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "GAIA linear location inference completed successfully",
             "new_filename": new_filename,
             **inference_info,
             **updated_spatial_info
-        }
+        }, cpu_start)
         
     except HTTPException:
         raise
@@ -423,6 +435,7 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
     spatial_info = check_spatial_completeness(ts)
@@ -489,13 +502,13 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
         
         logger.info(f"Midpoint inference completed successfully: {new_filename}")
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "Midpoint location inference completed successfully",
             "new_filename": new_filename,
             **inference_info,
             **updated_spatial_info
-        }
+        }, cpu_start)
         
     except HTTPException:
         raise
@@ -666,6 +679,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
     spatial_info = check_spatial_completeness(ts)
@@ -722,13 +736,13 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         
         logger.info(f"sparg inference completed successfully: {new_filename}")
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "sparg location inference completed successfully",
             "new_filename": new_filename,
             **inference_info,
             **updated_spatial_info
-        }
+        }, cpu_start)
         
     except HTTPException:
         raise
@@ -738,105 +752,106 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
         raise HTTPException(status_code=status_code, detail=message)
 
 
-@router.post("/infer-locations-spacetrees")
-async def infer_locations_spacetrees(request: Request, inference_request: SpacetreesInferenceRequest):
-    """Infer locations using the spacetrees package."""
-    if not SPACETREES_AVAILABLE:
-        raise HTTPException(status_code=503, detail="spacetrees not available")
-    
-    logger.info(f"Received spacetrees location inference request for file: {inference_request.filename}")
-    
-    client_ip = get_client_ip(request)
-    session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
-    
-    # Check if tree sequence has sample locations
-    spatial_info = check_spatial_completeness(ts)
-    if not spatial_info.get("has_sample_spatial", False):
-        raise HTTPException(
-            status_code=400, 
-            detail="spacetrees requires tree sequences with location data for all sample nodes"
-        )
-    
-    # Check if running on Railway
-    # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
-    is_railway = (
-        os.getenv("RAILWAY_ENVIRONMENT") is not None or 
-        os.getenv("RAILWAY_PROJECT_ID") is not None or
-        os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
-        os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
-    )
-    
-    async def run_inference():
-        """Run inference in executor for timeout handling."""
-        loop = asyncio.get_event_loop()
-        def _run():
-            return run_spacetrees_inference(
-                ts,
-                time_cutoff=inference_request.time_cutoff,
-                ancestor_times=inference_request.ancestor_times,
-                use_importance_sampling=inference_request.use_importance_sampling,
-                require_common_ancestor=inference_request.require_common_ancestor,
-                use_blup=inference_request.use_blup,
-                blup_var=inference_request.blup_var,
-                Ne=inference_request.ne,
-                Ne_epochs=inference_request.ne_epochs,
-                Nes=inference_request.nes,
-                num_loci=inference_request.num_loci,
-                locus_size=inference_request.locus_size,
-                quiet=False
-            )
-        return await loop.run_in_executor(None, _run)
-    
-    try:
-        # Run spacetrees inference with timeout on Railway
-        if is_railway:
-            try:
-                ts_with_locations, inference_info, intermediate_data = await asyncio.wait_for(
-                    run_inference(),
-                    timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
-                )
-            except asyncio.TimeoutError:
-                logger.warning(f"spacetrees inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
-                message, status_code = get_timeout_error_message("spacetrees", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
-                raise HTTPException(status_code=status_code, detail=message)
-        else:
-            ts_with_locations, inference_info, intermediate_data = await run_inference()
-        
-        # Generate new filename
-        new_filename = generate_unique_filename(session_id, inference_request.filename, '_spacetrees')
-        
-        # Store the result
-        session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
-        
-        # Store intermediate data
-        try:
-            session_storage.store_intermediate_data(session_id, new_filename, "dispersal_params", intermediate_data["dispersal_params"])
-            session_storage.store_intermediate_data(session_id, new_filename, "ancestor_locations", intermediate_data["ancestor_locations"])
-        except Exception as e:
-            logger.warning(f"Failed to store spacetrees intermediate data: {e}")
-        
-        # Update spatial info for the new tree sequence
-        updated_spatial_info = check_spatial_completeness(ts_with_locations)
-        
-        logger.info(f"spacetrees inference completed successfully: {new_filename}")
-        
-        return {
-            "status": "success",
-            "message": "spacetrees location inference completed successfully",
-            "new_filename": new_filename,
-            **inference_info,
-            **updated_spatial_info
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during spacetrees inference: {str(e)}")
-        message, status_code = get_inference_error_message(e, "spacetrees")
-        raise HTTPException(status_code=status_code, detail=message)
+# Spacetrees endpoint temporarily disabled
+# @router.post("/infer-locations-spacetrees")
+# async def infer_locations_spacetrees(request: Request, inference_request: SpacetreesInferenceRequest):
+#     """Infer locations using the spacetrees package."""
+#     if not SPACETREES_AVAILABLE:
+#         raise HTTPException(status_code=503, detail="spacetrees not available")
+#
+#     logger.info(f"Received spacetrees location inference request for file: {inference_request.filename}")
+#
+#     client_ip = get_client_ip(request)
+#     session_id = session_storage.get_or_create_session(client_ip)
+#     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
+#     if ts is None:
+#         raise HTTPException(status_code=404, detail="File not found")
+#
+#     # Check if tree sequence has sample locations
+#     spatial_info = check_spatial_completeness(ts)
+#     if not spatial_info.get("has_sample_spatial", False):
+#         raise HTTPException(
+#             status_code=400,
+#             detail="spacetrees requires tree sequences with location data for all sample nodes"
+#         )
+#
+#     # Check if running on Railway
+#     # Also check for FORCE_RAILWAY_MODE or USE_RAILWAY_FRONTEND for local testing
+#     is_railway = (
+#         os.getenv("RAILWAY_ENVIRONMENT") is not None or
+#         os.getenv("RAILWAY_PROJECT_ID") is not None or
+#         os.getenv("FORCE_RAILWAY_MODE", "").lower() in ("true", "1", "yes") or
+#         os.getenv("USE_RAILWAY_FRONTEND", "").lower() in ("true", "1", "yes")
+#     )
+#
+#     async def run_inference():
+#         """Run inference in executor for timeout handling."""
+#         loop = asyncio.get_event_loop()
+#         def _run():
+#             return run_spacetrees_inference(
+#                 ts,
+#                 time_cutoff=inference_request.time_cutoff,
+#                 ancestor_times=inference_request.ancestor_times,
+#                 use_importance_sampling=inference_request.use_importance_sampling,
+#                 require_common_ancestor=inference_request.require_common_ancestor,
+#                 use_blup=inference_request.use_blup,
+#                 blup_var=inference_request.blup_var,
+#                 Ne=inference_request.ne,
+#                 Ne_epochs=inference_request.ne_epochs,
+#                 Nes=inference_request.nes,
+#                 num_loci=inference_request.num_loci,
+#                 locus_size=inference_request.locus_size,
+#                 quiet=False
+#             )
+#         return await loop.run_in_executor(None, _run)
+#
+#     try:
+#         # Run spacetrees inference with timeout on Railway
+#         if is_railway:
+#             try:
+#                 ts_with_locations, inference_info, intermediate_data = await asyncio.wait_for(
+#                     run_inference(),
+#                     timeout=RAILWAY_INFERENCE_TIMEOUT_SECONDS
+#                 )
+#             except asyncio.TimeoutError:
+#                 logger.warning(f"spacetrees inference timed out after {RAILWAY_INFERENCE_TIMEOUT_SECONDS} seconds on Railway")
+#                 message, status_code = get_timeout_error_message("spacetrees", RAILWAY_INFERENCE_TIMEOUT_SECONDS)
+#                 raise HTTPException(status_code=status_code, detail=message)
+#         else:
+#             ts_with_locations, inference_info, intermediate_data = await run_inference()
+#
+#         # Generate new filename
+#         new_filename = generate_unique_filename(session_id, inference_request.filename, '_spacetrees')
+#
+#         # Store the result
+#         session_storage.store_tree_sequence(session_id, new_filename, ts_with_locations)
+#
+#         # Store intermediate data
+#         try:
+#             session_storage.store_intermediate_data(session_id, new_filename, "dispersal_params", intermediate_data["dispersal_params"])
+#             session_storage.store_intermediate_data(session_id, new_filename, "ancestor_locations", intermediate_data["ancestor_locations"])
+#         except Exception as e:
+#             logger.warning(f"Failed to store spacetrees intermediate data: {e}")
+#
+#         # Update spatial info for the new tree sequence
+#         updated_spatial_info = check_spatial_completeness(ts_with_locations)
+#
+#         logger.info(f"spacetrees inference completed successfully: {new_filename}")
+#
+#         return {
+#             "status": "success",
+#             "message": "spacetrees location inference completed successfully",
+#             "new_filename": new_filename,
+#             **inference_info,
+#             **updated_spatial_info
+#         }
+#
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         logger.error(f"Error during spacetrees inference: {str(e)}")
+#         message, status_code = get_inference_error_message(e, "spacetrees")
+#         raise HTTPException(status_code=status_code, detail=message)
 
 
 @router.post("/infer-times-tsdate")
@@ -855,6 +870,7 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
     ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
     if ts is None:
         raise HTTPException(status_code=404, detail="File not found")
+    cpu_start = time.process_time()
     
     try:
         # Run tsdate inference
@@ -882,13 +898,13 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
         
         logger.info(f"tsdate inference completed successfully: {new_filename}")
         
-        return {
+        return build_inference_response({
             "status": "success",
             "message": "tsdate temporal inference completed successfully",
             "new_filename": new_filename,
             "has_temporal": has_temporal,
             **inference_info
-        }
+        }, cpu_start)
         
     except ValueError as e:
         logger.warning(f"tsdate validation error: {str(e)}")
@@ -1014,4 +1030,3 @@ async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTre
     except Exception as e:
         logger.error(f"Tree sequence simplification failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Tree sequence simplification failed: {str(e)}")
-

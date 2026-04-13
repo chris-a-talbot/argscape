@@ -154,8 +154,9 @@ def simplify_with_recombination(ts, flag_recomb=False, keep_nodes=None, keep_una
     uniq_child_parent = np.unique(np.column_stack((ts.edges_child, ts.edges_parent)), axis=0)
     child_node, parents_count = np.unique(uniq_child_parent[:, 0], return_counts=True) #For each child, count how many parents it has.
     parent_node, children_count = np.unique(uniq_child_parent[:, 1], return_counts=True) #For each child, count how many parents it has.
-    multiple_parents = child_node[parents_count > 1] #Find children who have more than 1 parent. 
-    recomb_nodes = ts.edges_parent[np.in1d(ts.edges_child, multiple_parents)] #Find the parent nodes of the children with multiple parents. 
+    multiple_parents = child_node[parents_count > 1] #Find children who have more than 1 parent.
+    # NumPy 2 removed np.in1d; np.isin is the supported equivalent.
+    recomb_nodes = ts.edges_parent[np.isin(ts.edges_child, multiple_parents)] #Find the parent nodes of the children with multiple parents.
     
     if flag_recomb:
         ts_tables = ts.dump_tables()

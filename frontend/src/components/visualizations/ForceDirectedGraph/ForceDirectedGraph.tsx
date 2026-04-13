@@ -16,16 +16,332 @@ import {
   getEdgeOpacity,
   OpacityCalculationParams
 } from '../../../utils/opacityCalculations';
-import { isRootNode } from '../../../utils/graphTraversal';
 import { generatePopulationColors, darkenColor } from '../../../utils/colorUtils';
 import { DEFAULT_NODE_SIZES, DEFAULT_NODE_ID_SETTINGS, DEFAULT_EDGE_LABEL_SETTINGS, 
     GRAPH_CONSTANTS, setupInitialNodePositions } from './ForceDirectedGraph.constants';
 import { createClusterNodes, createSampleClusters, getEdgeClusterInfo } from './ForceDirectedGraph.clustering';
-import { getChildren, getDescendantSamples, getNodeRadius } from './ForceDirectedGraph.utils';
-import { createFocusFunction, calculateEdgeCrossings, enforceDescendantRange, 
-    calculateYPosition, getDescendantSampleRange, getParent, getSiblings, 
-    findOptimalLabelPosition, createDescendantRangeForce, createEdgeCrossingReductionForce, 
-    createEdgeBundlingForce, isLikelyParentARG, getOptimalXPosition } from './ForceDirectedGraph.utils';
+import { getNodeRadius } from './ForceDirectedGraph.utils';
+import { createFocusFunction, calculateEdgeCrossings, calculateYPosition, findOptimalLabelPosition, createEdgeCrossingReductionForce, createEdgeBundlingForce } from './ForceDirectedGraph.utils';
+
+interface ForceGraphLayoutCache {
+    nodeMap: Map<number, GraphNode>;
+    outgoingEdgesMap: Map<number, GraphEdge[]>;
+    incomingEdgesMap: Map<number, GraphEdge[]>;
+    childMap: Map<number, GraphNode[]>;
+    parentMap: Map<number, GraphNode | null>;
+    nodeDegreeMap: Map<number, number>;
+    rootNodeIds: Set<number>;
+    descendantSampleNodesMap: Map<number, GraphNode[]>;
+    likelyParentARG: boolean;
+    getChildren: (node: GraphNode) => GraphNode[];
+    getParent: (node: GraphNode) => GraphNode | null;
+    getSiblings: (node: GraphNode) => GraphNode[];
+    getDescendantSampleRange: (node: GraphNode) => { min: number; max: number } | null;
+    getOptimalXPosition: (node: GraphNode) => number | null;
+}
+
+interface ForceGraphPerformanceProfile {
+    isLargeGraph: boolean;
+    skipHeavyForces: boolean;
+    relayoutLabelsOnTick: boolean;
+    labelRelayoutTickSkip: number;
+    overlayUpdateTickSkip: number;
+    alphaStart: number;
+    alphaDecay: number;
+    velocityDecay: number;
+    dragAlphaTarget: number;
+    dragEndAlpha: number;
+}
+
+interface ResolvedEdgeGroup extends EdgeGroupWithSpans {
+    sourceNode?: GraphNode;
+    targetNode?: GraphNode;
+}
+
+const buildForceGraphPerformanceProfile = (nodeCount: number, edgeCount: number): ForceGraphPerformanceProfile => {
+    const isLargeGraph =
+        nodeCount >= GRAPH_CONSTANTS.PERFORMANCE.LARGE_GRAPH_NODE_THRESHOLD ||
+        edgeCount >= GRAPH_CONSTANTS.PERFORMANCE.LARGE_GRAPH_EDGE_THRESHOLD;
+    const skipHeavyForces =
+        nodeCount >= GRAPH_CONSTANTS.PERFORMANCE.HEAVY_FORCE_NODE_THRESHOLD ||
+        edgeCount >= GRAPH_CONSTANTS.PERFORMANCE.HEAVY_FORCE_EDGE_THRESHOLD;
+
+    return {
+        isLargeGraph,
+        skipHeavyForces,
+        relayoutLabelsOnTick: nodeCount <= GRAPH_CONSTANTS.PERFORMANCE.LABEL_LAYOUT_NODE_THRESHOLD,
+        labelRelayoutTickSkip: isLargeGraph ? GRAPH_CONSTANTS.PERFORMANCE.LABEL_LAYOUT_TICK_SKIP : 1,
+        overlayUpdateTickSkip: isLargeGraph ? GRAPH_CONSTANTS.PERFORMANCE.OVERLAY_UPDATE_TICK_SKIP : 1,
+        alphaStart: skipHeavyForces ? 0.45 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START,
+        alphaDecay: skipHeavyForces ? 0.025 : isLargeGraph ? 0.018 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY,
+        velocityDecay: skipHeavyForces ? 0.6 : isLargeGraph ? 0.5 : 0.4,
+        dragAlphaTarget: isLargeGraph ? GRAPH_CONSTANTS.DRAG.LARGE_GRAPH_ALPHA_TARGET : GRAPH_CONSTANTS.DRAG.ALPHA_TARGET,
+        dragEndAlpha: GRAPH_CONSTANTS.DRAG.END_ALPHA,
+    };
+};
+
+const buildForceGraphLayoutCache = (nodes: GraphNode[], edges: GraphEdge[]): ForceGraphLayoutCache => {
+    const nodeMap = new Map<number, GraphNode>(nodes.map(node => [node.id, node]));
+    const outgoingEdgesMap = new Map<number, GraphEdge[]>();
+    const incomingEdgesMap = new Map<number, GraphEdge[]>();
+    const nodeDegreeMap = new Map<number, number>(nodes.map(node => [node.id, 0]));
+
+    for (const edge of edges) {
+        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+
+        const outgoing = outgoingEdgesMap.get(sourceId);
+        if (outgoing) outgoing.push(edge);
+        else outgoingEdgesMap.set(sourceId, [edge]);
+
+        const incoming = incomingEdgesMap.get(targetId);
+        if (incoming) incoming.push(edge);
+        else incomingEdgesMap.set(targetId, [edge]);
+
+        nodeDegreeMap.set(sourceId, (nodeDegreeMap.get(sourceId) ?? 0) + 1);
+        nodeDegreeMap.set(targetId, (nodeDegreeMap.get(targetId) ?? 0) + 1);
+    }
+
+    const childMap = new Map<number, GraphNode[]>();
+    for (const node of nodes) {
+        const children: GraphNode[] = [];
+        for (const edge of outgoingEdgesMap.get(node.id) ?? []) {
+            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
+            const targetNode = nodeMap.get(targetId);
+            if (targetNode) children.push(targetNode);
+        }
+        childMap.set(node.id, children);
+    }
+
+    const parentMap = new Map<number, GraphNode | null>();
+    for (const node of nodes) {
+        const incomingEdges = incomingEdgesMap.get(node.id) ?? [];
+        let bestParent: GraphNode | null = null;
+        let bestParentRank = Number.NEGATIVE_INFINITY;
+        const nodeRank = node.timeIndex ?? node.time;
+
+        for (const edge of incomingEdges) {
+            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+            const parentNode = nodeMap.get(sourceId);
+            if (!parentNode) continue;
+
+            const parentRank = parentNode.timeIndex ?? parentNode.time;
+            if (parentRank <= nodeRank && parentRank > bestParentRank) {
+                bestParent = parentNode;
+                bestParentRank = parentRank;
+            } else if (!bestParent) {
+                bestParent = parentNode;
+            }
+        }
+
+        parentMap.set(node.id, bestParent);
+    }
+
+    const rootNodeIds = new Set<number>();
+    for (const node of nodes) {
+        if ((incomingEdgesMap.get(node.id)?.length ?? 0) === 0 && (outgoingEdgesMap.get(node.id)?.length ?? 0) > 0) {
+            rootNodeIds.add(node.id);
+        }
+    }
+
+    const descendantSampleNodesMap = new Map<number, GraphNode[]>();
+    const collectDescendantSamples = (nodeId: number, visiting = new Set<number>()): GraphNode[] => {
+        const cached = descendantSampleNodesMap.get(nodeId);
+        if (cached) return cached;
+        if (visiting.has(nodeId)) return [];
+
+        visiting.add(nodeId);
+        const node = nodeMap.get(nodeId);
+        if (!node) {
+            visiting.delete(nodeId);
+            return [];
+        }
+
+        let descendants: GraphNode[];
+        if (node.is_sample) {
+            descendants = [node];
+        } else {
+            const seenSamples = new Set<number>();
+            descendants = [];
+
+            for (const child of childMap.get(nodeId) ?? []) {
+                for (const sample of collectDescendantSamples(child.id, visiting)) {
+                    if (!seenSamples.has(sample.id)) {
+                        seenSamples.add(sample.id);
+                        descendants.push(sample);
+                    }
+                }
+            }
+        }
+
+        descendantSampleNodesMap.set(nodeId, descendants);
+        visiting.delete(nodeId);
+        return descendants;
+    };
+
+    for (const node of nodes) {
+        collectDescendantSamples(node.id);
+    }
+
+    const getChildrenFast = (node: GraphNode): GraphNode[] => childMap.get(node.id) ?? [];
+    const getParentFast = (node: GraphNode): GraphNode | null => parentMap.get(node.id) ?? null;
+    const getSiblingsFast = (node: GraphNode): GraphNode[] => {
+        const parent = getParentFast(node);
+        if (!parent) return [];
+        return (childMap.get(parent.id) ?? []).filter(child => child.id !== node.id);
+    };
+    const getDescendantSampleRangeFast = (node: GraphNode): { min: number; max: number } | null => {
+        const descendantSamples = descendantSampleNodesMap.get(node.id) ?? [];
+        let min = Number.POSITIVE_INFINITY;
+        let max = Number.NEGATIVE_INFINITY;
+
+        for (const sample of descendantSamples) {
+            if (typeof sample.x !== 'number') continue;
+            min = Math.min(min, sample.x);
+            max = Math.max(max, sample.x);
+        }
+
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+        return { min, max };
+    };
+    const getOptimalXPositionFast = (node: GraphNode): number | null => {
+        if (node.is_sample) return typeof node.x === 'number' ? node.x : null;
+
+        const childrenWithX = getChildrenFast(node).filter(child => typeof child.x === 'number');
+        if (childrenWithX.length > 0) {
+            const xValues = childrenWithX.map(child => child.x as number);
+            const midpoint = (Math.min(...xValues) + Math.max(...xValues)) / 2;
+            const descendantRange = getDescendantSampleRangeFast(node);
+            if (descendantRange) {
+                return Math.max(descendantRange.min, Math.min(descendantRange.max, midpoint));
+            }
+            return midpoint;
+        }
+
+        const descendantRange = getDescendantSampleRangeFast(node);
+        if (descendantRange) {
+            return (descendantRange.min + descendantRange.max) / 2;
+        }
+
+        return null;
+    };
+
+    const sampleNodes = nodes.filter(node => node.is_sample);
+    const internalNodes = nodes.filter(node => !node.is_sample);
+    const likelyParentARG =
+        (sampleNodes.length <= 2 && internalNodes.length > 3) ||
+        (internalNodes.length > 0 &&
+            internalNodes.filter(node => (descendantSampleNodesMap.get(node.id)?.length ?? 0) <= 2).length >
+                internalNodes.length * 0.7);
+
+    return {
+        nodeMap,
+        outgoingEdgesMap,
+        incomingEdgesMap,
+        childMap,
+        parentMap,
+        nodeDegreeMap,
+        rootNodeIds,
+        descendantSampleNodesMap,
+        likelyParentARG,
+        getChildren: getChildrenFast,
+        getParent: getParentFast,
+        getSiblings: getSiblingsFast,
+        getDescendantSampleRange: getDescendantSampleRangeFast,
+        getOptimalXPosition: getOptimalXPositionFast,
+    };
+};
+
+const createFastDescendantRangeForce = (
+    nodes: GraphNode[],
+    layoutCache: ForceGraphLayoutCache,
+    getScale: () => number
+) => {
+    const sampleNodes = nodes.filter(node => node.is_sample);
+    const internalNodes = nodes.filter(node => !node.is_sample);
+
+    return function force() {
+        const positionedSampleNodes = sampleNodes.filter(node => typeof node.x === 'number');
+        if (positionedSampleNodes.length === 0) return;
+
+        const sampleMinX = Math.min(...positionedSampleNodes.map(node => node.x as number));
+        const sampleMaxX = Math.max(...positionedSampleNodes.map(node => node.x as number));
+        const sampleRange = sampleMaxX - sampleMinX;
+        const desiredSpread = Math.max(sampleRange * 2, internalNodes.length * 30);
+        const scale = getScale();
+        const strength = 0.03 * scale; // Gentle correction to avoid oscillation
+        const maxForce = 5; // Cap velocity correction per tick
+
+        for (const node of internalNodes) {
+            if (typeof node.x !== 'number' || node.fx != null) continue; // Skip pinned nodes
+
+            const descendantRange = layoutCache.getDescendantSampleRange(node);
+            if (descendantRange && !layoutCache.likelyParentARG) {
+                const rangeMidpoint = (descendantRange.min + descendantRange.max) / 2;
+                const expandedRange = Math.max(descendantRange.max - descendantRange.min, 100);
+                const expandedMin = rangeMidpoint - expandedRange / 2;
+                const expandedMax = rangeMidpoint + expandedRange / 2;
+
+                if (node.x < expandedMin - 50) {
+                    const correction = (expandedMin - node.x) * strength;
+                    node.vx = (node.vx || 0) + Math.min(correction, maxForce);
+                } else if (node.x > expandedMax + 50) {
+                    const correction = (expandedMax - node.x) * strength;
+                    node.vx = (node.vx || 0) + Math.max(correction, -maxForce);
+                }
+            } else {
+                const centerX = (sampleMinX + sampleMaxX) / 2;
+                const allowedMin = centerX - desiredSpread / 2;
+                const allowedMax = centerX + desiredSpread / 2;
+
+                if (node.x < allowedMin - 100) {
+                    const correction = (allowedMin - node.x) * strength;
+                    node.vx = (node.vx || 0) + Math.min(correction, maxForce);
+                } else if (node.x > allowedMax + 100) {
+                    const correction = (allowedMax - node.x) * strength;
+                    node.vx = (node.vx || 0) + Math.max(correction, -maxForce);
+                }
+            }
+        }
+    };
+};
+
+const getMutationMarkerPosition = (
+    sourceNode: GraphNode | undefined,
+    targetNode: GraphNode | undefined,
+    mutation: { time?: number | null }
+): { x: number; y: number } | null => {
+    if (
+        !sourceNode ||
+        !targetNode ||
+        sourceNode.x === undefined ||
+        sourceNode.y === undefined ||
+        targetNode.x === undefined ||
+        targetNode.y === undefined
+    ) {
+        return null;
+    }
+
+    if (mutation.time !== null && mutation.time !== undefined) {
+        const sourceTime = sourceNode.time ?? 0;
+        const targetTime = targetNode.time ?? 0;
+        const mutationTime = mutation.time;
+        const timeRange = sourceTime - targetTime;
+
+        if (timeRange > 0 && mutationTime >= targetTime && mutationTime <= sourceTime) {
+            const timeRatio = (mutationTime - targetTime) / timeRange;
+            return {
+                x: targetNode.x + timeRatio * (sourceNode.x - targetNode.x),
+                y: targetNode.y + timeRatio * (sourceNode.y - targetNode.y),
+            };
+        }
+    }
+
+    return {
+        x: (sourceNode.x + targetNode.x) / 2,
+        y: (sourceNode.y + targetNode.y) / 2,
+    };
+};
 
 export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphProps>(({
     data,
@@ -66,7 +382,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     clusteringTemporalIntensity = 0.5,
     clusteringMaxSampleClusterSize = 25,
     combineInternalNodes = false,
-    combineSampleNodes = true
+    combineSampleNodes = true,
+    onLayoutReady,
+    onRenderComplete
 }, ref: ForwardedRef<SVGSVGElement>) => {
     const { colors, theme } = useColorTheme();
 
@@ -146,6 +464,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         simulation: Simulation | null;
         svg: d3.Selection<SVGSVGElement, unknown, null, undefined> | null;
         zoom: d3.ZoomBehavior<SVGSVGElement, unknown> | null;
+        rootNodeIds: Set<number>;
         userMovedNodes: Map<number, { x: number; y: number; fx: number | null; fy: number | null }>;
         currentTransform: d3.ZoomTransform | null;
     }>({
@@ -154,6 +473,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         simulation: null,
         svg: null,
         zoom: null,
+        rootNodeIds: new Set(),
         userMovedNodes: new Map(),
         currentTransform: null
     });
@@ -204,105 +524,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         edgeBundlingScale: forceTuning?.edgeBundlingScale ?? 1,
         descendantRangeScale: forceTuning?.descendantRangeScale ?? 1,
     }), [forceTuning]);
-
-    // Apply tuning changes live to the existing simulation (including initial application)
-    useEffect(() => {
-        const sim = visualStateRef.current.simulation as d3.Simulation<GraphNode, GraphEdge> | null;
-        const nodes = visualStateRef.current.nodes as GraphNode[];
-        const edges = visualStateRef.current.edges as GraphEdge[];
-        if (!sim || !nodes || !edges) return;
-        
-
-        // Update built-in forces
-        const linkForce = sim.force("link") as d3.ForceLink<GraphNode, GraphEdge> | null;
-        if (linkForce) {
-            linkForce.strength((d) => {
-                const source = typeof d.source === 'number' ? nodes.find(n => n.id === d.source) : d.source as GraphNode;
-                const target = typeof d.target === 'number' ? nodes.find(n => n.id === d.target) : d.target as GraphNode;
-                if (!source || !target) return 0.5;
-                const sourceParent = getParent(source, nodes, edges);
-                const targetParent = getParent(target, nodes, edges);
-                if (sourceParent && targetParent && sourceParent.id === targetParent.id) {
-                    return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SIBLING * 1.4 * tuning.linkStrengthScale;
-                }
-                if (!source.is_sample && !target.is_sample) {
-                    return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT * 2.0 * tuning.linkStrengthScale;
-                }
-                return ((source.is_sample || target.is_sample) ?
-                    GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SAMPLE * 1.3 :
-                    GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT * 1.6) * tuning.linkStrengthScale;
-            });
-        }
-
-        const chargeForce = sim.force("charge") as d3.ForceManyBody<GraphNode> | null;
-        if (chargeForce) {
-            chargeForce.strength((d) => {
-                const node = d as GraphNode;
-                const base = node.is_sample ? GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.7 : GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.2;
-                const deg = edges.reduce((acc, e) => {
-                    const s = typeof e.source === 'number' ? e.source : (e.source as GraphNode).id;
-                    const t = typeof e.target === 'number' ? e.target : (e.target as GraphNode).id;
-                    return acc + ((s === node.id || t === node.id) ? 1 : 0);
-                }, 0);
-                return base * (1 + deg * 0.12) * tuning.chargeScale;
-            });
-        }
-
-        const xForce = sim.force("x") as d3.ForceX<GraphNode> | null;
-        if (xForce) {
-            xForce.strength((d: GraphNode) => {
-                if (d.is_sample) return 1.0 * tuning.xStrengthScale;
-                const descendantRange = getDescendantSampleRange(d, nodes, edges);
-                if (descendantRange) return GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.5 * tuning.xStrengthScale;
-                const hasChildren = getChildren(d, nodes, edges).length > 0;
-                return (hasChildren ? GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.0 : GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 1.0) * tuning.xStrengthScale;
-            });
-        }
-
-        // No y spring anymore; we pin fy to enforce strict stratification
-
-        const collideForce = sim.force("collision") as d3.ForceCollide<GraphNode> | null;
-        if (collideForce) {
-            // Check if this is a parent ARG (nodes have fixed X positions)
-            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
-            const collisionStrength = hasFixedXPositions
-                ? Math.max(tuning.collisionStrength, 0.7) // Ensure strong collision for parent ARGs
-                : tuning.collisionStrength;
-
-            collideForce
-                .radius((d: GraphNode) => (d.is_sample ? GRAPH_CONSTANTS.COLLISION_RADIUS * 1.8 : GRAPH_CONSTANTS.COLLISION_RADIUS * 1.5) * tuning.collisionRadiusScale)
-                .strength(Math.max(0, Math.min(1, collisionStrength)));
-        }
-
-        // Reattach custom forces with updated scales (only those still used)
-        if (sampleOrder !== 'dagre') {
-            // Check if this is a parent ARG (nodes have fixed X positions)
-            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
-
-            if (hasFixedXPositions) {
-                // For parent ARGs with fixed X positions, reduce descendant range force and increase collision
-                sim.force("descendantRange", createDescendantRangeForce(nodes, edges, () => tuning.descendantRangeScale * 0.3)); // Reduce constraint
-                sim.force("edgeCrossing", createEdgeCrossingReductionForce(nodes, edges, () => Math.max(tuning.edgeCrossingScale, 0.5))); // Ensure active
-                sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
-            } else {
-                // Normal ARGs
-                sim.force("descendantRange", createDescendantRangeForce(nodes, edges, () => tuning.descendantRangeScale));
-                sim.force("edgeCrossing", createEdgeCrossingReductionForce(nodes, edges, () => tuning.edgeCrossingScale));
-                sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
-            }
-        }
-
-        // Nudge simulation to apply changes with higher alpha for initial settling
-        sim.alpha(0.5).alphaTarget(0.1).restart();
-        // Drop target after settling - increased delay to allow more time for simulation
-        const settleTimeout = setTimeout(() => {
-            sim.alphaTarget(0);
-        }, 2000);
-
-        return () => {
-            clearTimeout(settleTimeout);
-        };
-    }, [tuning, sampleOrder, data]); // Add data dependency to trigger on initial load
 
     // Full simulation reset while retaining sample order and positions
     useEffect(() => {
@@ -523,7 +744,6 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             const { nodes: sampleClusteredNodes, edges: sampleClusteredEdges } = createSampleClusters(
                 currentData.nodes as GraphNode[],
                 currentData.edges,
-                sampleOrder,  // Parameter kept for compatibility but ignored
                 originalParentMap,  // Pass through original parent relationships
                 clusteringMaxSampleClusterSize  // Maximum samples per cluster
             );
@@ -540,6 +760,119 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         return currentData;
     }, [combinedData, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize, sampleOrder]);
+
+    const graphLayoutCache = useMemo(() => {
+        if (!clusteredData) return null;
+        return buildForceGraphLayoutCache(clusteredData.nodes as GraphNode[], clusteredData.edges);
+    }, [clusteredData]);
+
+    const performanceProfile = useMemo(() => {
+        const nodeCount = clusteredData?.nodes.length ?? 0;
+        const edgeCount = clusteredData?.edges.length ?? 0;
+        return buildForceGraphPerformanceProfile(nodeCount, edgeCount);
+    }, [clusteredData?.nodes.length, clusteredData?.edges.length]);
+
+    // Keep refs in sync so the tuning effect can read the latest values
+    // without including them as dependencies (which would cause it to fire on data changes).
+    const graphLayoutCacheRef = useRef(graphLayoutCache);
+    graphLayoutCacheRef.current = graphLayoutCache;
+    const performanceProfileRef = useRef(performanceProfile);
+    performanceProfileRef.current = performanceProfile;
+
+    // Apply tuning changes live to the existing simulation (including initial application)
+    useEffect(() => {
+        const sim = visualStateRef.current.simulation as d3.Simulation<GraphNode, GraphEdge> | null;
+        const nodes = visualStateRef.current.nodes as GraphNode[];
+        const edges = visualStateRef.current.edges as GraphEdge[];
+        const layoutCache = graphLayoutCacheRef.current;
+        if (!sim || !nodes || !edges || !layoutCache) return;
+
+        const linkForce = sim.force("link") as d3.ForceLink<GraphNode, GraphEdge> | null;
+        if (linkForce) {
+            linkForce.strength((d) => {
+                const source = typeof d.source === 'number' ? layoutCache.nodeMap.get(d.source) : d.source as GraphNode;
+                const target = typeof d.target === 'number' ? layoutCache.nodeMap.get(d.target) : d.target as GraphNode;
+                if (!source || !target) return 0.5;
+                const sourceParent = layoutCache.getParent(source);
+                const targetParent = layoutCache.getParent(target);
+                if (sourceParent && targetParent && sourceParent.id === targetParent.id) {
+                    return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SIBLING * 1.4 * tuning.linkStrengthScale;
+                }
+                if (!source.is_sample && !target.is_sample) {
+                    return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT * 2.0 * tuning.linkStrengthScale;
+                }
+                return ((source.is_sample || target.is_sample)
+                    ? GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SAMPLE * 1.3
+                    : GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_DEFAULT * 1.6) * tuning.linkStrengthScale;
+            });
+        }
+
+        const chargeForce = sim.force("charge") as d3.ForceManyBody<GraphNode> | null;
+        if (chargeForce) {
+            chargeForce.strength((d) => {
+                const node = d as GraphNode;
+                const base = node.is_sample
+                    ? GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.7
+                    : GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.2;
+                const deg = layoutCache.nodeDegreeMap.get(node.id) ?? 0;
+                return base * (1 + deg * 0.12) * tuning.chargeScale;
+            });
+        }
+
+        const xForce = sim.force("x") as d3.ForceX<GraphNode> | null;
+        if (xForce) {
+            xForce.strength((d: GraphNode) => {
+                if (d.is_sample) return 1.0 * tuning.xStrengthScale;
+                const descendantRange = layoutCache.getDescendantSampleRange(d);
+                if (descendantRange) return GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.5 * tuning.xStrengthScale;
+                const hasChildren = layoutCache.getChildren(d).length > 0;
+                return (hasChildren
+                    ? GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.0
+                    : GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 1.0) * tuning.xStrengthScale;
+            });
+        }
+
+        const collideForce = sim.force("collision") as d3.ForceCollide<GraphNode> | null;
+        if (collideForce) {
+            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
+            const collisionStrength = hasFixedXPositions
+                ? Math.max(tuning.collisionStrength, 0.7)
+                : tuning.collisionStrength;
+
+            collideForce
+                .radius((d: GraphNode) => (d.is_sample ? GRAPH_CONSTANTS.COLLISION_RADIUS * 1.8 : GRAPH_CONSTANTS.COLLISION_RADIUS * 1.5) * tuning.collisionRadiusScale)
+                .strength(Math.max(0, Math.min(1, collisionStrength)));
+        }
+
+        if (sampleOrder !== 'dagre') {
+            const hasFixedXPositions = nodes.some(n => n.fx !== undefined && n.fx !== null);
+            const descendantRangeScale = hasFixedXPositions ? tuning.descendantRangeScale * 0.3 : tuning.descendantRangeScale;
+
+            sim.force("descendantRange", createFastDescendantRangeForce(nodes, layoutCache, () => descendantRangeScale));
+
+            if (performanceProfileRef.current.skipHeavyForces) {
+                sim.force("edgeCrossing", null);
+                sim.force("edgeBundling", null);
+            } else {
+                sim.force(
+                    "edgeCrossing",
+                    createEdgeCrossingReductionForce(nodes, edges, () =>
+                        hasFixedXPositions ? Math.max(tuning.edgeCrossingScale, 0.5) : tuning.edgeCrossingScale
+                    )
+                );
+                sim.force("edgeBundling", createEdgeBundlingForce(nodes, edges, () => tuning.edgeBundlingScale));
+            }
+        }
+
+        sim.alpha(0.5).alphaTarget(0.1).restart();
+        const settleTimeout = setTimeout(() => {
+            sim.alphaTarget(0);
+        }, 2000);
+
+        return () => {
+            clearTimeout(settleTimeout);
+        };
+    }, [tuning, sampleOrder]);
     
     // Track focal node changes to determine when auto-zoom should happen
     // Auto-zoom should only occur for structural changes:
@@ -571,9 +904,10 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         
         if (sampleOrder === 'dagre') {
 
-            // For dagre mode, apply spacing multipliers directly to existing positions
-            const userSampleMultiplier = newSampleSpacing / 20; // Normalize to default
-            const userTemporalMultiplier = newTemporalSpacing / 12; // Normalize to default
+            // For dagre mode, apply spacing multipliers relative to actual defaults
+            // Default sampleSpacing=40, temporalSpacing=14 (from useVisualizationSettings)
+            const userSampleMultiplier = newSampleSpacing / 40;
+            const userTemporalMultiplier = newTemporalSpacing / 14;
             
             const centerX = actualWidth / 2;
             const centerY = actualHeight / 2;
@@ -685,8 +1019,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     };
 
     useEffect(() => {
-        if (!ref || typeof ref === 'function' || !ref.current || !clusteredData || !stableData) return;
+        if (!ref || typeof ref === 'function' || !ref.current || !clusteredData || !stableData || !graphLayoutCache) return;
         const orderChanged = prevSampleOrderRef.current !== sampleOrder;
+        const layoutCache = graphLayoutCache;
 
         // Read visual settings from refs (not dependencies) to avoid re-renders
         const colors = colorsRef.current;
@@ -708,8 +1043,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         const originalNodes = (clusteredData as any).originalNodes as GraphNode[] | undefined;
 
         // Create nodeMap for O(1) lookups (instead of O(n) .find() calls)
-        const nodeMap = new Map<number, GraphNode>(combinedNodes.map(n => [n.id, n]));
+        const nodeMap = layoutCache.nodeMap;
         const stableNodeMap = new Map<number, GraphNode>(stableData.nodes.map(n => [n.id, n]));
+        const rootNodeIds = layoutCache.rootNodeIds;
 
         d3.select(ref.current).selectAll("*").remove();
 
@@ -826,7 +1162,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             
             internalNodes.forEach(node => {
                 // Recalculate optimal x position based on updated sample positions
-                const optimalX = getOptimalXPosition(node, combinedNodes, combinedEdges);
+                const optimalX = layoutCache.getOptimalXPosition(node);
                 
                 if (optimalX !== null) {
                     node.x = optimalX;
@@ -869,6 +1205,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             simulation: null, // Will be set below
             svg,
             zoom,
+            rootNodeIds,
             userMovedNodes: visualStateRef.current.userMovedNodes, // Preserve user movements
             currentTransform: visualStateRef.current.currentTransform // Preserve zoom state
         };
@@ -894,6 +1231,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     } else {
                         focusOnNode(null, combinedNodes, combinedEdges, true);
                     }
+                    onLayoutReady?.();
                 });
             });
         }
@@ -925,9 +1263,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         // Create simulation with proper typing
         const simulation: Simulation = d3.forceSimulation<GraphNode>(combinedNodes)
-            .alpha(sampleOrder === 'dagre' ? 0 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_START)
-            .alphaDecay(sampleOrder === 'dagre' ? 1 : GRAPH_CONSTANTS.FORCE_STRENGTH.ALPHA_DECAY)
-            .velocityDecay(sampleOrder === 'dagre' ? 1 : 0.4) // Reduced from 0.7 to allow more movement
+            .alpha(sampleOrder === 'dagre' ? 0 : performanceProfile.alphaStart)
+            .alphaDecay(sampleOrder === 'dagre' ? 1 : performanceProfile.alphaDecay)
+            .velocityDecay(sampleOrder === 'dagre' ? 1 : performanceProfile.velocityDecay)
             .force("link", sampleOrder === 'dagre' ? null : d3.forceLink<GraphNode, GraphEdge>(combinedEdges)
                 .id(d => d.id)
                 .distance(d => {
@@ -939,9 +1277,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     const verticalDistance = Math.abs((source.timeIndex ?? 0) - (target.timeIndex ?? 0));
                     
                     // Get number of siblings (children of same parent) to adjust spacing
-                    const sourceChildren = getChildren(source, combinedNodes, combinedEdges);
+                    const sourceChildren = layoutCache.getChildren(source);
                     const targetSiblings = sourceChildren.filter(child => {
-                        const childParent = getParent(child, combinedNodes, combinedEdges);
+                        const childParent = layoutCache.getParent(child);
                         return childParent?.id === source.id;
                     });
                     
@@ -961,8 +1299,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     if (!source || !target) return 0.5; // Default strength if nodes not found
                     
                     // Check if nodes are siblings (share same parent)
-                    const sourceParent = getParent(source, combinedNodes, combinedEdges);
-                    const targetParent = getParent(target, combinedNodes, combinedEdges);
+                    const sourceParent = layoutCache.getParent(source);
+                    const targetParent = layoutCache.getParent(target);
                     if (sourceParent && targetParent && sourceParent.id === targetParent.id) {
                         // Stronger link for siblings to keep them together
                         return GRAPH_CONSTANTS.FORCE_STRENGTH.LINK_SIBLING * 1.4 * tuning.linkStrengthScale;
@@ -983,19 +1321,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     const baseCharge = node.is_sample ? 
                         GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.7 :
                         GRAPH_CONSTANTS.FORCE_STRENGTH.CHARGE * 2.2;
-                    // Slightly reduce per-connection bonus
-                    const edges = combinedEdges.filter(e => {
-                        const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
-                        const targetId = typeof e.target === 'number' ? e.target : e.target.id;
-                        return sourceId === node.id || targetId === node.id;
-                    });
-                    return baseCharge * (1 + edges.length * 0.12) * tuning.chargeScale;
+                    const degree = layoutCache.nodeDegreeMap.get(node.id) ?? 0;
+                    return baseCharge * (1 + degree * 0.12) * tuning.chargeScale;
                 }))
             .force("x", sampleOrder === 'dagre' ? null : d3.forceX((d: GraphNode) => {
                 if (d.is_sample) return d.x!;
                 
                 // Use the improved optimal positioning function
-                const optimalX = getOptimalXPosition(d, combinedNodes, combinedEdges);
+                const optimalX = layoutCache.getOptimalXPosition(d);
                 if (optimalX !== null) {
                     return optimalX;
                 }
@@ -1005,13 +1338,13 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 // Increase x-positioning strength for nodes with descendants to keep them close to children
                 if (d.is_sample) return 1.0 * tuning.xStrengthScale; // Keep samples fixed
                 
-                const descendantRange = getDescendantSampleRange(d, combinedNodes, combinedEdges);
+                const descendantRange = layoutCache.getDescendantSampleRange(d);
                 if (descendantRange) {
                     // Strong positioning for nodes with descendants
                     return GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.5 * tuning.xStrengthScale;
                 }
                 
-                const hasChildren = getChildren(d, combinedNodes, combinedEdges).length > 0;
+                const hasChildren = layoutCache.getChildren(d).length > 0;
                 return (hasChildren ? 
                     GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 2.0 : 
                     GRAPH_CONSTANTS.FORCE_STRENGTH.X_POSITION * 1.0) * tuning.xStrengthScale;
@@ -1024,9 +1357,9 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         GRAPH_CONSTANTS.COLLISION_RADIUS * 1.5) * tuning.collisionRadiusScale;
                 })
                 .strength(Math.max(0, Math.min(1, tuning.collisionStrength))))
-            .force("descendantRange", sampleOrder === 'dagre' ? null : createDescendantRangeForce(combinedNodes, combinedEdges, () => tuning.descendantRangeScale))
-            .force("edgeCrossing", sampleOrder === 'dagre' ? null : createEdgeCrossingReductionForce(combinedNodes, combinedEdges, () => tuning.edgeCrossingScale))
-            .force("edgeBundling", sampleOrder === 'dagre' ? null : createEdgeBundlingForce(combinedNodes, combinedEdges, () => tuning.edgeBundlingScale));
+            .force("descendantRange", sampleOrder === 'dagre' ? null : createFastDescendantRangeForce(combinedNodes, layoutCache, () => tuning.descendantRangeScale))
+            .force("edgeCrossing", sampleOrder === 'dagre' || performanceProfile.skipHeavyForces ? null : createEdgeCrossingReductionForce(combinedNodes, combinedEdges, () => tuning.edgeCrossingScale))
+            .force("edgeBundling", sampleOrder === 'dagre' || performanceProfile.skipHeavyForces ? null : createEdgeBundlingForce(combinedNodes, combinedEdges, () => tuning.edgeBundlingScale));
 
         if (sampleOrder !== 'dagre') {
             // Pin nodes to strict y-layers so collisions can never reorder layers
@@ -1059,6 +1392,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .selectAll<SVGLineElement, GraphEdge>("line")
             .data(combinedEdges)
             .join("line")
+            .attr("class", "edge")
             .attr("stroke", d => {
                 const { isSampleClusterEdge } = getEdgeClusterInfo(d, combinedNodes);
                 if (isSampleClusterEdge) {
@@ -1286,13 +1620,46 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             );
         }
 
+        const resolvedEdgeGroups: ResolvedEdgeGroup[] = edgeGroups.map(edgeGroup => {
+            let sourceNode = nodeMap.get(edgeGroup.sourceId);
+            let targetNode = nodeMap.get(edgeGroup.targetId);
+
+            if (!sourceNode) {
+                const originalSource = stableNodeMap.get(edgeGroup.sourceId);
+                if (originalSource) {
+                    sourceNode = combinedNodes.find(cn =>
+                        cn.combined_nodes?.includes(edgeGroup.sourceId) || cn.id === edgeGroup.sourceId
+                    );
+                }
+            }
+
+            if (!targetNode) {
+                const originalTarget = stableNodeMap.get(edgeGroup.targetId);
+                if (originalTarget) {
+                    targetNode = combinedNodes.find(cn =>
+                        cn.combined_nodes?.includes(edgeGroup.targetId) || cn.id === edgeGroup.targetId
+                    );
+                }
+            }
+
+            return {
+                ...edgeGroup,
+                sourceNode,
+                targetNode
+            };
+        });
+        const visibleResolvedEdgeGroups = resolvedEdgeGroups.filter(
+            (edgeGroup): edgeGroup is ResolvedEdgeGroup & { sourceNode: GraphNode; targetNode: GraphNode } =>
+                !!edgeGroup.sourceNode && !!edgeGroup.targetNode
+        );
+
         // Helper function to find optimal edge label position
         const findOptimalEdgeLabelPosition = (
             sourceNode: GraphNode,
             targetNode: GraphNode,
-            edgeGroup: EdgeGroupWithSpans,
+            edgeGroup: ResolvedEdgeGroup,
             allNodes: GraphNode[],
-            _allEdgeGroups: EdgeGroupWithSpans[]
+            _allEdgeGroups: ResolvedEdgeGroup[]
         ): { x: number; y: number } => {
             if (!sourceNode || !targetNode) {
                 console.warn(`Edge label positioning: missing nodes for ${edgeGroup.sourceId}->${edgeGroup.targetId}`);
@@ -1377,8 +1744,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Create edge labels (always create, control visibility with CSS)
         const edgeLabels = g.append("g")
             .attr("class", "edge-labels")
-            .selectAll<SVGTextElement, EdgeGroupWithSpans>("text")
-            .data(edgeGroups)
+            .selectAll<SVGTextElement, ResolvedEdgeGroup>("text")
+            .data(visibleResolvedEdgeGroups)
             .join("text")
             .style("display", edgeLabelSettings.showEdgeLabels ? "block" : "none")  // Control initial visibility
             .text(d => d.formattedSpans)
@@ -1395,8 +1762,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("user-select", "none")
             .attr("opacity", d => {
                 // Get opacity from the edge
-                const sourceNode = nodeMap.get(d.sourceId);
-                const targetNode = nodeMap.get(d.targetId);
+                const sourceNode = d.sourceNode;
+                const targetNode = d.targetNode;
                 if (sourceNode && targetNode) {
                     const sourceVisible = getNodeOpacity(sourceNode, opacityParams) > 0.5;
                     const targetVisible = getNodeOpacity(targetNode, opacityParams) > 0.5;
@@ -1407,37 +1774,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 return 0.05; // Very faint for filtered out labels
             })
             .each(function(d) {
-                // Try to find nodes in combined nodes first, then fall back to original data
-                let sourceNode = nodeMap.get(d.sourceId);
-                let targetNode = nodeMap.get(d.targetId);
-                
-                // If not found in combined nodes, try to find in original nodes and map to combined
-                if (!sourceNode) {
-                    const originalSource = stableNodeMap.get(d.sourceId);
-                    if (originalSource) {
-                        // Find the combined node that contains this original node
-                        sourceNode = combinedNodes.find(cn => 
-                            cn.combined_nodes?.includes(d.sourceId) || cn.id === d.sourceId
-                        );
-                    }
-                }
-                
-                if (!targetNode) {
-                    const originalTarget = stableNodeMap.get(d.targetId);
-                    if (originalTarget) {
-                        // Find the combined node that contains this original node
-                        targetNode = combinedNodes.find(cn => 
-                            cn.combined_nodes?.includes(d.targetId) || cn.id === d.targetId
-                        );
-                    }
-                }
-                
-                if (!sourceNode || !targetNode) {
-                    console.warn(`Edge label: Could not find nodes for edge ${d.sourceId}->${d.targetId}`);
-                    return;
-                }
-                
-                const pos = findOptimalEdgeLabelPosition(sourceNode, targetNode, d, combinedNodes, edgeGroups);
+                const pos = findOptimalEdgeLabelPosition(d.sourceNode, d.targetNode, d, combinedNodes, resolvedEdgeGroups);
                 d3.select(this)
                     .attr("x", pos.x)
                     .attr("y", pos.y);
@@ -1460,136 +1797,34 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
 
         function dragged(event: d3.D3DragEvent<SVGCircleElement, GraphNode, GraphNode>) {
             if (!stableData) return;
-            
+
             // Check if this is a real drag (moved more than threshold) to avoid interfering with clicks
             const dragStartX = (event.subject as any).dragStartX ?? event.x;
             const dragStartY = (event.subject as any).dragStartY ?? event.y;
             const dragDistance = Math.sqrt(Math.pow(event.x - dragStartX, 2) + Math.pow(event.y - dragStartY, 2));
             const dragThreshold = 5; // pixels
-            
+
             if (dragDistance > dragThreshold) {
                 (event.subject as any).wasDragged = true;
             }
-            
-            let x = event.x;
-            
-            // Apply much more relaxed constraints for internal nodes
-            if (!event.subject.is_sample) {
-                const sampleNodes = combinedNodes.filter(n => n.is_sample && n.x !== undefined);
-                const isParentARG = isLikelyParentARG(combinedNodes, combinedEdges);
-                
-                if (sampleNodes.length > 0) {
-                    const sampleMinX = Math.min(...sampleNodes.map(n => n.x!));
-                    const sampleMaxX = Math.max(...sampleNodes.map(n => n.x!));
-                    const sampleRange = sampleMaxX - sampleMinX;
-                    const centerX = (sampleMinX + sampleMaxX) / 2;
-                    
-                    if (isParentARG) {
-                        // For parent ARGs, allow very wide spread
-                        const allowedSpread = Math.max(sampleRange * 3, actualWidth * 0.6);
-                        const allowedMin = centerX - allowedSpread / 2;
-                        const allowedMax = centerX + allowedSpread / 2;
-                        x = Math.max(allowedMin, Math.min(allowedMax, x));
-                    } else {
-                        // For normal ARGs, apply relaxed descendant range constraints
-                        const descendantRange = getDescendantSampleRange(event.subject, combinedNodes, combinedEdges);
-                        if (descendantRange) {
-                            const expandedRange = Math.max(descendantRange.max - descendantRange.min, 150); // Minimum 150px range
-                            const rangeMidpoint = (descendantRange.min + descendantRange.max) / 2;
-                            const expandedMin = rangeMidpoint - expandedRange / 2;
-                            const expandedMax = rangeMidpoint + expandedRange / 2;
-                            x = Math.max(expandedMin, Math.min(expandedMax, x));
-                        } else {
-                            // If no descendants, allow reasonable spread around samples
-                            const allowedSpread = Math.max(sampleRange * 1.5, 200);
-                            const allowedMin = centerX - allowedSpread / 2;
-                            const allowedMax = centerX + allowedSpread / 2;
-                            x = Math.max(allowedMin, Math.min(allowedMax, x));
-                        }
-                    }
-                } else {
-                    // Fallback to basic padding constraints
-                    const padding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
-                    x = Math.max(padding, Math.min(actualWidth - padding, x));
-                }
-            }
-            // No constraints for sample nodes - allow dragging anywhere on x-axis
-            
-            // Apply sibling constraints with reduced effect to allow better positioning
-            // Only for internal nodes (samples don't have siblings in the traditional sense)
-            if (!event.subject.is_sample) {
-                const siblings = getSiblings(event.subject, combinedNodes, combinedEdges);
-                if (siblings.length > 0) {
-                    const siblingAvgX = siblings.reduce((sum, s) => sum + (s.x ?? 0), 0) / siblings.length;
-                    const maxDistance = GRAPH_CONSTANTS.MAX_SIBLING_DISTANCE * 1.5; // Increased tolerance
-                    x = Math.max(siblingAvgX - maxDistance, 
-                        Math.min(siblingAvgX + maxDistance, x));
-                }
-            }
-            
-            event.subject.fx = x;
-            // Don't modify Y position during drag - this was causing the layer jumping
+
+            // Allow free dragging — simulation forces handle positioning after release
+            event.subject.fx = event.x;
             event.subject.fy = event.subject.y ?? null;
         }
 
         function dragended(event: d3.D3DragEvent<SVGCircleElement, GraphNode, GraphNode>) {
             if (!event.active) simulation.alphaTarget(0);
-            
-            let x = event.subject.x ?? 0;
-            
-                        // Apply the same relaxed X constraints as in dragged function
-            if (!event.subject.is_sample) {
-                const sampleNodes = combinedNodes.filter(n => n.is_sample && n.x !== undefined);
-                const isParentARG = isLikelyParentARG(combinedNodes, combinedEdges);
-                
-                if (sampleNodes.length > 0) {
-                    const sampleMinX = Math.min(...sampleNodes.map(n => n.x!));
-                    const sampleMaxX = Math.max(...sampleNodes.map(n => n.x!));
-                    const sampleRange = sampleMaxX - sampleMinX;
-                    const centerX = (sampleMinX + sampleMaxX) / 2;
-                    
-                    if (isParentARG) {
-                        // For parent ARGs, allow very wide spread
-                        const allowedSpread = Math.max(sampleRange * 3, actualWidth * 0.6);
-                        const allowedMin = centerX - allowedSpread / 2;
-                        const allowedMax = centerX + allowedSpread / 2;
-                        x = Math.max(allowedMin, Math.min(allowedMax, x));
-                    } else {
-                        // For normal ARGs, apply relaxed descendant range constraints
-                        const descendantRange = getDescendantSampleRange(event.subject, combinedNodes, combinedEdges);
-                        if (descendantRange) {
-                            const expandedRange = Math.max(descendantRange.max - descendantRange.min, 150); // Minimum 150px range
-                            const rangeMidpoint = (descendantRange.min + descendantRange.max) / 2;
-                            const expandedMin = rangeMidpoint - expandedRange / 2;
-                            const expandedMax = rangeMidpoint + expandedRange / 2;
-                            x = Math.max(expandedMin, Math.min(expandedMax, x));
-                        } else {
-                            // If no descendants, allow reasonable spread around samples
-                            const allowedSpread = Math.max(sampleRange * 1.5, 200);
-                            const allowedMin = centerX - allowedSpread / 2;
-                            const allowedMax = centerX + allowedSpread / 2;
-                            x = Math.max(allowedMin, Math.min(allowedMax, x));
-                        }
-                    }
-                } else {
-                    // Fallback to basic padding constraints
-                    const padding = actualWidth * GRAPH_CONSTANTS.PADDING_RATIO;
-                    x = Math.max(padding, Math.min(actualWidth - padding, x));
-                }
-            }
-            // No constraints for sample nodes - allow dragging anywhere on x-axis
-            
-            event.subject.x = x;
-            event.subject.fx = x; // Keep x fixed after drag
-            // Don't force Y position recalculation - preserve the current Y position
+
+            event.subject.fx = event.subject.x;
             event.subject.fy = event.subject.y ?? null;
             
             // Track this as a user-moved node
             visualStateRef.current.userMovedNodes.set(event.subject.id, {
-                x: event.subject.x,
-                y: event.subject.y || 0,
-                fx: event.subject.fx,
-                fy: event.subject.fy
+                x: event.subject.x ?? 0,
+                y: event.subject.y ?? 0,
+                fx: event.subject.fx ?? null,
+                fy: event.subject.fy ?? null
             });
             
             // Clean up drag tracking properties (using refs for proper cleanup)
@@ -1612,6 +1847,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .selectAll<SVGCircleElement, GraphNode>("circle")
             .data(combinedNodes)
             .join("circle")
+            .attr("class", "node")
             .attr("r", d => {
                 // Cluster nodes are larger based on their size
                 if (d.is_cluster) {
@@ -1635,7 +1871,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     let color = populationColors.get(d.population);
                     if (color) {
                         // Darken for samples and roots
-                        if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) {
+                        if (d.is_sample || rootNodeIds.has(d.id)) {
                             color = darkenColor(color, 0.75);
                         }
                         return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
@@ -1645,7 +1881,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 // Default theme colors
                 if (d.is_sample) return `rgb(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]})`;
                 if (d.is_combined) return `rgb(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]})`;
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`;
+                if (rootNodeIds.has(d.id)) return `rgb(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]})`;
                 return `rgb(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]})`;
             })
             .attr("fill-opacity", d => getNodeOpacity(d, opacityParams))
@@ -1654,14 +1890,14 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     if (d.is_sample_cluster) return `rgb(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]})`;
                     return `rgb(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]})`;
                 }
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`;
+                if (rootNodeIds.has(d.id)) return `rgb(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]})`;
                 if (d.is_sample) return colors.background;
                 return "none";
             })
             .attr("stroke-opacity", d => getNodeOpacity(d, opacityParams))
             .attr("stroke-width", d => {
                 if (d.is_cluster) return 2.5; // Thick stroke for cluster nodes
-                if (isRootNode(d, combinedNodes, combinedEdges)) return GRAPH_CONSTANTS.ROOT_NODE_STROKE_WIDTH;
+                if (rootNodeIds.has(d.id)) return GRAPH_CONSTANTS.ROOT_NODE_STROKE_WIDTH;
                 if (d.is_sample) return GRAPH_CONSTANTS.SAMPLE_NODE_STROKE_WIDTH;
                 return 0;
             })
@@ -1725,12 +1961,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                             tooltipContent += ` (inferred)`;
                         }
                     }
-                } else if (isRootNode(d, combinedNodes, combinedEdges)) {
-                    const childEdges = combinedEdges
-                        .filter(e => {
-                            const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
-                            return source?.id === d.id;
-                        });
+                } else if (rootNodeIds.has(d.id)) {
+                    const childEdges = layoutCache.outgoingEdgesMap.get(d.id) ?? [];
                     
                     // Get children, expanding clusters to show original nodes
                     const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
@@ -1759,7 +1991,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     
                     childrenInfo.sort((a, b) => a.id - b.id);
 
-                    const descendantSamples = getDescendantSamples(d, combinedNodes, combinedEdges)
+                    const descendantSamples = (layoutCache.descendantSampleNodesMap.get(d.id) ?? [])
                         .map(sample => sample.id)
                         .sort((a, b) => a - b);
 
@@ -1807,11 +2039,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         tooltipContent += `<br>Descendant samples: ${descendantSamples.join(", ")}`;
                     }
                 } else {
-                    const parents = [...new Set(combinedEdges
-                        .filter(e => {
-                            const target = typeof e.target === 'number' ? nodeMap.get(e.target as number) : e.target as GraphNode;
-                            return target?.id === d.id;
-                        })
+                    const parents = [...new Set((layoutCache.incomingEdgesMap.get(d.id) ?? [])
                         .map(e => {
                             const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
                             return source?.id;
@@ -1819,11 +2047,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                         .filter(id => id !== undefined))]
                         .sort((a, b) => a - b);
                     
-                    const childEdges = combinedEdges
-                        .filter(e => {
-                            const source = typeof e.source === 'number' ? nodeMap.get(e.source as number) : e.source as GraphNode;
-                            return source?.id === d.id;
-                        });
+                    const childEdges = layoutCache.outgoingEdgesMap.get(d.id) ?? [];
                     
                     // Get children, expanding clusters to show original nodes
                     const childrenInfo: Array<{id: number, isInCluster?: boolean, clusterId?: number}> = [];
@@ -2027,8 +2251,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .style("display", d => {
                 // Control initial visibility based on settings
                 if (d.is_sample && !nodeIdSettings.showSampleIds) return "none";
-                if (isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showRootIds) return "none";
-                if (!d.is_sample && !isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showInternalIds) return "none";
+                if (rootNodeIds.has(d.id) && !nodeIdSettings.showRootIds) return "none";
+                if (!d.is_sample && !rootNodeIds.has(d.id) && !nodeIdSettings.showInternalIds) return "none";
                 return "block";
             })
             .text(d => {
@@ -2056,7 +2280,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("text-anchor", "middle")
             .attr("font-weight", d => {
                 if (d.is_sample) return "normal";
-                if (isRootNode(d, combinedNodes, combinedEdges)) return "bold";
+                if (rootNodeIds.has(d.id)) return "bold";
                 return "normal";
             })
             .style("pointer-events", "none")
@@ -2066,39 +2290,130 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 
                 if (d.is_sample) {
                     // Sample nodes: position below as before
+                    d.__labelDx = 0;
+                    d.__labelDy = nodeRadius + 12;
+                    d.__labelTextAnchor = "middle";
                     d3.select(textElement)
-                        .attr("dx", 0)
-                        .attr("dy", nodeRadius + 12);
+                        .attr("dx", d.__labelDx)
+                        .attr("dy", d.__labelDy)
+                        .attr("text-anchor", d.__labelTextAnchor);
                 } else {
                     // Root and internal nodes: find optimal position
                     const textBox = textElement.getBBox();
+                    d.__labelWidth = textBox.width || 20;
+                    d.__labelHeight = textBox.height || 12;
                     const optimalPos = findOptimalLabelPosition(
                         d, 
                         combinedNodes, 
                         combinedEdges, 
                         nodeRadius,
-                        textBox.width,
-                        textBox.height
+                        d.__labelWidth,
+                        d.__labelHeight
                     );
+                    d.__labelDx = optimalPos.dx;
+                    d.__labelDy = optimalPos.dy;
+                    d.__labelTextAnchor = optimalPos.dx > 0 ? "start" : optimalPos.dx < 0 ? "end" : "middle";
                     
                     d3.select(textElement)
-                        .attr("dx", optimalPos.dx)
-                        .attr("dy", optimalPos.dy)
-                        .attr("text-anchor", optimalPos.dx > 0 ? "start" : optimalPos.dx < 0 ? "end" : "middle");
+                        .attr("dx", d.__labelDx)
+                        .attr("dy", d.__labelDy)
+                        .attr("text-anchor", d.__labelTextAnchor);
                 }
             });
 
+        const updateNodeLabelPositions = (relayoutLabels: boolean) => {
+            labels
+                .attr("x", d => d.x ?? 0)
+                .attr("y", d => d.y ?? 0);
+
+            if (!relayoutLabels) {
+                return;
+            }
+
+            labels.each(function(d) {
+                if (d.is_sample) {
+                    return;
+                }
+
+                const textElement = d3.select(this);
+                const nodeRadius = getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
+                const optimalPos = findOptimalLabelPosition(
+                    d,
+                    combinedNodes,
+                    combinedEdges,
+                    nodeRadius,
+                    d.__labelWidth ?? 20,
+                    d.__labelHeight ?? 12
+                );
+
+                d.__labelDx = optimalPos.dx;
+                d.__labelDy = optimalPos.dy;
+                d.__labelTextAnchor = optimalPos.dx > 0 ? "start" : optimalPos.dx < 0 ? "end" : "middle";
+
+                textElement
+                    .attr("dx", d.__labelDx)
+                    .attr("dy", d.__labelDy)
+                    .attr("text-anchor", d.__labelTextAnchor);
+            });
+        };
+
+        const updateEdgeLabelPositions = () => {
+            if (!edgeLabels) {
+                return;
+            }
+
+            edgeLabels.each(function(d) {
+                if (!d.sourceNode || !d.targetNode) {
+                    return;
+                }
+
+                const pos = findOptimalEdgeLabelPosition(
+                    d.sourceNode,
+                    d.targetNode,
+                    d,
+                    combinedNodes,
+                    resolvedEdgeGroups
+                );
+
+                d3.select(this)
+                    .attr("x", pos.x)
+                    .attr("y", pos.y);
+            });
+        };
+
+        const updateMutationMarkerPositions = () => {
+            if (!mutationMarkers) {
+                return;
+            }
+
+            mutationMarkers.each(function(d) {
+                const markerPosition = getMutationMarkerPosition(d.sourceNode, d.targetNode, d.mutation);
+                if (!markerPosition) {
+                    return;
+                }
+
+                d3.select(this)
+                    .attr("x", markerPosition.x)
+                    .attr("y", markerPosition.y);
+            });
+        };
+
+        let tickCount = 0;
+        let renderCompletionFrame: number | null = null;
+        let graphReadyNotified = false;
+        const notifyGraphReady = () => {
+            if (graphReadyNotified) {
+                return;
+            }
+            graphReadyNotified = true;
+            onLayoutReady?.();
+            onRenderComplete?.();
+        };
+
         simulation.on("tick", () => {
             if (!stableData) return;
-            
-            // For dagre layout, skip force-based adjustments
-            if (sampleOrder !== 'dagre' && simulation.alpha() > GRAPH_CONSTANTS.PERFORMANCE.ALPHA_THRESHOLD) {
-                combinedNodes.forEach(node => {
-                    if (!node.is_sample) {
-                        enforceDescendantRange(node, combinedNodes, combinedEdges);
-                    }
-                });
-            }
+
+            tickCount += 1;
 
             edges
                 .attr("x1", d => {
@@ -2107,7 +2422,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 })
                 .attr("y1", d => {
                     const source = typeof d.source === 'number' ? nodeMap.get(d.source as number) : d.source as GraphNode;
-                    return source?.y ?? 0; // Always use node.y which reflects current position (including spacing updates)
+                    return source?.y ?? 0;
                 })
                 .attr("x2", d => {
                     const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
@@ -2115,146 +2430,31 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 })
                 .attr("y2", d => {
                     const target = typeof d.target === 'number' ? nodeMap.get(d.target as number) : d.target as GraphNode;
-                    return target?.y ?? 0; // Always use node.y which reflects current position (including spacing updates)
+                    return target?.y ?? 0;
                 });
 
             nodes
                 .attr("cx", d => d.x ?? 0)
-                .attr("cy", d => d.y ?? 0); // Always use node.y which reflects current position (including spacing updates)
+                .attr("cy", d => d.y ?? 0);
 
-            labels
-                .attr("x", d => d.x ?? 0)
-                .attr("y", d => d.y ?? 0) // Always use node.y which reflects current position (including spacing updates)
-                .each(function(d) {
-                    const textElement = this;
-                    const nodeRadius = getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
-                    
-                    if (d.is_sample) {
-                        // Sample nodes: position below as before
-                        d3.select(textElement)
-                            .attr("dx", 0)
-                            .attr("dy", nodeRadius + 12);
-                    } else {
-                        // Root and internal nodes: recalculate optimal position on each tick
-                        // Get current text dimensions
-                        const textBox = textElement.getBBox();
-                        const optimalPos = findOptimalLabelPosition(
-                            d, 
-                            combinedNodes, 
-                            combinedEdges, 
-                            nodeRadius,
-                            textBox.width || 20,
-                            textBox.height || 12
-                        );
-                        
-                        d3.select(textElement)
-                            .attr("dx", optimalPos.dx)
-                            .attr("dy", optimalPos.dy)
-                            .attr("text-anchor", optimalPos.dx > 0 ? "start" : optimalPos.dx < 0 ? "end" : "middle");
-                    }
-                });
+            const shouldRelayoutLabels =
+                performanceProfile.relayoutLabelsOnTick &&
+                tickCount % performanceProfile.labelRelayoutTickSkip === 0;
+            updateNodeLabelPositions(shouldRelayoutLabels);
 
-            // Update edge labels to follow their corresponding edges
-            if (edgeLabels) {
-                edgeLabels
-                    .each(function(d) {
-                        // Try to find nodes in combined nodes first, then fall back to original data
-                        let sourceNode = nodeMap.get(d.sourceId);
-                        let targetNode = nodeMap.get(d.targetId);
-                        
-                        // If not found in combined nodes, try to find in original nodes and map to combined
-                        if (!sourceNode) {
-                            const originalSource = stableNodeMap.get(d.sourceId);
-                            if (originalSource) {
-                                // Find the combined node that contains this original node
-                                sourceNode = combinedNodes.find(cn => 
-                                    cn.combined_nodes?.includes(d.sourceId) || cn.id === d.sourceId
-                                );
-                            }
-                        }
-                        
-                        if (!targetNode) {
-                            const originalTarget = stableNodeMap.get(d.targetId);
-                            if (originalTarget) {
-                                // Find the combined node that contains this original node
-                                targetNode = combinedNodes.find(cn => 
-                                    cn.combined_nodes?.includes(d.targetId) || cn.id === d.targetId
-                                );
-                            }
-                        }
-                        
-                        if (sourceNode && targetNode) {
-                            const pos = findOptimalEdgeLabelPosition(sourceNode, targetNode, d, combinedNodes, edgeGroups);
-                            d3.select(this)
-                                .attr("x", pos.x)
-                                .attr("y", pos.y);
-                        }
-                    });
-            }
-            
-            // Update mutation markers to follow their corresponding edges
-            if (mutationMarkers) {
-                mutationMarkers
-                    .each(function(d) {
-                        // Dynamically find the current source and target nodes from combinedNodes
-                        // This ensures markers move with the simulation
-                        const sourceId = typeof d.edge.source === 'number' ? d.edge.source : (d.edge.source as any).id;
-                        const targetId = typeof d.edge.target === 'number' ? d.edge.target : (d.edge.target as any).id;
-                        
-                        let sourceNode = nodeMap.get(sourceId);
-                        let targetNode = nodeMap.get(targetId);
-                        
-                        // Fallback: try to find in original nodes and map to combined nodes
-                        if (!sourceNode) {
-                            const originalSource = stableNodeMap.get(sourceId);
-                            if (originalSource) {
-                                sourceNode = combinedNodes.find(cn => 
-                                    cn.combined_nodes?.includes(sourceId) || cn.id === sourceId
-                                );
-                            }
-                        }
-                        
-                        if (!targetNode) {
-                            const originalTarget = stableNodeMap.get(targetId);
-                            if (originalTarget) {
-                                targetNode = combinedNodes.find(cn => 
-                                    cn.combined_nodes?.includes(targetId) || cn.id === targetId
-                                );
-                            }
-                        }
-                        
-                        if (sourceNode && targetNode && 
-                            sourceNode.x !== undefined && sourceNode.y !== undefined &&
-                            targetNode.x !== undefined && targetNode.y !== undefined) {
-                            
-                            // Calculate position along edge based on mutation time
-                            let mutationX = (sourceNode.x + targetNode.x) / 2;
-                            let mutationY = (sourceNode.y + targetNode.y) / 2;
-                            
-                            if (d.mutation.time !== null && d.mutation.time !== undefined) {
-                                const sourceTime = sourceNode.time ?? 0;
-                                const targetTime = targetNode.time ?? 0;
-                                const mutationTime = d.mutation.time;
-                                const timeRange = sourceTime - targetTime;
-                                
-                                // Interpolate position along the edge based on time ratio
-                                if (timeRange > 0 && mutationTime >= targetTime && mutationTime <= sourceTime) {
-                                    const timeRatio = (mutationTime - targetTime) / timeRange;
-                                    mutationX = targetNode.x + timeRatio * (sourceNode.x - targetNode.x);
-                                    mutationY = targetNode.y + timeRatio * (sourceNode.y - targetNode.y);
-                                }
-                            }
-                            
-                            d3.select(this)
-                                .attr("x", mutationX)
-                                .attr("y", mutationY);
-                        }
-                    });
+            if (tickCount % performanceProfile.overlayUpdateTickSkip === 0) {
+                updateEdgeLabelPositions();
+                updateMutationMarkerPositions();
             }
         });
 
         // Add "end" event handler to calculate edge crossings after simulation settles
         simulation.on("end", () => {
+            updateNodeLabelPositions(true);
+            updateEdgeLabelPositions();
+            updateMutationMarkerPositions();
+            notifyGraphReady();
+
             // Clear any pending timeout
             if (edgeCrossingsTimeoutRef.current) {
                 clearTimeout(edgeCrossingsTimeoutRef.current);
@@ -2276,12 +2476,29 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             simulation,
             svg,
             zoom,
+            rootNodeIds,
             userMovedNodes: visualStateRef.current.userMovedNodes, // Preserve existing user movements
             currentTransform: visualStateRef.current.currentTransform // Preserve zoom state
         };
 
+        // Update previous sample order after applying layout
+        prevSampleOrderRef.current = sampleOrder;
+
+        if (sampleOrder === 'dagre') {
+            renderCompletionFrame = requestAnimationFrame(() => {
+                updateNodeLabelPositions(true);
+                updateEdgeLabelPositions();
+                updateMutationMarkerPositions();
+                notifyGraphReady();
+            });
+        }
+
         // Cleanup function - properly deregister all D3 event handlers and clear timeouts
         return () => {
+            if (renderCompletionFrame !== null) {
+                cancelAnimationFrame(renderCompletionFrame);
+            }
+
             // Stop simulation and deregister its event handlers
             if (simulation) {
                 simulation.stop();
@@ -2328,9 +2545,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
     // Visual settings (colors, nodeSizes, edgeThickness, edgeOpacity, edgeLabelSettings, edgeMutationSettings,
     // temporalSpacingMode, temporalSpacing, sampleSpacing) are accessed via refs to avoid triggering re-renders
     // clusteredData depends on combinedData, so only clusteredData is needed in dependencies
-        // Update previous sample order after applying layout
-        prevSampleOrderRef.current = sampleOrder;
-    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, clusteringEnabled, clusteringMinTreeSize, clusteringRequireDensity, clusteringDensityIntensity, clusteringRequireTemporalCompactness, clusteringTemporalIntensity, clusteringMaxSampleClusterSize]);
+    }, [clusteredData, width, height, onNodeClick, onNodeRightClick, onEdgeClick, focalNode, ref, sampleOrder, graphLayoutCache, performanceProfile]);
 
     // Effect to pause/resume simulation based on simulationPaused prop
     useEffect(() => {
@@ -2517,7 +2732,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         if (!visualStateRef.current.nodes || visualStateRef.current.nodes.length === 0) return;
 
         const svg = d3.select(ref.current);
-        const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
+        const { nodes: combinedNodes, rootNodeIds } = visualStateRef.current;
 
         // Update node colors
         svg.selectAll<SVGCircleElement, GraphNode>("circle")
@@ -2535,7 +2750,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     let color = populationColors.get(d.population);
                     if (color) {
                         // Darken for samples and roots
-                        if (d.is_sample || isRootNode(d, combinedNodes, combinedEdges)) {
+                        if (d.is_sample || rootNodeIds.has(d.id)) {
                             color = darkenColor(color, 0.75);
                         }
                         return `rgb(${color[0]}, ${color[1]}, ${color[2]})`;
@@ -2545,7 +2760,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 // Default theme colors
                 if (d.is_sample) return `rgba(${colors.nodeSample[0]}, ${colors.nodeSample[1]}, ${colors.nodeSample[2]}, ${colors.nodeSample[3] / 255})`;
                 if (d.is_combined) return `rgba(${colors.nodeCombined[0]}, ${colors.nodeCombined[1]}, ${colors.nodeCombined[2]}, ${colors.nodeCombined[3] / 255})`;
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgba(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]}, ${colors.nodeRoot[3] / 255})`;
+                if (rootNodeIds.has(d.id)) return `rgba(${colors.nodeRoot[0]}, ${colors.nodeRoot[1]}, ${colors.nodeRoot[2]}, ${colors.nodeRoot[3] / 255})`;
                 return `rgba(${colors.nodeDefault[0]}, ${colors.nodeDefault[1]}, ${colors.nodeDefault[2]}, ${colors.nodeDefault[3] / 255})`;
             })
             .attr("stroke", d => {
@@ -2553,7 +2768,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                     if (d.is_sample_cluster) return `rgba(${colors.edgeClusterSample[0]}, ${colors.edgeClusterSample[1]}, ${colors.edgeClusterSample[2]}, ${colors.edgeClusterSample[3] / 255})`;
                     return `rgba(${colors.nodeClusterRegular[0]}, ${colors.nodeClusterRegular[1]}, ${colors.nodeClusterRegular[2]}, ${colors.nodeClusterRegular[3] / 255})`;
                 }
-                if (isRootNode(d, combinedNodes, combinedEdges)) return `rgba(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]}, ${colors.nodeSelected[3] / 255})`;
+                if (rootNodeIds.has(d.id)) return `rgba(${colors.nodeSelected[0]}, ${colors.nodeSelected[1]}, ${colors.nodeSelected[2]}, ${colors.nodeSelected[3] / 255})`;
                 if (d.is_sample) return colors.background;
                 return "none";
             });
@@ -2611,11 +2826,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
             .attr("r", d => getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges));
 
         // Update label font sizes based on node sizes
-        svg.selectAll<SVGTextElement, GraphNode>("text")
-            .filter(function() {
-                const parent = d3.select(this.parentNode as any);
-                return parent.selectAll("circle").size() > 0;
-            })
+        svg.selectAll<SVGTextElement, GraphNode>(".node-labels text")
             .attr("font-size", (d: GraphNode) => {
                 const nodeRadius = getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
                 if (d.is_sample) {
@@ -2623,16 +2834,47 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 } else {
                     return `${Math.max(12, nodeRadius * 1.8)}px`;
                 }
+            })
+            .each(function(d: GraphNode) {
+                const textElement = d3.select(this);
+                const nodeRadius = getNodeRadius(d, nodeSizes, combinedNodes, combinedEdges);
+
+                if (d.is_sample) {
+                    d.__labelDx = 0;
+                    d.__labelDy = nodeRadius + 12;
+                    d.__labelTextAnchor = "middle";
+                    textElement
+                        .attr("dx", d.__labelDx)
+                        .attr("dy", d.__labelDy)
+                        .attr("text-anchor", d.__labelTextAnchor);
+                    return;
+                }
+
+                const textBox = (this as SVGTextElement).getBBox();
+                d.__labelWidth = textBox.width || 20;
+                d.__labelHeight = textBox.height || 12;
+                const optimalPos = findOptimalLabelPosition(
+                    d,
+                    combinedNodes,
+                    combinedEdges,
+                    nodeRadius,
+                    d.__labelWidth,
+                    d.__labelHeight
+                );
+                d.__labelDx = optimalPos.dx;
+                d.__labelDy = optimalPos.dy;
+                d.__labelTextAnchor = optimalPos.dx > 0 ? "start" : optimalPos.dx < 0 ? "end" : "middle";
+
+                textElement
+                    .attr("dx", d.__labelDx)
+                    .attr("dy", d.__labelDy)
+                    .attr("text-anchor", d.__labelTextAnchor);
             });
 
     }, [nodeSizes, ref]);
 
     // Effect to update edge visual properties without restarting simulation
     useEffect(() => {
-        // Debug logging only in development
-        if (process.env.NODE_ENV === 'development') {
-        }
-
         if (!ref || typeof ref === 'function' || !ref.current) return;
 
         const svg = d3.select(ref.current);
@@ -2673,7 +2915,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         }
 
         const svg = d3.select(ref.current);
-        const { nodes: combinedNodes, edges: combinedEdges } = visualStateRef.current;
+        const { rootNodeIds } = visualStateRef.current;
 
         // Get all node labels from the node-labels group
         const nodeLabels = svg.selectAll<SVGTextElement, GraphNode>(".node-labels text");
@@ -2681,8 +2923,8 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
         // Update visibility based on settings
         nodeLabels.style("display", (d: GraphNode) => {
             if (d.is_sample && !nodeIdSettings.showSampleIds) return "none";
-            if (isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showRootIds) return "none";
-            if (!d.is_sample && !isRootNode(d, combinedNodes, combinedEdges) && !nodeIdSettings.showInternalIds) return "none";
+            if (rootNodeIds.has(d.id) && !nodeIdSettings.showRootIds) return "none";
+            if (!d.is_sample && !rootNodeIds.has(d.id) && !nodeIdSettings.showInternalIds) return "none";
             return "block";
         });
 
@@ -2759,6 +3001,7 @@ export const ForceDirectedGraph = forwardRef<SVGSVGElement, ForceDirectedGraphPr
                 simulation: null,
                 svg: null,
                 zoom: null,
+                rootNodeIds: new Set(),
                 userMovedNodes: new Map(),
                 currentTransform: null
             };

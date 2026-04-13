@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useColorTheme } from '../../context/ColorThemeContext';
+import { APP_LOGO_FONT_FAMILY } from '../../lib/fonts';
 
 interface IntroAnimationProps {
   onComplete: () => void;
@@ -193,7 +194,7 @@ export default function IntroAnimation({ onComplete, isTransitioning = false }: 
           }
         `}>
           <h1 className="text-[6rem] md:text-[8rem] lg:text-[10rem] font-extrabold tracking-tight text-center select-none" 
-              style={{letterSpacing: '-0.04em'}}>
+              style={{ fontFamily: APP_LOGO_FONT_FAMILY, letterSpacing: '-0.04em' }}>
             <span style={{ color: colors.text }}>ARG</span><span style={{ color: colors.accentPrimary }}>scape</span>
           </h1>
           <div className={`

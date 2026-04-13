@@ -7,6 +7,8 @@ interface SampleOrderControlProps {
   value: SampleOrderType;
   onChange: (value: SampleOrderType) => void;
   className?: string;
+  /** When true, locks the control to dagre-d3 only (all other modes disabled). */
+  forceDagre?: boolean;
 }
 
 const basicOrderOptions: { value: SampleOrderType; label: string; description: string }[] = [
@@ -56,77 +58,51 @@ const customOrderOptions: { value: SampleOrderType; label: string; description: 
 export const SampleOrderControl: React.FC<SampleOrderControlProps> = ({
   value,
   onChange,
-  className = ""
+  className = "",
+  forceDagre = false
 }) => {
   const { colors } = useColorTheme();
 
+  const renderOptions = (label: string, options: typeof basicOrderOptions) => (
+    <div className="flex items-start gap-2">
+      <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
+        {label}
+      </span>
+      <div className="flex flex-wrap gap-1 flex-1">
+        {options.map((option) => {
+          const isDisabled = forceDagre && option.value !== 'dagre';
+          return (
+            <button
+              key={option.value}
+              onClick={() => !isDisabled && onChange(option.value)}
+              disabled={isDisabled}
+              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
+              style={{
+                backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
+                color: value === option.value ? colors.background : colors.text,
+                opacity: isDisabled ? 0.35 : 1,
+                cursor: isDisabled ? 'not-allowed' : 'pointer'
+              }}
+              title={isDisabled ? 'Dagre-d3 is required for large sample counts' : option.description}
+            >
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   return (
     <div className={`space-y-2 ${className}`}>
-      <div className="flex items-start gap-2">
-        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
-          Basic:
-        </span>
-        <div className="flex flex-wrap gap-1 flex-1">
-          {basicOrderOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => onChange(option.value)}
-              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
-              style={{
-                backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
-                color: value === option.value ? colors.background : colors.text
-              }}
-              title={option.description}
-            >
-              {option.label}
-            </button>
-          ))}
+      {forceDagre && (
+        <div className="text-xs px-2 py-1 rounded" style={{ color: colors.textSecondary, backgroundColor: colors.containerBackground }}>
+          Dagre-d3 layout is required for 500+ samples. Switch to a subARG view to unlock other modes.
         </div>
-      </div>
-      
-      <div className="flex items-start gap-2">
-        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
-          Custom:
-        </span>
-        <div className="flex flex-wrap gap-1 flex-1">
-          {customOrderOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => onChange(option.value)}
-              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
-              style={{
-                backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
-                color: value === option.value ? colors.background : colors.text
-              }}
-              title={option.description}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      
-      <div className="flex items-start gap-2">
-        <span className="text-sm whitespace-nowrap flex-shrink-0 pt-1" style={{ color: colors.text }}>
-          Static:
-        </span>
-        <div className="flex flex-wrap gap-1 flex-1">
-          {staticOrderOptions.map((option) => (
-            <button
-              key={option.value}
-              onClick={() => onChange(option.value)}
-              className="px-2 py-1 text-xs font-medium transition-colors whitespace-nowrap rounded"
-              style={{
-                backgroundColor: value === option.value ? colors.textSecondary : colors.containerBackground,
-                color: value === option.value ? colors.background : colors.text
-              }}
-              title={option.description}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      )}
+      {renderOptions('Basic:', basicOrderOptions)}
+      {renderOptions('Custom:', customOrderOptions)}
+      {renderOptions('Static:', staticOrderOptions)}
     </div>
   );
 }; 

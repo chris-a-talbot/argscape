@@ -82,13 +82,16 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
       // Performance stats
       if (performanceStats) {
         lines.push('FPS' + delimiter + performanceStats.fps.toFixed(1));
-        if (performanceStats.memoryMB) {
+        if (performanceStats.memoryMB !== undefined) {
           lines.push('Memory (MB)' + delimiter + performanceStats.memoryMB.toFixed(1));
         }
-        if (performanceStats.lastFrameTime) {
+        if (performanceStats.renderTimeMs !== undefined) {
+          lines.push('Render Time (ms)' + delimiter + performanceStats.renderTimeMs.toFixed(1));
+        }
+        if (performanceStats.lastFrameTime !== undefined) {
           lines.push('Last Frame Time (ms)' + delimiter + performanceStats.lastFrameTime.toFixed(1));
         }
-        if (performanceStats.avgFrameTime) {
+        if (performanceStats.avgFrameTime !== undefined) {
           lines.push('Avg Frame Time (ms)' + delimiter + performanceStats.avgFrameTime.toFixed(1));
         }
       }
@@ -301,7 +304,6 @@ export const StatsPanel: React.FC<StatsPanelProps> = ({
     </>
   );
 };
-
 
 
 

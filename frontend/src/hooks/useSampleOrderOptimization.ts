@@ -33,6 +33,15 @@ export const useSampleOrderOptimization = (): SampleOrderOptimizationResult => {
         currentSampleOrder: SampleOrderType,
         apiOptions: any
     ): Promise<{ optimizedData: GraphData; optimizedOrder: SampleOrderType }> => {
+        void filename;
+        void apiOptions;
+
+        // Disabled for now: returning data for a different backend-defined sample order
+        // than the container/UI currently tracks can leave the 2D visualization in an
+        // inconsistent state during initial load. Keep rendering deterministic until
+        // the optimizer is reworked to update the owning sample-order state explicitly.
+        return { optimizedData: currentData, optimizedOrder: currentSampleOrder };
+
         // Auto-optimize sample order for small graphs (< 500 nodes) BEFORE setting data
         // This prevents flashing between different orders
         // CRITICAL: We must fetch data for each order to test properly, since order_position

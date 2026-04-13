@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useThemeStyles } from '../../hooks/useThemeStyles';
 import { useSemanticColors } from '../../hooks/useSemanticColors';
 
@@ -103,8 +104,8 @@ export default function AlertModal({
 
   const { icon, bgColor, buttonColor, buttonHoverColor, shadowColor } = getIconAndColors();
 
-  return (
-    <div className="fixed inset-0 z-[10002]">
+  return createPortal(
+    <div className="fixed inset-0 z-[10004]">
       {/* Backdrop with consistent blur */}
       <div
         className="fixed inset-0"
@@ -127,12 +128,12 @@ export default function AlertModal({
             </div>
             <h3 className="text-lg font-semibold break-words" style={{ color: colors.text }}>{title}</h3>
           </div>
-          
+
           {/* Message */}
           <div className="mb-6 leading-relaxed break-words whitespace-pre-wrap" style={{ color: colors.textSecondary }}>
             {message}
           </div>
-          
+
           {/* Actions */}
           <div className={`flex ${secondaryButtonText ? 'justify-between' : 'justify-end'} gap-3`}>
             {secondaryButtonText && onSecondaryAction && (
@@ -179,6 +180,7 @@ export default function AlertModal({
         </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 } 

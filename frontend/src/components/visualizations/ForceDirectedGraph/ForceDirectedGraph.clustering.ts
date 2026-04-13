@@ -1,167 +1,222 @@
 import { GraphNode, GraphEdge } from './ForceDirectedGraph.types';
 import { getChildren } from './ForceDirectedGraph.utils';
-import { isRootNode } from '../../../utils/graphTraversal';
 
-/**
- * Calculate subtree metrics for a node (size, depth, sample count)
- */
-export function calculateSubtreeMetrics(
-    node: GraphNode,
-    nodes: GraphNode[],
-    edges: GraphEdge[],
-    visited: Set<number> = new Set()
-): { size: number; depth: number; samples: number } {
-    if (visited.has(node.id)) {
-        return { size: 0, depth: 0, samples: 0 };
-    }
-    visited.add(node.id);
-    
-    const children = getChildren(node, nodes, edges);
-    if (children.length === 0) {
-        // Leaf node
-        return {
-            size: 1,
-            depth: 0,
-            samples: node.is_sample ? 1 : 0
-        };
-    }
-    
-    let totalSize = 1; // Count self
-    let maxDepth = 0;
-    let totalSamples = node.is_sample ? 1 : 0;
-    
-    for (const child of children) {
-        const metrics = calculateSubtreeMetrics(child, nodes, edges, visited);
-        totalSize += metrics.size;
-        maxDepth = Math.max(maxDepth, metrics.depth + 1);
-        totalSamples += metrics.samples;
-    }
-    
-    return {
-        size: totalSize,
-        depth: maxDepth,
-        samples: totalSamples
-    };
+// ── Named constants (extracted from magic numbers) ──────────────────────────
+
+const CLUSTER_TIME_EPSILON = 0.01;
+const SAMPLE_CLUSTER_ID_BASE = -1000;
+const MIN_SAMPLES_FOR_CLUSTERING = 3;
+const DEFAULT_MAX_SAMPLE_CLUSTER_SIZE = 25;
+const DEFAULT_MIN_TREE_SIZE = 3;
+
+// Density threshold: linear interpolation from 0.5 (lenient) to 3.0 (strict)
+const DENSITY_THRESHOLD_BASE = 0.5;
+const DENSITY_THRESHOLD_RANGE = 2.5;
+
+// Temporal threshold: logarithmic scale 100 * 10^(-intensity * 2.5)
+const TEMPORAL_THRESHOLD_BASE = 100.0;
+const TEMPORAL_THRESHOLD_EXPONENT_SCALE = 2.5;
+
+// Enable verbose console logging for debugging clustering behavior
+const DEBUG_CLUSTERING = false;
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+type EdgeMaps = {
+    outgoingEdgesMap: Map<number, GraphEdge[]>;
+    incomingEdgesMap: Map<number, GraphEdge[]>;
+    nodeMap: Map<number, GraphNode>;
+};
+
+function getEdgeId(edge: GraphEdge, end: 'source' | 'target'): number {
+    const val = edge[end];
+    return typeof val === 'number' ? val : (val as GraphNode).id;
 }
 
-/**
- * Check if a subtree should be clustered based on minimum size, optional density, and temporal compactness requirements
- * 
- * Clustering is controlled by:
- * - minTreeSize: Minimum number of nodes required in a subtree
- * - requireDensity/densityIntensity: Optional density filtering (nodes per depth level)
- * - requireTemporalCompactness/temporalIntensity: Optional temporal compactness filtering
- */
-export function shouldClusterSubtree(
-    node: GraphNode,
-    nodes: GraphNode[],
-    edges: GraphEdge[],
-    minTreeSize: number = 3,  // Minimum subtree size to cluster
-    requireDensity: boolean = false,  // Optional density requirement (default: off)
-    densityIntensity: number = 0.5,  // Intensity of density requirement (0=no effect, 1=max effect)
-    requireTemporalCompactness: boolean = true,  // Temporal compactness requirement (default: on)
-    temporalIntensity: number = 0.5  // Intensity of temporal compactness (0=no effect, 1=max effect)
+/** Safe min/max for arrays of any size (avoids stack overflow from spread operator) */
+function arrayMin(arr: number[]): number {
+    let min = Infinity;
+    for (let i = 0; i < arr.length; i++) {
+        if (arr[i] < min) min = arr[i];
+    }
+    return min;
+}
+
+function arrayMax(arr: number[]): number {
+    let max = -Infinity;
+    for (let i = 0; i < arr.length; i++) {
+        if (arr[i] > max) max = arr[i];
+    }
+    return max;
+}
+
+/** Check if a node is a root (no incoming edges among available nodes) */
+function isRootNodeFast(
+    nodeId: number,
+    incomingEdgesMap: Map<number, GraphEdge[]>,
+    clusteredNodeIds: Set<number>
 ): boolean {
-    // Never cluster sample nodes or their direct parents
-    if (node.is_sample) {
-        return false;
+    const incoming = incomingEdgesMap.get(nodeId);
+    if (!incoming || incoming.length === 0) return true;
+    // Check if all incoming edges come from already-clustered nodes
+    for (const edge of incoming) {
+        const sourceId = getEdgeId(edge, 'source');
+        if (!clusteredNodeIds.has(sourceId)) return false;
     }
-    
-    // Never cluster root nodes (no parents)
-    if (isRootNode(node, nodes, edges)) {
-        return false;
-    }
-    
-    const children = getChildren(node, nodes, edges);
-    const hasDirectSampleChildren = children.some(c => c.is_sample);
-    if (hasDirectSampleChildren) {
-        return false;
-    }
-    
-    // Don't cluster nodes that are immediate parents of samples (already checked above)
-    // But allow clustering further away - removed the 2-generation restriction for balance
-    
-    // Calculate subtree metrics
-    const metrics = calculateSubtreeMetrics(node, nodes, edges);
-    
-    const subtreeSize = metrics.size;
-    const subtreeDepth = metrics.depth;
-    
-    // Minimum size check - direct threshold
-    if (subtreeSize < minTreeSize) {
-        return false;
-    }
-    
-    // Density requirement (optional, default off)
-    if (requireDensity) {
-        // Density intensity scales the minimum density requirement
-        // Intensity 0.0: minDensity = 0.5 (no effect, very lenient)
-        // Intensity 0.5: minDensity = 1.75 (moderate)
-        // Intensity 1.0: minDensity = 3.0 (max effect, very strict)
-        const density = subtreeSize / Math.max(1, subtreeDepth);
-        // Linear interpolation: intensity 0 -> minDensity 0.5, intensity 1 -> minDensity 3.0
-        const minDensity = 0.5 + (densityIntensity * 2.5);
-        
-        if (density < minDensity) {
-            return false;
-        }
-    }
-    
-    // Temporal compactness check (optional, default on)
-    if (requireTemporalCompactness) {
-        const subtreeNodesList: GraphNode[] = [];
-        const queue = [node];
-        const visited = new Set<number>();
-        
-        while (queue.length > 0) {
-            const current = queue.shift()!;
-            if (visited.has(current.id)) continue;
-            visited.add(current.id);
-            subtreeNodesList.push(current);
-            
-            const currentChildren = getChildren(current, nodes, edges);
-            for (const child of currentChildren) {
-                if (!child.is_sample) {
-                    queue.push(child);
-                }
-            }
-        }
-        
-        const times = subtreeNodesList.map(n => n.time);
-        const timeRange = Math.max(...times) - Math.min(...times);
-        const avgTimeSpacing = timeRange / subtreeDepth;
-        
-        // Temporal threshold scales with intensity using logarithmic scale for smoother transitions
-        // Intensity 0.0: threshold = 100.0 (no effect, very lenient - almost everything passes)
-        // Intensity 0.05 (5%): threshold = ~75.0 (very lenient - most subtrees pass)
-        // Intensity 0.1 (10%): threshold = ~56.2 (lenient)
-        // Intensity 0.2 (20%): threshold = ~31.6 (moderate)
-        // Intensity 0.5 (50%): threshold = ~5.6 (strict)
-        // Intensity 1.0: threshold = ~0.32 (max effect, very strict - only very compact passes)
-        const allNodeTimes = nodes.map(n => n.time);
-        const globalTimeRange = Math.max(...allNodeTimes) - Math.min(...allNodeTimes);
-        const avgGlobalTimeSpacing = globalTimeRange / nodes.length;
-        // Logarithmic scale: threshold = 100 * 10^(-intensity * 2.5)
-        // This provides smoother, more gradual changes especially at low intensities
-        // The logarithmic curve prevents sudden jumps and allows fine-tuning throughout the range
-        const temporalThreshold = 100.0 * Math.pow(10, -temporalIntensity * 2.5);
-        
-        if (avgTimeSpacing > avgGlobalTimeSpacing * temporalThreshold) {
-            return false;
-        }
-    }
-    
     return true;
 }
 
+// ── Subtree metrics ─────────────────────────────────────────────────────────
+
+export interface SubtreeMetrics {
+    size: number;
+    depth: number;
+    samples: number;
+}
+
 /**
- * Create cluster nodes from dense subtrees
- * Returns modified nodes and edges with clusters replacing subtrees
+ * Calculate subtree metrics for a node (size, depth, sample count).
+ * Accepts pre-built edge maps to avoid O(E) filtering per getChildren call.
+ * The `clusteredNodeIds` set is used to skip already-clustered nodes inline,
+ * eliminating the need to create filtered node/edge arrays per candidate.
+ */
+export function calculateSubtreeMetrics(
+    node: GraphNode,
+    maps: EdgeMaps,
+    clusteredNodeIds: Set<number>,
+    visited: Set<number> = new Set()
+): SubtreeMetrics {
+    if (visited.has(node.id) || clusteredNodeIds.has(node.id)) {
+        return { size: 0, depth: 0, samples: 0 };
+    }
+    visited.add(node.id);
+
+    // Get children using pre-built maps, skipping clustered nodes inline
+    const outgoing = maps.outgoingEdgesMap.get(node.id);
+    if (!outgoing || outgoing.length === 0) {
+        return { size: 1, depth: 0, samples: node.is_sample ? 1 : 0 };
+    }
+
+    let totalSize = 1;
+    let maxDepth = 0;
+    let totalSamples = node.is_sample ? 1 : 0;
+
+    for (const edge of outgoing) {
+        const targetId = getEdgeId(edge, 'target');
+        if (clusteredNodeIds.has(targetId) || visited.has(targetId)) continue;
+        const child = maps.nodeMap.get(targetId);
+        if (!child) continue;
+
+        const metrics = calculateSubtreeMetrics(child, maps, clusteredNodeIds, visited);
+        totalSize += metrics.size;
+        if (metrics.depth + 1 > maxDepth) maxDepth = metrics.depth + 1;
+        totalSamples += metrics.samples;
+    }
+
+    return { size: totalSize, depth: maxDepth, samples: totalSamples };
+}
+
+// ── Cluster eligibility ─────────────────────────────────────────────────────
+
+/**
+ * Determine whether a subtree should be clustered, reusing pre-computed metrics.
+ * Returns the metrics if the subtree passes all checks, or null if it should not be clustered.
+ *
+ * This unified function replaces the old shouldClusterSubtree + separate calculateSubtreeMetrics
+ * calls, eliminating redundant tree traversals.
+ */
+export function evaluateClusterCandidate(
+    node: GraphNode,
+    maps: EdgeMaps,
+    clusteredNodeIds: Set<number>,
+    minTreeSize: number,
+    requireDensity: boolean,
+    densityIntensity: number,
+    requireTemporalCompactness: boolean,
+    temporalIntensity: number,
+    globalAvgTimeSpacing: number
+): SubtreeMetrics | null {
+    // Never cluster sample nodes
+    if (node.is_sample) return null;
+
+    // Never cluster root nodes (no unclustered parents)
+    if (isRootNodeFast(node.id, maps.incomingEdgesMap, clusteredNodeIds)) return null;
+
+    // Never cluster nodes with direct sample children
+    const outgoing = maps.outgoingEdgesMap.get(node.id);
+    if (outgoing) {
+        for (const edge of outgoing) {
+            const targetId = getEdgeId(edge, 'target');
+            if (clusteredNodeIds.has(targetId)) continue;
+            const child = maps.nodeMap.get(targetId);
+            if (child?.is_sample) return null;
+        }
+    }
+
+    // Calculate subtree metrics once
+    const metrics = calculateSubtreeMetrics(node, maps, clusteredNodeIds);
+
+    if (metrics.size < minTreeSize) return null;
+
+    // Density check (optional)
+    if (requireDensity) {
+        const density = metrics.size / Math.max(1, metrics.depth);
+        const minDensity = DENSITY_THRESHOLD_BASE + (densityIntensity * DENSITY_THRESHOLD_RANGE);
+        if (density < minDensity) return null;
+    }
+
+    // Temporal compactness check (optional)
+    if (requireTemporalCompactness && metrics.depth > 0) {
+        // Collect times from subtree nodes via BFS, using maps directly
+        const times: number[] = [];
+        const queue: GraphNode[] = [node];
+        const visited = new Set<number>();
+
+        while (queue.length > 0) {
+            const current = queue.pop()!; // Use pop (stack) instead of shift (queue) for performance
+            if (visited.has(current.id) || clusteredNodeIds.has(current.id)) continue;
+            visited.add(current.id);
+            times.push(current.time);
+
+            const currentOutgoing = maps.outgoingEdgesMap.get(current.id);
+            if (currentOutgoing) {
+                for (const edge of currentOutgoing) {
+                    const targetId = getEdgeId(edge, 'target');
+                    if (visited.has(targetId) || clusteredNodeIds.has(targetId)) continue;
+                    const child = maps.nodeMap.get(targetId);
+                    if (child && !child.is_sample) queue.push(child);
+                }
+            }
+        }
+
+        if (times.length > 1) {
+            const timeRange = arrayMax(times) - arrayMin(times);
+            const avgTimeSpacing = timeRange / metrics.depth;
+            const temporalThreshold = TEMPORAL_THRESHOLD_BASE * Math.pow(10, -temporalIntensity * TEMPORAL_THRESHOLD_EXPONENT_SCALE);
+
+            if (avgTimeSpacing > globalAvgTimeSpacing * temporalThreshold) return null;
+        }
+    }
+
+    return metrics;
+}
+
+// ── Internal node clustering ────────────────────────────────────────────────
+
+/**
+ * Create cluster nodes from dense subtrees.
+ * Returns modified nodes and edges with clusters replacing subtrees.
+ *
+ * Performance optimizations vs. original:
+ * - Pre-built edge maps passed to all recursive functions (eliminates O(E) per getChildren call)
+ * - clusteredNodeIds checked inline instead of creating filtered arrays per candidate (eliminates O(N+E) per candidate)
+ * - Subtree metrics computed once per candidate via evaluateClusterCandidate (was 4x before)
+ * - Stack-safe arrayMin/arrayMax instead of Math.min/max spread
  */
 export function createClusterNodes(
     originalNodes: GraphNode[],
     originalEdges: GraphEdge[],
-    minTreeSize: number = 3,
+    minTreeSize: number = DEFAULT_MIN_TREE_SIZE,
     requireDensity: boolean = false,
     densityIntensity: number = 0.5,
     requireTemporalCompactness: boolean = true,
@@ -171,282 +226,198 @@ export function createClusterNodes(
     const edges = [...originalEdges];
     const clusteredNodeIds = new Set<number>();
     const clusterNodes: GraphNode[] = [];
-    
-    // Pre-build maps for O(1) lookups (major performance optimization)
+
+    // Pre-build maps for O(1) lookups
     const nodeMap = new Map(nodes.map(n => [n.id, n]));
-    
-    // Build edge index maps for fast lookups: O(edges) once instead of O(edges) per query
-    const outgoingEdgesMap = new Map<number, GraphEdge[]>(); // sourceId -> edges
-    const incomingEdgesMap = new Map<number, GraphEdge[]>(); // targetId -> edges
-    
+    const outgoingEdgesMap = new Map<number, GraphEdge[]>();
+    const incomingEdgesMap = new Map<number, GraphEdge[]>();
+
     for (const edge of edges) {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        
-        if (!outgoingEdgesMap.has(sourceId)) outgoingEdgesMap.set(sourceId, []);
-        outgoingEdgesMap.get(sourceId)!.push(edge);
-        
-        if (!incomingEdgesMap.has(targetId)) incomingEdgesMap.set(targetId, []);
-        incomingEdgesMap.get(targetId)!.push(edge);
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
+
+        let outList = outgoingEdgesMap.get(sourceId);
+        if (!outList) { outList = []; outgoingEdgesMap.set(sourceId, outList); }
+        outList.push(edge);
+
+        let inList = incomingEdgesMap.get(targetId);
+        if (!inList) { inList = []; incomingEdgesMap.set(targetId, inList); }
+        inList.push(edge);
     }
-    
-    // Build a map of original parent relationships for samples
-    // Now O(samples) instead of O(samples * edges) using incomingEdgesMap
+
+    const maps: EdgeMaps = { outgoingEdgesMap, incomingEdgesMap, nodeMap };
+
+    // Build original parent map for samples (used by sample clustering later)
     const originalParentMap = new Map<number, Set<number>>();
-    const samples = nodes.filter(n => n.is_sample);
-    for (const sample of samples) {
+    for (const node of nodes) {
+        if (!node.is_sample) continue;
         const parentIds = new Set<number>();
-        const incomingEdges = incomingEdgesMap.get(sample.id) || [];
-        for (const edge of incomingEdges) {
-            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-            parentIds.add(sourceId);
+        const incoming = incomingEdgesMap.get(node.id);
+        if (incoming) {
+            for (const edge of incoming) {
+                parentIds.add(getEdgeId(edge, 'source'));
+            }
         }
-        originalParentMap.set(sample.id, parentIds);
+        originalParentMap.set(node.id, parentIds);
     }
-    
-    // Debug: analyze graph structure
-    let debugStats = {
-        totalNodes: nodes.length,
-        internalNodes: nodes.filter(n => !n.is_sample).length,
-        candidatesChecked: 0,
-        passedSizeCheck: 0,
-        passedDensityCheck: 0,
-        clustered: 0
-    };
-    
-    // Find nodes to cluster - work TOP-DOWN: oldest to youngest (roots to samples)
-    // This allows us to cluster large subtrees first before they get fragmented
-    // In an ARG: samples have time=0 (youngest), roots have highest time (oldest)
-    // Sort: b.time - a.time means highest time first = oldest first = roots first
-    const sortedByTime = [...nodes].sort((a, b) => b.time - a.time); // Oldest first (top-down)
-    
+
+    // Pre-compute global average time spacing for temporal compactness check
+    let globalAvgTimeSpacing = 0;
+    if (requireTemporalCompactness && nodes.length > 1) {
+        let minTime = Infinity, maxTime = -Infinity;
+        for (const n of nodes) {
+            if (n.time < minTime) minTime = n.time;
+            if (n.time > maxTime) maxTime = n.time;
+        }
+        globalAvgTimeSpacing = (maxTime - minTime) / nodes.length;
+    }
+
+    // Process top-down: oldest (highest time) to youngest
+    const sortedByTime = [...nodes].sort((a, b) => b.time - a.time);
+
+    let clusteredCount = 0;
+
     for (const node of sortedByTime) {
-        // Skip if already clustered
-        if (clusteredNodeIds.has(node.id)) {
-            continue;
+        if (clusteredNodeIds.has(node.id) || node.is_sample) continue;
+
+        // Single call evaluates all criteria and returns metrics (or null)
+        const metrics = evaluateClusterCandidate(
+            node, maps, clusteredNodeIds,
+            minTreeSize, requireDensity, densityIntensity,
+            requireTemporalCompactness, temporalIntensity,
+            globalAvgTimeSpacing
+        );
+
+        if (!metrics) continue;
+
+        // Collect subtree nodes via BFS (using maps, skipping clustered)
+        const subtreeNodes = new Set<number>();
+        const queue: GraphNode[] = [node];
+        const visited = new Set<number>();
+
+        while (queue.length > 0) {
+            const current = queue.pop()!;
+            if (visited.has(current.id) || clusteredNodeIds.has(current.id)) continue;
+            visited.add(current.id);
+            subtreeNodes.add(current.id);
+
+            const currentOutgoing = outgoingEdgesMap.get(current.id);
+            if (currentOutgoing) {
+                for (const edge of currentOutgoing) {
+                    const targetId = getEdgeId(edge, 'target');
+                    if (visited.has(targetId) || clusteredNodeIds.has(targetId)) continue;
+                    const child = nodeMap.get(targetId);
+                    if (child && !child.is_sample) queue.push(child);
+                }
+            }
         }
-        
-        // Skip samples
-        if (node.is_sample) continue;
-        
-        debugStats.candidatesChecked++;
-        
-        // Filter out already-clustered nodes for accurate metric calculation
-        // This is crucial for ARGs where nodes can have multiple parents and shared descendants
-        const availableNodes = nodes.filter(n => !clusteredNodeIds.has(n.id));
-        const availableEdges = edges.filter(e => {
-            const sourceId = typeof e.source === 'number' ? e.source : e.source.id;
-            const targetId = typeof e.target === 'number' ? e.target : e.target.id;
-            return !clusteredNodeIds.has(sourceId) && !clusteredNodeIds.has(targetId);
+
+        // Verify actual collected size meets threshold
+        if (subtreeNodes.size < minTreeSize) continue;
+
+        // Check for outgoing edges to nodes outside the subtree
+        let externalEdgeCount = 0;
+        for (const subtreeNodeId of subtreeNodes) {
+            const outgoing = outgoingEdgesMap.get(subtreeNodeId);
+            if (!outgoing) continue;
+            for (const edge of outgoing) {
+                const targetId = getEdgeId(edge, 'target');
+                if (!subtreeNodes.has(targetId)) {
+                    externalEdgeCount++;
+                    break; // One is enough to confirm viability
+                }
+            }
+            if (externalEdgeCount > 0) break;
+        }
+
+        if (externalEdgeCount === 0) continue;
+
+        // Validate topology: check external parents point forward in time
+        const externalParentTimes: number[] = [];
+        let hasTopologicalViolation = false;
+
+        for (const subtreeNodeId of subtreeNodes) {
+            const incoming = incomingEdgesMap.get(subtreeNodeId);
+            if (!incoming) continue;
+            for (const edge of incoming) {
+                const sourceId = getEdgeId(edge, 'source');
+                if (subtreeNodes.has(sourceId)) continue;
+
+                const sourceNode = nodeMap.get(sourceId);
+                const targetNode = nodeMap.get(subtreeNodeId);
+                if (sourceNode && targetNode) {
+                    if (sourceNode.time < targetNode.time) {
+                        hasTopologicalViolation = true;
+                        break;
+                    }
+                    externalParentTimes.push(sourceNode.time);
+                }
+            }
+            if (hasTopologicalViolation) break;
+        }
+
+        if (hasTopologicalViolation) continue;
+
+        // Calculate cluster time: just younger than youngest external parent
+        let clusterTime = node.time;
+        if (externalParentTimes.length > 0) {
+            clusterTime = arrayMin(externalParentTimes) - CLUSTER_TIME_EPSILON;
+        }
+
+        // Create cluster node (reuses subtree root ID)
+        clusterNodes.push({
+            id: node.id,
+            time: clusterTime,
+            is_sample: false,
+            individual: node.individual,
+            is_cluster: true,
+            cluster_nodes: Array.from(subtreeNodes),
+            cluster_size: metrics.size,
+            cluster_depth: metrics.depth,
+            cluster_samples: metrics.samples,
+            timeIndex: node.timeIndex,
+            layer: node.layer,
+            x: node.x,
+            y: node.y,
+            fx: node.fx,
+            fy: node.fy
         });
-        
-        // Check subtree metrics using only available (non-clustered) nodes
-        const metrics = calculateSubtreeMetrics(node, availableNodes, availableEdges);
-        const density = metrics.size / Math.max(1, metrics.depth);
-        
-        if (metrics.size >= minTreeSize) {
-            debugStats.passedSizeCheck++;
-        }
-        if (requireDensity) {
-            const minDensity = 0.5 + (densityIntensity * 2.5);
-            if (density >= minDensity) {
-                debugStats.passedDensityCheck++;
-            }
-        }
-        
-        // Check if this node's subtree should be clustered using available nodes
-        if (shouldClusterSubtree(node, availableNodes, availableEdges, minTreeSize, requireDensity, densityIntensity, requireTemporalCompactness, temporalIntensity)) {
-            debugStats.clustered++;
-            // Collect all nodes in subtree (using available nodes only)
-            const subtreeNodes = new Set<number>();
-            const queue = [node];
-            const visited = new Set<number>();
-            
-            while (queue.length > 0) {
-                const current = queue.shift()!;
-                if (visited.has(current.id) || clusteredNodeIds.has(current.id)) {
-                    continue;
-                }
-                visited.add(current.id);
-                subtreeNodes.add(current.id);
-                
-                const children = getChildren(current, availableNodes, availableEdges);
-                for (const child of children) {
-                    if (!child.is_sample && !clusteredNodeIds.has(child.id)) {
-                        queue.push(child);
-                    }
-                }
-            }
-            
-            // Only create cluster if we actually found nodes to cluster
-            // (subtree must have more than just the root node)
-            if (subtreeNodes.size < minTreeSize) {
-                console.log(`Skipping cluster for node ${node.id}: actual subtree size ${subtreeNodes.size} < minTreeSize ${minTreeSize} (metrics were calculated including already-clustered descendants)`);
-                continue;
-            }
-            
-            // CRITICAL: Check if this cluster will have any outgoing edges after remapping
-            // Count edges from nodes in this subtree to nodes OUTSIDE this subtree
-            // Optimized: Only check edges from subtree nodes, not all edges
-            let externalEdgeCount = 0;
-            for (const subtreeNodeId of subtreeNodes) {
-                const outgoingEdges = outgoingEdgesMap.get(subtreeNodeId) || [];
-                for (const edge of outgoingEdges) {
-                    const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-                    if (!subtreeNodes.has(targetId)) {
-                        externalEdgeCount++;
-                    }
-                }
-            }
-            
-            if (externalEdgeCount === 0) {
-                console.warn(`Skipping cluster for node ${node.id}: no outgoing edges from cluster (all ${subtreeNodes.size} nodes have only internal or already-clustered connections). SubtreeNodes: [${Array.from(subtreeNodes).join(', ')}]`);
-                continue;
-            }
-            
-            console.log(`Creating cluster for node ${node.id}: ${subtreeNodes.size} nodes, ${externalEdgeCount} outgoing edges`);
-            
-            // Recalculate metrics based on actual collected subtree
-            const actualMetrics = calculateSubtreeMetrics(node, availableNodes, availableEdges);
-            
-            // CRITICAL: Determine the correct time value for the cluster
-            // For visual consistency, set cluster time to be just younger than the youngest (most recent)
-            // external parent that points into it. This ensures edges flow "forward in time" visually.
-            //
-            // Strategy:
-            // 1. Find all external parents (nodes pointing INTO cluster)
-            // 2. Find minimum (youngest) parent time
-            // 3. Set cluster time = min(parent times) - small epsilon
-            // 4. This makes cluster appear "below" its parents, preventing visual "tips"
-            
-            const rootTime = node.time;
-            
-            // Collect external parent times and validate topology
-            // Optimized: Only check incoming edges to subtree nodes using edge maps
-            const externalParentTimes: number[] = [];
-            let hasTopologicalViolation = false;
-            
-            for (const subtreeNodeId of subtreeNodes) {
-                const incomingEdges = incomingEdgesMap.get(subtreeNodeId) || [];
-                for (const edge of incomingEdges) {
-                    const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-                    
-                    // Edge from external node into our cluster?
-                    if (!subtreeNodes.has(sourceId)) {
-                        const sourceNode = nodeMap.get(sourceId);
-                        const targetNode = nodeMap.get(subtreeNodeId);
-                        
-                        if (sourceNode && targetNode) {
-                            // Check for genuine topological violation
-                            if (sourceNode.time < targetNode.time) {
-                                console.warn(`Skipping cluster for node ${node.id}: topological violation - external parent ${sourceId} (t=${sourceNode.time}) < cluster node ${subtreeNodeId} (t=${targetNode.time})`);
-                                hasTopologicalViolation = true;
-                                break;
-                            }
-                            externalParentTimes.push(sourceNode.time);
-                        }
-                    }
-                }
-                if (hasTopologicalViolation) break;
-            }
-            
-            if (hasTopologicalViolation) {
-                continue;
-            }
-            
-            // Calculate cluster time: just younger than youngest external parent
-            let clusterTime = rootTime; // Default to root time
-            
-            if (externalParentTimes.length > 0) {
-                // Find youngest (minimum) external parent time
-                const minExternalParentTime = Math.min(...externalParentTimes);
-                
-                // Set cluster time just below youngest parent for visual consistency
-                // This ensures edges flow "downward" in time (parent → cluster where parent.time > cluster.time)
-                clusterTime = minExternalParentTime - 0.01;
-                
-                console.log(`Cluster ${node.id} time: root=${rootTime}, minExternalParent=${minExternalParentTime}, adjusted=${clusterTime}`);
-            } else {
-                // No external parents - use root time
-                console.log(`Cluster ${node.id} time: ${clusterTime} (no external parents)`);
-            }
-            
-            // Create cluster node
-            const clusterNode: GraphNode = {
-                id: node.id, // Use the root node's ID
-                time: clusterTime,
-                is_sample: false,
-                individual: node.individual,
-                is_cluster: true,
-                cluster_nodes: Array.from(subtreeNodes),
-                cluster_size: actualMetrics.size,
-                cluster_depth: actualMetrics.depth,
-                cluster_samples: actualMetrics.samples,
-                timeIndex: node.timeIndex,
-                layer: node.layer,
-                x: node.x,
-                y: node.y,
-                fx: node.fx,
-                fy: node.fy
-            };
-            
-            clusterNodes.push(clusterNode);
-            
-            // Mark all subtree nodes as clustered
-            subtreeNodes.forEach(id => clusteredNodeIds.add(id));
-        }
+
+        subtreeNodes.forEach(id => clusteredNodeIds.add(id));
+        clusteredCount++;
     }
-    
-    // Build new node list: non-clustered nodes + cluster nodes
+
+    // Build result node list
     const resultNodes = nodes
         .filter(n => !clusteredNodeIds.has(n.id))
         .concat(clusterNodes);
-    
-    // Create a mapping from clustered node IDs to their cluster node ID
+
+    // Build clustered-node-to-cluster mapping for edge remapping
     const nodeToClusterMap = new Map<number, number>();
-    for (const clusterNode of clusterNodes) {
-        if (clusterNode.cluster_nodes) {
-            for (const nodeId of clusterNode.cluster_nodes) {
-                nodeToClusterMap.set(nodeId, clusterNode.id);
+    for (const cn of clusterNodes) {
+        if (cn.cluster_nodes) {
+            for (const nodeId of cn.cluster_nodes) {
+                nodeToClusterMap.set(nodeId, cn.id);
             }
         }
     }
-    
-    // Update edges: remap clustered nodes to their cluster representatives
-    // and remove pure internal edges (both endpoints in same cluster)
+
+    // Remap edges
     const remappedEdges: GraphEdge[] = [];
-    const edgeSet = new Set<string>(); // Track unique edges to avoid duplicates
-    
-    // Track detailed remapping statistics
-    let selfLoopsSkipped = 0;
-    let duplicatesSkipped = 0;
-    let edgesMapped = 0;
-    
+    const edgeSet = new Set<string>();
+
     for (const edge of edges) {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        
-        // Remap source and target to cluster nodes if they're clustered
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
         const mappedSourceId = nodeToClusterMap.get(sourceId) ?? sourceId;
         const mappedTargetId = nodeToClusterMap.get(targetId) ?? targetId;
-        
-        // Skip self-loops (edges within same cluster)
-        if (mappedSourceId === mappedTargetId) {
-            selfLoopsSkipped++;
-            continue;
-        }
-        
-        // Create unique key for this edge to avoid duplicates
+
+        if (mappedSourceId === mappedTargetId) continue; // self-loop
+
         const edgeKey = `${mappedSourceId}-${mappedTargetId}`;
-        if (edgeSet.has(edgeKey)) {
-            duplicatesSkipped++;
-            continue; // Skip duplicate edge
-        }
+        if (edgeSet.has(edgeKey)) continue; // duplicate
         edgeSet.add(edgeKey);
-        
-        edgesMapped++;
-        
-        // Create new edge with remapped endpoints
+
         remappedEdges.push({
             source: mappedSourceId,
             target: mappedTargetId,
@@ -458,324 +429,224 @@ export function createClusterNodes(
             mutations: edge.mutations || []
         });
     }
-    
-    console.log('Edge remapping stats:', {
-        originalEdges: edges.length,
-        selfLoopsSkipped,
-        duplicatesSkipped,
-        edgesMapped,
-        remappedEdges: remappedEdges.length
-    });
-    
-    // Validate: Ensure all edges point to nodes that exist in resultNodes
+
+    // Validate edges reference existing nodes
     const resultNodeIds = new Set(resultNodes.map(n => n.id));
     const validatedEdges = remappedEdges.filter(edge => {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        const isValid = resultNodeIds.has(sourceId) && resultNodeIds.has(targetId);
-        if (!isValid) {
-            console.warn(`Clustering: Removing invalid edge ${sourceId}->${targetId} (nodes don't exist in result)`);
-        }
-        return isValid;
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
+        return resultNodeIds.has(sourceId) && resultNodeIds.has(targetId);
     });
-    
-    // Critical validation: Ensure no internal nodes have zero children
-    // Build a map of outgoing edge counts per node
-    const outgoingEdgeCountsMap = new Map<number, number>();
-    for (const node of resultNodes) {
-        outgoingEdgeCountsMap.set(node.id, 0);
-    }
+
+    // Remove orphaned internal nodes (non-sample nodes with zero children)
+    const outgoingCounts = new Map<number, number>();
+    for (const n of resultNodes) outgoingCounts.set(n.id, 0);
     for (const edge of validatedEdges) {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        outgoingEdgeCountsMap.set(sourceId, (outgoingEdgeCountsMap.get(sourceId) || 0) + 1);
+        const sourceId = getEdgeId(edge, 'source');
+        outgoingCounts.set(sourceId, (outgoingCounts.get(sourceId) || 0) + 1);
     }
-    
-    // Check for internal nodes (non-samples) with zero children
-    const orphanedInternalNodes: GraphNode[] = [];
-    for (const node of resultNodes) {
-        if (!node.is_sample && (outgoingEdgeCountsMap.get(node.id) || 0) === 0) {
-            orphanedInternalNodes.push(node);
+
+    const orphanIds = new Set<number>();
+    for (const n of resultNodes) {
+        if (!n.is_sample && (outgoingCounts.get(n.id) || 0) === 0) {
+            orphanIds.add(n.id);
         }
     }
-    
-    if (orphanedInternalNodes.length > 0) {
-        console.error('CLUSTERING ERROR: Found internal nodes with zero children:', orphanedInternalNodes.map(n => ({
-            id: n.id,
-            is_cluster: n.is_cluster,
-            cluster_nodes: n.cluster_nodes,
-            time: n.time
-        })));
-        
-        // Remove these orphaned nodes from the result
-        const validNodeIds = new Set(resultNodes.map(n => n.id));
-        orphanedInternalNodes.forEach(n => validNodeIds.delete(n.id));
-        const finalNodes = resultNodes.filter(n => validNodeIds.has(n.id));
-        
-        // Also remove any edges that reference these orphaned nodes
+
+    if (orphanIds.size > 0) {
+        const finalNodes = resultNodes.filter(n => !orphanIds.has(n.id));
+        const finalNodeIds = new Set(finalNodes.map(n => n.id));
         const finalEdges = validatedEdges.filter(edge => {
-            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-            const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-            return validNodeIds.has(sourceId) && validNodeIds.has(targetId);
+            const sourceId = getEdgeId(edge, 'source');
+            const targetId = getEdgeId(edge, 'target');
+            return finalNodeIds.has(sourceId) && finalNodeIds.has(targetId);
         });
-        
-        console.warn(`Removed ${orphanedInternalNodes.length} orphaned internal nodes and re-validated edges`);
-        
-        // Debug output
-        console.log('Clustering debug (with orphan removal):', {
-            ...debugStats,
-            clusterNodesCreated: clusterNodes.length,
-            nodesRemoved: clusteredNodeIds.size,
-            orphanedNodesRemoved: orphanedInternalNodes.length,
-            finalNodeCount: finalNodes.length,
-            originalEdges: edges.length,
-            finalEdges: finalEdges.length,
-            minTreeSize: minTreeSize,
-            requireDensity: requireDensity,
-            densityIntensity: densityIntensity,
-            requireTemporalCompactness: requireTemporalCompactness,
-            temporalIntensity: temporalIntensity
-        });
-        
+
+        if (DEBUG_CLUSTERING) {
+            console.warn(`Clustering: removed ${orphanIds.size} orphaned internal nodes`);
+        }
+
         return { nodes: finalNodes, edges: finalEdges, originalParentMap };
     }
-    
-    // Debug output
-    console.log('Clustering debug:', {
-        ...debugStats,
-        clusterNodesCreated: clusterNodes.length,
-        nodesRemoved: clusteredNodeIds.size,
-        finalNodeCount: resultNodes.length,
-        originalEdges: edges.length,
-        finalEdges: remappedEdges.length,
-        validatedEdges: validatedEdges.length,
-        invalidEdgesRemoved: remappedEdges.length - validatedEdges.length,
-        edgesRemoved: edges.length - remappedEdges.length,
-        minTreeSize: minTreeSize,
-        requireDensity: requireDensity,
-        densityIntensity: densityIntensity,
-        requireTemporalCompactness: requireTemporalCompactness,
-        temporalIntensity: temporalIntensity
-    });
-    
+
+    if (DEBUG_CLUSTERING) {
+        console.log('Clustering:', {
+            clustersCreated: clusterNodes.length,
+            nodesRemoved: clusteredNodeIds.size,
+            finalNodes: resultNodes.length,
+            finalEdges: validatedEdges.length
+        });
+    }
+
     return { nodes: resultNodes, edges: validatedEdges, originalParentMap };
 }
 
+// ── Sample clustering ───────────────────────────────────────────────────────
+
 /**
- * Create sample clusters for samples connected to the same internal cluster node
- * This reduces edge clutter by grouping samples that are direct children of the same cluster node
- * Only clusters samples where ALL parents come from the same single internal cluster node
+ * Group sample nodes connected to the same internal cluster node.
+ * Only clusters samples where ALL parents (both current and original pre-clustering)
+ * come from the same single cluster node, preserving recombinant ancestry visibility.
  */
 export function createSampleClusters(
     originalNodes: GraphNode[],
     originalEdges: GraphEdge[],
-    _sampleOrder: string,  // Keep parameter for API compatibility, but ignore it
-    originalParentMap?: Map<number, Set<number>>,  // Optional: map from sample ID to original parent IDs before clustering
-    maxSampleClusterSize: number = 25  // Maximum number of samples per cluster (default: 25)
+    originalParentMap?: Map<number, Set<number>>,
+    maxSampleClusterSize: number = DEFAULT_MAX_SAMPLE_CLUSTER_SIZE
 ): { nodes: GraphNode[]; edges: GraphEdge[] } {
     const nodes = [...originalNodes];
     const edges = [...originalEdges];
-    
-    // Find all samples (no sorting needed - order is ignored)
+
     const samples = nodes.filter(n => n.is_sample);
-    
-    if (samples.length < 3) {
-        // Need at least 3 samples to make clustering worthwhile
+    if (samples.length < MIN_SAMPLES_FOR_CLUSTERING) {
         return { nodes, edges };
     }
-    
-    // Pre-build maps for O(1) lookups (performance optimization)
+
+    // Pre-build maps
     const sampleNodeMap = new Map(nodes.map(n => [n.id, n]));
     const sampleIncomingEdgesMap = new Map<number, GraphEdge[]>();
     const sampleOutgoingEdgesMap = new Map<number, GraphEdge[]>();
-    
+
     for (const edge of edges) {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        
-        if (!sampleOutgoingEdgesMap.has(sourceId)) sampleOutgoingEdgesMap.set(sourceId, []);
-        sampleOutgoingEdgesMap.get(sourceId)!.push(edge);
-        
-        if (!sampleIncomingEdgesMap.has(targetId)) sampleIncomingEdgesMap.set(targetId, []);
-        sampleIncomingEdgesMap.get(targetId)!.push(edge);
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
+
+        let outList = sampleOutgoingEdgesMap.get(sourceId);
+        if (!outList) { outList = []; sampleOutgoingEdgesMap.set(sourceId, outList); }
+        outList.push(edge);
+
+        let inList = sampleIncomingEdgesMap.get(targetId);
+        if (!inList) { inList = []; sampleIncomingEdgesMap.set(targetId, inList); }
+        inList.push(edge);
     }
-    
-    // Helper to find all parents of a node (optimized with edge maps)
+
     const getParents = (node: GraphNode): GraphNode[] => {
         const parentNodes: GraphNode[] = [];
-        const incomingEdges = sampleIncomingEdgesMap.get(node.id) || [];
-        for (const edge of incomingEdges) {
-            const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
+        const incoming = sampleIncomingEdgesMap.get(node.id);
+        if (!incoming) return parentNodes;
+        for (const edge of incoming) {
+            const sourceId = getEdgeId(edge, 'source');
             const parentNode = sampleNodeMap.get(sourceId);
-            if (parentNode) {
-                parentNodes.push(parentNode);
-            }
+            if (parentNode) parentNodes.push(parentNode);
         }
         return parentNodes;
     };
-    
-    // Find all internal cluster nodes (cluster nodes that are NOT sample clusters)
-    const internalClusterNodes = nodes.filter(n => 
+
+    // Find internal cluster nodes
+    const internalClusterNodes = nodes.filter(n =>
         n.is_cluster && !n.is_sample_cluster && !n.is_sample
     );
-    
-    // Group samples by their internal cluster node parent
-    // Map: clusterNodeId -> array of sample children
-    // Only include samples where ALL parents come from the same single cluster node
+
+    // Group samples by their cluster parent
     const clusterToSamplesMap = new Map<number, GraphNode[]>();
-    
+
     for (const clusterNode of internalClusterNodes) {
-        // Find all direct sample children of this cluster node
         const candidateChildren = getChildren(clusterNode, nodes, edges, sampleOutgoingEdgesMap, sampleNodeMap)
             .filter(child => child.is_sample);
-        
-        // Get the set of original node IDs that were clustered into this cluster
+
         const clusterSubtreeIds = new Set(clusterNode.cluster_nodes || [clusterNode.id]);
-        
-        // Filter to only include samples where ALL original parents were in this cluster's subtree
-        // This ensures we don't hide samples that have recombinant ancestry from outside the cluster
+
         const validSampleChildren = candidateChildren.filter(sample => {
-            // Check current parents in post-clustering graph
             const currentParents = getParents(sample);
-            
-            // Must have at least one parent (should always be true, but safety check)
-            if (currentParents.length === 0) {
-                console.warn(`Sample ${sample.id} has no parents after clustering - skipping sample clustering`);
-                return false;
-            }
-            
-            // Check if ALL current parents are from the same single cluster node
-            const allParentsAreThisCluster = currentParents.every(p => p.id === clusterNode.id);
-            if (!allParentsAreThisCluster) {
-                return false;  // Sample has parents from other clusters or non-clustered nodes
-            }
-            
-            // Additional check: Were ALL of the sample's ORIGINAL parents (before clustering)
-            // part of the subtree that became this cluster?
-            // This prevents sample-clustering of samples with recombinant ancestry from outside the cluster
-            if (originalParentMap && originalParentMap.has(sample.id)) {
-                const originalParents = originalParentMap.get(sample.id)!;
-                const allOriginalParentsInCluster = Array.from(originalParents).every(
-                    parentId => clusterSubtreeIds.has(parentId)
-                );
-                
-                if (!allOriginalParentsInCluster) {
-                    console.log(`Excluding sample ${sample.id} from sample clustering: has original parents outside cluster ${clusterNode.id}`);
-                    return false;
+            if (currentParents.length === 0) return false;
+
+            // All current parents must be this cluster node
+            if (!currentParents.every(p => p.id === clusterNode.id)) return false;
+
+            // All original parents must have been in this cluster's subtree
+            if (originalParentMap?.has(sample.id)) {
+                const origParents = originalParentMap.get(sample.id)!;
+                for (const parentId of origParents) {
+                    if (!clusterSubtreeIds.has(parentId)) return false;
                 }
             }
-            
+
             return true;
         });
-        
-        // Only create cluster if there are 3+ valid sample children
-        if (validSampleChildren.length >= 3) {
+
+        if (validSampleChildren.length >= MIN_SAMPLES_FOR_CLUSTERING) {
             clusterToSamplesMap.set(clusterNode.id, validSampleChildren);
         }
     }
-    
-    // Convert map values to clusters array, handling max cluster size
+
+    // Split oversized clusters
     const sampleClusters: GraphNode[][] = [];
-    
     for (const cluster of clusterToSamplesMap.values()) {
         if (cluster.length > maxSampleClusterSize) {
-            // Split large clusters into multiple clusters of max size
             for (let i = 0; i < cluster.length; i += maxSampleClusterSize) {
-                const subCluster = cluster.slice(i, Math.min(i + maxSampleClusterSize, cluster.length));
-                if (subCluster.length >= 3) {
-                    sampleClusters.push(subCluster);
-                }
+                const sub = cluster.slice(i, i + maxSampleClusterSize);
+                if (sub.length >= MIN_SAMPLES_FOR_CLUSTERING) sampleClusters.push(sub);
             }
         } else {
             sampleClusters.push(cluster);
         }
     }
-    
+
     if (sampleClusters.length === 0) {
-        // No sample clusters to create
         return { nodes, edges };
     }
-    
-    console.log(`Creating ${sampleClusters.length} sample clusters from ${samples.length} samples`);
-    
-    // Create cluster nodes
+
+    // Create sample cluster nodes
     const clusteredSampleIds = new Set<number>();
     const sampleClusterNodes: GraphNode[] = [];
-    
+
     for (const cluster of sampleClusters) {
         const representativeNode = cluster[0];
         const clusterNodeIds = cluster.map(n => n.id);
-        
-        // Mark samples as clustered
         clusterNodeIds.forEach(id => clusteredSampleIds.add(id));
-        
-        // Create a cluster node
-        // No order_position needed - layout will position based on cluster node parent
-        const clusterNode: GraphNode = {
+
+        sampleClusterNodes.push({
             ...representativeNode,
-            id: -1000 - sampleClusterNodes.length, // Negative ID for sample clusters
-            order_position: undefined,  // Explicitly undefined - not used
+            id: SAMPLE_CLUSTER_ID_BASE - sampleClusterNodes.length,
+            order_position: undefined,
             is_cluster: true,
             is_sample_cluster: true,
-            is_sample: true, // Keep is_sample true so layout treats it like a sample
+            is_sample: true,
             cluster_nodes: clusterNodeIds,
             cluster_size: cluster.length,
-            cluster_depth: 0, // Samples have no depth
+            cluster_depth: 0,
             cluster_samples: cluster.length,
             label: `Samples [${cluster.length}]`,
-            time: 0, // Explicitly set time=0 to ensure sample-level positioning
-            // Don't set x/y - let the layout algorithm position them fresh
-            // This prevents issues when switching between layout modes (dagre vs force-directed)
+            time: 0,
             x: undefined,
             y: undefined,
             fx: null,
             fy: null
-        };
-        
-        sampleClusterNodes.push(clusterNode);
+        });
     }
-    
-    // Filter out clustered samples
+
+    // Build result nodes
     const resultNodes = [
         ...nodes.filter(n => !clusteredSampleIds.has(n.id)),
         ...sampleClusterNodes
     ];
-    
-    // Remap edges: any edge pointing to a clustered sample should point to the cluster
+
+    // Remap edges
     const sampleToClusterMap = new Map<number, number>();
-    for (const clusterNode of sampleClusterNodes) {
-        for (const sampleId of clusterNode.cluster_nodes!) {
-            sampleToClusterMap.set(sampleId, clusterNode.id);
+    for (const cn of sampleClusterNodes) {
+        for (const sampleId of cn.cluster_nodes!) {
+            sampleToClusterMap.set(sampleId, cn.id);
         }
     }
-    
+
     const remappedEdges: GraphEdge[] = [];
     const edgeSet = new Set<string>();
-    
+
     for (const edge of edges) {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        
-        // Skip edges between clustered samples (internal edges)
-        if (clusteredSampleIds.has(sourceId) && clusteredSampleIds.has(targetId)) {
-            continue;
-        }
-        
-        // Remap endpoints
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
+
+        if (clusteredSampleIds.has(sourceId) && clusteredSampleIds.has(targetId)) continue;
+
         const mappedSourceId = sampleToClusterMap.get(sourceId) ?? sourceId;
         const mappedTargetId = sampleToClusterMap.get(targetId) ?? targetId;
-        
-        // Skip self-loops
-        if (mappedSourceId === mappedTargetId) {
-            continue;
-        }
-        
-        // Deduplicate edges
+
+        if (mappedSourceId === mappedTargetId) continue;
+
         const edgeKey = `${mappedSourceId}-${mappedTargetId}`;
-        if (edgeSet.has(edgeKey)) {
-            continue;
-        }
+        if (edgeSet.has(edgeKey)) continue;
         edgeSet.add(edgeKey);
-        
+
         remappedEdges.push({
             source: mappedSourceId,
             target: mappedTargetId,
@@ -787,29 +658,24 @@ export function createSampleClusters(
             mutations: edge.mutations || []
         });
     }
-    
-    // Validate: Ensure all edges point to nodes that exist in resultNodes
+
+    // Validate edges
     const resultNodeIds = new Set(resultNodes.map(n => n.id));
     const validatedEdges = remappedEdges.filter(edge => {
-        const sourceId = typeof edge.source === 'number' ? edge.source : edge.source.id;
-        const targetId = typeof edge.target === 'number' ? edge.target : edge.target.id;
-        const isValid = resultNodeIds.has(sourceId) && resultNodeIds.has(targetId);
-        if (!isValid) {
-            console.warn(`Sample clustering: Removing invalid edge ${sourceId}->${targetId} (nodes don't exist in result)`);
-        }
-        return isValid;
+        const sourceId = getEdgeId(edge, 'source');
+        const targetId = getEdgeId(edge, 'target');
+        return resultNodeIds.has(sourceId) && resultNodeIds.has(targetId);
     });
-    
-    console.log(`Sample clustering: ${nodes.length} nodes -> ${resultNodes.length} nodes (${clusteredSampleIds.size} samples clustered, ${remappedEdges.length - validatedEdges.length} invalid edges removed)`);
-    
+
     return { nodes: resultNodes, edges: validatedEdges };
 }
 
-// Helper to check if edge connects to sample cluster
+// ── Edge cluster info helper ────────────────────────────────────────────────
+
 export function getEdgeClusterInfo(d: GraphEdge, combinedNodes: GraphNode[]) {
     const source = typeof d.source === 'number' ? combinedNodes.find(n => n.id === d.source) : d.source as GraphNode;
     const target = typeof d.target === 'number' ? combinedNodes.find(n => n.id === d.target) : d.target as GraphNode;
     const isSampleClusterEdge = source?.is_sample_cluster || target?.is_sample_cluster;
     const clusterSize = source?.is_sample_cluster ? (source.cluster_size || 1) : (target?.cluster_size || 1);
     return { source, target, isSampleClusterEdge, clusterSize };
-};
+}

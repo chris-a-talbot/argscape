@@ -13,7 +13,7 @@
  * - Intermediate Data: MPR results, etc. (when available)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useColorTheme } from '@/context/ColorThemeContext';
 import { api } from '@/lib/api';
 import { log } from '@/lib/logger';
@@ -69,6 +69,7 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
   const [availableIntermediateData, setAvailableIntermediateData] = useState<string[]>([]);
   const [selectedLocationColumns, setSelectedLocationColumns] = useState<string[]>([]);
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
+  const urlCopiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load available intermediate data when panel opens
   useEffect(() => {
@@ -84,12 +85,27 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
     }
   }, [filename]);
 
+  useEffect(() => {
+    return () => {
+      if (urlCopiedTimeoutRef.current) {
+        clearTimeout(urlCopiedTimeoutRef.current);
+        urlCopiedTimeoutRef.current = null;
+      }
+    };
+  }, []);
+
   // Handle URL copy with feedback
   const handleCopyURL = () => {
     if (onCopyURL) {
       onCopyURL();
       setUrlCopied(true);
-      setTimeout(() => setUrlCopied(false), 2000);
+      if (urlCopiedTimeoutRef.current) {
+        clearTimeout(urlCopiedTimeoutRef.current);
+      }
+      urlCopiedTimeoutRef.current = setTimeout(() => {
+        setUrlCopied(false);
+        urlCopiedTimeoutRef.current = null;
+      }, 2000);
     }
   };
 

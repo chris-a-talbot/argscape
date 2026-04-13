@@ -12,6 +12,7 @@ import {
   calculateAutoFitMultipliers,
 } from './Spatial3D.utils'
 import { generatePopulationColors } from '@/utils/colorUtils'
+import { APP_SANS_FONT_FAMILY } from '@/utils/fonts'
 import type { Node3D, Edge3D, ViewState } from './Spatial3D.types'
 import { DEFAULT_VIEW_STATE, SHAPE_Z_OFFSET } from './Spatial3D.types'
 import {
@@ -493,7 +494,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
             getSize: (d: Node3D) => d.is_sample ? 14 : 11,
             sizeUnits: 'pixels',
             billboard: false,  // Labels lay flat on nodes, not facing camera
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: APP_SANS_FONT_FAMILY,
             fontWeight: 'bold',
             getTextAnchor: 'middle',
             getAlignmentBaseline: 'center',
@@ -557,7 +558,7 @@ export function Spatial3D({ width, height }: Spatial3DProps) {
             getSize: (d: MutationMarker3D) => d.size,
             sizeUnits: 'pixels',
             billboard: true,
-            fontFamily: 'Arial, sans-serif',
+            fontFamily: APP_SANS_FONT_FAMILY,
             fontWeight: 'bold',
             getTextAnchor: 'middle',
             getAlignmentBaseline: 'center',

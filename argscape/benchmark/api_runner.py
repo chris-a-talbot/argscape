@@ -123,7 +123,7 @@ SUPPORTED_METHODS = [
     "gaia-linear",
     "midpoint",
     "sparg",
-    "spacetrees",
+    # "spacetrees",  # Temporarily disabled
     "tsdate",
 ]
 

@@ -31,6 +31,7 @@ import { VISUALIZATION_CONSTANTS_DIFF } from '../SpatialArgUtils/SpatialArg.cons
 import { EdgeLabel3D, MutationMarker3D } from '../SpatialArgUtils/SpatialArg.types';
 import { DiffViewMode, NodeDiff3D, EdgeDiff3D, TransformResult, NodeLabel3D } from './SpatialArgDiff.types';
 import { LINE_WIDTHS } from './SpatialArgDiff.constants';
+import { APP_SANS_FONT_FAMILY } from '../../../lib/fonts';
 
 interface SpatialArgDiffProps {
   firstData: GraphData;
@@ -754,7 +755,7 @@ export const SpatialArgDiffVisualization: React.FC<SpatialArgDiffProps> = ({
         getSize: (d: NodeLabel3D) => d.size,
         getTextAnchor: 'middle' as const,
         getAlignmentBaseline: 'center' as const,
-        fontFamily: 'Arial, sans-serif',
+        fontFamily: APP_SANS_FONT_FAMILY,
         fontWeight: 'bold',
         billboard: false,
         updateTriggers: {

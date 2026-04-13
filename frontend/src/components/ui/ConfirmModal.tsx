@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useThemeStyles } from '../../hooks/useThemeStyles';
 import { useSemanticColors } from '../../hooks/useSemanticColors';
 
@@ -52,8 +53,8 @@ export default function ConfirmModal({
   const confirmButtonColor = isDanger ? semanticColors.error : colors.accentPrimary;
   const confirmButtonHoverColor = isDanger ? semanticColors.errorHover : colors.accentSecondary;
 
-  return (
-    <div className="fixed inset-0 z-[10002]">
+  return createPortal(
+    <div className="fixed inset-0 z-[10004]">
       {/* Backdrop with consistent blur */}
       <div
         className="fixed inset-0"
@@ -63,10 +64,10 @@ export default function ConfirmModal({
 
       {/* Modal content container */}
       <div className="flex items-center justify-center min-h-screen p-4">
-      
+
       {/* Modal with proper glass treatment */}
-      <div 
-        className="relative max-w-md w-full mx-4 transform transition-all" 
+      <div
+        className="relative max-w-md w-full mx-4 transform transition-all"
         style={modalGlassStyle}
       >
         <div className="p-6">
@@ -85,10 +86,10 @@ export default function ConfirmModal({
             </div>
             <h3 className="text-lg font-semibold break-words" style={{ color: colors.text }}>{title}</h3>
           </div>
-          
+
           {/* Message */}
           <p className="mb-6 leading-relaxed break-words whitespace-pre-wrap" style={{ color: colors.textSecondary }}>{message}</p>
-          
+
           {/* Actions */}
           <div className="flex gap-3">
             <button
@@ -120,7 +121,7 @@ export default function ConfirmModal({
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.backgroundColor = confirmButtonHoverColor;
-                e.currentTarget.style.boxShadow = isDanger 
+                e.currentTarget.style.boxShadow = isDanger
                   ? '0 4px 12px rgba(220, 38, 38, 0.2)'
                   : '0 4px 12px rgba(10, 157, 126, 0.2)';
               }}
@@ -135,6 +136,7 @@ export default function ConfirmModal({
         </div>
       </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 } 

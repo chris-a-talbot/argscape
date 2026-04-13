@@ -16,7 +16,7 @@ METHOD_DISPLAY_NAMES = {
     "gaia_linear": "GAIA Linear",
     "midpoint": "Midpoint",
     "sparg": "SPARG",
-    "spacetrees": "Spacetrees",
+    # "spacetrees": "Spacetrees",  # Temporarily disabled
     "tsdate": "Tsdate",
 }
 
@@ -27,7 +27,7 @@ PACKAGE_NAMES = {
     "gaia_linear": "gaiapy",
     "midpoint": "tskit",
     "sparg": "sparg",
-    "spacetrees": "spacetrees",
+    # "spacetrees": "spacetrees",  # Temporarily disabled
     "tsdate": "tsdate",
 }
 

@@ -203,6 +203,8 @@ export interface ViewPanelProps {
   /** Sample order (2D only) */
   sampleOrder?: SampleOrderType;
   onSampleOrderChange?: (order: SampleOrderType) => void;
+  /** When true, locks sample order to dagre-d3 (500+ samples). */
+  forceDagre?: boolean;
 
   /** Force tuning (2D only, advanced) */
   forceTuning?: ForceTuningSettings;

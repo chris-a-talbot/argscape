@@ -5,6 +5,7 @@ Uses KD-tree for efficient nearest-neighbor and range queries.
 
 import logging
 import numpy as np
+import weakref
 from typing import Dict, List, Tuple, Optional, Set
 from dataclasses import dataclass
 
@@ -54,7 +55,6 @@ class SpatialIndex:
         Args:
             ts: Tree sequence with spatial data
         """
-        self.ts = ts
         self.tree = None
         self.locations = []
         self.node_ids = []
@@ -62,11 +62,11 @@ class SpatialIndex:
         self.metadata: Optional[SpatialMetadata] = None
         
         # Build index
-        self._build_index()
+        self._build_index(ts)
     
-    def _build_index(self):
+    def _build_index(self, ts: tskit.TreeSequence):
         """Build the spatial index from tree sequence."""
-        logger.debug(f"Building spatial index for {self.ts.num_nodes} nodes")
+        logger.debug(f"Building spatial index for {ts.num_nodes} nodes")
         
         locations = []
         node_ids = []
@@ -75,7 +75,7 @@ class SpatialIndex:
         
         # Fast path: Use numpy arrays for node access
         # Track which nodes have individuals
-        has_individual = np.array([node.individual != -1 for node in self.ts.nodes()])
+        has_individual = np.array([node.individual != -1 for node in ts.nodes()])
         
         # Early exit if no nodes have individuals
         if not np.any(has_individual):
@@ -90,9 +90,9 @@ class SpatialIndex:
             return
         
         # Collect locations efficiently
-        for node in self.ts.nodes():
-            if node.individual != -1 and node.individual < self.ts.num_individuals:
-                individual = self.ts.individual(node.individual)
+        for node in ts.nodes():
+            if node.individual != -1 and node.individual < ts.num_individuals:
+                individual = ts.individual(node.individual)
                 if individual.location is not None and len(individual.location) >= 2:
                     x, y = float(individual.location[0]), float(individual.location[1])
                     # Check for valid coordinates
@@ -124,9 +124,9 @@ class SpatialIndex:
                 self.tree = None
         
         # Compute metadata
-        total_samples = sum(1 for node in self.ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
+        total_samples = sum(1 for node in ts.nodes() if node.flags & tskit.NODE_IS_SAMPLE)
         has_sample_spatial = len(sample_node_ids) == total_samples and total_samples > 0
-        has_all_spatial = len(self.node_ids) == self.ts.num_nodes and self.ts.num_nodes > 0
+        has_all_spatial = len(self.node_ids) == ts.num_nodes and ts.num_nodes > 0
         
         # Compute bounds
         bounds = None
@@ -230,8 +230,23 @@ class SpatialIndex:
         return self.metadata
 
 
-# Cache for spatial indices to avoid rebuilding
-_spatial_index_cache: Dict[int, SpatialIndex] = {}
+@dataclass
+class _SpatialIndexCacheEntry:
+    """Weakly tracked cache entry for a tree sequence spatial index."""
+
+    ts_ref: "weakref.ReferenceType[tskit.TreeSequence]"
+    index: SpatialIndex
+    finalizer: "weakref.finalize"
+
+
+# Cache for spatial indices keyed by object id, with finalizers clearing entries
+# when the underlying tree sequence is garbage-collected.
+_spatial_index_cache: Dict[int, _SpatialIndexCacheEntry] = {}
+
+
+def _remove_cached_spatial_index(ts_id: int) -> None:
+    """Drop a cached spatial index when its tree sequence is collected."""
+    _spatial_index_cache.pop(ts_id, None)
 
 
 def get_spatial_index(ts: tskit.TreeSequence, use_cache: bool = True) -> SpatialIndex:
@@ -245,16 +260,24 @@ def get_spatial_index(ts: tskit.TreeSequence, use_cache: bool = True) -> Spatial
     Returns:
         SpatialIndex instance
     """
-    ts_id = id(ts)
-    
-    if use_cache and ts_id in _spatial_index_cache:
-        return _spatial_index_cache[ts_id]
+    if use_cache:
+        ts_id = id(ts)
+        cached_entry = _spatial_index_cache.get(ts_id)
+        if cached_entry is not None:
+            if cached_entry.ts_ref() is ts:
+                return cached_entry.index
+            _spatial_index_cache.pop(ts_id, None)
     
     # Build new index
     index = SpatialIndex(ts)
     
     if use_cache:
-        _spatial_index_cache[ts_id] = index
+        ts_id = id(ts)
+        _spatial_index_cache[ts_id] = _SpatialIndexCacheEntry(
+            ts_ref=weakref.ref(ts),
+            index=index,
+            finalizer=weakref.finalize(ts, _remove_cached_spatial_index, ts_id),
+        )
     
     return index
 
@@ -264,4 +287,3 @@ def clear_spatial_index_cache():
     global _spatial_index_cache
     _spatial_index_cache.clear()
     logger.debug("Cleared spatial index cache")
-

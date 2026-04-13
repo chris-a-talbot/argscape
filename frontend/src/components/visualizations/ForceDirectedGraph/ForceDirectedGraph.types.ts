@@ -45,6 +45,12 @@ export interface GraphNode extends d3.SimulationNodeDatum {
     // Properties for simulation pinning tracking
     __autoPinnedX?: boolean;
     __autoPinnedY?: boolean;
+    // Cached label layout properties to avoid repeated DOM measurement on each tick
+    __labelDx?: number;
+    __labelDy?: number;
+    __labelWidth?: number;
+    __labelHeight?: number;
+    __labelTextAnchor?: 'start' | 'middle' | 'end';
 }
 
 // Backward compatibility: Node is now an alias for GraphNode
@@ -221,7 +227,9 @@ export interface ForceDirectedGraphProps {
     clusteringMaxSampleClusterSize?: number;  // Maximum number of samples per sample cluster (default: 25)
     combineInternalNodes?: boolean;  // Enable combining of internal nodes (default: false)
     combineSampleNodes?: boolean;  // Enable combining of sample nodes (default: true)
-} 
+    onLayoutReady?: () => void;  // Called once initial layout + auto-zoom completes
+    onRenderComplete?: () => void;  // Called once the current render cycle settles
+}
 
 // Add type for simulation
 export type Simulation = d3.Simulation<GraphNode, undefined>;

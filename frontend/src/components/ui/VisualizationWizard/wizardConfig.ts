@@ -17,6 +17,10 @@ export const WIZARD_THRESHOLDS = {
   HEATMAP_RECOMMENDED: 500,
   SKIP_PERFORMANCE_STEP: 100, // Skip performance step if nodes < this
 
+  // Layout mode thresholds for dagre-d3 enforcement
+  DAGRE_DEFAULT_NODES: 150,       // >=150 nodes: default to dagre-d3 (user can change)
+  DAGRE_LOCKED_SAMPLES: 500,      // >=500 samples: lock to dagre-d3 (except subARG/parent ARG views)
+
   // Tree recommendations
   MANY_TREES: 100,
   TREE_FILTER_RECOMMENDED: 500,

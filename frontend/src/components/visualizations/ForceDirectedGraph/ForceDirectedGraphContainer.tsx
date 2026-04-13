@@ -1,4 +1,6 @@
 import { useEffect, useState, useCallback, forwardRef, ForwardedRef, useRef, useMemo } from 'react';
+
+const NOOP = () => {};
 import { downloadPythonScript, PythonScriptOptions } from '../../../utils/pythonScriptGenerator';
 import { useSearchParams } from 'react-router-dom';
 import { ForceDirectedGraph } from './ForceDirectedGraph';
@@ -26,7 +28,9 @@ import { useForceTuning } from '../../../hooks/useForceTuning';
 import { useSampleOrder } from '../../../hooks/useSampleOrder';
 import { useEdgeCrossings } from '../../../hooks/useEdgeCrossings';
 import { useWindowStats } from '../../../hooks/useWindowStats';
+import { useVisualizationPerformance } from '../../../hooks/useVisualizationPerformance';
 import { ForceDirectedLoadingState, ErrorState, NoDataState } from '../shared/LoadingStates';
+import { WIZARD_THRESHOLDS } from '../../ui/VisualizationWizard';
 import { Play, Pause } from 'lucide-react';
 
 interface ForceDirectedGraphContainerProps {
@@ -39,6 +43,17 @@ interface ForceDirectedGraphContainerProps {
     treeStartIdx?: number;
     treeEndIdx?: number;
 }
+
+const clampTemporalRange = (
+    start: number,
+    end: number,
+    minTime: number,
+    maxTime: number
+): [number, number] => {
+    const clampedStart = Math.max(start, minTime);
+    const clampedEnd = Math.min(end, maxTime);
+    return clampedStart <= clampedEnd ? [clampedStart, clampedEnd] : [minTime, maxTime];
+};
 
 export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirectedGraphContainerProps>(({
     filename,
@@ -67,15 +82,19 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
     }, [setCurrentVisualizationType]);
 
     // Local state for UI controls
-    const sampleOrderControls = useSampleOrder(
-        searchParams.get('clustering') === 'true' ? 'dagre' : 'consensus_minlex'
-    );
+    // Default to dagre if clustering enabled or layout=dagre from wizard (150+ nodes)
+    const initialLayout = searchParams.get('clustering') === 'true' || searchParams.get('layout') === 'dagre'
+        ? 'dagre' : 'consensus_minlex';
+    const sampleOrderControls = useSampleOrder(initialLayout);
 
     const simulationControls = useSimulationControls();
     const forceTuningControls = useForceTuning();
 
     const [combineInternalNodes, setCombineInternalNodes] = useState(false);
     const [combineSampleNodes, setCombineSampleNodes] = useState(true);
+
+    // Layout-ready overlay: shows a loading spinner until the graph completes its initial layout
+    const [layoutReady, setLayoutReady] = useState(false);
 
     // Internal ref for SVG element (for download handlers)
     // We create our own ref and sync it with the forwarded ref
@@ -110,8 +129,6 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         filename,
         max_samples,
         sampleOrder: sampleOrderControls.sampleOrder,
-        temporalStart,
-        temporalEnd,
         genomicStart,
         genomicEnd,
         treeStartIdx,
@@ -153,16 +170,107 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         return undefined;
     }, [searchParams]);
 
+    const disableClustering = useCallback(
+        () => clusteringState.handleClusteringEnabledChange(false),
+        [clusteringState.handleClusteringEnabledChange]
+    );
+
     const viewModeState = useViewModeState(
         graphDataState.data,
         clusteringState.saveClusteringStateIfNeeded,
         clusteringState.restoreClusteringStateIfNeeded,
-        () => clusteringState.handleClusteringEnabledChange(false),
+        disableClustering,
         simulationControls.triggerReset,
         initialFocus
     );
 
     const edgeCrossingsControls = useEdgeCrossings(graphDataState.data);
+    const visualizationSettings = useVisualizationSettings();
+
+    const renderBenchmarkKey = useMemo(() => {
+        const filteredData = viewModeState.filteredData;
+        return [
+            filename,
+            sampleOrderControls.layoutVersion,
+            sampleOrderControls.sampleOrder,
+            viewModeState.viewMode,
+            viewModeState.selectedNode?.id ?? 'full',
+            filteredData?.nodes.length ?? 0,
+            filteredData?.edges.length ?? 0,
+            clusteringState.enabled ? 'clustered' : 'raw',
+            combineInternalNodes ? 'combine-internal' : 'split-internal',
+            combineSampleNodes ? 'combine-sample' : 'split-sample',
+            visualizationSettings.temporalSpacingMode,
+            visualizationSettings.temporalSpacing,
+            visualizationSettings.sampleSpacing,
+        ].join(':');
+    }, [
+        filename,
+        sampleOrderControls.layoutVersion,
+        sampleOrderControls.sampleOrder,
+        viewModeState.viewMode,
+        viewModeState.selectedNode?.id,
+        viewModeState.filteredData,
+        clusteringState.enabled,
+        combineInternalNodes,
+        combineSampleNodes,
+        visualizationSettings.temporalSpacingMode,
+        visualizationSettings.temporalSpacing,
+        visualizationSettings.sampleSpacing,
+    ]);
+    const { performanceStats, markRenderComplete } = useVisualizationPerformance(renderBenchmarkKey);
+    const handleLayoutReady = useCallback(() => {
+        setLayoutReady(true);
+        markRenderComplete();
+    }, [markRenderComplete]);
+    // Reset when graph remounts (layout version or sample order changes trigger a new key)
+    useEffect(() => {
+        setLayoutReady(false);
+    }, [sampleOrderControls.layoutVersion, sampleOrderControls.sampleOrder]);
+
+    // Count displayed nodes for layout mode enforcement
+    const displayedCounts = useMemo(() => {
+        const data = viewModeState.filteredData || graphDataState.data;
+        if (!data?.nodes) return { nodes: 0, samples: 0 };
+        return {
+            nodes: data.nodes.length,
+            samples: data.nodes.filter(n => n.is_sample).length,
+        };
+    }, [viewModeState.filteredData, graphDataState.data]);
+
+    // Auto-default to dagre for large graphs once per loaded dataset.
+    const processedAutoDagreKeyRef = useRef<string | null>(null);
+    useEffect(() => {
+        if (!graphDataState.data?.nodes?.length) return;
+        const autoDagreKey = `${filename}:${graphDataState.data.nodes.length}:${graphDataState.data.edges.length}`;
+        if (processedAutoDagreKeyRef.current === autoDagreKey) return;
+
+        processedAutoDagreKeyRef.current = autoDagreKey;
+        if (
+            graphDataState.data.nodes.length >= WIZARD_THRESHOLDS.DAGRE_DEFAULT_NODES &&
+            sampleOrderControls.sampleOrder !== 'dagre'
+        ) {
+            sampleOrderControls.handleSampleOrderChange('dagre');
+        }
+    }, [
+        filename,
+        graphDataState.data?.edges.length,
+        graphDataState.data?.nodes.length,
+        sampleOrderControls.handleSampleOrderChange,
+        sampleOrderControls.sampleOrder,
+    ]);
+
+    // Lock to dagre-d3 for very large sample counts in full view.
+    const forceDagre =
+        displayedCounts.samples >= WIZARD_THRESHOLDS.DAGRE_LOCKED_SAMPLES &&
+        viewModeState.viewMode === 'full';
+
+    // Enforce dagre lock: if forceDagre is true and current mode isn't dagre, switch it
+    useEffect(() => {
+        if (forceDagre && sampleOrderControls.sampleOrder !== 'dagre') {
+            sampleOrderControls.handleSampleOrderChange('dagre');
+        }
+    }, [forceDagre, sampleOrderControls.handleSampleOrderChange, sampleOrderControls.sampleOrder]);
 
     // Window stats for filtered genomic regions
     const windowStatsResult = useWindowStats({
@@ -185,8 +293,6 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
             setTreeIntervals(graphDataState.treeIntervals);
         }
     }, [graphDataState.sequenceLength, graphDataState.treeIntervals]);
-
-    const visualizationSettings = useVisualizationSettings();
 
     // Download handlers using the internal SVG ref
     const { handleDownloadImage: handleDownloadPNG } = useDownloadImage(internalSvgRef, filename);
@@ -269,17 +375,57 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
         theme, visualizationSettings, sampleOrderControls.sampleOrder
     ]);
 
-    // Sync filteringState temporalState with graphDataState when data loads
+    // Keep the client-side temporal filter in sync with URL params without
+    // refetching graph data. This also handles URL changes on an already-mounted page.
+    const previousUrlTemporalKeyRef = useRef<string | null>(null);
     useEffect(() => {
-        if (graphDataState.temporalState.maxTime > graphDataState.temporalState.minTime) {
-            filteringState.setTemporalState({
-                isActive: graphDataState.temporalState.isActive,
+        if (graphDataState.temporalState.maxTime <= graphDataState.temporalState.minTime) return;
+
+        const hasUrlTemporalParams = temporalStart !== undefined && temporalEnd !== undefined;
+        const nextRange = hasUrlTemporalParams
+            ? clampTemporalRange(
+                temporalStart,
+                temporalEnd,
+                graphDataState.temporalState.minTime,
+                graphDataState.temporalState.maxTime
+            )
+            : [graphDataState.temporalState.minTime, graphDataState.temporalState.maxTime] as [number, number];
+        const urlTemporalKey = hasUrlTemporalParams ? `${temporalStart}:${temporalEnd}` : null;
+        const urlParamsWereRemoved = previousUrlTemporalKeyRef.current !== null && urlTemporalKey === null;
+
+        filteringState.setTemporalState(prev => {
+            const nextState = {
+                ...prev,
+                isActive: hasUrlTemporalParams ? true : (urlParamsWereRemoved ? false : prev.isActive),
                 minTime: graphDataState.temporalState.minTime,
                 maxTime: graphDataState.temporalState.maxTime,
-                range: [graphDataState.temporalState.minTime, graphDataState.temporalState.maxTime]
-            });
+                range: nextRange,
+            };
+            return (
+                prev.isActive === nextState.isActive &&
+                prev.minTime === nextState.minTime &&
+                prev.maxTime === nextState.maxTime &&
+                prev.range[0] === nextState.range[0] &&
+                prev.range[1] === nextState.range[1]
+            )
+                ? prev
+                : nextState;
+        });
+
+        if (hasUrlTemporalParams) {
+            setTemporalFilterEnabled(true);
+        } else if (urlParamsWereRemoved) {
+            setTemporalFilterEnabled(false);
         }
-    }, [graphDataState.temporalState.minTime, graphDataState.temporalState.maxTime]);
+
+        previousUrlTemporalKeyRef.current = urlTemporalKey;
+    }, [
+        filteringState.setTemporalState,
+        graphDataState.temporalState.maxTime,
+        graphDataState.temporalState.minTime,
+        temporalEnd,
+        temporalStart,
+    ]);
 
     // Create combined temporal state: min/max from graphData, range from filteringState
     // isActive is true when the filter is enabled via toggle
@@ -492,7 +638,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 height={undefined}
                                 onNodeClick={viewModeState.handleNodeClick}
                                 onNodeRightClick={viewModeState.handleNodeRightClick}
-                                onEdgeClick={() => {}}
+                                onEdgeClick={NOOP}
                                 focalNode={viewModeState.selectedNode}
                                 nodeSizes={visualizationSettings.nodeSizes}
                                 nodeIdSettings={visualizationSettings.nodeIdSettings}
@@ -526,8 +672,26 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 clusteringMaxSampleClusterSize={clusteringState.maxSampleClusterSize}
                                 combineInternalNodes={combineInternalNodes}
                                 combineSampleNodes={combineSampleNodes}
+                                onLayoutReady={handleLayoutReady}
+                                onRenderComplete={markRenderComplete}
                                 ref={internalSvgRef}
                             />
+
+                            {/* Loading overlay while graph computes initial layout */}
+                            {!layoutReady && (
+                                <div
+                                    className="absolute inset-0 flex items-center justify-center z-10 transition-opacity duration-300"
+                                    style={{ backgroundColor: colors.background }}
+                                >
+                                    <div className="text-center">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4" style={{ borderColor: colors.accentPrimary }} />
+                                        <p style={{ color: colors.text }}>Computing layout...</p>
+                                        <p className="text-sm mt-1" style={{ color: `${colors.text}80` }}>
+                                            {sampleOrderControls.sampleOrder === 'dagre' ? 'Running dagre-d3 optimization' : 'Running force simulation'}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Floating Quick Actions Bar */}
                             <ForceDirectedGraphControls
@@ -585,6 +749,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 // Sample order
                                 sampleOrder={sampleOrderControls.sampleOrder}
                                 onSampleOrderChange={(order) => sampleOrderControls.handleSampleOrderChange(order)}
+                                forceDagre={forceDagre}
                                 // Layout (backwards compat)
                                 layoutPreset={sampleOrderControls.sampleOrder}
                                 onLayoutPresetChange={(preset) => sampleOrderControls.handleSampleOrderChange(preset as SampleOrderType)}
@@ -640,6 +805,7 @@ export const ForceDirectedGraphContainer = forwardRef<SVGSVGElement, ForceDirect
                                 windowPopGenStats={windowStatsResult.windowStats}
                                 windowStatsLoading={windowStatsResult.isLoading}
                                 isGenomicFilterActive={filteringState.isFilterActive && (filteringState.filterMode === 'genomic' || filteringState.filterMode === 'tree')}
+                                performanceStats={performanceStats}
                                 // Filter summary
                                 filterSummary={filteringState.isFilterActive ? {
                                     genomicRange: filteringState.filterMode === 'genomic' ? {

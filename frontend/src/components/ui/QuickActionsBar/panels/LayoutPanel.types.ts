@@ -47,6 +47,8 @@ export interface LayoutPanelProps {
   // Sample order
   sampleOrder?: SampleOrderType;
   onSampleOrderChange?: (order: SampleOrderType) => void;
+  /** When true, locks sample order to dagre-d3 (500+ samples). */
+  forceDagre?: boolean;
   edgeCrossings?: number | null;
   isCalculatingEdgeCrossings?: boolean;
 

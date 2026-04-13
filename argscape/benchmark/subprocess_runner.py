@@ -85,10 +85,11 @@ def main():
             from argscape.api.inference import run_sparg_inference
             log("Running sparg inference...")
             ts_out, info = run_sparg_inference(ts)
-        elif method == "spacetrees":
-            from argscape.api.inference import run_spacetrees_inference
-            log("Running spacetrees inference...")
-            ts_out, info = run_spacetrees_inference(ts, quiet=True)
+        # Spacetrees temporarily disabled
+        # elif method == "spacetrees":
+        #     from argscape.api.inference import run_spacetrees_inference
+        #     log("Running spacetrees inference...")
+        #     ts_out, info = run_spacetrees_inference(ts, quiet=True)
         elif method == "tsdate":
             from argscape.api.inference.temporal_inference import run_tsdate_inference
             log("Running tsdate inference...")

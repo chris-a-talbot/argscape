@@ -50,6 +50,7 @@ class UserSession:
     created_at: datetime
     last_accessed: datetime
     client_ip: str
+    stored_filenames: Set[str] = field(default_factory=set)
     uploaded_files: Dict[str, bytes] = field(default_factory=dict)
     tree_sequences: Dict[str, tskit.TreeSequence] = field(default_factory=dict)
     intermediate_data: Dict[str, Dict[str, Any]] = field(default_factory=dict)  # filename -> {data_type -> data}
@@ -66,7 +67,7 @@ class UserSession:
     
     def get_file_count(self) -> int:
         """Get total number of files in session."""
-        return len(self.tree_sequences)
+        return len(self.stored_filenames)
     
     def get_memory_usage(self) -> int:
         """Estimate memory usage of stored files in bytes."""
@@ -228,7 +229,7 @@ class PersistentSessionStorage:
             "created_at": session.created_at.isoformat(),
             "last_accessed": session.last_accessed.isoformat(),
             "client_ip": session.client_ip,
-            "file_list": list(session.tree_sequences.keys())
+            "file_list": sorted(session.stored_filenames or set(session.tree_sequences.keys()))
         }
         
         metadata_file = session_dir / "metadata.json"
@@ -252,58 +253,18 @@ class PersistentSessionStorage:
                 created_at=datetime.fromisoformat(metadata["created_at"]),
                 last_accessed=datetime.fromisoformat(metadata["last_accessed"]),
                 client_ip=metadata["client_ip"],
+                stored_filenames=set(),
                 temp_dir=str(session_dir)
             )
-            
-            # Load tree sequences
-            for filename in metadata["file_list"]:
-                # Filename in metadata already includes .trees extension
-                if filename.endswith('.trees'):
-                    ts_file = session_dir / filename
-                else:
-                    ts_file = session_dir / f"{filename}.trees"
-                file_data_file = session_dir / f"{filename}.data"
-                
-                if ts_file.exists():
-                    try:
-                        # Load encrypted tree sequence
-                        with open(ts_file, 'rb') as f:
-                            encrypted_ts_data = f.read()
-                        
-                        # Decrypt the tree sequence data
-                        decrypted_ts_data = self._decrypt_data(encrypted_ts_data, session.client_ip)
-                        
-                        # Write to temporary file and load
-                        temp_fd, temp_path = tempfile.mkstemp(suffix=".trees")
-                        os.close(temp_fd)
-                        
-                        try:
-                            with open(temp_path, 'wb') as f:
-                                f.write(decrypted_ts_data)
-                            
-                            ts = tskit.load(temp_path)
-                            session.tree_sequences[filename] = ts
-                        finally:
-                            try:
-                                os.unlink(temp_path)
-                            except Exception as cleanup_error:
-                                logger.warning(f"Failed to clean up temp file {temp_path}: {cleanup_error}")
-                        
-                        # Load original encrypted file data if available
-                        if file_data_file.exists():
-                            try:
-                                with open(file_data_file, 'rb') as f:
-                                    encrypted_file_data = f.read()
-                                # Decrypt and cache in memory
-                                file_data = self._decrypt_data(encrypted_file_data, session.client_ip)
-                                session.uploaded_files[filename] = file_data
-                            except Exception as e:
-                                logger.warning(f"Failed to load file data for {filename}, will load on demand: {e}")
-                        else:
-                            logger.warning(f"File data not found for {filename}, will attempt to load on demand")
-                            
-                    except Exception as e:
-                        logger.warning(f"Failed to load tree sequence {filename} for session {session_id}: {e}")
+
+            persisted_filenames = metadata.get("file_list") or []
+            if not persisted_filenames:
+                persisted_filenames = [path.name for path in session_dir.glob("*.trees")]
+
+            for filename in persisted_filenames:
+                ts_filename = filename if filename.endswith('.trees') else f"{filename}.trees"
+                if (session_dir / ts_filename).exists():
+                    session.stored_filenames.add(ts_filename)
             
             return session
             
@@ -430,8 +391,6 @@ class PersistentSessionStorage:
             # Log mutation count before storing
             logger.info(f"Storing tree sequence {filename} with {ts.num_mutations} mutations")
             
-            session.tree_sequences[filename] = ts
-            
             # Save tree sequence to disk with encryption
             session_dir = self._get_session_dir(session_id)
             # Ensure filename has .trees extension (handle cases where it already does)
@@ -439,6 +398,10 @@ class PersistentSessionStorage:
                 base_filename = filename
             else:
                 base_filename = f"{filename}.trees"
+            session.tree_sequences[base_filename] = ts
+            if base_filename != filename:
+                session.tree_sequences[filename] = ts
+            session.stored_filenames.add(base_filename)
             ts_file_path = session_dir / base_filename
             
             # Dump to a temporary file first, then encrypt
@@ -511,7 +474,11 @@ class PersistentSessionStorage:
                     logger.info(f"Loaded encrypted tree sequence {filename} from disk: {ts.num_mutations} mutations")
                     
                     # Cache in memory for future access
-                    session.tree_sequences[filename] = ts
+                    cache_key = filename if filename.endswith('.trees') else f"{filename}.trees"
+                    session.tree_sequences[cache_key] = ts
+                    if cache_key != filename:
+                        session.tree_sequences[filename] = ts
+                    session.stored_filenames.add(cache_key)
                     return ts
                 finally:
                     # Clean up temp file
@@ -531,7 +498,7 @@ class PersistentSessionStorage:
         if not session:
             return []
         
-        return list(session.tree_sequences.keys())
+        return sorted(session.stored_filenames)
     
     def delete_file(self, session_id: str, filename: str) -> bool:
         """Delete a file from the session."""
@@ -542,6 +509,11 @@ class PersistentSessionStorage:
         with self._lock:
             session.uploaded_files.pop(filename, None)
             session.tree_sequences.pop(filename, None)
+            if not filename.endswith('.trees'):
+                session.tree_sequences.pop(f"{filename}.trees", None)
+            session.stored_filenames.discard(filename)
+            if not filename.endswith('.trees'):
+                session.stored_filenames.discard(f"{filename}.trees")
             
             # Delete intermediate data from memory
             if filename in session.intermediate_data:
@@ -844,6 +816,10 @@ class PersistentSessionStorage:
         with self._lock:
             session = self.sessions.pop(session_id, None)
             if session:
+                session.uploaded_files.clear()
+                session.tree_sequences.clear()
+                session.intermediate_data.clear()
+                session.stored_filenames.clear()
                 self._cleanup_session_files(session_id)
     
     def _cleanup_expired_sessions(self):

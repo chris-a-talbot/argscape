@@ -14,7 +14,7 @@ Then:
     result = argscape.infer(ts, method="fastgaia")
 """
 
-__version__ = "0.7.3"
+__version__ = "0.7.4"
 
 from .visualize import visualize, VizResult
 from .spatial import is_spatial_available, is_playwright_available
