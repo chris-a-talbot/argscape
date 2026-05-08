@@ -167,18 +167,8 @@ export default function Footer() {
           >
             sparg
           </a>
-          <span style={getSeparatorStyle()}>•</span>
-          <a 
-            href="https://github.com/osmond-lab/spacetrees" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="hover:opacity-80 transition-opacity"
-            style={getLinkStyle()}
-          >
-            spacetrees
-          </a>
         </div>
       </div>
     </footer>
   );
-} 
+}

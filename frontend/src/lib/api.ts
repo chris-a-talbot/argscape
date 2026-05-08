@@ -564,27 +564,6 @@ class ApiService {
     }, timeout);
   }
 
-  async inferLocationsSpacetrees(params: {
-    filename: string;
-    time_cutoff?: number;
-    ancestor_times?: number[];
-    use_importance_sampling?: boolean;
-    require_common_ancestor?: boolean;
-    use_blup?: boolean;
-    blup_var?: boolean;
-    ne?: number;
-    ne_epochs?: number[];
-    nes?: number[];
-    num_loci?: number;
-    locus_size?: number;
-  }) {
-    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
-    return this.request(API_CONFIG.ENDPOINTS.INFER_LOCATIONS_SPACETREES, {
-      method: 'POST',
-      body: JSON.stringify(params),
-    }, timeout);
-  }
-
   async inferLocationsGaiaQuadratic(params: {
     filename: string;
     use_branch_lengths?: boolean;
@@ -692,10 +671,11 @@ class ApiService {
   }
 
   async inferTimesTsdate(params: TsdateInferenceRequest) {
+    const timeout = isRailway() ? RAILWAY_TIMEOUTS.INFERENCE : undefined;
     return this.request(API_CONFIG.ENDPOINTS.INFER_TIMES_TSDATE, {
       method: 'POST',
       body: JSON.stringify(params),
-    });
+    }, timeout);
   }
 
   async simplifyTreeSequence(params: {
@@ -794,8 +774,6 @@ export const api = {
     apiService.inferLocationsFast(params),
   inferLocationsSparg: (params: Parameters<typeof apiService.inferLocationsSparg>[0]) =>
     apiService.inferLocationsSparg(params),
-  inferLocationsSpacetrees: (params: Parameters<typeof apiService.inferLocationsSpacetrees>[0]) =>
-    apiService.inferLocationsSpacetrees(params),
   inferLocationsGaiaQuadratic: (params: Parameters<typeof apiService.inferLocationsGaiaQuadratic>[0]) =>
     apiService.inferLocationsGaiaQuadratic(params),
   inferLocationsGaiaLinear: (params: Parameters<typeof apiService.inferLocationsGaiaLinear>[0]) =>

@@ -284,13 +284,18 @@ function getDataScopeDescription(settings: WizardSettings, stats: TreeSequenceSt
 
   if (settings.dataScope === 'subset') {
     switch (settings.subsetMethod) {
+      case 'even':
+        return `${settings.sampleCount.toLocaleString()} evenly distributed samples`;
       case 'random':
         return `${settings.sampleCount.toLocaleString()} random samples`;
-      case 'range':
+      case 'range': {
         const rangeCount = Math.max(0, settings.sampleRangeEnd - settings.sampleRangeStart + 1);
         return `Samples ${settings.sampleRangeStart}-${settings.sampleRangeEnd} (${rangeCount} samples)`;
+      }
       case 'specific':
         return `${settings.sampleIds.length} specific samples`;
+      case 'population':
+        return `${settings.selectedPopulations.length} selected population${settings.selectedPopulations.length === 1 ? '' : 's'}`;
     }
   }
 
