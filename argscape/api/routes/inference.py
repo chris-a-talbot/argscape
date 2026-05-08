@@ -55,6 +55,15 @@ def build_inference_response(payload: dict, cpu_start: float) -> dict:
     response["cpu_time_seconds"] = max(0.0, time.process_time() - cpu_start)
     return response
 
+
+def get_tree_sequence_or_404(session_id: str, filename: str) -> tskit.TreeSequence:
+    """Load a tree sequence or raise a friendlier missing-file error."""
+    ts = session_storage.get_tree_sequence(session_id, filename)
+    if ts is None:
+        message, status_code = get_file_not_found_message()
+        raise HTTPException(status_code=status_code, detail=message)
+    return ts
+
 def generate_unique_filename(session_id: str, base_filename: str, suffix: str) -> str:
     """
     Generate a unique filename by appending suffix and checking for collisions.
@@ -129,9 +138,7 @@ async def infer_locations_fast(request: Request, inference_request: FastLocation
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if running on Railway
@@ -208,9 +215,7 @@ async def infer_locations_gaia(request: Request, inference_request: FastGAIAInfe
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
@@ -256,9 +261,7 @@ async def infer_locations_gaia_quadratic(request: Request, inference_request: GA
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
@@ -344,9 +347,7 @@ async def infer_locations_gaia_linear(request: Request, inference_request: GAIAL
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
@@ -432,9 +433,7 @@ async def infer_locations_midpoint(request: Request, inference_request: Midpoint
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
@@ -676,9 +675,7 @@ async def infer_locations_sparg(request: Request, inference_request: SpargInfere
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     # Check if tree sequence has sample locations
@@ -867,9 +864,7 @@ async def infer_times_tsdate(request: Request, inference_request: TsdateInferenc
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, inference_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, inference_request.filename)
     cpu_start = time.process_time()
     
     try:
@@ -922,9 +917,7 @@ async def simplify_tree_sequence(request: Request, simplify_request: SimplifyTre
     
     client_ip = get_client_ip(request)
     session_id = session_storage.get_or_create_session(client_ip)
-    ts = session_storage.get_tree_sequence(session_id, simplify_request.filename)
-    if ts is None:
-        raise HTTPException(status_code=404, detail="File not found")
+    ts = get_tree_sequence_or_404(session_id, simplify_request.filename)
     
     try:
         # Prepare samples list - if not provided, use all samples

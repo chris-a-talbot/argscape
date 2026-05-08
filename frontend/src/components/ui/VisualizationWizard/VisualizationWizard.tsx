@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useColorTheme } from '../../../context/ColorThemeContext';
 import { useThemeStyles } from '../../../hooks/useThemeStyles';
 import { WizardStep, OptionCard, CheckboxOption, SliderInput } from './WizardStep';
@@ -15,6 +15,8 @@ interface VisualizationWizardProps {
   isOpen: boolean;
   onClose: () => void;
   onLaunch: (settings: WizardSettings) => void;
+  onSettingsChange?: (settings: WizardSettings) => void;
+  showSummaryOnly: boolean;
   vizType: VisualizationType;
   stats: TreeSequenceStats;
   preConfigured: PreConfiguredSettings | null;
@@ -24,14 +26,17 @@ export function VisualizationWizard({
   isOpen,
   onClose,
   onLaunch,
+  onSettingsChange,
+  showSummaryOnly,
   vizType,
   stats,
   preConfigured,
 }: VisualizationWizardProps) {
   const { colors } = useColorTheme();
   const { modalGlassStyle, modalOverlayStyle } = useThemeStyles();
+  const hasSkippedInitialSyncRef = useRef(false);
 
-  const wizardState = useWizardState(vizType, stats, preConfigured);
+  const wizardState = useWizardState(vizType, stats, preConfigured, showSummaryOnly);
 
   // ESC key handling
   useEffect(() => {
@@ -131,6 +136,20 @@ export function VisualizationWizard({
     return undefined;
   }, [wizardState.complexity]);
 
+  useEffect(() => {
+    if (!isOpen || !onSettingsChange) return;
+    if (!hasSkippedInitialSyncRef.current) {
+      hasSkippedInitialSyncRef.current = true;
+      return;
+    }
+    onSettingsChange(wizardState.settings);
+  }, [isOpen, onSettingsChange, wizardState.settings]);
+
+  useEffect(() => {
+    if (isOpen) return;
+    hasSkippedInitialSyncRef.current = false;
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const renderStepContent = () => {
@@ -162,11 +181,27 @@ export function VisualizationWizard({
               >
                 <div className="space-y-4">
                   {/* Subset Method Selection */}
-                  <div className="flex gap-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => wizardState.setSubsetMethod('even')}
+                      className="py-2 px-3 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        backgroundColor: wizardState.settings.subsetMethod === 'even'
+                          ? colors.accentPrimary
+                          : colors.containerBackground,
+                        color: wizardState.settings.subsetMethod === 'even'
+                          ? colors.buttonText
+                          : colors.text,
+                        border: `1px solid ${wizardState.settings.subsetMethod === 'even' ? colors.accentPrimary : colors.border}`,
+                      }}
+                    >
+                      Even
+                    </button>
                     <button
                       type="button"
                       onClick={() => wizardState.setSubsetMethod('random')}
-                      className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors"
+                      className="py-2 px-3 rounded-lg text-xs font-medium transition-colors"
                       style={{
                         backgroundColor: wizardState.settings.subsetMethod === 'random'
                           ? colors.accentPrimary
@@ -182,7 +217,7 @@ export function VisualizationWizard({
                     <button
                       type="button"
                       onClick={() => wizardState.setSubsetMethod('range')}
-                      className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors"
+                      className="py-2 px-3 rounded-lg text-xs font-medium transition-colors"
                       style={{
                         backgroundColor: wizardState.settings.subsetMethod === 'range'
                           ? colors.accentPrimary
@@ -198,7 +233,7 @@ export function VisualizationWizard({
                     <button
                       type="button"
                       onClick={() => wizardState.setSubsetMethod('specific')}
-                      className="flex-1 py-2 px-3 rounded-lg text-xs font-medium transition-colors"
+                      className="py-2 px-3 rounded-lg text-xs font-medium transition-colors"
                       style={{
                         backgroundColor: wizardState.settings.subsetMethod === 'specific'
                           ? colors.accentPrimary
@@ -211,12 +246,30 @@ export function VisualizationWizard({
                     >
                       Specific
                     </button>
+                    {((stats.numPopulations ?? 0) > 1) && (
+                      <button
+                        type="button"
+                        onClick={() => wizardState.setSubsetMethod('population')}
+                        className="py-2 px-3 rounded-lg text-xs font-medium transition-colors"
+                        style={{
+                          backgroundColor: wizardState.settings.subsetMethod === 'population'
+                            ? colors.accentPrimary
+                            : colors.containerBackground,
+                          color: wizardState.settings.subsetMethod === 'population'
+                            ? colors.buttonText
+                            : colors.text,
+                          border: `1px solid ${wizardState.settings.subsetMethod === 'population' ? colors.accentPrimary : colors.border}`,
+                        }}
+                      >
+                        Population
+                      </button>
+                    )}
                   </div>
 
-                  {/* Random Method Input */}
-                  {wizardState.settings.subsetMethod === 'random' && (
+                  {/* Count-based method input */}
+                  {(wizardState.settings.subsetMethod === 'even' || wizardState.settings.subsetMethod === 'random') && (
                     <SliderInput
-                      label="Number of samples"
+                      label={wizardState.settings.subsetMethod === 'even' ? 'Number of evenly spaced samples' : 'Number of random samples'}
                       value={wizardState.settings.sampleCount}
                       min={WIZARD_THRESHOLDS.MIN_SAMPLES}
                       max={stats.numSamples}
@@ -279,6 +332,66 @@ export function VisualizationWizard({
                       maxSampleId={stats.numSamples - 1}
                       colors={colors}
                     />
+                  )}
+
+                  {/* Population Method Input */}
+                  {wizardState.settings.subsetMethod === 'population' && (stats.numPopulations ?? 0) > 1 && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                          Choose populations to include
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const allPopulations = Array.from(
+                              { length: stats.numPopulations ?? 0 },
+                              (_, index) => index
+                            );
+                            wizardState.setSelectedPopulations(
+                              wizardState.settings.selectedPopulations.length === allPopulations.length
+                                ? []
+                                : allPopulations
+                            );
+                          }}
+                          className="text-xs font-medium"
+                          style={{ color: colors.accentPrimary }}
+                        >
+                          {wizardState.settings.selectedPopulations.length === (stats.numPopulations ?? 0)
+                            ? 'Clear'
+                            : 'Select all'}
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {Array.from({ length: stats.numPopulations ?? 0 }, (_, index) => {
+                          const checked = wizardState.settings.selectedPopulations.includes(index);
+                          return (
+                            <label
+                              key={index}
+                              className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs"
+                              style={{
+                                backgroundColor: checked ? `${colors.accentPrimary}15` : colors.containerBackground,
+                                border: `1px solid ${checked ? colors.accentPrimary : colors.border}`,
+                                color: colors.text,
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(event) => {
+                                  const nextPopulations = event.target.checked
+                                    ? [...wizardState.settings.selectedPopulations, index]
+                                    : wizardState.settings.selectedPopulations.filter(population => population !== index);
+                                  wizardState.setSelectedPopulations(nextPopulations);
+                                }}
+                                style={{ accentColor: colors.accentPrimary }}
+                              />
+                              <span>Population {index}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
                 </div>
               </OptionCard>

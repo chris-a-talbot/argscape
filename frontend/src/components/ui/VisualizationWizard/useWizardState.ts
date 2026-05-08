@@ -12,17 +12,21 @@ import {
   estimateComplexity,
   ComplexityEstimate,
   WIZARD_THRESHOLDS,
+  isFullSampleRange,
 } from './wizardConfig';
 
 export interface PreConfiguredSettings {
   temporalRange: [number, number] | null;
   genomicRange: [number, number] | null;
   genomicMode: 'base_pairs' | 'tree_indices';
-  sampleSubsetMode: string;
+  sampleSubsetMode: 'even' | 'random' | 'ids' | 'range' | 'population';
   maxSamples: number;
+  sampleIds: number[];
+  sampleRange: [number, number] | null;
+  selectedPopulations: number[];
   enableClustering: boolean;
   heatmapOnlyMode: boolean;
-  focusMode: string;
+  focusMode: 'none' | 'root' | 'sample';
   focusNodeId: number | null;
 }
 
@@ -49,6 +53,7 @@ export interface UseWizardStateResult {
   setSampleCount: (count: number) => void;
   setSampleRange: (start: number, end: number) => void;
   setSampleIds: (ids: number[]) => void;
+  setSelectedPopulations: (populations: number[]) => void;
 
   // Focal options
   setFocalMode: (mode: FocalMode) => void;
@@ -72,22 +77,13 @@ export interface UseWizardStateResult {
 export function useWizardState(
   vizType: VisualizationType,
   stats: TreeSequenceStats,
-  preConfigured: PreConfiguredSettings | null
+  preConfigured: PreConfiguredSettings | null,
+  showSummaryOnly = false
 ): UseWizardStateResult {
-  // Determine if user has pre-configured settings
-  const hasPreConfig = preConfigured !== null && (
-    preConfigured.temporalRange !== null ||
-    preConfigured.genomicRange !== null ||
-    preConfigured.sampleSubsetMode !== 'even' ||
-    preConfigured.focusMode !== 'none' ||
-    preConfigured.enableClustering ||
-    preConfigured.heatmapOnlyMode
-  );
-
   // Get wizard steps based on viz type and pre-config state
   const steps = useMemo(
-    () => getWizardSteps(vizType, stats, hasPreConfig),
-    [vizType, stats, hasPreConfig]
+    () => getWizardSteps(vizType, stats, showSummaryOnly),
+    [vizType, stats, showSummaryOnly]
   );
 
   // Initialize settings from pre-configured or defaults
@@ -99,20 +95,38 @@ export function useWizardState(
       let dataScope: DataScopeOption = 'full';
       let subsetMethod: SubsetMethod = 'random';
 
-      if (preConfigured.focusMode !== 'none' && preConfigured.focusNodeId !== null) {
+      const hasFocusedSelection =
+        preConfigured.focusMode !== 'none' && preConfigured.focusNodeId !== null;
+      const hasRangeSubset =
+        preConfigured.sampleSubsetMode === 'range' &&
+        preConfigured.sampleRange !== null &&
+        !isFullSampleRange(preConfigured.sampleRange, stats.numSamples);
+      const hasCountSubset =
+        (preConfigured.sampleSubsetMode === 'even' || preConfigured.sampleSubsetMode === 'random') &&
+        preConfigured.maxSamples < stats.numSamples;
+      const hasIdSubset =
+        preConfigured.sampleSubsetMode === 'ids' &&
+        preConfigured.sampleIds.length > 0;
+      const hasPopulationSubset =
+        preConfigured.sampleSubsetMode === 'population' &&
+        preConfigured.selectedPopulations.length > 0;
+
+      if (hasFocusedSelection) {
         dataScope = 'focal';
-      } else if (preConfigured.sampleSubsetMode !== 'even') {
+      } else if (hasRangeSubset || hasCountSubset || hasIdSubset || hasPopulationSubset) {
         dataScope = 'subset';
         // Map sample subset mode to wizard subset method
-        if (preConfigured.sampleSubsetMode === 'random') {
+        if (preConfigured.sampleSubsetMode === 'even') {
+          subsetMethod = 'even';
+        } else if (preConfigured.sampleSubsetMode === 'random') {
           subsetMethod = 'random';
         } else if (preConfigured.sampleSubsetMode === 'range') {
           subsetMethod = 'range';
         } else if (preConfigured.sampleSubsetMode === 'ids') {
           subsetMethod = 'specific';
+        } else if (preConfigured.sampleSubsetMode === 'population') {
+          subsetMethod = 'population';
         }
-      } else if (stats.numSamples > WIZARD_THRESHOLDS.LARGE_SAMPLE_COUNT) {
-        dataScope = 'subset';
       }
 
       return {
@@ -123,6 +137,10 @@ export function useWizardState(
         // Subset options
         subsetMethod,
         sampleCount: preConfigured.maxSamples,
+        sampleRangeStart: preConfigured.sampleRange?.[0] ?? defaults.sampleRangeStart,
+        sampleRangeEnd: preConfigured.sampleRange?.[1] ?? defaults.sampleRangeEnd,
+        sampleIds: preConfigured.sampleIds,
+        selectedPopulations: preConfigured.selectedPopulations,
 
         // Focal options
         focalMode: preConfigured.focusMode === 'sample' ? 'ancestors' : 'subgraph',
@@ -219,6 +237,18 @@ export function useWizardState(
     }));
   }, [stats.numSamples]);
 
+  const setSelectedPopulations = useCallback((populations: number[]) => {
+    const maxPopulations = stats.numPopulations ?? 0;
+    const validPopulations = populations
+      .filter(population => population >= 0 && population < maxPopulations)
+      .filter((population, index, all) => all.indexOf(population) === index);
+
+    setSettings(prev => ({
+      ...prev,
+      selectedPopulations: validPopulations,
+    }));
+  }, [stats.numPopulations]);
+
   // Focal options
   const setFocalMode = useCallback((mode: FocalMode) => {
     setSettings(prev => ({
@@ -298,6 +328,7 @@ export function useWizardState(
     setSampleCount,
     setSampleRange,
     setSampleIds,
+    setSelectedPopulations,
     // Focal options
     setFocalMode,
     setFocalNodeId,

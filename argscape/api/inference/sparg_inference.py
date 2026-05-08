@@ -22,6 +22,35 @@ except ImportError:
     SPARG_AVAILABLE = False
     logger.warning("sparg not available - sparg location inference disabled")
 
+
+def normalize_sparg_exception(exception: Exception) -> Exception:
+    """Convert cryptic SPARG/library failures into actionable user-facing errors."""
+    if isinstance(exception, KeyError):
+        missing_key = exception.args[0] if exception.args else None
+
+        if isinstance(missing_key, np.integer):
+            return RuntimeError(
+                "SPARG hit an internal ancestor lookup error while locating ancestral nodes "
+                f"(missing node {int(missing_key)} in the ARG path cache).\n\n"
+                "This usually means the current SPARG adapter could not reconcile part of this "
+                "tree sequence's topology. Try GAIA or midpoint for this dataset."
+            )
+
+        if missing_key in {"original_node_id", "arg_original_node_id"}:
+            return RuntimeError(
+                "SPARG returned results without the node mapping needed to attach inferred "
+                "locations back to the tree sequence.\n\n"
+                "Try GAIA or midpoint for this dataset."
+            )
+
+        return RuntimeError(
+            f"SPARG failed while resolving an internal lookup ({missing_key!r}).\n\n"
+            "This usually indicates a tree/topology pattern the current SPARG adapter "
+            "cannot map cleanly. Try GAIA or midpoint for this dataset."
+        )
+
+    return exception
+
 def ensure_3d_location(location: np.ndarray) -> np.ndarray:
     """Ensure location array has 3 coordinates by appending 0.0 for z if needed."""
     if len(location) == 2:
@@ -301,5 +330,7 @@ def run_sparg_inference(ts: tskit.TreeSequence) -> Tuple[tskit.TreeSequence, Dic
     
     except Exception as e:
         logger.error("Error during sparg inference", exc_info=True)
-        # Re-raise the original exception - let the route handler format it
-        raise 
+        normalized_exception = normalize_sparg_exception(e)
+        if normalized_exception is not e:
+            raise normalized_exception from e
+        raise

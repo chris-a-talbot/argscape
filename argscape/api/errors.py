@@ -6,8 +6,6 @@ Simple approach: return plain string error messages.
 - Inference tool errors are passed through with attribution
 """
 
-from typing import Optional
-
 
 # Display names for inference methods
 METHOD_DISPLAY_NAMES = {
@@ -66,11 +64,34 @@ def get_inference_error_message(
         )
 
     # Missing spatial data
-    if "no sample locations" in error_str or "missing locations" in error_str or "location data" in error_str:
+    if (
+        "no sample locations" in error_str
+        or "missing locations" in error_str
+        or "missing locations for sample nodes" in error_str
+        or "location data" in error_str
+        or "has no location" in error_str
+    ):
         return (
             "Your tree sequence doesn't have location data for samples.\n\n"
             "Upload a CSV with sample coordinates, or use a tree sequence that includes spatial data.",
             400
+        )
+
+    # Mutation requirements for temporal inference
+    if "requires at least" in error_str and "mutations" in error_str:
+        return (
+            f"{original_error}\n\n"
+            "Use a tree sequence with more mutations to run temporal inference.",
+            400
+        )
+
+    # SPARG internal lookup failures can otherwise leak cryptic NumPy scalar text
+    if method == "sparg" and ("np.int" in original_error or "numpy.int" in original_error):
+        return (
+            "SPARG hit an internal ancestor lookup error while locating ancestral nodes.\n\n"
+            "This usually indicates a tree/topology pattern the current SPARG adapter "
+            "cannot map cleanly. Try GAIA or midpoint for this dataset.",
+            500
         )
 
     # === Inference tool errors - pass through with attribution ===

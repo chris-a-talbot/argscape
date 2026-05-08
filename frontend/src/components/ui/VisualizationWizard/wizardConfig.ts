@@ -31,7 +31,7 @@ export type VisualizationType = '2d' | '3d' | 'diff';
 export type WizardStep = 'scope' | 'region' | 'performance' | 'summary';
 
 export type DataScopeOption = 'full' | 'subset' | 'focal';
-export type SubsetMethod = 'random' | 'range' | 'specific';
+export type SubsetMethod = 'even' | 'random' | 'range' | 'specific' | 'population';
 export type FocalMode = 'subgraph' | 'ancestors';
 export type RegionOption = 'full' | 'filtered';
 export type PerformanceLevel = 'good' | 'moderate' | 'poor';
@@ -46,6 +46,7 @@ export interface WizardSettings {
   sampleRangeStart: number;      // For range method
   sampleRangeEnd: number;        // For range method
   sampleIds: number[];           // For specific method
+  selectedPopulations: number[]; // For population method
 
   // Focal node options (when dataScope === 'focal')
   focalMode: FocalMode;
@@ -73,6 +74,7 @@ export interface TreeSequenceStats {
   sequenceLength: number;
   hasTemporal: boolean;
   hasAllSpatial: boolean;
+  numPopulations?: number;
   temporalRange?: { min: number; max: number };
 }
 
@@ -82,6 +84,14 @@ export interface ComplexityEstimate {
   level: PerformanceLevel;
   warnings: string[];
   recommendations: string[];
+}
+
+export function isFullSampleRange(
+  sampleRange: [number, number] | null,
+  totalSamples: number
+): boolean {
+  if (!sampleRange || totalSamples <= 0) return false;
+  return sampleRange[0] <= 0 && sampleRange[1] >= totalSamples - 1;
 }
 
 /**
@@ -103,6 +113,7 @@ export function estimateComplexity(
     let effectiveSampleCount = stats.numSamples;
 
     switch (settings.subsetMethod) {
+      case 'even':
       case 'random':
         effectiveSampleCount = settings.sampleCount;
         break;
@@ -112,6 +123,14 @@ export function estimateComplexity(
       case 'specific':
         effectiveSampleCount = settings.sampleIds.length || stats.numSamples;
         break;
+      case 'population': {
+        const selectedPopulationCount = settings.selectedPopulations.length;
+        if (selectedPopulationCount > 0 && (stats.numPopulations ?? 0) > 0) {
+          const populationRatio = selectedPopulationCount / Math.max(stats.numPopulations ?? 1, 1);
+          effectiveSampleCount = Math.max(1, Math.round(stats.numSamples * populationRatio));
+        }
+        break;
+      }
     }
 
     if (effectiveSampleCount < stats.numSamples) {
@@ -201,6 +220,7 @@ export function getDefaultSettings(stats: TreeSequenceStats): WizardSettings {
     sampleRangeStart: 0,
     sampleRangeEnd: Math.min(WIZARD_THRESHOLDS.RECOMMENDED_MAX_SAMPLES, stats.numSamples) - 1,
     sampleIds: [],
+    selectedPopulations: [],
 
     // Focal options
     focalMode: 'subgraph',
@@ -256,6 +276,11 @@ export function hasPreConfiguredSettings(
   temporalRange: [number, number] | null,
   genomicRange: [number, number] | null,
   sampleSubsetMode: string,
+  sampleRange: [number, number] | null,
+  sampleIds: number[],
+  maxSamples: number,
+  totalSamples: number,
+  selectedPopulations: number[],
   focusMode: string,
   enableClustering: boolean,
   heatmapOnlyMode: boolean
@@ -263,7 +288,15 @@ export function hasPreConfiguredSettings(
   // Check if any non-default settings are configured
   if (temporalRange !== null) return true;
   if (genomicRange !== null) return true;
-  if (sampleSubsetMode !== 'even') return true;
+  if (sampleSubsetMode === 'random' || sampleSubsetMode === 'even') {
+    if (maxSamples < totalSamples) return true;
+  } else if (sampleSubsetMode === 'range') {
+    if (!isFullSampleRange(sampleRange, totalSamples)) return true;
+  } else if (sampleSubsetMode === 'ids' && sampleIds.length > 0) {
+    return true;
+  } else if (sampleSubsetMode === 'population' && selectedPopulations.length > 0) {
+    return true;
+  }
   if (focusMode !== 'none') return true;
   if (enableClustering) return true;
   if (heatmapOnlyMode) return true;
